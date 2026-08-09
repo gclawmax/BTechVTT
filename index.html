@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BT-VTT :: Phase 1 — Hex Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --void: #f4f4f2;
+  --panel: #ffffff;
+  --panel-line: #c9c9c2;
+  --phosphor: #1a1a1a;
+  --phosphor-dim: #6b6b63;
+  --amber: #9a5b00;
+  --alert: #a3321c;
+  --paper: #111111;
+  --mono: "IBM Plex Mono", "Courier New", monospace;
+  --display: "Oswald", "Arial Narrow", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--void);
+  color: var(--paper);
+  font-family: var(--mono);
+  height: 100%;
+  overflow: hidden;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  grid-template-rows: 48px 1fr;
+  height: 100vh;
+}
+
+/* ── Header bar ── */
+#header {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--panel-line);
+}
+
+#header .title {
+  font-family: var(--display);
+  letter-spacing: 0.12em;
+  font-size: 15px;
+  color: var(--phosphor);
+  text-transform: uppercase;
+}
+
+#header .title small {
+  color: var(--phosphor-dim);
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  margin-left: 10px;
+  font-size: 11px;
+}
+
+#header .status {
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+}
+
+/* ── Map canvas area ── */
+#map-wrap {
+  position: relative;
+  background: var(--void);
+  overflow: hidden;
+}
+
+#hexmap {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+#map-caption {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+
+#coord-readout {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+
+/* ── Side panel ── */
+#panel {
+  border-left: 1px solid var(--panel-line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.panel-section {
+  border-bottom: 1px solid var(--panel-line);
+  padding: 14px 16px;
+}
+
+.panel-eyebrow {
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
+  margin-bottom: 8px;
+}
+
+.roster-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.roster-item:hover {
+  border-color: var(--panel-line);
+  background: #f0f0ec;
+}
+
+.roster-item.selected {
+  border-color: var(--phosphor-dim);
+  background: #e8e8e2;
+}
+
+.roster-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.roster-name {
+  font-size: 12px;
+  color: var(--paper);
+}
+
+.roster-sub {
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  margin-left: auto;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 4px;
+  font-size: 11px;
+}
+
+.stat-grid .k { color: var(--phosphor-dim); }
+.stat-grid .v { color: var(--paper); text-align: right; }
+
+.no-selection {
+  font-size: 11px;
+  color: var(--phosphor-dim);
+  line-height: 1.6;
+}
+
+.armor-diagram {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  margin-top: 10px;
+  font-size: 9px;
+}
+
+.armor-cell {
+  background: #f7f7f4;
+  border: 1px solid var(--panel-line);
+  padding: 4px 3px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.armor-cell .loc { color: var(--phosphor-dim); display: block; letter-spacing: 0.06em; }
+.armor-cell .val { color: var(--phosphor); font-family: var(--display); font-size: 12px; font-weight: 500; }
+
+.blank { visibility: hidden; }
+
+#roadmap-note {
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  line-height: 1.6;
+  padding: 12px 16px;
+  border-top: 1px dashed var(--panel-line);
+  margin-top: auto;
+}
+
+#roadmap-note b { color: var(--amber); font-weight: normal; }
+
+/* ── Mobile: stack panel below map instead of side-by-side ── */
+@media (max-width: 720px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: 48px 55vh 1fr;
+    height: auto;
+    min-height: 100vh;
+  }
+  #header { grid-column: 1; }
+  #panel { border-left: none; border-top: 1px solid var(--panel-line); }
+  html, body { overflow: auto; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div class="title">BATTLETECH VTT <small>PHASE 1 — HEX GRID + UNIT PLACEMENT</small></div>
+    <div class="status" id="status-readout">STANDING BY</div>
+  </div>
+
+  <div id="map-wrap">
+    <canvas id="hexmap"></canvas>
+    <div id="map-caption">FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / CLICK A UNIT TO INSPECT</div>
+    <div id="coord-readout">—</div>
+  </div>
+
+  <div id="panel">
+    <div class="panel-section">
+      <div class="panel-eyebrow">Roster</div>
+      <div id="roster-list"></div>
+    </div>
+    <div class="panel-section" id="detail-section">
+      <div class="panel-eyebrow">Unit Detail</div>
+      <div id="detail-body" class="no-selection">No unit selected. Click a token on the map, or an entry in the roster above.</div>
+    </div>
+    <div id="roadmap-note">
+      <b>Phase 1 of 7.</b> Movement, to-hit, heat, and multiplayer sync are not
+      yet wired up. This view validates the coordinate system, facing display,
+      and canon unit data loading per the project roadmap.
+    </div>
+  </div>
+</div>
+
+<script>
+// ── ERROR SURFACE ────────────────────────────────────────────────
+// Shows any uncaught error directly in the status readout instead of
+// failing silently, so issues are visible without opening devtools.
+window.addEventListener('error', (e) => {
+  const el = document.getElementById('status-readout');
+  if (el) {
+    el.textContent = `SCRIPT ERROR: ${e.message} (line ${e.lineno})`;
+    el.style.color = '#a3321c';
+  }
+  console.error('BT-VTT error:', e.message, 'at line', e.lineno, e.error);
+});
+
+// ── CANON UNIT DATA ──────────────────────────────────────────────
+// Hand-entered stat blocks, matching the bt_units.data shape from the
+// design draft. Will move into Supabase (bt_units table) in Phase 0/6
+// setup; inlined here only for the static Phase-1 placement prototype.
+const BT_UNITS = {
+  'atlas-as7-d': {
+    chassis: 'Atlas', variant: 'AS7-D', tonnage: 100,
+    color: '#a3321c',
+    movement: { walk: 3, run: 5, jump: 0 },
+    armor: { head:9, ct:47, ct_rear:14, lt:32, lt_rear:10, rt:32, rt_rear:10, la:34, ra:34, ll:41, rl:41 },
+    structure: { head:3, ct:31, lt:21, rt:21, la:17, ra:17, ll:21, rl:21 },
+    heat_sinks: 20, heat_sink_type: 'double',
+    weapons: [
+      { key:'ac20', location:'ra', count:1 },
+      { key:'srm6', location:'lt', count:2 },
+      { key:'med_laser', location:'la', count:3 }
+    ]
+  },
+  'hunchback-hbk-4g': {
+    chassis: 'Hunchback', variant: 'HBK-4G', tonnage: 50,
+    color: '#9a5b00',
+    movement: { walk: 4, run: 6, jump: 0 },
+    armor: { head:9, ct:19, ct_rear:5, lt:14, lt_rear:4, rt:14, rt_rear:4, la:9, ra:9, ll:14, rl:14 },
+    structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 },
+    heat_sinks: 13, heat_sink_type: 'single',
+    weapons: [
+      { key:'ac20', location:'rt', count:1 },
+      { key:'med_laser', location:'la', count:2 }
+    ]
+  },
+  'locust-lct-1v': {
+    chassis: 'Locust', variant: 'LCT-1V', tonnage: 20,
+    color: '#3a6b3a',
+    movement: { walk: 8, run: 12, jump: 0 },
+    armor: { head:8, ct:10, ct_rear:4, lt:6, lt_rear:3, rt:6, rt_rear:3, la:4, ra:4, ll:6, rl:6 },
+    structure: { head:3, ct:6, lt:5, rt:5, la:3, ra:3, ll:4, rl:4 },
+    heat_sinks: 10, heat_sink_type: 'single',
+    weapons: [
+      { key:'med_laser', location:'ra', count:1 },
+      { key:'mg', location:'la', count:2 }
+    ]
+  }
+};
+
+// Battlefield instances: which unit, where, facing (0/60/120/180/240/300)
+// P1 fields the Atlas. P2 fields the Hunchback + Locust lance-pair.
+let mechInstances = [
+  { instanceId: 'p1-atlas',    unitId: 'atlas-as7-d',      col: 3, row: 4, facing: 0,   owner: 1 },
+  { instanceId: 'p2-hunchback',unitId: 'hunchback-hbk-4g', col: 8, row: 6, facing: 300, owner: 2 },
+  { instanceId: 'p2-locust',   unitId: 'locust-lct-1v',    col: 9, row: 3, facing: 180, owner: 2 }
+];
+
+// ── HEX GRID MATH ────────────────────────────────────────────────
+// Flat-top hexes, "odd-q" vertical offset layout (BattleTech's actual
+// printed-map layout). Axial (q,r) used internally for distance/neighbor
+// math; offset (col,row) used for display + matching map coordinates.
+const HEX_SIZE = 34; // center-to-corner radius, px
+const GRID_COLS = 14;
+const GRID_ROWS = 10;
+
+function offsetToAxial(col, row) {
+  const q = col;
+  const r = row - (col - (col & 1)) / 2;
+  return { q, r };
+}
+
+function axialToOffset(q, r) {
+  const col = q;
+  const row = r + (q - (q & 1)) / 2;
+  return { col, row };
+}
+
+function hexDistance(a, b) {
+  const dq = a.q - b.q, dr = a.r - b.r;
+  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
+}
+
+// Flat-top hex pixel center for offset coords
+function hexToPixel(col, row) {
+  const w = HEX_SIZE * 2;
+  const hStep = w * 0.75;
+  const x = col * hStep + HEX_SIZE;
+  const vStep = HEX_SIZE * Math.sqrt(3);
+  const y = row * vStep + (col & 1 ? vStep / 2 : 0) + HEX_SIZE * Math.sqrt(3) / 2;
+  return { x, y };
+}
+
+function hexCorners(cx, cy) {
+  // flat-top: corners at 0,60,120,180,240,300 offset by 0deg (flat side up/down at 90/270)
+  const pts = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i);
+    pts.push([cx + HEX_SIZE * Math.cos(angle), cy + HEX_SIZE * Math.sin(angle)]);
+  }
+  return pts;
+}
+
+// 6 facings map directly to axial neighbor vectors (odd-q flat-top)
+const FACING_AXIAL_VECTORS = {
+  0:   { dq: 1, dr: 0 },   // due "east" point of flat-top -> here used as 0deg reference
+  60:  { dq: 0, dr: 1 },
+  120: { dq: -1, dr: 1 },
+  180: { dq: -1, dr: 0 },
+  240: { dq: 0, dr: -1 },
+  300: { dq: 1, dr: -1 }
+};
+
+// ── RENDER ───────────────────────────────────────────────────────
+const canvas = document.getElementById('hexmap');
+if (!canvas) {
+  throw new Error('Canvas element #hexmap not found in DOM');
+}
+const ctx = canvas.getContext('2d');
+if (!ctx) {
+  throw new Error('2D canvas context unavailable');
+}
+let selectedInstanceId = null;
+
+function resizeCanvas() {
+  const wrap = document.getElementById('map-wrap');
+  const w = Math.max(wrap.clientWidth, 1);
+  const h = Math.max(wrap.clientHeight, 1);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width = w;
+  canvas.height = h;
+  draw();
+}
+
+// Standard BattleTech hex code: 2-digit column + 2-digit row, e.g. "0304"
+function hexCode(col, row) {
+  return String(col + 1).padStart(2, '0') + String(row + 1).padStart(2, '0');
+}
+
+function drawHexGrid() {
+  ctx.strokeStyle = '#c9c9c2';
+  ctx.lineWidth = 1;
+  for (let col = 0; col < GRID_COLS; col++) {
+    for (let row = 0; row < GRID_ROWS; row++) {
+      const { x, y } = hexToPixel(col, row);
+      const pts = hexCorners(x, y);
+      ctx.beginPath();
+      pts.forEach(([px, py], i) => i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py));
+      ctx.closePath();
+      ctx.stroke();
+
+      // hex code label, top of hex — standard BT map convention
+      ctx.fillStyle = '#a8a89f';
+      ctx.font = '8px "IBM Plex Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(hexCode(col, row), x, y - HEX_SIZE * 0.55);
+    }
+  }
+}
+
+function drawMechToken(inst) {
+  const unit = BT_UNITS[inst.unitId];
+  const { x, y } = hexToPixel(inst.col, inst.row);
+  const r = HEX_SIZE * 0.52;
+  const isSelected = inst.instanceId === selectedInstanceId;
+
+  // token body
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+  ctx.lineWidth = isSelected ? 2.5 : 1.5;
+  ctx.strokeStyle = isSelected ? '#9a5b00' : unit.color;
+  ctx.stroke();
+
+  // facing indicator: line from center toward facing direction
+  const facingRad = Math.PI / 180 * inst.facing;
+  const fx = x + Math.cos(facingRad) * (r + 8);
+  const fy = y + Math.sin(facingRad) * (r + 8);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(fx, fy);
+  ctx.strokeStyle = unit.color;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(fx, fy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = unit.color;
+  ctx.fill();
+
+  // label
+  ctx.fillStyle = '#111111';
+  ctx.font = '9px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(unit.chassis.slice(0, 3).toUpperCase(), x, y + 3);
+
+  // owner tick
+  ctx.fillStyle = inst.owner === 1 ? '#3a6b3a' : '#a3321c';
+  ctx.fillRect(x - r, y - r - 2, 6, 6);
+
+  // hex code readout under the token, e.g. "0304"
+  ctx.fillStyle = '#9a5b00';
+  ctx.font = '9px "IBM Plex Mono", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(hexCode(inst.col, inst.row), x, y + r + 12);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawHexGrid();
+  mechInstances.forEach(drawMechToken);
+}
+
+// ── INTERACTION ──────────────────────────────────────────────────
+function pixelToHex(px, py) {
+  let best = null, bestDist = Infinity;
+  for (let col = 0; col < GRID_COLS; col++) {
+    for (let row = 0; row < GRID_ROWS; row++) {
+      const { x, y } = hexToPixel(col, row);
+      const d = Math.hypot(px - x, py - y);
+      if (d < bestDist) { bestDist = d; best = { col, row, x, y }; }
+    }
+  }
+  return best;
+}
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const hex = pixelToHex(px, py);
+  if (hex) {
+    const axial = offsetToAxial(hex.col, hex.row);
+    document.getElementById('coord-readout').textContent =
+      `HEX ${String(hex.col).padStart(2,'0')}${String(hex.row).padStart(2,'0')}  (q${axial.q} r${axial.r})`;
+  }
+});
+
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  let hit = null;
+  for (const inst of mechInstances) {
+    const { x, y } = hexToPixel(inst.col, inst.row);
+    if (Math.hypot(px - x, py - y) < HEX_SIZE * 0.55) hit = inst;
+  }
+  selectInstance(hit ? hit.instanceId : null);
+});
+
+function selectInstance(instanceId) {
+  selectedInstanceId = instanceId;
+  renderRoster();
+  renderDetail();
+  draw();
+}
+
+// ── PANEL RENDERING ──────────────────────────────────────────────
+function renderRoster() {
+  const list = document.getElementById('roster-list');
+  list.innerHTML = '';
+  mechInstances.forEach(inst => {
+    const unit = BT_UNITS[inst.unitId];
+    const row = document.createElement('div');
+    row.className = 'roster-item' + (inst.instanceId === selectedInstanceId ? ' selected' : '');
+    row.innerHTML = `
+      <div class="roster-swatch" style="background:${unit.color}"></div>
+      <div class="roster-name">${unit.chassis} <span style="color:var(--phosphor-dim)">${unit.variant}</span></div>
+      <div class="roster-sub">P${inst.owner} · ${unit.tonnage}t · ${hexCode(inst.col, inst.row)}</div>
+    `;
+    row.addEventListener('click', () => selectInstance(inst.instanceId));
+    list.appendChild(row);
+  });
+}
+
+function armorCell(loc, label, val) {
+  return `<div class="armor-cell"><span class="loc">${label}</span><span class="val">${val ?? '—'}</span></div>`;
+}
+
+function renderDetail() {
+  const body = document.getElementById('detail-body');
+  const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
+  if (!inst) {
+    body.className = 'no-selection';
+    body.innerHTML = 'No unit selected. Click a token on the map, or an entry in the roster above.';
+    return;
+  }
+  const unit = BT_UNITS[inst.unitId];
+  const axial = offsetToAxial(inst.col, inst.row);
+  body.className = '';
+  body.innerHTML = `
+    <div style="font-family:var(--display);font-size:15px;letter-spacing:.04em;color:${unit.color};margin-bottom:2px;">
+      ${unit.chassis} ${unit.variant}
+    </div>
+    <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:12px;">
+      ${unit.tonnage} TONS · PLAYER ${inst.owner}
+    </div>
+    <div class="stat-grid">
+      <div class="k">Hex</div><div class="v">${hexCode(inst.col, inst.row)} (q${axial.q} r${axial.r})</div>
+      <div class="k">Facing</div><div class="v">${inst.facing}°</div>
+      <div class="k">Walk / Run / Jump</div><div class="v">${unit.movement.walk} / ${unit.movement.run} / ${unit.movement.jump}</div>
+      <div class="k">Heat Sinks</div><div class="v">${unit.heat_sinks} (${unit.heat_sink_type})</div>
+    </div>
+    <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>
+    <div class="stat-grid">
+      ${unit.weapons.map(w => `<div class="k">${w.key.replace('_',' ')}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
+    </div>
+    <div class="panel-eyebrow" style="margin-top:14px;">Armor / Structure</div>
+    <div class="armor-diagram">
+      ${armorCell('h','HD', unit.armor.head)}${armorCell('','', null)}${armorCell('','', null)}
+      ${armorCell('la','LA', unit.armor.la)}${armorCell('ct','CT', unit.armor.ct)}${armorCell('ra','RA', unit.armor.ra)}
+      ${armorCell('ll','LL', unit.armor.ll)}${armorCell('lt','LT', unit.armor.lt)}${armorCell('rt','RT', unit.armor.rt)}
+      ${armorCell('','', null)}${armorCell('rl','RL', unit.armor.rl)}${armorCell('','', null)}
+    </div>
+  `;
+}
+
+// ── INIT ──────────────────────────────────────────────────────────
+// Use ResizeObserver on the wrap element rather than just window 'resize' —
+// guards against the canvas reading a stale/zero clientWidth if grid layout
+// settles a frame after the script first runs.
+try {
+  window.addEventListener('resize', resizeCanvas);
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(() => resizeCanvas()).observe(document.getElementById('map-wrap'));
+  }
+  resizeCanvas();
+  renderRoster();
+  renderDetail();
+  document.getElementById('status-readout').textContent = `${mechInstances.length} UNITS ON FIELD`;
+
+  // Re-draw once webfonts finish loading so token/hex-code label metrics
+  // (and any layout shift they cause) are reflected immediately.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => { resizeCanvas(); });
+  }
+} catch (err) {
+  console.error('BT-VTT init error:', err);
+  const el = document.getElementById('status-readout');
+  if (el) { el.textContent = `INIT ERROR: ${err.message}`; el.style.color = '#a3321c'; }
+}
+</script>
+</body>
+</html>
