@@ -706,7 +706,7 @@ html, body {
 <script>
 // ── SUPABASE CONFIG ──────────────────────────────────────
 const SUPABASE_URL  = 'https://ffztxyeevdqlhvxzcopn.supabase.co';
-const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmenR4eWVldmRxbHh2eHpjb3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDI5NTM2MDAsImV4cCI6MjAxODUyOTYwMH0.HiQ4_example_key_replace_in_production';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmenR4eWVldmRxbGh2eHpjb3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNzgxMTMsImV4cCI6MjA4Nzg1NDExM30.EdA8cwETE00YFENj-CN93ScKMFN4yfNNG63BentHiQ4';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ── STATE ────────────────────────────────────────────────
@@ -844,7 +844,7 @@ async function handleCreateGame() {
     const { data: game, error: gameErr } = await db
       .from('btech_games')
       .insert({
-        code: code,
+        game_code: code,
         host_id: currentUser.id,
         state: JSON.stringify({ units: [], turn: 0, phase: 'setup' }),
         status: 'lobby',
@@ -866,7 +866,7 @@ async function handleCreateGame() {
       seat_number: 1,
       player_color: '#c4302b',
       role: 'player',
-      status: 'ready'
+      ready: true
     });
 
     await loadLobby();
@@ -922,7 +922,7 @@ async function handleJoinGame() {
       seat_number: seatNumber,
       player_color: seatNumber === 1 ? '#c4302b' : '#d4800a',
       role: 'player',
-      status: 'not-ready'
+      ready: false
     });
 
     await loadLobby();
@@ -979,7 +979,7 @@ async function loadLobbyUI() {
     .single();
 
   if (game) {
-    document.getElementById('lobby-code').textContent = game.code;
+    document.getElementById('lobby-code').textContent = game.game_code;
   }
 
   // Get players
@@ -1009,8 +1009,8 @@ async function loadLobbyUI() {
       if (player) {
         const username = player.btech_profiles?.username || player.user_id.substring(0, 8);
         const isCurrentPlayer = player.user_id === currentUser?.id;
-        const isReadyClass = player.status === 'ready' ? 'ready' : '';
-        const readyText = player.status === 'ready' ? 'READY' : 'NOT READY';
+        const isReadyClass = player.ready ? 'ready' : '';
+        const readyText = player.ready ? 'READY' : 'NOT READY';
         const currentTag = isCurrentPlayer ? ' (you)' : '';
 
         row.className = 'seat-row';
@@ -1074,12 +1074,12 @@ async function handleReadyUp() {
 
   if (!player) return;
 
-  const newStatus = player.status === 'ready' ? 'not-ready' : 'ready';
-  isReady = newStatus === 'ready';
+  const newReady = !player.ready;
+  isReady = newReady;
 
   await db
     .from('btech_players')
-    .update({ status: newStatus })
+    .update({ ready: newReady })
     .eq('id', player.id);
 }
 
@@ -1093,7 +1093,7 @@ async function handleStartGame() {
     .eq('game_id', currentGameId)
     .eq('role', 'player');
 
-  const allReady = players && players.every(p => p.status === 'ready');
+  const allReady = players && players.every(p => p.ready === true);
   if (!allReady) {
     document.getElementById('lobby-status').textContent = 'All players must be ready!';
     return;
