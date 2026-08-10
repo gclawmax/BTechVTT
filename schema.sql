@@ -127,47 +127,68 @@ CREATE INDEX IF NOT EXISTS idx_btech_events_game_id ON btech_events(game_id);
 -- ============================================================================
 
 -- Games: anyone can read, only host can update/delete
-ALTER TABLE btech_games ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'btech_games' AND rowsecurity = true) THEN
+    ALTER TABLE btech_games ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
+DROP POLICY IF EXISTS "Anyone can view games" ON btech_games;
 CREATE POLICY "Anyone can view games"
   ON btech_games FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Authenticated users can create games" ON btech_games;
 CREATE POLICY "Authenticated users can create games"
   ON btech_games FOR INSERT
   WITH CHECK (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS "Host can update their game" ON btech_games;
 CREATE POLICY "Host can update their game"
   ON btech_games FOR UPDATE
   USING (auth.uid() = host_id);
 
+DROP POLICY IF EXISTS "Host can delete their game" ON btech_games;
 CREATE POLICY "Host can delete their game"
   ON btech_games FOR DELETE
   USING (auth.uid() = host_id);
 
 -- Players: anyone in a game can read, players manage their own seat
-ALTER TABLE btech_players ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'btech_players' AND rowsecurity = true) THEN
+    ALTER TABLE btech_players ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
+DROP POLICY IF EXISTS "Anyone can view players in a game" ON btech_players;
 CREATE POLICY "Anyone can view players in a game"
   ON btech_players FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Players can insert themselves" ON btech_players;
 CREATE POLICY "Players can insert themselves"
   ON btech_players FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Players can update their own seat" ON btech_players;
 CREATE POLICY "Players can update their own seat"
   ON btech_players FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Players can delete their own seat" ON btech_players;
 CREATE POLICY "Players can delete their own seat"
   ON btech_players FOR DELETE
   USING (auth.uid() = user_id);
 
 -- Initiative: participants (checked against auth.uid(), not just "a" player)
 -- can read; a player can only insert/update their own roll.
-ALTER TABLE btech_initiative ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'btech_initiative' AND rowsecurity = true) THEN
+    ALTER TABLE btech_initiative ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
+DROP POLICY IF EXISTS "Participants can view initiative rolls" ON btech_initiative;
 CREATE POLICY "Participants can view initiative rolls"
   ON btech_initiative FOR SELECT
   USING (
@@ -178,17 +199,24 @@ CREATE POLICY "Participants can view initiative rolls"
     )
   );
 
+DROP POLICY IF EXISTS "Players can insert their own initiative roll" ON btech_initiative;
 CREATE POLICY "Players can insert their own initiative roll"
   ON btech_initiative FOR INSERT
   WITH CHECK (auth.uid() IN (SELECT user_id FROM btech_players WHERE id = player_id));
 
+DROP POLICY IF EXISTS "Players can update their own initiative roll" ON btech_initiative;
 CREATE POLICY "Players can update their own initiative roll"
   ON btech_initiative FOR UPDATE
   USING (auth.uid() IN (SELECT user_id FROM btech_players WHERE id = player_id));
 
 -- Actions: same participant-scoped read; players write only their own actions.
-ALTER TABLE btech_actions ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'btech_actions' AND rowsecurity = true) THEN
+    ALTER TABLE btech_actions ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
+DROP POLICY IF EXISTS "Participants can view actions" ON btech_actions;
 CREATE POLICY "Participants can view actions"
   ON btech_actions FOR SELECT
   USING (
@@ -199,13 +227,19 @@ CREATE POLICY "Participants can view actions"
     )
   );
 
+DROP POLICY IF EXISTS "Players can insert their own actions" ON btech_actions;
 CREATE POLICY "Players can insert their own actions"
   ON btech_actions FOR INSERT
   WITH CHECK (auth.uid() IN (SELECT user_id FROM btech_players WHERE id = player_id));
 
 -- Events: participants can read, only the game host can write
-ALTER TABLE btech_events ENABLE ROW LEVEL SECURITY;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'btech_events' AND rowsecurity = true) THEN
+    ALTER TABLE btech_events ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
 
+DROP POLICY IF EXISTS "Participants can view events" ON btech_events;
 CREATE POLICY "Participants can view events"
   ON btech_events FOR SELECT
   USING (
@@ -216,6 +250,7 @@ CREATE POLICY "Participants can view events"
     )
   );
 
+DROP POLICY IF EXISTS "Host can insert events" ON btech_events;
 CREATE POLICY "Host can insert events"
   ON btech_events FOR INSERT
   WITH CHECK (
@@ -230,8 +265,37 @@ CREATE POLICY "Host can insert events"
 -- Realtime
 -- ============================================================================
 
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication_tables WHERE schemaname = 'public' AND tablename = 'btech_games') THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE btech_games;
+  END IF;
+END $$;
 ALTER PUBLICATION supabase_realtime ADD TABLE btech_games;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication_tables WHERE schemaname = 'public' AND tablename = 'btech_players') THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE btech_players;
+  END IF;
+END $$;
 ALTER PUBLICATION supabase_realtime ADD TABLE btech_players;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication_tables WHERE schemaname = 'public' AND tablename = 'btech_initiative') THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE btech_initiative;
+  END IF;
+END $$;
 ALTER PUBLICATION supabase_realtime ADD TABLE btech_initiative;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication_tables WHERE schemaname = 'public' AND tablename = 'btech_actions') THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE btech_actions;
+  END IF;
+END $$;
 ALTER PUBLICATION supabase_realtime ADD TABLE btech_actions;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication_tables WHERE schemaname = 'public' AND tablename = 'btech_events') THEN
+    ALTER PUBLICATION supabase_realtime DROP TABLE btech_events;
+  END IF;
+END $$;
 ALTER PUBLICATION supabase_realtime ADD TABLE btech_events;
