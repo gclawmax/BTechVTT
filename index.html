@@ -1347,7 +1347,7 @@ function drawMechToken(x, y, r, color, facing, selected) {
 }
 
 // Mouse hover
-const canvas = document.getElementById('hexmap');
+canvas = document.getElementById('hexmap');
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
   const px = e.clientX - rect.left, py = e.clientY - rect.top;
