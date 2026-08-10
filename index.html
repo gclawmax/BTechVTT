@@ -252,7 +252,9 @@ html, body {
 }
 
 #active-games-list .game-entry {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 4px;
   padding: 6px 14px;
   background: #1a1a1e;
@@ -262,11 +264,35 @@ html, body {
   font-size: 12px;
   color: #ccc;
   cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s, color 0.15s;
 }
 
 #active-games-list .game-entry:hover {
   border-color: #7c9;
   color: #7c9;
+}
+
+#active-games-list .game-entry .close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+#active-games-list .game-entry .close-btn:hover {
+  color: #c4302b;
+  background: rgba(196, 48, 43, 0.1);
 }
 
 #active-games-list .game-label {
@@ -663,12 +689,105 @@ html, body {
 }
 
 #loading-overlay.hidden { display: none; }
+
+/* ── CONFIRMATION MODAL ───────────────────────────────── */
+#confirm-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+#confirm-modal.hidden { display: none; }
+
+#confirm-box {
+  background: #1a1a1e;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 24px 28px;
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+}
+
+#confirm-box h3 {
+  font-family: var(--display);
+  font-size: 16px;
+  color: #ccc;
+  margin: 0 0 8px;
+  letter-spacing: 0.04em;
+}
+
+#confirm-message {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #888;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.confirm-actions button {
+  padding: 6px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid #555;
+  background: transparent;
+  color: #888;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.confirm-actions button:hover {
+  border-color: #888;
+  color: #aaa;
+}
+
+.confirm-actions button.primary {
+  background: #2a4a2a;
+  border-color: #3a6a3a;
+  color: #7c9;
+}
+
+.confirm-actions button.primary:hover {
+  background: #3a5a3a;
+  border-color: #4a7a4a;
+  color: #8da;
+}
+
+.confirm-actions button.secondary:hover {
+  border-color: #666;
+  color: #999;
+}
 </style>
 </head>
 <body>
 
 <!-- ── LOADING OVERLAY ──────────────────────────────────── -->
 <div id="loading-overlay" class="hidden">Loading…</div>
+
+<!-- ── CONFIRMATION MODAL ───────────────────────────────── -->
+<div id="confirm-modal" class="hidden">
+  <div id="confirm-box">
+    <h3 id="confirm-title">Are you sure?</h3>
+    <p id="confirm-message"></p>
+    <div class="confirm-actions">
+      <button id="confirm-cancel" class="secondary">Cancel</button>
+      <button id="confirm-ok" class="primary">Confirm</button>
+    </div>
+  </div>
+</div>
 
 <!-- ── LOGIN SCREEN ─────────────────────────────────────── -->
 <div id="login-screen" class="screen active">
@@ -895,7 +1014,7 @@ async function populateActiveGames() {
   }
 
   listEl.innerHTML = '<div class="game-label">Active Games</div>' +
-    games.map(g => `<div class="game-entry" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span style="color:#666">[${g.status}]</span></div>`).join('');
+    games.map(g => `<div class="game-entry" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span style="color:#666">[${g.status}]</span><button class="close-btn" onclick="event.stopPropagation(); handleConcedeGame('${g.game_code}')" title="Concede game">&times;</button></div>`).join('');
 }
 
 async function handleRejoinGame(code) {
@@ -980,6 +1099,67 @@ async function handleRejoinGame(code) {
   } finally {
     showLoading(false);
   }
+}
+
+// ── CONFIRMATION MODAL ───────────────────────────────────
+let confirmCallback = null;
+
+function showConfirmModal(title, message, onConfirm) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-message').textContent = message;
+  document.getElementById('confirm-modal').classList.remove('hidden');
+  confirmCallback = onConfirm;
+
+  document.getElementById('confirm-ok').onclick = () => {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    if (confirmCallback) confirmCallback();
+    confirmCallback = null;
+  };
+
+  document.getElementById('confirm-cancel').onclick = () => {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    confirmCallback = null;
+  };
+}
+
+async function handleConcedeGame(code) {
+  const { data: game } = await db
+    .from('btech_games')
+    .select('*')
+    .eq('game_code', code)
+    .single();
+
+  if (!game) return;
+
+  showConfirmModal(
+    'Concede Game?',
+    `This will remove you from ${game.game_code} (${game.status}). You cannot undo this action.`,
+    async () => {
+      showLoading(true);
+      try {
+        // Remove player record
+        await db
+          .from('btech_players')
+          .delete()
+          .eq('game_id', game.id)
+          .eq('user_id', currentUser.id);
+
+        // If host, delete the entire game
+        if (game.host_id === currentUser.id) {
+          await db.from('btech_players').delete().eq('game_id', game.id);
+          await db.from('btech_games').delete().eq('id', game.id);
+        }
+
+        // Refresh the active games list
+        await populateActiveGames();
+      } catch (err) {
+        console.error('Concede error:', err);
+        alert('Failed to concede game: ' + (err.message || 'Unknown error'));
+      } finally {
+        showLoading(false);
+      }
+    }
+  );
 }
 
 async function handleLogout() {
