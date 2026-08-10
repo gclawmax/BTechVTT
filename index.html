@@ -973,7 +973,7 @@ async function loadLobbyUI() {
   // Get game info
   const { data: game } = await db
     .from('btech_games')
-    .select('code')
+    .select('game_code')
     .eq('id', currentGameId)
     .single();
 
