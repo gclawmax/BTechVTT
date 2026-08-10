@@ -790,12 +790,12 @@ async function handleSignup() {
 async function createProfile(username) {
   try {
     const { error } = await db
-      .from('btech_profiles')
+      .from('profiles')
       .upsert({
-        user_id: currentUser.id,
+        id: currentUser.id,
         username: username,
         email: `${username}@FreeGames.com`,
-      }, { onConflict: 'user_id' });
+      }, { onConflict: 'id' });
     if (error) console.warn('Profile create error:', error);
   } catch (err) {
     console.warn('Profile table may not exist yet:', err.message);
@@ -991,7 +991,7 @@ async function loadLobbyUI() {
   // Get spectators
   const { data: spectators } = await db
     .from('btech_players')
-    .select('*, btech_profiles(username)')
+    .select('*, profiles(username)')
     .eq('game_id', currentGameId)
     .eq('role', 'spectator')
     .order('created_at');
@@ -1006,7 +1006,7 @@ async function loadLobbyUI() {
       const row = document.createElement('div');
 
       if (player) {
-        const username = player.btech_profiles?.username || player.user_id.substring(0, 8);
+        const username = player.profiles?.username || player.user_id.substring(0, 8);
         const isCurrentPlayer = player.user_id === currentUser?.id;
         const isReadyClass = player.ready ? 'ready' : '';
         const readyText = player.ready ? 'READY' : 'NOT READY';
@@ -1035,7 +1035,7 @@ async function loadLobbyUI() {
   const specEl = document.getElementById('lobby-spectators');
   if (spectators && spectators.length > 0) {
     specEl.innerHTML = spectators.map(s => {
-      const username = s.btech_profiles?.username || s.user_id.substring(0, 8);
+      const username = s.profiles?.username || s.user_id.substring(0, 8);
       return `<div class="spectator-item">${username}</div>`;
     }).join('');
   } else {
