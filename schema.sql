@@ -55,9 +55,13 @@ CREATE TABLE IF NOT EXISTS btech_games (
 );
 
 -- Now that btech_games exists, wire up the game_id FK on btech_players.
-ALTER TABLE btech_players
-  ADD CONSTRAINT btech_players_game_id_fkey
-  FOREIGN KEY (game_id) REFERENCES btech_games(id) ON DELETE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'btech_players_game_id_fkey') THEN
+    ALTER TABLE btech_players
+      ADD CONSTRAINT btech_players_game_id_fkey
+      FOREIGN KEY (game_id) REFERENCES btech_games(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- 3. Initiative rolls — one row per player per round.
 --    Kept as its own table so ties, re-rolls, and history are queryable
