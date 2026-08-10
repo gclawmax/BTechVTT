@@ -1437,30 +1437,32 @@ function renderDetail() {
 }
 
 // ── INIT ──────────────────────────────────────────────────
-try {
-  // Check if user is already logged in (session restored)
-  const { data: { session } } = await db.auth.getSession();
-  if (session?.user) {
-    currentUser = session.user;
-    await showMainMenu();
-  } else {
-    showScreen('login-screen');
-  }
-
-  // Listen for auth state changes
-  db.auth.onAuthStateChange((event, session) => {
+(async () => {
+  try {
+    // Check if user is already logged in (session restored)
+    const { data: { session } } = await db.auth.getSession();
     if (session?.user) {
       currentUser = session.user;
-      showMainMenu();
+      await showMainMenu();
     } else {
-      currentUser = null;
       showScreen('login-screen');
     }
-  });
-} catch (err) {
-  console.error('BT-VTT auth init error:', err);
-  showScreen('login-screen');
-}
+
+    // Listen for auth state changes
+    db.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        currentUser = session.user;
+        showMainMenu();
+      } else {
+        currentUser = null;
+        showScreen('login-screen');
+      }
+    });
+  } catch (err) {
+    console.error('BT-VTT auth init error:', err);
+    showScreen('login-screen');
+  }
+})();
 </script>
 </body>
 </html>
