@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS btech_games (
   game_code TEXT NOT NULL UNIQUE,
   state JSONB DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'lobby' CHECK (status IN ('lobby', 'in-progress', 'finished')),
+  current_round INT NOT NULL DEFAULT 1,
+  current_phase TEXT NOT NULL DEFAULT 'initiative' CHECK (current_phase IN ('initiative', 'movement', 'weapon_attack', 'physical_attack', 'heat', 'end')),
+  active_player_id UUID REFERENCES btech_players(id),
+  initiative_winner UUID REFERENCES btech_players(id),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

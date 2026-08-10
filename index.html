@@ -1456,10 +1456,51 @@ async function handleStartGame() {
     return;
   }
 
-  // Update game status to in-progress
+  // Get all player IDs for initiative
+  const playerIds = players.map(p => p.id);
+
+  // Roll initiative for each player (random 1-10, tiebreak by seat number)
+  const initiativeRolls = playerIds.map((pid, idx) => ({
+    player_id: pid,
+    roll: Math.floor(Math.random() * 10) + 1 + (idx * 0.1), // add seat-based tiebreaker
+    seat_number: players[idx].seat_number
+  }));
+
+  // Sort descending — highest roll goes first
+  initiativeRolls.sort((a, b) => b.roll - a.roll);
+  const winner = initiativeRolls[0];
+
+  // Update game status and turn structure
   await db
     .from('btech_games')
-    .update({ status: 'in-progress' })
+    .update({
+      status: 'in-progress',
+      current_round: 1,
+      current_phase: 'initiative',
+      initiative_winner: winner.player_id
+    })
+    .eq('id', currentGameId);
+
+  // Set first active player to winner
+  await db
+    .from('btech_games')
+    .update({ active_player_id: winner.player_id })
+    .eq('id', currentGameId);
+
+  // Store initiative order in game state
+  const { data: game } = await db
+    .from('btech_games')
+    .select('state')
+    .eq('id', currentGameId)
+    .single();
+
+  const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  gameState.initiative_order = initiativeRolls;
+  gameState.initiative_rolls = initiativeRolls.map(r => ({ player_id: r.player_id, roll: r.roll }));
+
+  await db
+    .from('btech_games')
+    .update({ state: JSON.stringify(gameState) })
     .eq('id', currentGameId);
 
   // Transition to game screen
@@ -1472,6 +1513,7 @@ function startGameScreen() {
 
   showScreen('game-screen');
   initGame();
+  loadGameState();
 }
 
 async function handleLeaveLobby() {
@@ -1495,6 +1537,127 @@ async function handleLeaveLobby() {
   isHost = false;
   isReady = false;
   showScreen('menu-screen');
+}
+
+// ── TURN STRUCTURE (IGOUGO) ──────────────────────────────
+const PHASE_ORDER = ['initiative', 'movement', 'weapon_attack', 'physical_attack', 'heat', 'end'];
+const PHASE_LABELS = {
+  initiative: 'Initiative Roll',
+  movement: 'Movement',
+  weapon_attack: 'Weapon Attack',
+  physical_attack: 'Physical Attack',
+  heat: 'Heat Management',
+  end: 'End Turn'
+};
+
+let currentGameState = {
+  round: 1,
+  phase: 'initiative',
+  active_player_id: null,
+  initiative_winner: null,
+  initiative_order: [],
+  initiative_rolls: []
+};
+
+async function loadGameState() {
+  if (!currentGameId) return;
+
+  const { data: game } = await db
+    .from('btech_games')
+    .select('current_round, current_phase, active_player_id, initiative_winner, state')
+    .eq('id', currentGameId)
+    .single();
+
+  if (!game) return;
+
+  const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+
+  currentGameState = {
+    round: game.current_round || 1,
+    phase: game.current_phase || 'initiative',
+    active_player_id: game.active_player_id,
+    initiative_winner: game.initiative_winner,
+    initiative_order: gameState.initiative_order || [],
+    initiative_rolls: gameState.initiative_rolls || []
+  };
+
+  updateGameHeader();
+  renderInitiativeDisplay();
+}
+
+function updateGameHeader() {
+  const statusEl = document.getElementById('status-readout');
+  if (!statusEl) return;
+
+  const phaseLabel = PHASE_LABELS[currentGameState.phase] || currentGameState.phase;
+  statusEl.textContent = `Round ${currentGameState.round} — ${phaseLabel}`;
+
+  if (currentGameState.active_player_id) {
+    // Get player username for active player display
+    db.from('btech_players')
+      .select('profiles(username)')
+      .eq('id', currentGameState.active_player_id)
+      .single()
+      .then(({ data: player }) => {
+        const username = player?.profiles?.username || 'Unknown';
+        statusEl.textContent += ` — ${titleCase(username)}'s Turn`;
+      });
+  }
+}
+
+function renderInitiativeDisplay() {
+  if (currentGameState.initiative_order.length === 0) return;
+
+  // Find or create initiative display area
+  let initDisplay = document.getElementById('initiative-display');
+  if (!initDisplay) {
+    const header = document.getElementById('header');
+    initDisplay = document.createElement('div');
+    initDisplay.id = 'initiative-display';
+    initDisplay.style.cssText = 'font-size:11px;color:#888;font-family:var(--mono);margin-top:4px;text-align:center;';
+    header.appendChild(initDisplay);
+  }
+
+  const rolls = currentGameState.initiative_rolls.map(r => {
+    const player = currentGameState.initiative_order.find(p => p.player_id === r.player_id);
+    const seat = player?.seat_number || '?';
+    return `${titleCase(`Seat ${seat}`)}: ${r.roll.toFixed(1)}`;
+  }).join(' | ');
+
+  initDisplay.textContent = `Initiative Order: ${rolls}`;
+}
+
+async function advancePhase() {
+  const currentIdx = PHASE_ORDER.indexOf(currentGameState.phase);
+  const nextIdx = currentIdx + 1;
+
+  if (nextIdx >= PHASE_ORDER.length) {
+    // End of round — start new round
+    await db
+      .from('btech_games')
+      .update({
+        current_round: currentGameState.round + 1,
+        current_phase: 'initiative'
+      })
+      .eq('id', currentGameId);
+
+    currentGameState.round += 1;
+    currentGameState.phase = 'initiative';
+    currentGameState.active_player_id = null;
+  } else {
+    await db
+      .from('btech_games')
+      .update({
+        current_phase: PHASE_ORDER[nextIdx]
+      })
+      .eq('id', currentGameId);
+
+    currentGameState.phase = PHASE_ORDER[nextIdx];
+    currentGameState.active_player_id = null;
+  }
+
+  updateGameHeader();
+  renderInitiativeDisplay();
 }
 
 // ── GAME INIT (existing hex grid code) ───────────────────
