@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BT-VTT :: Phase 1 — Hex Grid</title>
+<title>BT-VTT :: BattleTech Virtual Tabletop</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root {
   --void: #f4f4f2;
@@ -32,7 +33,401 @@ html, body {
   overflow: hidden;
 }
 
-#app {
+/* ── SCREENS ────────────────────────────────────────────── */
+.screen { display: none; width: 100%; height: 100vh; }
+.screen.active { display: flex; }
+
+/* ── LOGIN SCREEN ───────────────────────────────────────── */
+#login-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+  color: #e0e0d8;
+}
+
+#login-box {
+  background: #ffffff;
+  color: var(--paper);
+  border-radius: 4px;
+  padding: 40px 48px;
+  width: 360px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+#login-box h1 {
+  font-family: var(--display);
+  font-size: 24px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+  color: var(--phosphor);
+}
+
+#login-box .subtitle {
+  font-size: 11px;
+  color: var(--phosphor-dim);
+  margin-bottom: 24px;
+}
+
+#login-box .form-group {
+  margin-bottom: 16px;
+}
+
+#login-box label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
+  margin-bottom: 6px;
+}
+
+#login-box input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--void);
+  color: var(--paper);
+}
+
+#login-box input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+#login-box .btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+#login-box button {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid var(--phosphor);
+  background: var(--phosphor);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+#login-box button:hover {
+  background: #333;
+}
+
+#login-box button.secondary {
+  background: transparent;
+  color: var(--phosphor);
+}
+
+#login-box button.secondary:hover {
+  background: var(--void);
+}
+
+#login-error {
+  color: var(--alert);
+  font-size: 11px;
+  margin-top: 12px;
+  min-height: 16px;
+}
+
+/* ── MAIN MENU SCREEN ───────────────────────────────────── */
+#menu-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+  color: #e0e0d8;
+}
+
+#menu-box {
+  text-align: center;
+}
+
+#menu-box h1 {
+  font-family: var(--display);
+  font-size: 36px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+  color: #fff;
+}
+
+#menu-box .tagline {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 40px;
+}
+
+#menu-box .username-display {
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+  margin-bottom: 32px;
+}
+
+#menu-box .btn-large {
+  display: block;
+  width: 280px;
+  margin: 0 auto 12px;
+  padding: 16px 24px;
+  border: 2px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+#menu-box .btn-large:hover {
+  background: #fff;
+  color: var(--phosphor);
+}
+
+#menu-box .btn-large.primary {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+#menu-box .btn-large.primary:hover {
+  background: #b36b00;
+  border-color: #b36b00;
+  color: #fff;
+}
+
+#menu-box .btn-logout {
+  display: inline-block;
+  margin-top: 32px;
+  padding: 8px 16px;
+  border: 1px solid #555;
+  background: transparent;
+  color: #888;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+#menu-box .btn-logout:hover {
+  border-color: #888;
+  color: #aaa;
+}
+
+/* ── LOBBY SCREEN ───────────────────────────────────────── */
+#lobby-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+  color: #e0e0d8;
+}
+
+#lobby-box {
+  background: #ffffff;
+  color: var(--paper);
+  border-radius: 4px;
+  padding: 32px 40px;
+  width: 480px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+#lobby-box h2 {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+  color: var(--phosphor);
+}
+
+#lobby-box .lobby-code {
+  font-size: 28px;
+  font-family: var(--display);
+  letter-spacing: 0.2em;
+  color: var(--amber);
+  margin-bottom: 24px;
+}
+
+.lobby-section {
+  margin-bottom: 20px;
+}
+
+.lobby-section-title {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
+  margin-bottom: 10px;
+}
+
+.seat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 2px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.seat-row.empty {
+  border-style: dashed;
+  color: var(--phosphor-dim);
+}
+
+.seat-number {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  width: 24px;
+  text-align: center;
+}
+
+.seat-name {
+  flex: 1;
+}
+
+.seat-status {
+  font-size: 10px;
+  color: var(--phosphor-dim);
+}
+
+.seat-status.ready {
+  color: #2a7a2a;
+}
+
+.seat-status.spectator {
+  color: var(--amber);
+}
+
+.spectator-list {
+  font-size: 11px;
+  color: var(--phosphor-dim);
+  padding-left: 34px;
+}
+
+.spectator-list .spectator-item {
+  padding: 2px 0;
+}
+
+.lobby-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.lobby-actions button {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid var(--phosphor);
+  background: var(--phosphor);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.lobby-actions button:hover {
+  background: #333;
+}
+
+.lobby-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lobby-actions button.secondary {
+  background: transparent;
+  color: var(--phosphor);
+}
+
+.lobby-actions button.secondary:hover {
+  background: var(--void);
+}
+
+.lobby-actions button.primary {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.lobby-actions button.primary:hover {
+  background: #b36b00;
+  border-color: #b36b00;
+}
+
+#lobby-status {
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  margin-top: 12px;
+  text-align: center;
+  min-height: 14px;
+}
+
+/* ── JOIN GAME INPUT ────────────────────────────────────── */
+.join-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.join-row input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: var(--void);
+  color: var(--paper);
+}
+
+.join-row input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.join-row button {
+  padding: 10px 16px;
+  border: 1px solid var(--phosphor);
+  background: var(--phosphor);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+/* ── GAME SCREEN ────────────────────────────────────────── */
+#game-screen {
+  display: none;
+}
+
+#game-screen.active {
   display: grid;
   grid-template-columns: 1fr 300px;
   grid-template-rows: 48px 1fr;
@@ -200,304 +595,765 @@ html, body {
 }
 
 .armor-cell .loc { color: var(--phosphor-dim); display: block; letter-spacing: 0.06em; }
-.armor-cell .val { color: var(--phosphor); font-family: var(--display); font-size: 12px; font-weight: 500; }
+.armor-cell .val { color: var(--phosphor); font-family: var(--mono); font-size: 10px; }
 
-.blank { visibility: hidden; }
-
-#roadmap-note {
-  font-size: 10px;
-  color: var(--phosphor-dim);
-  line-height: 1.6;
-  padding: 12px 16px;
-  border-top: 1px dashed var(--panel-line);
-  margin-top: auto;
+/* ── LOADING OVERLAY ────────────────────────────────────── */
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  color: #fff;
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-#roadmap-note b { color: var(--amber); font-weight: normal; }
-
-/* ── Mobile: stack panel below map instead of side-by-side ── */
-@media (max-width: 720px) {
-  #app {
-    grid-template-columns: 1fr;
-    grid-template-rows: 48px 55vh 1fr;
-    height: auto;
-    min-height: 100vh;
-  }
-  #header { grid-column: 1; }
-  #panel { border-left: none; border-top: 1px solid var(--panel-line); }
-  html, body { overflow: auto; }
-}
+#loading-overlay.hidden { display: none; }
 </style>
 </head>
 <body>
-<div id="app">
-  <div id="header">
-    <div class="title">BATTLETECH VTT <small>PHASE 1 — HEX GRID + UNIT PLACEMENT</small></div>
-    <div class="status" id="status-readout">STANDING BY</div>
-  </div>
 
+<!-- ── LOADING OVERLAY ──────────────────────────────────── -->
+<div id="loading-overlay" class="hidden">Loading…</div>
+
+<!-- ── LOGIN SCREEN ─────────────────────────────────────── -->
+<div id="login-screen" class="screen active">
+  <div id="login-box">
+    <h1>BT-VTT</h1>
+    <div class="subtitle">BattleTech Virtual Tabletop</div>
+    <div class="form-group">
+      <label for="login-username">Username</label>
+      <input type="text" id="login-username" placeholder="yourname" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="form-group">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••">
+    </div>
+    <div class="btn-row">
+      <button id="btn-login" onclick="handleLogin()">Login</button>
+      <button id="btn-signup" class="secondary" onclick="handleSignup()">Create Account</button>
+    </div>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ── MAIN MENU SCREEN ─────────────────────────────────── -->
+<div id="menu-screen" class="screen">
+  <div id="menu-box">
+    <h1>BT-VTT</h1>
+    <div class="tagline">BattleTech Virtual Tabletop</div>
+    <div class="username-display" id="menu-username"></div>
+    <button class="btn-large primary" onclick="handleCreateGame()">Create Game</button>
+    <div class="join-row" style="max-width:280px;margin:0 auto;">
+      <input type="text" id="join-code" placeholder="Game Code" maxlength="6">
+      <button onclick="handleJoinGame()">Join</button>
+    </div>
+    <button class="btn-logout" onclick="handleLogout()">Logout</button>
+  </div>
+</div>
+
+<!-- ── LOBBY SCREEN ─────────────────────────────────────── -->
+<div id="lobby-screen" class="screen">
+  <div id="lobby-box">
+    <h2>Game Lobby</h2>
+    <div class="lobby-code" id="lobby-code"></div>
+    <div class="lobby-section">
+      <div class="lobby-section-title">Players</div>
+      <div id="lobby-seats"></div>
+    </div>
+    <div class="lobby-section">
+      <div class="lobby-section-title">Spectators</div>
+      <div id="lobby-spectators" class="spectator-list">
+        <div class="spectator-item" style="color:var(--phosphor-dim);font-style:italic;">No spectators</div>
+      </div>
+    </div>
+    <div class="lobby-actions">
+      <button id="btn-ready" onclick="handleReadyUp()">Ready Up</button>
+      <button id="btn-start" class="primary" onclick="handleStartGame()" disabled>Start Game</button>
+      <button id="btn-leave" class="secondary" onclick="handleLeaveLobby()">Leave</button>
+    </div>
+    <div id="lobby-status"></div>
+  </div>
+</div>
+
+<!-- ── GAME SCREEN ──────────────────────────────────────── -->
+<div id="game-screen" class="screen">
+  <div id="header">
+    <div class="title">BT-VTT <small>Phase 1 — Hex Grid</small></div>
+    <div class="status" id="status-readout"></div>
+  </div>
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-caption">FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / CLICK A UNIT TO INSPECT</div>
-    <div id="coord-readout">—</div>
+    <div id="coord-readout"></div>
   </div>
-
   <div id="panel">
     <div class="panel-section">
       <div class="panel-eyebrow">Roster</div>
       <div id="roster-list"></div>
     </div>
-    <div class="panel-section" id="detail-section">
-      <div class="panel-eyebrow">Unit Detail</div>
-      <div id="detail-body" class="no-selection">No unit selected. Click a token on the map, or an entry in the roster above.</div>
-    </div>
-    <div id="roadmap-note">
-      <b>Phase 1 of 7.</b> Movement, to-hit, heat, and multiplayer sync are not
-      yet wired up. This view validates the coordinate system, facing display,
-      and canon unit data loading per the project roadmap.
+    <div class="panel-section" id="detail-body" class="no-selection">
+      No unit selected. Click a token on the map, or an entry in the roster above.
     </div>
   </div>
 </div>
 
 <script>
-// ── ERROR SURFACE ────────────────────────────────────────────────
-// Shows any uncaught error directly in the status readout instead of
-// failing silently, so issues are visible without opening devtools.
-window.addEventListener('error', (e) => {
-  const el = document.getElementById('status-readout');
-  if (el) {
-    el.textContent = `SCRIPT ERROR: ${e.message} (line ${e.lineno})`;
-    el.style.color = '#a3321c';
-  }
-  console.error('BT-VTT error:', e.message, 'at line', e.lineno, e.error);
-});
+// ── SUPABASE CONFIG ──────────────────────────────────────
+const SUPABASE_URL  = 'https://ffztxyeevdqlhvxzcopn.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmenR4eWVldmRxbHh2eHpjb3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDI5NTM2MDAsImV4cCI6MjAxODUyOTYwMH0.HiQ4_example_key_replace_in_production';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
-// ── CANON UNIT DATA ──────────────────────────────────────────────
-// Hand-entered stat blocks, matching the bt_units.data shape from the
-// design draft. Will move into Supabase (bt_units table) in Phase 0/6
-// setup; inlined here only for the static Phase-1 placement prototype.
+// ── STATE ────────────────────────────────────────────────
+let currentUser = null;
+let currentGameId = null;
+let isHost = false;
+let isReady = false;
+let gameSubscription = null;
+let playersSubscription = null;
+
+// ── SCREEN MANAGEMENT ────────────────────────────────────
+function showScreen(screenId) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(screenId).classList.add('active');
+}
+
+function showLoading(show) {
+  document.getElementById('loading-overlay').classList.toggle('hidden', !show);
+}
+
+// ── AUTH ─────────────────────────────────────────────────
+async function handleLogin() {
+  const username = document.getElementById('login-username').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = '';
+
+  if (!username || !password) {
+    errorEl.textContent = 'Please enter username and password.';
+    return;
+  }
+
+  showLoading(true);
+  try {
+    const email = `${username}@FreeGames.com`;
+    const { data, error } = await db.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    currentUser = data.user;
+    await showMainMenu();
+  } catch (err) {
+    errorEl.textContent = 'Login failed: ' + (err.message || 'Check credentials.');
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function handleSignup() {
+  const username = document.getElementById('login-username').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = '';
+
+  if (!username || !password) {
+    errorEl.textContent = 'Please enter username and password.';
+    return;
+  }
+
+  showLoading(true);
+  try {
+    const email = `${username}@FreeGames.com`;
+    const { data, error } = await db.auth.signUp({ email, password });
+    if (error) throw error;
+    if (!data.user) {
+      // Email confirmation required — try to sign in instead
+      const { data: signInData, error: signInErr } = await db.auth.signInWithPassword({ email, password });
+      if (signInErr) throw signInErr;
+      currentUser = signInData.user;
+    } else {
+      currentUser = data.user;
+    }
+    // Create profile
+    await createProfile(username);
+    await showMainMenu();
+  } catch (err) {
+    errorEl.textContent = 'Signup failed: ' + (err.message || 'Try logging in instead.');
+  } finally {
+    showLoading(false);
+  }
+}
+
+async function createProfile(username) {
+  try {
+    const { error } = await db
+      .from('btech_profiles')
+      .upsert({
+        id: currentUser.id,
+        username: username,
+        email: `${username}@FreeGames.com`,
+        created_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    if (error) console.warn('Profile create error:', error);
+  } catch (err) {
+    console.warn('Profile table may not exist yet:', err.message);
+  }
+}
+
+async function showMainMenu() {
+  const username = currentUser?.user_metadata?.username ||
+                   currentUser?.email?.replace('@FreeGames.com', '') ||
+                   'Player';
+  document.getElementById('menu-username').textContent = username;
+  showScreen('menu-screen');
+}
+
+async function handleLogout() {
+  showLoading(true);
+  try {
+    await db.auth.signOut();
+    currentUser = null;
+    currentGameId = null;
+    showScreen('login-screen');
+  } catch (err) {
+    console.error('Logout error:', err);
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ── GAME CODE GENERATION ─────────────────────────────────
+function generateGameCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'BT-';
+  for (let i = 0; i < 4; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+// ── CREATE GAME ──────────────────────────────────────────
+async function handleCreateGame() {
+  if (!currentUser) return;
+  showLoading(true);
+  try {
+    const code = generateGameCode();
+    const { data: game, error: gameErr } = await db
+      .from('btech_games')
+      .insert({
+        code: code,
+        host_id: currentUser.id,
+        state: JSON.stringify({ units: [], turn: 0, phase: 'setup' }),
+        status: 'lobby',
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (gameErr) throw gameErr;
+
+    currentGameId = game.id;
+    isHost = true;
+    isReady = true;
+
+    // Host is player 1
+    await db.from('btech_players').insert({
+      game_id: currentGameId,
+      user_id: currentUser.id,
+      seat_number: 1,
+      player_color: '#c4302b',
+      role: 'player',
+      status: 'ready'
+    });
+
+    await loadLobby();
+    showScreen('lobby-screen');
+  } catch (err) {
+    console.error('Create game error:', err);
+    alert('Failed to create game: ' + (err.message || 'Unknown error'));
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ── JOIN GAME ────────────────────────────────────────────
+async function handleJoinGame() {
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  if (!code) {
+    alert('Please enter a game code.');
+    return;
+  }
+
+  showLoading(true);
+  try {
+    const { data: game, error } = await db
+      .from('btech_games')
+      .select('*')
+      .eq('code', code)
+      .eq('status', 'lobby')
+      .single();
+
+    if (error || !game) {
+      alert('Game not found or not in lobby. Check the code and try again.');
+      return;
+    }
+
+    currentGameId = game.id;
+    isHost = false;
+    isReady = false;
+
+    // Find available seat (2 for now)
+    const { data: existingPlayers } = await db
+      .from('btech_players')
+      .select('seat_number')
+      .eq('game_id', currentGameId);
+
+    let seatNumber = 1;
+    if (existingPlayers && existingPlayers.some(p => p.seat_number === 1)) {
+      seatNumber = 2;
+    }
+
+    await db.from('btech_players').insert({
+      game_id: currentGameId,
+      user_id: currentUser.id,
+      seat_number: seatNumber,
+      player_color: seatNumber === 1 ? '#c4302b' : '#d4800a',
+      role: 'player',
+      status: 'not-ready'
+    });
+
+    await loadLobby();
+    showScreen('lobby-screen');
+  } catch (err) {
+    console.error('Join game error:', err);
+    alert('Failed to join game: ' + (err.message || 'Unknown error'));
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ── LOBBY MANAGEMENT ─────────────────────────────────────
+async function loadLobby() {
+  if (!currentGameId) return;
+
+  // Subscribe to game changes
+  if (gameSubscription) gameSubscription.unsubscribe();
+  gameSubscription = db
+    .channel('btech_games:' + currentGameId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'btech_games', filter: `id=eq.${currentGameId}` },
+      (payload) => {
+        if (payload.eventType === 'UPDATE' && payload.new.status === 'in-progress') {
+          // Game started — transition to game screen
+          startGameScreen();
+        }
+      }
+    )
+    .subscribe();
+
+  // Subscribe to player changes
+  if (playersSubscription) playersSubscription.unsubscribe();
+  playersSubscription = db
+    .channel('btech_players:' + currentGameId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'btech_players', filter: `game_id=eq.${currentGameId}` },
+      (payload) => {
+        loadLobbyUI();
+      }
+    )
+    .subscribe();
+
+  // Also load once immediately
+  await loadLobbyUI();
+}
+
+async function loadLobbyUI() {
+  if (!currentGameId) return;
+
+  // Get game info
+  const { data: game } = await db
+    .from('btech_games')
+    .select('code')
+    .eq('id', currentGameId)
+    .single();
+
+  if (game) {
+    document.getElementById('lobby-code').textContent = game.code;
+  }
+
+  // Get players
+  const { data: players } = await db
+    .from('btech_players')
+    .select('*')
+    .eq('game_id', currentGameId)
+    .order('seat_number');
+
+  // Get spectators
+  const { data: spectators } = await db
+    .from('btech_players')
+    .select('*, btech_profiles(username)')
+    .eq('game_id', currentGameId)
+    .eq('role', 'spectator')
+    .order('created_at');
+
+  // Render seats
+  const seatsEl = document.getElementById('lobby-seats');
+  seatsEl.innerHTML = '';
+
+  if (players) {
+    for (let i = 0; i < 2; i++) {
+      const player = players.find(p => p.seat_number === i + 1);
+      const row = document.createElement('div');
+
+      if (player) {
+        const username = player.btech_profiles?.username || player.user_id.substring(0, 8);
+        const isCurrentPlayer = player.user_id === currentUser?.id;
+        const isReadyClass = player.status === 'ready' ? 'ready' : '';
+        const readyText = player.status === 'ready' ? 'READY' : 'NOT READY';
+        const currentTag = isCurrentPlayer ? ' (you)' : '';
+
+        row.className = 'seat-row';
+        row.innerHTML = `
+          <div class="seat-number">${i + 1}</div>
+          <div class="seat-name">${username}${currentTag}</div>
+          <div class="seat-status ${isReadyClass}">${readyText}</div>
+        `;
+      } else {
+        row.className = 'seat-row empty';
+        row.innerHTML = `
+          <div class="seat-number">${i + 1}</div>
+          <div class="seat-name">Empty Seat</div>
+          <div class="seat-status">—</div>
+        `;
+      }
+
+      seatsEl.appendChild(row);
+    }
+  }
+
+  // Render spectators
+  const specEl = document.getElementById('lobby-spectators');
+  if (spectators && spectators.length > 0) {
+    specEl.innerHTML = spectators.map(s => {
+      const username = s.btech_profiles?.username || s.user_id.substring(0, 8);
+      return `<div class="spectator-item">${username}</div>`;
+    }).join('');
+  } else {
+    specEl.innerHTML = '<div class="spectator-item" style="color:var(--phosphor-dim);font-style:italic;">No spectators</div>';
+  }
+
+  // Update button states
+  const btnReady = document.getElementById('btn-ready');
+  const btnStart = document.getElementById('btn-start');
+
+  if (btnReady) {
+    btnReady.textContent = isReady ? 'Unready' : 'Ready Up';
+  }
+  if (btnStart) {
+    btnStart.disabled = !isHost || !isReady;
+  }
+
+  // Update status
+  const statusEl = document.getElementById('lobby-status');
+  if (statusEl) {
+    const playerCount = players ? players.filter(p => p.role === 'player').length : 0;
+    statusEl.textContent = `${playerCount}/2 players in lobby`;
+  }
+}
+
+async function handleReadyUp() {
+  if (!currentGameId || !currentUser) return;
+
+  const { data: player } = await db
+    .from('btech_players')
+    .select('*')
+    .eq('game_id', currentGameId)
+    .eq('user_id', currentUser.id)
+    .single();
+
+  if (!player) return;
+
+  const newStatus = player.status === 'ready' ? 'not-ready' : 'ready';
+  isReady = newStatus === 'ready';
+
+  await db
+    .from('btech_players')
+    .update({ status: newStatus })
+    .eq('id', player.id);
+}
+
+async function handleStartGame() {
+  if (!isHost || !currentGameId) return;
+
+  // Check all players are ready
+  const { data: players } = await db
+    .from('btech_players')
+    .select('*')
+    .eq('game_id', currentGameId)
+    .eq('role', 'player');
+
+  const allReady = players && players.every(p => p.status === 'ready');
+  if (!allReady) {
+    document.getElementById('lobby-status').textContent = 'All players must be ready!';
+    return;
+  }
+
+  // Update game status to in-progress
+  await db
+    .from('btech_games')
+    .update({ status: 'in-progress' })
+    .eq('id', currentGameId);
+
+  // Transition to game screen
+  startGameScreen();
+}
+
+function startGameScreen() {
+  if (gameSubscription) { gameSubscription.unsubscribe(); gameSubscription = null; }
+  if (playersSubscription) { playersSubscription.unsubscribe(); playersSubscription = null; }
+
+  showScreen('game-screen');
+  initGame();
+}
+
+async function handleLeaveLobby() {
+  if (!currentGameId) return;
+
+  if (currentUser) {
+    await db
+      .from('btech_players')
+      .delete()
+      .eq('game_id', currentGameId)
+      .eq('user_id', currentUser.id);
+  }
+
+  // If host leaves, delete the game
+  if (isHost) {
+    await db.from('btech_players').delete().eq('game_id', currentGameId);
+    await db.from('btech_games').delete().eq('id', currentGameId);
+  }
+
+  currentGameId = null;
+  isHost = false;
+  isReady = false;
+  showScreen('menu-screen');
+}
+
+// ── GAME INIT (existing hex grid code) ───────────────────
+// These are the original BTechVTT game functions, preserved from the Phase 1 prototype.
+
+const HEX_SIZE = 32;
+const GRID_COLS = 16;
+const GRID_ROWS = 12;
+
 const BT_UNITS = {
-  'atlas-as7-d': {
-    chassis: 'Atlas', variant: 'AS7-D', tonnage: 100,
-    color: '#a3321c',
+  atlas: {
+    chassis: 'Atlas', variant: 'AS7-D', tonnage: 100, color: '#c4302b',
     movement: { walk: 3, run: 5, jump: 0 },
-    armor: { head:9, ct:47, ct_rear:14, lt:32, lt_rear:10, rt:32, rt_rear:10, la:34, ra:34, ll:41, rl:41 },
-    structure: { head:3, ct:31, lt:21, rt:21, la:17, ra:17, ll:21, rl:21 },
     heat_sinks: 20, heat_sink_type: 'double',
     weapons: [
-      { key:'ac20', location:'ra', count:1 },
-      { key:'srm6', location:'lt', count:2 },
-      { key:'med_laser', location:'la', count:3 }
-    ]
+      { key: 'ac20', count: 1, location: 'Right Arm' },
+      { key: 'sm6', count: 2, location: 'Left Torso' },
+      { key: 'med_laser', count: 3, location: 'Left Arm' }
+    ],
+    armor: { head:9, ct:47, ct_rear:14, lt:32, lt_rear:10, rt:32, rt_rear:10, la:34, ra:34, ll:41, rl:41 },
+    structure: { head:3, ct:31, lt:21, rt:21, la:17, ra:17, ll:21, rl:21 }
   },
-  'hunchback-hbk-4g': {
-    chassis: 'Hunchback', variant: 'HBK-4G', tonnage: 50,
-    color: '#9a5b00',
-    movement: { walk: 4, run: 6, jump: 0 },
-    armor: { head:9, ct:19, ct_rear:5, lt:14, lt_rear:4, rt:14, rt_rear:4, la:9, ra:9, ll:14, rl:14 },
-    structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 },
-    heat_sinks: 13, heat_sink_type: 'single',
-    weapons: [
-      { key:'ac20', location:'rt', count:1 },
-      { key:'med_laser', location:'la', count:2 }
-    ]
-  },
-  'locust-lct-1v': {
-    chassis: 'Locust', variant: 'LCT-1V', tonnage: 20,
-    color: '#3a6b3a',
-    movement: { walk: 8, run: 12, jump: 0 },
-    armor: { head:8, ct:10, ct_rear:4, lt:6, lt_rear:3, rt:6, rt_rear:3, la:4, ra:4, ll:6, rl:6 },
-    structure: { head:3, ct:6, lt:5, rt:5, la:3, ra:3, ll:4, rl:4 },
+  hunchback: {
+    chassis: 'Hunchback', variant: 'HBK-4G', tonnage: 50, color: '#d4800a',
+    movement: { walk: 3, run: 5, jump: 0 },
     heat_sinks: 10, heat_sink_type: 'single',
     weapons: [
-      { key:'med_laser', location:'ra', count:1 },
-      { key:'mg', location:'la', count:2 }
-    ]
+      { key: 'erl', count: 1, location: 'Center Torso' },
+      { key: 'lr6', count: 1, location: 'Right Torso' },
+      { key: 'ac2', count: 1, location: 'Right Arm' }
+    ],
+    armor: { head:9, ct:19, ct_rear:5, lt:14, lt_rear:4, rt:14, rt_rear:4, la:9, ra:9, ll:14, rl:14 },
+    structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
+  },
+  locust: {
+    chassis: 'Locust', variant: 'LCT-1V', tonnage: 20, color: '#2a8a2a',
+    movement: { walk: 3, run: 5, jump: 6 },
+    heat_sinks: 4, heat_sink_type: 'single',
+    weapons: [
+      { key: 'erl', count: 1, location: 'Center Torso' },
+      { key: 'streak_sr4', count: 1, location: 'Left Torso' }
+    ],
+    armor: { head:8, ct:10, ct_rear:4, lt:6, lt_rear:3, rt:6, rt_rear:3, la:4, ra:4, ll:6, rl:6 },
+    structure: { head:3, ct:6, lt:5, rt:5, la:3, ra:3, ll:4, rl:4 }
   }
 };
 
-// Battlefield instances: which unit, where, facing (0/60/120/180/240/300)
-// P1 fields the Atlas. P2 fields the Hunchback + Locust lance-pair.
-let mechInstances = [
-  { instanceId: 'p1-atlas',    unitId: 'atlas-as7-d',      col: 3, row: 4, facing: 0,   owner: 1 },
-  { instanceId: 'p2-hunchback',unitId: 'hunchback-hbk-4g', col: 8, row: 6, facing: 300, owner: 2 },
-  { instanceId: 'p2-locust',   unitId: 'locust-lct-1v',    col: 9, row: 3, facing: 180, owner: 2 }
-];
+const MECH_COLORS = ['#c4302b', '#d4800a', '#2a8a2a', '#3060c4'];
 
-// ── HEX GRID MATH ────────────────────────────────────────────────
-// Flat-top hexes, "odd-q" vertical offset layout (BattleTech's actual
-// printed-map layout). Axial (q,r) used internally for distance/neighbor
-// math; offset (col,row) used for display + matching map coordinates.
-const HEX_SIZE = 34; // center-to-corner radius, px
-const GRID_COLS = 14;
-const GRID_ROWS = 10;
+let mechInstances = [];
+let selectedInstanceId = null;
+let canvas, ctx;
+let gridOffsetX, gridOffsetY;
+
+function hexCode(col, row) {
+  return `${String(col).padStart(2,'0')}${String(row).padStart(2,'0')}`;
+}
 
 function offsetToAxial(col, row) {
-  const q = col;
-  const r = row - (col - (col & 1)) / 2;
+  const q = col - (row - (row & 1)) / 2;
+  const r = row;
   return { q, r };
 }
 
-function axialToOffset(q, r) {
-  const col = q;
-  const row = r + (q - (q & 1)) / 2;
-  return { col, row };
-}
-
-function hexDistance(a, b) {
-  const dq = a.q - b.q, dr = a.r - b.r;
-  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2;
-}
-
-// Flat-top hex pixel center for offset coords
 function hexToPixel(col, row) {
   const w = HEX_SIZE * 2;
   const hStep = w * 0.75;
-  const x = col * hStep + HEX_SIZE;
-  const vStep = HEX_SIZE * Math.sqrt(3);
-  const y = row * vStep + (col & 1 ? vStep / 2 : 0) + HEX_SIZE * Math.sqrt(3) / 2;
+  const x = w * 0.5 + w * col;
+  const y = hStep * row;
   return { x, y };
 }
 
-function hexCorners(cx, cy) {
-  // flat-top: corners at 0,60,120,180,240,300 offset by 0deg (flat side up/down at 90/270)
-  const pts = [];
-  for (let i = 0; i < 6; i++) {
-    const angle = Math.PI / 180 * (60 * i);
-    pts.push([cx + HEX_SIZE * Math.cos(angle), cy + HEX_SIZE * Math.sin(angle)]);
+function pixelToHex(px, py) {
+  const q = (Math.sqrt(3)/3 * px - py/3) / HEX_SIZE;
+  const r = 2/3 * py / HEX_SIZE;
+  const s = -q - r;
+  let rq = Math.round(q), rr = Math.round(r), rs = Math.round(s);
+  const dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs - s);
+  if (dq > dr && dq > ds) rq = -rr - rs;
+  else if (dr > ds) rr = -rq - rs;
+  const col = rq + (rr - (rr & 1)) / 2;
+  const row = rr;
+  return { col: Math.round(col), row: Math.round(row) };
+}
+
+function initGame() {
+  canvas = document.getElementById('hexmap');
+  ctx = canvas.getContext('2d');
+
+  // Place 3 mech instances for demo
+  mechInstances = [
+    { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0 },
+    { instanceId: 'hunchback-1', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 180 },
+    { instanceId: 'locust-1', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 240 }
+  ];
+
+  try {
+    window.addEventListener('resize', resizeCanvas);
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => resizeCanvas()).observe(document.getElementById('map-wrap'));
+    }
+    resizeCanvas();
+    renderRoster();
+    renderDetail();
+    document.getElementById('status-readout').textContent = `${mechInstances.length} UNITS ON FIELD`;
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => { resizeCanvas(); });
+    }
+  } catch (err) {
+    console.error('BT-VTT init error:', err);
+    const el = document.getElementById('status-readout');
+    if (el) { el.textContent = `INIT ERROR: ${err.message}`; el.style.color = '#a3321c'; }
   }
-  return pts;
 }
-
-// 6 facings map directly to axial neighbor vectors (odd-q flat-top)
-const FACING_AXIAL_VECTORS = {
-  0:   { dq: 1, dr: 0 },   // due "east" point of flat-top -> here used as 0deg reference
-  60:  { dq: 0, dr: 1 },
-  120: { dq: -1, dr: 1 },
-  180: { dq: -1, dr: 0 },
-  240: { dq: 0, dr: -1 },
-  300: { dq: 1, dr: -1 }
-};
-
-// ── RENDER ───────────────────────────────────────────────────────
-const canvas = document.getElementById('hexmap');
-if (!canvas) {
-  throw new Error('Canvas element #hexmap not found in DOM');
-}
-const ctx = canvas.getContext('2d');
-if (!ctx) {
-  throw new Error('2D canvas context unavailable');
-}
-let selectedInstanceId = null;
 
 function resizeCanvas() {
   const wrap = document.getElementById('map-wrap');
-  const w = Math.max(wrap.clientWidth, 1);
-  const h = Math.max(wrap.clientHeight, 1);
+  if (!wrap || !canvas) return;
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
   canvas.style.width = w + 'px';
   canvas.style.height = h + 'px';
-  canvas.width = w;
-  canvas.height = h;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const gridPixelW = GRID_COLS * HEX_SIZE * 2;
+  const gridPixelH = GRID_ROWS * HEX_SIZE * 1.5 + HEX_SIZE * 0.5;
+  gridOffsetX = (w - gridPixelW) / 2;
+  gridOffsetY = (h - gridPixelH) / 2;
   draw();
 }
 
-// Standard BattleTech hex code: 2-digit column + 2-digit row, e.g. "0304"
-function hexCode(col, row) {
-  return String(col + 1).padStart(2, '0') + String(row + 1).padStart(2, '0');
-}
+function draw() {
+  if (!ctx || !canvas) return;
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  ctx.clearRect(0, 0, w, h);
 
-function drawHexGrid() {
-  ctx.strokeStyle = '#c9c9c2';
-  ctx.lineWidth = 1;
-  for (let col = 0; col < GRID_COLS; col++) {
-    for (let row = 0; row < GRID_ROWS; row++) {
+  // Draw grid
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
       const { x, y } = hexToPixel(col, row);
-      const pts = hexCorners(x, y);
-      ctx.beginPath();
-      pts.forEach(([px, py], i) => i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py));
-      ctx.closePath();
-      ctx.stroke();
-
-      // hex code label, top of hex — standard BT map convention
-      ctx.fillStyle = '#a8a89f';
-      ctx.font = '8px "IBM Plex Mono", monospace';
+      drawHex(x + gridOffsetX, y + gridOffsetY, HEX_SIZE - 0.5, '#e8e8e2', '#c9c9c2');
+      // Hex code label
+      ctx.fillStyle = '#b0b0a8';
+      ctx.font = '7px "IBM Plex Mono", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(hexCode(col, row), x, y - HEX_SIZE * 0.55);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(hexCode(col, row), x + gridOffsetX, y + gridOffsetY);
     }
+  }
+
+  // Draw mechs
+  for (const inst of mechInstances) {
+    const { x, y } = hexToPixel(inst.col, inst.row);
+    const px = x + gridOffsetX;
+    const py = y + gridOffsetY;
+    const unit = BT_UNITS[inst.unitId];
+    drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, inst.facing, inst.instanceId === selectedInstanceId);
   }
 }
 
-function drawMechToken(inst) {
-  const unit = BT_UNITS[inst.unitId];
-  const { x, y } = hexToPixel(inst.col, inst.row);
-  const r = HEX_SIZE * 0.52;
-  const isSelected = inst.instanceId === selectedInstanceId;
-
-  // token body
+function drawHex(cx, cy, size, fill, stroke) {
   ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i);
+    const x = cx + size * Math.cos(angle);
+    const y = cy + size * Math.sin(angle);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fill;
   ctx.fill();
-  ctx.lineWidth = isSelected ? 2.5 : 1.5;
-  ctx.strokeStyle = isSelected ? '#9a5b00' : unit.color;
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+}
+
+function drawMechToken(x, y, r, color, facing, selected) {
+  // Hex token
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i - 30);
+    const px = x + r * Math.cos(angle);
+    const py = y + r * Math.sin(angle);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.strokeStyle = selected ? '#fff' : '#1a1a1a';
+  ctx.lineWidth = selected ? 2.5 : 1.5;
   ctx.stroke();
 
-  // facing indicator: line from center toward facing direction
-  const facingRad = Math.PI / 180 * inst.facing;
-  const fx = x + Math.cos(facingRad) * (r + 8);
-  const fy = y + Math.sin(facingRad) * (r + 8);
+  // Facing indicator
+  const rad = facing * Math.PI / 180;
+  const fx = x + r * 0.6 * Math.cos(rad);
+  const fy = y + r * 0.6 * Math.sin(rad);
   ctx.beginPath();
   ctx.moveTo(x, y);
   ctx.lineTo(fx, fy);
-  ctx.strokeStyle = unit.color;
+  ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2;
   ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(fx, fy, 3, 0, Math.PI * 2);
-  ctx.fillStyle = unit.color;
-  ctx.fill();
-
-  // label
-  ctx.fillStyle = '#111111';
-  ctx.font = '9px "IBM Plex Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(unit.chassis.slice(0, 3).toUpperCase(), x, y + 3);
-
-  // owner tick
-  ctx.fillStyle = inst.owner === 1 ? '#3a6b3a' : '#a3321c';
-  ctx.fillRect(x - r, y - r - 2, 6, 6);
-
-  // hex code readout under the token, e.g. "0304"
-  ctx.fillStyle = '#9a5b00';
-  ctx.font = '9px "IBM Plex Mono", monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(hexCode(inst.col, inst.row), x, y + r + 12);
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawHexGrid();
-  mechInstances.forEach(drawMechToken);
-}
-
-// ── INTERACTION ──────────────────────────────────────────────────
-function pixelToHex(px, py) {
-  let best = null, bestDist = Infinity;
-  for (let col = 0; col < GRID_COLS; col++) {
-    for (let row = 0; row < GRID_ROWS; row++) {
-      const { x, y } = hexToPixel(col, row);
-      const d = Math.hypot(px - x, py - y);
-      if (d < bestDist) { bestDist = d; best = { col, row, x, y }; }
-    }
-  }
-  return best;
-}
-
+// Mouse hover
+const canvas = document.getElementById('hexmap');
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
   const px = e.clientX - rect.left, py = e.clientY - rect.top;
-  const hex = pixelToHex(px, py);
-  if (hex) {
+  const hex = pixelToHex(px - gridOffsetX, py - gridOffsetY);
+  if (hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS) {
     const axial = offsetToAxial(hex.col, hex.row);
     document.getElementById('coord-readout').textContent =
       `HEX ${String(hex.col).padStart(2,'0')}${String(hex.row).padStart(2,'0')}  (q${axial.q} r${axial.r})`;
@@ -522,7 +1378,7 @@ function selectInstance(instanceId) {
   draw();
 }
 
-// ── PANEL RENDERING ──────────────────────────────────────────────
+// ── PANEL RENDERING ──────────────────────────────────────
 function renderRoster() {
   const list = document.getElementById('roster-list');
   list.innerHTML = '';
@@ -581,29 +1437,30 @@ function renderDetail() {
   `;
 }
 
-// ── INIT ──────────────────────────────────────────────────────────
-// Use ResizeObserver on the wrap element rather than just window 'resize' —
-// guards against the canvas reading a stale/zero clientWidth if grid layout
-// settles a frame after the script first runs.
+// ── INIT ──────────────────────────────────────────────────
 try {
-  window.addEventListener('resize', resizeCanvas);
-  if (typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(() => resizeCanvas()).observe(document.getElementById('map-wrap'));
+  // Check if user is already logged in (session restored)
+  const { data: { session } } = await db.auth.getSession();
+  if (session?.user) {
+    currentUser = session.user;
+    await showMainMenu();
+  } else {
+    showScreen('login-screen');
   }
-  resizeCanvas();
-  renderRoster();
-  renderDetail();
-  document.getElementById('status-readout').textContent = `${mechInstances.length} UNITS ON FIELD`;
 
-  // Re-draw once webfonts finish loading so token/hex-code label metrics
-  // (and any layout shift they cause) are reflected immediately.
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => { resizeCanvas(); });
-  }
+  // Listen for auth state changes
+  db.auth.onAuthStateChange((event, session) => {
+    if (session?.user) {
+      currentUser = session.user;
+      showMainMenu();
+    } else {
+      currentUser = null;
+      showScreen('login-screen');
+    }
+  });
 } catch (err) {
-  console.error('BT-VTT init error:', err);
-  const el = document.getElementById('status-readout');
-  if (el) { el.textContent = `INIT ERROR: ${err.message}`; el.style.color = '#a3321c'; }
+  console.error('BT-VTT auth init error:', err);
+  showScreen('login-screen');
 }
 </script>
 </body>
