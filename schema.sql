@@ -1,18 +1,32 @@
 -- ============================================================================
--- BTechVTT Database Schema
+-- BTechVTT Database Schema  (Classic BattleTech — Initiative / I-Go-U-Go)
 -- ============================================================================
 -- Run this in Supabase SQL Editor:
 --   https://app.supabase.com/project/ffztxyeevdqlhvxzcopn/sql
+--
+-- Identity: shared with Ironfield/Bandit Cards via the existing `profiles`
+-- table (profiles.id = auth.users.id). No BTech-specific profile table —
+-- one callsign across all games. If BTech ever needs its own fields
+-- (e.g. faction), add nullable columns to `profiles`, don't fork a new table.
+--
+-- Turn model: IGOUGO. Matches the app's current_round/current_phase/
+-- active_player_id/advancePhase() logic. Individual unit actions are
+-- logged one at a time in btech_actions (round, phase, sequence) rather
+-- than as one big per-turn plan blob (that was the WeGo/Ironfield shape).
 -- ============================================================================
 
--- 1. Profiles table (BTech-specific user accounts)
---    Links auth.users to BTech profile data
-CREATE TABLE IF NOT EXISTS btech_profiles (
+-- 1. Players table (player seats + spectators)
+--    Created before btech_games so btech_games can FK into it.
+CREATE TABLE IF NOT EXISTS btech_players (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
-  username TEXT NOT NULL,
-  email TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+  game_id UUID NOT NULL,   -- FK added after btech_games exists (see below)
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  seat_number INT CHECK (seat_number BETWEEN 1 AND 4),
+  player_color TEXT,
+  role TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('player', 'spectator')),
+  ready BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (game_id, user_id)
 );
 
 -- 2. Games table (game sessions)
@@ -20,42 +34,67 @@ CREATE TABLE IF NOT EXISTS btech_games (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   host_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   game_code TEXT NOT NULL UNIQUE,
-  state JSONB DEFAULT '{}',
-  status TEXT NOT NULL DEFAULT 'lobby' CHECK (status IN ('lobby', 'in-progress', 'finished')),
+  state JSONB DEFAULT '{}',                 -- units, map, everything not phase/turn bookkeeping
+  status TEXT NOT NULL DEFAULT 'lobby'
+    CHECK (status IN ('lobby', 'in-progress', 'finished')),
+
+  -- ── Round / phase tracking (IGOUGO) ─────────────────────────────
   current_round INT NOT NULL DEFAULT 1,
-  current_phase TEXT NOT NULL DEFAULT 'initiative' CHECK (current_phase IN ('initiative', 'movement', 'weapon_attack', 'physical_attack', 'heat', 'end')),
+  current_phase TEXT NOT NULL DEFAULT 'initiative'
+    CHECK (current_phase IN (
+      'initiative', 'movement', 'weapon_attack', 'physical_attack', 'heat', 'end'
+    )),
+  -- Which SEAT (btech_players.id) is "on the clock" right now within the
+  -- current phase. References the seat, not auth.users, because that's
+  -- what the app's profiles(username) lookups key off.
   active_player_id UUID REFERENCES btech_players(id),
+  -- Winner of this round's initiative roll (also a seat id).
   initiative_winner UUID REFERENCES btech_players(id),
+
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 3. Players table (player seats + spectators)
-CREATE TABLE IF NOT EXISTS btech_players (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  game_id UUID REFERENCES btech_games(id) ON DELETE CASCADE NOT NULL,
-  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  seat_number INT CHECK (seat_number BETWEEN 1 AND 4),
-  player_color TEXT,
-  role TEXT NOT NULL DEFAULT 'player' CHECK (role IN ('player', 'spectator')),
-  ready BOOLEAN NOT NULL DEFAULT false,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+-- Now that btech_games exists, wire up the game_id FK on btech_players.
+ALTER TABLE btech_players
+  ADD CONSTRAINT btech_players_game_id_fkey
+  FOREIGN KEY (game_id) REFERENCES btech_games(id) ON DELETE CASCADE;
 
--- 4. Turn plans (per-turn planning)
-CREATE TABLE IF NOT EXISTS btech_turn_plans (
+-- 3. Initiative rolls — one row per player per round.
+--    Kept as its own table so ties, re-rolls, and history are queryable
+--    without fighting over the state JSONB blob.
+CREATE TABLE IF NOT EXISTS btech_initiative (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   game_id UUID REFERENCES btech_games(id) ON DELETE CASCADE NOT NULL,
-  turn_number INT NOT NULL,
+  round INT NOT NULL,
   player_id UUID REFERENCES btech_players(id) ON DELETE CASCADE NOT NULL,
-  plan JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT now()
+  roll NUMERIC NOT NULL,          -- e.g. 2d6, or your die + seat-tiebreak scheme
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (game_id, round, player_id)
+);
+
+-- 4. Actions — one row per individual unit action within a phase.
+--    `sequence` orders actions within (round, phase) for replay and for
+--    determining whose turn it is next.
+CREATE TABLE IF NOT EXISTS btech_actions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID REFERENCES btech_games(id) ON DELETE CASCADE NOT NULL,
+  round INT NOT NULL,
+  phase TEXT NOT NULL
+    CHECK (phase IN ('movement', 'weapon_attack', 'physical_attack', 'heat', 'end')),
+  sequence INT NOT NULL,
+  player_id UUID REFERENCES btech_players(id) ON DELETE CASCADE NOT NULL,
+  unit_id TEXT,                   -- id of the unit acting, if applicable
+  action_type TEXT NOT NULL,      -- e.g. 'move', 'declare_target', 'fire', 'physical', 'pass'
+  payload JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (game_id, round, phase, sequence)
 );
 
 -- 5. Game events (event log)
 CREATE TABLE IF NOT EXISTS btech_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   game_id UUID REFERENCES btech_games(id) ON DELETE CASCADE NOT NULL,
-  turn_number INT NOT NULL,
+  round INT NOT NULL,
   event JSONB NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now()
 );
@@ -72,29 +111,16 @@ CREATE INDEX IF NOT EXISTS idx_btech_players_game_id ON btech_players(game_id);
 CREATE INDEX IF NOT EXISTS idx_btech_players_user_id ON btech_players(user_id);
 CREATE INDEX IF NOT EXISTS idx_btech_players_seat ON btech_players(game_id, seat_number);
 
-CREATE INDEX IF NOT EXISTS idx_btech_turn_plans_game_id ON btech_turn_plans(game_id);
-CREATE INDEX IF NOT EXISTS idx_btech_turn_plans_player ON btech_turn_plans(player_id);
+CREATE INDEX IF NOT EXISTS idx_btech_initiative_game_round ON btech_initiative(game_id, round);
+
+CREATE INDEX IF NOT EXISTS idx_btech_actions_game_round_phase ON btech_actions(game_id, round, phase);
+CREATE INDEX IF NOT EXISTS idx_btech_actions_player ON btech_actions(player_id);
 
 CREATE INDEX IF NOT EXISTS idx_btech_events_game_id ON btech_events(game_id);
 
 -- ============================================================================
 -- Row Level Security (RLS)
 -- ============================================================================
-
--- Profiles: users can read/write their own profile
-ALTER TABLE btech_profiles ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view all profiles"
-  ON btech_profiles FOR SELECT
-  USING (true);
-
-CREATE POLICY "Users can insert their own profile"
-  ON btech_profiles FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own profile"
-  ON btech_profiles FOR UPDATE
-  USING (auth.uid() = user_id);
 
 -- Games: anyone can read, only host can update/delete
 ALTER TABLE btech_games ENABLE ROW LEVEL SECURITY;
@@ -134,35 +160,55 @@ CREATE POLICY "Players can delete their own seat"
   ON btech_players FOR DELETE
   USING (auth.uid() = user_id);
 
--- Turn plans: participants can read/write
-ALTER TABLE btech_turn_plans ENABLE ROW LEVEL SECURITY;
+-- Initiative: participants (checked against auth.uid(), not just "a" player)
+-- can read; a player can only insert/update their own roll.
+ALTER TABLE btech_initiative ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Participants can view turn plans"
-  ON btech_turn_plans FOR SELECT
+CREATE POLICY "Participants can view initiative rolls"
+  ON btech_initiative FOR SELECT
   USING (
     EXISTS (
       SELECT 1 FROM btech_players
-      WHERE btech_players.game_id = btech_turn_plans.game_id
+      WHERE btech_players.game_id = btech_initiative.game_id
+      AND btech_players.user_id = auth.uid()
     )
   );
 
-CREATE POLICY "Players can insert their own plan"
-  ON btech_turn_plans FOR INSERT
+CREATE POLICY "Players can insert their own initiative roll"
+  ON btech_initiative FOR INSERT
   WITH CHECK (auth.uid() IN (SELECT user_id FROM btech_players WHERE id = player_id));
 
-CREATE POLICY "Players can update their own plan"
-  ON btech_turn_plans FOR UPDATE
+CREATE POLICY "Players can update their own initiative roll"
+  ON btech_initiative FOR UPDATE
   USING (auth.uid() IN (SELECT user_id FROM btech_players WHERE id = player_id));
 
--- Events: anyone can read, only the game host can write
+-- Actions: same participant-scoped read; players write only their own actions.
+ALTER TABLE btech_actions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Participants can view actions"
+  ON btech_actions FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM btech_players
+      WHERE btech_players.game_id = btech_actions.game_id
+      AND btech_players.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Players can insert their own actions"
+  ON btech_actions FOR INSERT
+  WITH CHECK (auth.uid() IN (SELECT user_id FROM btech_players WHERE id = player_id));
+
+-- Events: participants can read, only the game host can write
 ALTER TABLE btech_events ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Anyone can view events"
+CREATE POLICY "Participants can view events"
   ON btech_events FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM btech_games
-      WHERE btech_games.id = btech_events.game_id
+      SELECT 1 FROM btech_players
+      WHERE btech_players.game_id = btech_events.game_id
+      AND btech_players.user_id = auth.uid()
     )
   );
 
@@ -182,5 +228,6 @@ CREATE POLICY "Host can insert events"
 
 ALTER PUBLICATION supabase_realtime ADD TABLE btech_games;
 ALTER PUBLICATION supabase_realtime ADD TABLE btech_players;
-ALTER PUBLICATION supabase_realtime ADD TABLE btech_turn_plans;
+ALTER PUBLICATION supabase_realtime ADD TABLE btech_initiative;
+ALTER PUBLICATION supabase_realtime ADD TABLE btech_actions;
 ALTER PUBLICATION supabase_realtime ADD TABLE btech_events;

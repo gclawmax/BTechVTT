@@ -1470,23 +1470,6 @@ async function handleStartGame() {
   initiativeRolls.sort((a, b) => b.roll - a.roll);
   const winner = initiativeRolls[0];
 
-  // Update game status and turn structure
-  await db
-    .from('btech_games')
-    .update({
-      status: 'in-progress',
-      current_round: 1,
-      current_phase: 'initiative',
-      initiative_winner: winner.player_id
-    })
-    .eq('id', currentGameId);
-
-  // Set first active player to winner
-  await db
-    .from('btech_games')
-    .update({ active_player_id: winner.player_id })
-    .eq('id', currentGameId);
-
   // Store initiative order in game state
   const { data: game } = await db
     .from('btech_games')
@@ -1498,9 +1481,17 @@ async function handleStartGame() {
   gameState.initiative_order = initiativeRolls;
   gameState.initiative_rolls = initiativeRolls.map(r => ({ player_id: r.player_id, roll: r.roll }));
 
+  // Single update call — merged round/phase/status/winner/active_player/state
   await db
     .from('btech_games')
-    .update({ state: JSON.stringify(gameState) })
+    .update({
+      status: 'in-progress',
+      current_round: 1,
+      current_phase: 'initiative',
+      initiative_winner: winner.player_id,
+      active_player_id: winner.player_id,
+      state: JSON.stringify(gameState)
+    })
     .eq('id', currentGameId);
 
   // Transition to game screen
