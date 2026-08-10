@@ -891,7 +891,7 @@ async function handleJoinGame() {
     const { data: game, error } = await db
       .from('btech_games')
       .select('*')
-      .eq('code', code)
+      .eq('game_code', code)
       .eq('status', 'lobby')
       .single();
 
