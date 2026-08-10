@@ -540,8 +540,8 @@ function renderRoster() {
   });
 }
 
-function armorCell(loc, label, val) {
-  return `<div class="armor-cell"><span class="loc">${label}</span><span class="val">${val ?? '—'}</span></div>`;
+function armorCell(loc, label, armor, structure) {
+  return `<div class="armor-cell"><span class="loc">${label}</span><span class="val">${armor ?? '—'}${structure !== undefined ? ` <span style="color:var(--phosphor-dim)">(${structure})</span>` : ''}</span></div>`;
 }
 
 function renderDetail() {
@@ -574,9 +574,9 @@ function renderDetail() {
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Armor / Structure</div>
     <div class="armor-diagram">
-      ${armorCell('la','LA', unit.armor.la)}${armorCell('h','HD', unit.armor.head)}${armorCell('ra','RA', unit.armor.ra)}
-      ${armorCell('lt','LT', unit.armor.lt)}${armorCell('ct','CT', unit.armor.ct)}${armorCell('rt','RT', unit.armor.rt)}
-      ${armorCell('ll','LL', unit.armor.ll)}${armorCell('','', null)}${armorCell('rl','RL', unit.armor.rl)}
+      ${armorCell('la','LA', unit.armor.la, unit.structure.la)}${armorCell('h','HD', unit.armor.head, unit.structure.head)}${armorCell('ra','RA', unit.armor.ra, unit.structure.ra)}
+      ${armorCell('lt','LT', unit.armor.lt, unit.structure.lt)}${armorCell('ct','CT', unit.armor.ct, unit.structure.ct)}${armorCell('rt','RT', unit.armor.rt, unit.structure.rt)}
+      ${armorCell('ll','LL', unit.armor.ll, unit.structure.ll)}${armorCell('','', null, null)}${armorCell('rl','RL', unit.armor.rl, unit.structure.rl)}
     </div>
   `;
 }
