@@ -574,10 +574,10 @@ function renderDetail() {
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Armor / Structure</div>
     <div class="armor-diagram">
-      ${armorCell('h','HD', unit.armor.head)}${armorCell('','', null)}${armorCell('','', null)}
+      ${armorCell('','', null)}${armorCell('h','HD', unit.armor.head)}${armorCell('','', null)}
       ${armorCell('la','LA', unit.armor.la)}${armorCell('ct','CT', unit.armor.ct)}${armorCell('ra','RA', unit.armor.ra)}
-      ${armorCell('ll','LL', unit.armor.ll)}${armorCell('lt','LT', unit.armor.lt)}${armorCell('rt','RT', unit.armor.rt)}
-      ${armorCell('','', null)}${armorCell('rl','RL', unit.armor.rl)}${armorCell('','', null)}
+      ${armorCell('lt','LT', unit.armor.lt)}${armorCell('rt','RT', unit.armor.rt)}${armorCell('','', null)}
+      ${armorCell('ll','LL', unit.armor.ll)}${armorCell('','', null)}${armorCell('rl','RL', unit.armor.rl)}
     </div>
   `;
 }
