@@ -1202,10 +1202,8 @@ function offsetToAxial(col, row) {
 }
 
 function hexToPixel(col, row) {
-  const w = HEX_SIZE * 2;
-  const hStep = w * 0.75;
-  const x = w * 0.5 + w * col;
-  const y = hStep * row;
+  const x = HEX_SIZE * Math.sqrt(3) * (col + 0.5 * (row & 1));
+  const y = HEX_SIZE * 1.5 * row;
   return { x, y };
 }
 
