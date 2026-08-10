@@ -972,11 +972,17 @@ async function createProfile(username) {
   }
 }
 
+// ── HELPERS ──────────────────────────────────────────────
+function titleCase(str) {
+  if (!str) return '';
+  return str.replace(/\b\w/g, c => c.toUpperCase());
+}
+
 async function showMainMenu() {
   const username = currentUser?.user_metadata?.username ||
                    currentUser?.email?.replace('@FreeGames.com', '') ||
                    'Player';
-  document.getElementById('menu-username').textContent = username;
+  document.getElementById('menu-username').textContent = titleCase(username);
   await populateActiveGames();
   showScreen('menu-screen');
 }
@@ -1358,7 +1364,7 @@ async function loadLobbyUI() {
       const row = document.createElement('div');
 
       if (player) {
-        const username = player.profiles?.username || player.user_id.substring(0, 8);
+        const username = titleCase(player.profiles?.username || player.user_id.substring(0, 8));
         const isCurrentPlayer = player.user_id === currentUser?.id;
         const isReadyClass = player.ready ? 'ready' : '';
         const readyText = player.ready ? 'READY' : 'NOT READY';
@@ -1387,7 +1393,7 @@ async function loadLobbyUI() {
   const specEl = document.getElementById('lobby-spectators');
   if (spectators && spectators.length > 0) {
     specEl.innerHTML = spectators.map(s => {
-      const username = s.profiles?.username || s.user_id.substring(0, 8);
+      const username = titleCase(s.profiles?.username || s.user_id.substring(0, 8));
       return `<div class="spectator-item">${username}</div>`;
     }).join('');
   } else {
