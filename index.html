@@ -792,11 +792,10 @@ async function createProfile(username) {
     const { error } = await db
       .from('btech_profiles')
       .upsert({
-        id: currentUser.id,
+        user_id: currentUser.id,
         username: username,
         email: `${username}@FreeGames.com`,
-        created_at: new Date().toISOString()
-      }, { onConflict: 'id' });
+      }, { onConflict: 'user_id' });
     if (error) console.warn('Profile create error:', error);
   } catch (err) {
     console.warn('Profile table may not exist yet:', err.message);
