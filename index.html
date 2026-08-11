@@ -1130,27 +1130,29 @@ async function populateActiveGames() {
   const listEl = document.getElementById('active-games-list');
   if (!listEl || !currentUser) return;
 
-  const { data: players } = await db
-    .from('btech_players')
-    .select('game_id, btech_games(game_code, status)')
-    .eq('user_id', currentUser.id);
+  const { data: playerSeats } = await db
+      .from('btech_players')
+      .select('game_id')
+      .eq('user_id', currentUser.id);
 
-  if (!players || players.length === 0) {
-    listEl.innerHTML = '';
-    return;
-  }
+    if (!playerSeats || playerSeats.length === 0) {
+      listEl.innerHTML = '';
+      return;
+    }
 
-  const games = players
-    .map(p => p.btech_games)
-    .filter(g => g && (g.status === 'lobby' || g.status === 'in-progress'));
+    const gameCodes = playerSeats.map(p => p.game_id);
+    const { data: games } = await db
+      .from('btech_games')
+      .select('id, game_code, status')
+      .in('id', gameCodes);
 
-  if (games.length === 0) {
-    listEl.innerHTML = '';
-    return;
-  }
+    if (!games || games.length === 0) {
+      listEl.innerHTML = '';
+      return;
+    }
 
-  listEl.innerHTML = '<div class="game-label">Active Games</div>' +
-    games.map(g => `<div class="game-entry" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span style="color:#666">[${g.status}]</span><button class="close-btn" onclick="event.stopPropagation(); handleConcedeGame('${g.game_code}')" title="Concede game">&times;</button></div>`).join('');
+    listEl.innerHTML = '<div class="game-label">Active Games</div>' +
+      games.map(g => `<div class="game-entry" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span style="color:#666">[${g.status}]</span><button class="close-btn" onclick="event.stopPropagation(); handleConcedeGame('${g.game_code}')" title="Concede game">×</button></div>`).join('');
 }
 
 async function handleRejoinGame(code) {
@@ -1534,10 +1536,28 @@ async function loadLobbyUI() {
   // Get spectators
   const { data: spectators } = await db
     .from('btech_players')
-    .select('*, profiles(username)')
+    .select('*, user_id')
     .eq('game_id', currentGameId)
     .eq('role', 'spectator')
     .order('created_at');
+
+  // Fetch usernames for spectators
+  if (spectators) {
+    const spectatorUserIds = spectators.map(s => s.user_id).filter(Boolean);
+    if (spectatorUserIds.length > 0) {
+      const { data: profiles } = await db
+        .from('profiles')
+        .select('id, username')
+        .in('id', spectatorUserIds);
+      if (profiles) {
+        const profileMap = {};
+        profiles.forEach(p => { profileMap[p.id] = p.username; });
+        spectators.forEach(s => {
+          s.username = profileMap[s.user_id] || 'Unknown';
+        });
+      }
+    }
+  }
 
   // Render seats
   const seatsEl = document.getElementById('lobby-seats');
@@ -1553,7 +1573,7 @@ async function loadLobbyUI() {
         const isAI = player.user_id === AI_UUID;
         const username = isAI 
           ? `AI ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`
-          : titleCase(player.profiles?.username || player.user_id.substring(0, 8));
+          : titleCase(player.username || player.user_id.substring(0, 8));
         const isCurrentPlayer = !isAI && player.user_id === currentUser?.id;
         const isReadyClass = player.ready ? 'ready' : '';
         const readyText = player.ready ? 'READY' : 'NOT READY';
@@ -1583,7 +1603,7 @@ async function loadLobbyUI() {
   const specEl = document.getElementById('lobby-spectators');
   if (spectators && spectators.length > 0) {
     specEl.innerHTML = spectators.map(s => {
-      const username = titleCase(s.profiles?.username || s.user_id.substring(0, 8));
+      const username = titleCase(s.username || s.user_id.substring(0, 8));
       return `<div class="spectator-item">${username}</div>`;
     }).join('');
   } else {
@@ -1769,12 +1789,20 @@ function updateGameHeader() {
   if (currentGameState.active_player_id) {
     // Get player username for active player display
     db.from('btech_players')
-      .select('profiles(username)')
+      .select('user_id')
       .eq('id', currentGameState.active_player_id)
       .single()
-      .then(({ data: player }) => {
-        const username = player?.profiles?.username || 'Unknown';
-        statusEl.textContent += ` — ${titleCase(username)}'s Turn`;
+      .then(({ data: playerSeat }) => {
+        if (playerSeat?.user_id) {
+          db.from('profiles')
+            .select('username')
+            .eq('id', playerSeat.user_id)
+            .single()
+            .then(({ data: profile }) => {
+              const username = profile?.username || 'Unknown';
+              statusEl.textContent += ` — ${titleCase(username)}'s Turn`;
+            });
+        }
       });
   }
 }
