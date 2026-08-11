@@ -817,6 +817,7 @@ html, body {
     <div class="tagline">BattleTech Virtual Tabletop</div>
     <div class="username-display" id="menu-username"></div>
     <button class="btn-large primary" onclick="handleCreateGame()">Create Game</button>
+    <button class="btn-large" onclick="handleCreateVsAI()" style="border-color:#88aaff;color:#88aaff;">Play vs AI</button>
     <div class="join-row" style="max-width:280px;margin:0 auto;">
       <input type="text" id="join-code" placeholder="Game Code" maxlength="6">
       <button onclick="handleJoinGame()">Join</button>
@@ -886,6 +887,11 @@ let isHost = false;
 let isReady = false;
 let gameSubscription = null;
 let playersSubscription = null;
+
+// ── AI OPPONENT STATE ────────────────────────────────────
+let vsAiMode = false;
+let aiDifficulty = 'beginner'; // beginner, intermediate, advanced, expert
+const AI_UUID = '__ai_opponent__';
 
 // ── SCREEN MANAGEMENT ────────────────────────────────────
 function showScreen(screenId) {
@@ -1236,6 +1242,61 @@ async function handleCreateGame() {
   }
 }
 
+// ── CREATE VS AI GAME ────────────────────────────────────
+async function handleCreateVsAI() {
+  if (!currentUser) return;
+  showLoading(true);
+  try {
+    const code = generateGameCode();
+    const { data: game, error: gameErr } = await db
+      .from('btech_games')
+      .insert({
+        game_code: code,
+        host_id: currentUser.id,
+        state: JSON.stringify({ units: [], turn: 0, phase: 'setup', ai_difficulty: aiDifficulty }),
+        status: 'lobby',
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (gameErr) throw gameErr;
+
+    currentGameId = game.id;
+    isHost = true;
+    isReady = true;
+    vsAiMode = true;
+
+    // Host is player 1
+    await db.from('btech_players').insert({
+      game_id: currentGameId,
+      user_id: currentUser.id,
+      seat_number: 1,
+      player_color: '#c4302b',
+      role: 'player',
+      ready: true
+    });
+
+    // AI auto-joins as player 2
+    await db.from('btech_players').insert({
+      game_id: currentGameId,
+      user_id: AI_UUID,
+      seat_number: 2,
+      player_color: '#3060c4',
+      role: 'player',
+      ready: true
+    });
+
+    await loadLobby();
+    showScreen('lobby-screen');
+  } catch (err) {
+    console.error('Create vs AI error:', err);
+    alert('Failed to create AI game: ' + (err.message || 'Unknown error'));
+  } finally {
+    showLoading(false);
+  }
+}
+
 // ── JOIN GAME ────────────────────────────────────────────
 async function handleJoinGame() {
   const code = document.getElementById('join-code').value.trim().toUpperCase();
@@ -1364,16 +1425,21 @@ async function loadLobbyUI() {
       const row = document.createElement('div');
 
       if (player) {
-        const username = titleCase(player.profiles?.username || player.user_id.substring(0, 8));
-        const isCurrentPlayer = player.user_id === currentUser?.id;
+        // Check if this is the AI player
+        const isAI = player.user_id === AI_UUID;
+        const username = isAI 
+          ? `AI ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`
+          : titleCase(player.profiles?.username || player.user_id.substring(0, 8));
+        const isCurrentPlayer = !isAI && player.user_id === currentUser?.id;
         const isReadyClass = player.ready ? 'ready' : '';
         const readyText = player.ready ? 'READY' : 'NOT READY';
         const currentTag = isCurrentPlayer ? ' (you)' : '';
+        const aiTag = isAI ? ' 🤖' : '';
 
         row.className = 'seat-row';
         row.innerHTML = `
           <div class="seat-number">${i + 1}</div>
-          <div class="seat-name">${username}${currentTag}</div>
+          <div class="seat-name">${username}${aiTag}${currentTag}</div>
           <div class="seat-status ${isReadyClass}">${readyText}</div>
         `;
       } else {
@@ -1443,27 +1509,37 @@ async function handleReadyUp() {
 async function handleStartGame() {
   if (!isHost || !currentGameId) return;
 
-  // Check all players are ready
+  // Get all players
   const { data: players } = await db
     .from('btech_players')
     .select('*')
     .eq('game_id', currentGameId)
     .eq('role', 'player');
 
-  const allReady = players && players.every(p => p.ready === true);
-  if (!allReady) {
-    document.getElementById('lobby-status').textContent = 'All players must be ready!';
+  if (!players || players.length < 1) {
+    document.getElementById('lobby-status').textContent = 'Need at least 1 player!';
     return;
   }
 
-  // Get all player IDs for initiative
-  const playerIds = players.map(p => p.id);
+  // In AI mode, we only need 1 human player (AI auto-readies)
+  // In multiplayer, all players must be ready
+  if (!vsAiMode) {
+    const allReady = players.every(p => p.ready === true);
+    if (!allReady) {
+      document.getElementById('lobby-status').textContent = 'All players must be ready!';
+      return;
+    }
+  }
 
-  // Roll initiative for each player (random 1-10, tiebreak by seat number)
+  // Get player IDs for initiative (exclude AI from initiative rolls)
+  const humanPlayers = players.filter(p => p.user_id !== AI_UUID);
+  const playerIds = humanPlayers.map(p => p.id);
+
+  // Roll initiative for each human player (random 1-10, tiebreak by seat number)
   const initiativeRolls = playerIds.map((pid, idx) => ({
     player_id: pid,
     roll: Math.floor(Math.random() * 10) + 1 + (idx * 0.1), // add seat-based tiebreaker
-    seat_number: players[idx].seat_number
+    seat_number: humanPlayers[idx].seat_number
   }));
 
   // Sort descending — highest roll goes first
@@ -1480,6 +1556,8 @@ async function handleStartGame() {
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   gameState.initiative_order = initiativeRolls;
   gameState.initiative_rolls = initiativeRolls.map(r => ({ player_id: r.player_id, roll: r.roll }));
+  gameState.vs_ai_mode = vsAiMode;
+  gameState.ai_difficulty = aiDifficulty;
 
   // Single update call — merged round/phase/status/winner/active_player/state
   await db
@@ -1487,7 +1565,7 @@ async function handleStartGame() {
     .update({
       status: 'in-progress',
       current_round: 1,
-      current_phase: 'initiative',
+      current_phase: 'movement', // Start at movement phase for AI mode
       initiative_winner: winner.player_id,
       active_player_id: winner.player_id,
       state: JSON.stringify(gameState)
@@ -1649,6 +1727,13 @@ async function advancePhase() {
 
   updateGameHeader();
   renderInitiativeDisplay();
+  
+  // Trigger AI turn if in AI mode and we're in an action phase
+  if (vsAiMode && currentGameState.phase !== 'initiative' && currentGameState.phase !== 'end') {
+    setTimeout(async () => {
+      await aiTurnHandler();
+    }, 500);
+  }
 }
 
 // ── GAME INIT (existing hex grid code) ───────────────────
@@ -1739,12 +1824,22 @@ function initGame() {
   canvas = document.getElementById('hexmap');
   ctx = canvas.getContext('2d');
 
-  // Place 3 mech instances for demo
-  mechInstances = [
-    { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0 },
-    { instanceId: 'hunchback-1', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 180 },
-    { instanceId: 'locust-1', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 240 }
-  ];
+  // Place mech instances — different setup for AI mode vs multiplayer
+  if (vsAiMode) {
+    // AI mode: Player 1 gets Atlas, AI (owner 2) gets Hunchback + Locust
+    mechInstances = [
+      { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0 },
+      { instanceId: 'hunchback-ai', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 180 },
+      { instanceId: 'locust-ai', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 240 }
+    ];
+  } else {
+    // Multiplayer demo: 3 units for 2 players
+    mechInstances = [
+      { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0 },
+      { instanceId: 'hunchback-1', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 180 },
+      { instanceId: 'locust-1', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 240 }
+    ];
+  }
 
   try {
     window.addEventListener('resize', resizeCanvas);
@@ -1976,6 +2071,306 @@ function renderDetail() {
     showScreen('login-screen');
   }
 })();
+
+
+// ── AI OPPONENT SYSTEM ──────────────────────────────────────
+
+// AI difficulty settings
+const AI_SETTINGS = {
+  beginner: {
+    moveChance: 0.7,
+    attackChance: 0.6,
+    targetPriority: 'random', // random, closest, strongest
+    movementRange: 1, // hexes per turn
+    heatManagement: false,
+    planningHorizon: 1
+  },
+  intermediate: {
+    moveChance: 0.85,
+    attackChance: 0.75,
+    targetPriority: 'closest',
+    movementRange: 2,
+    heatManagement: true,
+    planningHorizon: 2
+  },
+  advanced: {
+    moveChance: 0.95,
+    attackChance: 0.85,
+    targetPriority: 'strongest',
+    movementRange: 3,
+    heatManagement: true,
+    planningHorizon: 3
+  },
+  expert: {
+    moveChance: 1.0,
+    attackChance: 0.95,
+    targetPriority: 'optimal',
+    movementRange: 3,
+    heatManagement: true,
+    planningHorizon: 5
+  }
+};
+
+// AI plan generator - creates movement and attack plans
+function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
+  const settings = AI_SETTINGS[difficulty] || AI_SETTINGS.beginner;
+  const aiPlan = {
+    type: 'ai_plan',
+    difficulty: difficulty,
+    timestamp: Date.now(),
+    actions: []
+  };
+  
+  // Get AI's mech instances
+  const aiMechs = mechInstances.filter(inst => inst.owner === 2); // Owner 2 = AI
+  
+  if (aiMechs.length === 0) {
+    console.warn('No AI mechs found for plan generation');
+    return aiPlan;
+  }
+  
+  // Get player mechs (owner 1 = human)
+  const playerMechs = mechInstances.filter(inst => inst.owner === 1);
+  
+  // Generate actions for each AI mech
+  for (const mech of aiMechs) {
+    // Movement action
+    if (Math.random() < settings.moveChance) {
+      const moveAction = generateAIMoveAction(mech, playerMechs, settings);
+      if (moveAction) {
+        aiPlan.actions.push(moveAction);
+      }
+    }
+    
+    // Attack action
+    if (Math.random() < settings.attackChance) {
+      const attackAction = generateAIAttackAction(mech, playerMechs, settings);
+      if (attackAction) {
+        aiPlan.actions.push(attackAction);
+      }
+    }
+  }
+  
+  return aiPlan;
+}
+
+// Generate a movement action for AI mech
+function generateAIMoveAction(mech, playerMechs, settings) {
+  const unit = BT_UNITS[mech.unitId];
+  const maxMove = unit.movement.walk * settings.movementRange;
+  
+  // Simple AI: move toward nearest player mech
+  let targetHex = null;
+  let minDistance = Infinity;
+  
+  for (const playerMech of playerMechs) {
+    const distance = Math.abs(mech.col - playerMech.col) + Math.abs(mech.row - playerMech.row);
+    if (distance < minDistance) {
+      minDistance = distance;
+      targetHex = { col: playerMech.col, row: playerMech.row };
+    }
+  }
+  
+  if (!targetHex) return null;
+  
+  // Calculate desired direction
+  const colDelta = targetHex.col - mech.col;
+  const rowDelta = targetHex.row - mech.row;
+  
+  // Simple movement - move toward target in one or two axes
+  const newCol = Math.max(0, Math.min(GRID_COLS - 1, mech.col + Math.sign(colDelta)));
+  const newRow = Math.max(0, Math.min(GRID_ROWS - 1, mech.row + Math.sign(rowDelta)));
+  
+  // Check if hex is empty
+  const occupied = mechInstances.some(inst => 
+    inst.instanceId !== mech.instanceId && 
+    inst.col === newCol && 
+    inst.row === newRow
+  );
+  
+  if (occupied) return null;
+  
+  return {
+    type: 'move',
+    instanceId: mech.instanceId,
+    fromCol: mech.col,
+    fromRow: mech.row,
+    toCol: newCol,
+    toRow: newRow,
+    facing: mech.facing // Keep current facing for now
+  };
+}
+
+// Generate an attack action for AI mech
+function generateAIAttackAction(mech, playerMechs, settings) {
+  const unit = BT_UNITS[mech.unitId];
+  
+  // Find targets
+  let targets = playerMechs;
+  
+  if (settings.targetPriority === 'closest') {
+    targets = [...playerMechs].sort((a, b) => {
+      const distA = Math.abs(mech.col - a.col) + Math.abs(mech.row - a.row);
+      const distB = Math.abs(mech.col - b.col) + Math.abs(mech.row - b.row);
+      return distA - distB;
+    });
+  } else if (settings.targetPriority === 'strongest') {
+    targets = [...playerMechs].sort((a, b) => {
+      const tonnageA = BT_UNITS[a.unitId].tonnage;
+      const tonnageB = BT_UNITS[b.unitId].tonnage;
+      return tonnageB - tonnageA;
+    });
+  }
+  
+  if (targets.length === 0) return null;
+  
+  // Pick first target
+  const target = targets[0];
+  const targetUnit = BT_UNITS[target.unitId];
+  
+  // Pick a weapon (prefer highest damage)
+  const weapons = unit.weapons;
+  const weapon = weapons.length > 0 ? weapons[0] : null;
+  
+  if (!weapon) return null;
+  
+  return {
+    type: 'attack',
+    instanceId: mech.instanceId,
+    targetInstanceId: target.instanceId,
+    weaponKey: weapon.key,
+    weaponLocation: weapon.location,
+    weaponCount: weapon.count
+  };
+}
+
+// Execute AI plan after a delay
+async function executeAIPlan(aiPlan) {
+  if (!aiPlan || !aiPlan.actions || aiPlan.actions.length === 0) {
+    console.log('No AI actions to execute');
+    return;
+  }
+  
+  console.log(`Executing AI plan with ${aiPlan.actions.length} actions`);
+  
+  // Execute actions one by one with delays for visual feedback
+  for (const action of aiPlan.actions) {
+    await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay between actions
+    
+    switch (action.type) {
+      case 'move':
+        await executeAIMove(action);
+        break;
+      case 'attack':
+        await executeAIAttack(action);
+        break;
+    }
+  }
+  
+  console.log('AI plan execution complete');
+}
+
+// Execute AI movement
+async function executeAIMove(action) {
+  const mech = mechInstances.find(m => m.instanceId === action.instanceId);
+  if (!mech) return;
+  
+  // Update mech position
+  mech.col = action.toCol;
+  mech.row = action.toRow;
+  
+  // Update facing direction
+  const colDelta = action.toCol - action.fromCol;
+  const rowDelta = action.toRow - action.fromRow;
+  if (colDelta !== 0 || rowDelta !== 0) {
+    mech.facing = Math.round(Math.atan2(rowDelta, colDelta) * 180 / Math.PI);
+  }
+  
+  // Update UI
+  draw();
+  renderRoster();
+  renderDetail();
+  
+  console.log(`AI moved ${mech.instanceId} to ${hexCode(action.toCol, action.toRow)}`);
+}
+
+// Execute AI attack
+async function executeAIAttack(action) {
+  const attacker = mechInstances.find(m => m.instanceId === action.instanceId);
+  const target = mechInstances.find(m => m.instanceId === action.targetInstanceId);
+  
+  if (!attacker || !target) return;
+  
+  const attackerUnit = BT_UNITS[attacker.unitId];
+  const targetUnit = BT_UNITS[target.unitId];
+  
+  // Calculate damage (simplified)
+  const weapon = attackerUnit.weapons.find(w => w.key === action.weaponKey);
+  if (!weapon) return;
+  
+  // Random damage based on weapon type (simplified)
+  let damage = 0;
+  switch (action.weaponKey) {
+    case 'ac20': damage = 20 + Math.floor(Math.random() * 5); break;
+    case 'lr20': damage = 15 + Math.floor(Math.random() * 5); break;
+    case 'sr6': damage = 10 + Math.floor(Math.random() * 3); break;
+    case 'med_laser': damage = 8 + Math.floor(Math.random() * 4); break;
+    case 'erl': damage = 12 + Math.floor(Math.random() * 4); break;
+    case 'lr6': damage = 8 + Math.floor(Math.random() * 3); break;
+    case 'ac2': damage = 5 + Math.floor(Math.random() * 2); break;
+    case 'streak_sr4': damage = 10 + Math.floor(Math.random() * 3); break;
+    default: damage = 5 + Math.floor(Math.random() * 5);
+  }
+  
+  // Apply damage to target (simplified - hit center torso)
+  const targetArmor = targetUnit.armor.ct || 0;
+  const targetStructure = targetUnit.structure.ct || 0;
+  
+  let remainingDamage = damage;
+  if (remainingDamage > targetArmor) {
+    remainingDamage -= targetArmor;
+    targetUnit.armor.ct = 0;
+    targetUnit.structure.ct = Math.max(0, targetStructure - remainingDamage);
+  } else {
+    targetUnit.armor.ct = Math.max(0, targetArmor - remainingDamage);
+  }
+  
+  console.log(`AI attacked ${target.instanceId} with ${action.weaponKey} for ${damage} damage`);
+  
+  // Update UI
+  draw();
+  renderRoster();
+  renderDetail();
+}
+
+// AI turn handler - called when it's AI's turn
+async function aiTurnHandler() {
+  if (!vsAiMode) return;
+  
+  console.log('AI turn started');
+  
+  // Get game state from Supabase
+  const { data: game } = await db
+    .from('btech_games')
+    .select('state')
+    .eq('id', currentGameId)
+    .single();
+  
+  if (!game) return;
+  
+  const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const aiDifficulty = gameState.ai_difficulty || aiDifficulty;
+  
+  // Generate AI plan
+  const aiPlan = generateAIPlan(aiDifficulty, null, gameState, []);
+  
+  // Execute AI plan
+  await executeAIPlan(aiPlan);
+  
+  console.log('AI turn complete');
+}
+
+// ── END AI OPPONENT SYSTEM ──────────────────────────────────
 </script>
 </body>
 </html>
