@@ -857,6 +857,12 @@ html, body {
     <div class="title">BT-VTT <small>Phase 1 — Hex Grid</small></div>
     <button class="btn-back" onclick="handleBackToDropship()">Back to Dropship</button>
     <button id="btn-roll-initiative" class="primary" onclick="rollInitiative()" style="background:#2a4a2a;border-color:#3a6a3a;color:#7c9;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Roll Initiative (2D6)</button>
+    <button id="btn-advance-phase" class="primary" onclick="advancePhase()" style="background:#4a2a2a;border-color:#6a3a3a;color:#fa8;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;" disabled>ADVANCE PHASE</button>
+    <div id="movement-modes" style="display:none;gap:4px;margin-left:8px;">
+      <button class="move-mode-btn active" onclick="setMoveMode('walk')" style="background:#2a4a2a;border-color:#3a6a3a;color:#7c9;padding:3px 10px;font-family:var(--mono);font-size:10px;cursor:pointer;border-radius:2px;">WALK</button>
+      <button class="move-mode-btn" onclick="setMoveMode('run')" style="background:#4a4a2a;border-color:#6a6a3a;color:#cc8;padding:3px 10px;font-family:var(--mono);font-size:10px;cursor:pointer;border-radius:2px;">RUN</button>
+      <button class="move-mode-btn" onclick="setMoveMode('jump')" style="background:#4a2a4a;border-color:#6a3a6a;color:#c8c;padding:3px 10px;font-family:var(--mono);font-size:10px;cursor:pointer;border-radius:2px;">JUMP</button>
+    </div>
     <div class="status" id="status-readout"></div>
   </div>
   <div id="map-wrap">
@@ -886,6 +892,7 @@ let currentUser = null;
 let currentGameId = null;
 let isHost = false;
 let isReady = false;
+let mySeatNumber = null; // 1 or 2 — which side this browser controls on the map
 let gameSubscription = null;
 let playersSubscription = null;
 
@@ -893,6 +900,122 @@ let playersSubscription = null;
 let vsAiMode = false;
 let aiDifficulty = 'beginner'; // beginner, intermediate, advanced, expert
 const AI_UUID = '__ai_opponent__';
+
+// ── MOVEMENT STATE ───────────────────────────────────────
+let moveState = {
+  mode: 'walk', // walk, run, jump, stand
+  selectedInstanceId: null,
+  path: [], // array of {col, row, facing}
+  mpUsed: 0,
+  mpLeft: 0,
+  hexesMoved: 0
+};
+
+// BattleTech hex directions (0=E, 1=NE, 2=NW, 3=W, 4=SW, 5=SE)
+const HEX_DIRS = [
+  { dc: 1, dr: 0, name: 'E' },
+  { dc: 0, dr: -1, name: 'NE' },
+  { dc: -1, dr: -1, name: 'NW' },
+  { dc: -1, dr: 0, name: 'W' },
+  { dc: 0, dr: 1, name: 'SW' },
+  { dc: 1, dr: 1, name: 'SE' }
+];
+
+function getDirectionFromFacing(facing) {
+  // Convert facing angle to hex direction index
+  const normalized = ((facing % 360) + 360) % 360;
+  if (normalized >= 330 || normalized < 30) return 0; // E
+  if (normalized >= 30 && normalized < 90) return 1; // NE
+  if (normalized >= 90 && normalized < 150) return 2; // NW
+  if (normalized >= 150 && normalized < 210) return 3; // W
+  if (normalized >= 210 && normalized < 270) return 4; // SW
+  return 5; // SE
+}
+
+function getFacingFromDirection(dir) {
+  return dir * 60; // 0=E(0), 1=NE(60), 2=NW(120), 3=W(180), 4=SW(240), 5=SE(300)
+}
+
+function getAdjacentHexes(col, row, direction) {
+  if (direction !== undefined) {
+    const dir = HEX_DIRS[direction];
+    return { col: col + dir.dc, row: row + dir.dr };
+  }
+  // All 6 neighbors (odd-q offset)
+  const parity = row & 1;
+  const dirs = parity ? [
+    [+1, 0], [-1, 0], [0, -1], [+1, -1], [0, +1], [+1, +1]
+  ] : [
+    [+1, 0], [-1, 0], [-1, -1], [0, -1], [-1, +1], [0, +1]
+  ];
+  return dirs.map(([dc, dr]) => ({ col: col + dc, row: row + dr }));
+}
+
+function getHexesInRange(startCol, startRow, maxRange, occupiedHexes) {
+  const visited = new Set();
+  const range = [{ col: startCol, row: startRow, dist: 0 }];
+  const queue = [{ col: startCol, row: startRow, dist: 0 }];
+  visited.add(`${startCol},${startRow}`);
+  
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current.dist >= maxRange) continue;
+    
+    const adjacent = getAdjacentHexes(current.col, current.row);
+    for (const hex of adjacent) {
+      const key = `${hex.col},${hex.row}`;
+      if (visited.has(key)) continue;
+      if (hex.col < 0 || hex.col >= GRID_COLS || hex.row < 0 || hex.row >= GRID_ROWS) continue;
+      if (occupiedHexes.has(key)) continue;
+      
+      visited.add(key);
+      range.push({ col: hex.col, row: hex.row, dist: current.dist + 1 });
+      queue.push({ col: hex.col, row: hex.row, dist: current.dist + 1 });
+    }
+  }
+  
+  return range;
+}
+
+function canAdvancePhase() {
+  if (currentGameState.phase !== 'movement') return false;
+  const players = playersEvent?.value || [];
+  const seatNumbers = players.filter(p => p.seat_number).map(p => p.seat_number);
+  
+  for (const seat of seatNumbers) {
+    const units = mechInstances.filter(m => m.owner === seat);
+    const unmoved = units.filter(m => !m.hasMoved).length;
+    if (unmoved > 0) return false;
+  }
+  return true;
+}
+
+function updateAdvanceButtonState() {
+  const advanceBtn = document.getElementById('advance-phase-btn');
+  if (!advanceBtn) return;
+  
+  const canAdvance = canAdvancePhase();
+  advanceBtn.disabled = !canAdvance;
+  advanceBtn.textContent = canAdvance ? 'ADVANCE PHASE' : 'WAIT FOR ALL UNITS TO MOVE';
+  advanceBtn.style.opacity = canAdvance ? 1 : 0.5;
+}
+
+function resetMovementForRound() {
+  mechInstances.forEach(inst => {
+    inst.hasMoved = false;
+    inst.movementMode = 'walk';
+    inst.mpUsed = 0;
+    inst.hexesMoved = 0;
+  });
+  moveState = {
+    mode: 'walk',
+    selectedInstanceId: null,
+    path: [],
+    mpUsed: 0,
+    mpLeft: 0,
+    hexesMoved: 0
+  };
+}
 
 // ── SCREEN MANAGEMENT ────────────────────────────────────
 function showScreen(screenId) {
@@ -1751,6 +1874,22 @@ async function rollInitiative() {
 }
 
 async function advancePhase() {
+  // Check if all units have moved before advancing from movement phase
+  if (currentGameState.phase === 'movement' && !canAdvancePhase()) {
+    const statusEl = document.getElementById('status-readout');
+    if (statusEl) {
+      statusEl.textContent = 'WAIT: All units must move or Stand Still before advancing!';
+      statusEl.style.color = '#a3321c';
+      setTimeout(() => {
+        if (statusEl) {
+          statusEl.style.color = '';
+          updateGameHeader();
+        }
+      }, 2000);
+    }
+    return;
+  }
+  
   const currentIdx = PHASE_ORDER.indexOf(currentGameState.phase);
   const nextIdx = currentIdx + 1;
 
@@ -1767,6 +1906,10 @@ async function advancePhase() {
     currentGameState.round += 1;
     currentGameState.phase = 'initiative';
     currentGameState.active_player_id = null;
+    
+    // Hide movement UI
+    const modesEl = document.getElementById('movement-modes');
+    if (modesEl) modesEl.style.display = 'none';
   } else {
     await db
       .from('btech_games')
@@ -1777,10 +1920,24 @@ async function advancePhase() {
 
     currentGameState.phase = PHASE_ORDER[nextIdx];
     currentGameState.active_player_id = null;
+    
+    // If entering movement phase, reset movement state
+    if (currentGameState.phase === 'movement') {
+      resetMovementForRound();
+      const modesEl = document.getElementById('movement-modes');
+      if (modesEl) modesEl.style.display = 'flex';
+    } else {
+      const modesEl = document.getElementById('movement-modes');
+      if (modesEl) modesEl.style.display = 'none';
+    }
   }
 
   updateGameHeader();
   renderInitiativeDisplay();
+  updateAdvanceButtonState();
+  renderRoster();
+  renderDetail();
+  draw();
   
   // Trigger AI turn if in AI mode and we're in an action phase
   if (vsAiMode && currentGameState.phase !== 'initiative' && currentGameState.phase !== 'end') {
@@ -1928,16 +2085,16 @@ function initGame() {
   if (vsAiMode) {
     // AI mode: Player 1 gets Atlas, AI (owner 2) gets Hunchback + Locust
     mechInstances = [
-      { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0 },
-      { instanceId: 'hunchback-ai', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 180 },
-      { instanceId: 'locust-ai', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 240 }
+      { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0, hasMoved: false, mpUsed: 0, hexesMoved: 0 },
+      { instanceId: 'hunchback-ai', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 180, hasMoved: false, mpUsed: 0, hexesMoved: 0 },
+      { instanceId: 'locust-ai', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 240, hasMoved: false, mpUsed: 0, hexesMoved: 0 }
     ];
   } else {
     // Multiplayer demo: 3 units for 2 players
     mechInstances = [
-      { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0 },
-      { instanceId: 'hunchback-1', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 180 },
-      { instanceId: 'locust-1', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 240 }
+      { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0, hasMoved: false, mpUsed: 0, hexesMoved: 0 },
+      { instanceId: 'hunchback-1', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 180, hasMoved: false, mpUsed: 0, hexesMoved: 0 },
+      { instanceId: 'locust-1', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 240, hasMoved: false, mpUsed: 0, hexesMoved: 0 }
     ];
   }
 
@@ -2009,38 +2166,8 @@ function draw() {
     drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, inst.facing, inst.instanceId === selectedInstanceId);
   }
   
-  // Draw movement range highlight if active
-  if (hoveredHex && hoveredHex.type === 'range') {
-    for (const hex of hoveredHex.range) {
-      const { x, y } = hexToPixel(hex.col, hex.row);
-      const px = x + gridOffsetX;
-      const py = y + gridOffsetY;
-      
-      // Highlight hex with semi-transparent green
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const angle = Math.PI / 180 * (60 * i + 30);
-        const hx = px + (HEX_SIZE - 1) * Math.cos(angle);
-        const hy = py + (HEX_SIZE - 1) * Math.sin(angle);
-        i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
-      }
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(124, 204, 153, 0.2)';
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(124, 204, 153, 0.6)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      
-      // Draw distance label
-      if (hex.dist > 0) {
-        ctx.fillStyle = 'rgba(124, 204, 153, 0.9)';
-        ctx.font = 'bold 9px "IBM Plex Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${hex.dist}`, px, py);
-      }
-    }
-  }
+  // Draw movement path highlights (step-based)
+  drawMovementHighlights();
 }
 
 function drawHex(cx, cy, size, fill, stroke) {
@@ -2087,7 +2214,151 @@ function drawMechToken(x, y, r, color, facing, selected) {
   ctx.stroke();
 }
 
-// Mouse hover
+function attemptMoveStep(targetCol, targetRow) {
+  const inst = mechInstances.find(m => m.instanceId === moveState.selectedInstanceId);
+  if (!inst) return;
+  
+  const unit = BT_UNITS[inst.unitId];
+  const lastPath = moveState.path[moveState.path.length - 1];
+  
+  // Must be adjacent to last path hex
+  const adjacent = getAdjacentHexes(lastPath.col, lastPath.row);
+  const isAdjacent = adjacent.some(h => h.col === targetCol && h.row === targetRow);
+  if (!isAdjacent) {
+    flashMoveWarning('Must move to an adjacent hex!');
+    return;
+  }
+  
+  // Check occupied
+  const occupiedHexes = new Set(mechInstances.filter(m => m.instanceId !== inst.instanceId).map(m => `${m.col},${m.row}`));
+  if (occupiedHexes.has(`${targetCol},${targetRow}`)) {
+    flashMoveWarning('Hex is occupied!');
+    return;
+  }
+  
+  // Check grid bounds
+  if (targetCol < 0 || targetCol >= GRID_COLS || targetRow < 0 || targetRow >= GRID_ROWS) {
+    flashMoveWarning('Out of bounds!');
+    return;
+  }
+  
+  // Calculate MP cost
+  const dir = HEX_DIRS.findIndex(d => d.dc === (targetCol - lastPath.col) && d.dr === (targetRow - lastPath.row));
+  let mpCost = 1; // Base cost for walk
+  
+  if (moveState.mode === 'run') {
+    mpCost = 2;
+    // Running: cannot change facing except last step
+    if (moveState.path.length > 1) {
+      const prevDir = HEX_DIRS.findIndex(d => d.dc === (lastPath.col - moveState.path[moveState.path.length - 2].col) && d.dr === (lastPath.row - moveState.path[moveState.path.length - 2].row));
+      if (dir !== prevDir) {
+        flashMoveWarning('Cannot change direction while running!');
+        return;
+      }
+    }
+  } else if (moveState.mode === 'jump') {
+    mpCost = unit.movement.jump || 1;
+  } else if (dir !== -1) {
+    // Facing change during walk
+    const currentDir = getDirectionFromFacing(inst.facing);
+    if (dir !== currentDir) {
+      mpCost += 1; // Extra MP for turning
+    }
+  }
+  
+  // Check MP budget
+  const maxMP = moveState.mode === 'walk' ? unit.movement.walk : 
+                 moveState.mode === 'run' ? (unit.movement.run || unit.movement.walk * 1.5) :
+                 (unit.movement.jump || 1);
+  if (moveState.mpUsed + mpCost > maxMP) {
+    flashMoveWarning('Not enough movement points!');
+    return;
+  }
+  
+  // Apply move
+  inst.col = targetCol;
+  inst.row = targetRow;
+  inst.facing = getFacingFromDirection(dir);
+  inst.hasMoved = true;
+  inst.mpUsed = (inst.mpUsed || 0) + mpCost;
+  inst.hexesMoved = (inst.hexesMoved || 0) + 1;
+  
+  moveState.mpUsed += mpCost;
+  moveState.hexesMoved += 1;
+  moveState.path.push({ col: targetCol, row: targetRow, facing: inst.facing });
+  
+  // Sync to Supabase
+  if (currentGameId) {
+    db.from('btech_games').update({
+      state: JSON.stringify({
+        ...currentGameState,
+        mech_positions: mechInstances.map(m => ({ instanceId: m.instanceId, col: m.col, row: m.row, facing: m.facing }))
+      })
+    }).eq('id', currentGameId).catch(() => {});
+  }
+  
+  draw();
+  renderRoster();
+  renderDetail();
+}
+
+function flashMoveWarning(msg) {
+  const el = document.getElementById('status-readout');
+  if (el) {
+    el.textContent = msg;
+    el.style.color = '#a3321c';
+    setTimeout(() => {
+      if (el) {
+        el.style.color = '';
+        updateGameHeader();
+      }
+    }, 2000);
+  }
+}
+
+function drawMovementHighlights() {
+  if (!moveState.selectedInstanceId || moveState.path.length === 0) return;
+  
+  // Draw path
+  ctx.strokeStyle = 'rgba(124, 204, 153, 0.8)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([5, 5]);
+  
+  for (let i = 1; i < moveState.path.length; i++) {
+    const prev = hexToPixel(moveState.path[i - 1].col, moveState.path[i - 1].row);
+    const curr = hexToPixel(moveState.path[i].col, moveState.path[i].row);
+    ctx.beginPath();
+    ctx.moveTo(prev.x + gridOffsetX, prev.y + gridOffsetY);
+    ctx.lineTo(curr.x + gridOffsetX, curr.y + gridOffsetY);
+    ctx.stroke();
+  }
+  
+  ctx.setLineDash([]);
+  
+  // Draw path hexes
+  for (const p of moveState.path) {
+    const { x, y } = hexToPixel(p.col, p.row);
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const angle = Math.PI / 180 * (60 * i - 30);
+      const hx = x + (HEX_SIZE - 2) * Math.cos(angle);
+      const hy = y + (HEX_SIZE - 2) * Math.sin(angle);
+      i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(124, 204, 153, 0.3)';
+    ctx.fill();
+  }
+}
+
+function setMoveMode(mode) {
+  moveState.mode = mode;
+  document.querySelectorAll('.move-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.toLowerCase().trim() === mode);
+  });
+  renderDetail();
+}
+
 canvas = document.getElementById('hexmap');
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
@@ -2097,14 +2368,11 @@ canvas.addEventListener('mousemove', (e) => {
     const axial = offsetToAxial(hex.col, hex.row);
     let coordText = `HEX ${String(hex.col).padStart(2,'0')}${String(hex.row).padStart(2,'0')}  (q${axial.q} r${axial.r})`;
     
-    // If in movement phase with selected unit, show distance
-    if (currentGameState.phase === 'movement' && selectedInstanceId) {
-      const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
+    // If in movement phase with selected unit, show current path info
+    if (currentGameState.phase === 'movement' && moveState.selectedInstanceId) {
+      const inst = mechInstances.find(m => m.instanceId === moveState.selectedInstanceId);
       if (inst) {
-        const dist = hexDistance(inst.col, inst.row, hex.col, hex.row);
-        const unit = BT_UNITS[inst.unitId];
-        const inRange = dist <= unit.movement.walk;
-        coordText += ` | DIST: ${dist}${inRange ? ' ✓' : ' ✗'}`;
+        coordText += ` | PATH: ${moveState.path.length - 1} STEPS | MP: ${moveState.mpUsed}`;
       }
     }
     
@@ -2116,79 +2384,60 @@ canvas.addEventListener('mousemove', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     hoveredHex = null;
+    moveState.selectedInstanceId = null;
+    moveState.path = [];
+    moveState.mpUsed = 0;
+    moveState.hexesMoved = 0;
+    moveState.mode = 'walk';
     selectInstance(null);
     draw();
+    renderDetail();
   }
 });
 
 canvas.addEventListener('click', (e) => {
   const rect = canvas.getBoundingClientRect();
   const px = e.clientX - rect.left - gridOffsetX, py = e.clientY - rect.top - gridOffsetY;
+  const hex = pixelToHex(px, py);
   
-  // Check if clicking on a mech (select it)
+  if (hex.col < 0 || hex.col >= GRID_COLS || hex.row < 0 || hex.row >= GRID_ROWS) return;
+  
+  // Check if clicking on a mech
   let hit = null;
   for (const inst of mechInstances) {
     const { x, y } = hexToPixel(inst.col, inst.row);
     if (Math.hypot(px - x, py - y) < HEX_SIZE * 0.55) hit = inst;
   }
   
-  if (hit) {
-    // Select the unit
+  if (hit && currentGameState.phase === 'movement') {
+    // Select unit for movement
     selectInstance(hit.instanceId);
+    moveState.selectedInstanceId = hit.instanceId;
+    moveState.path = [{ col: hit.col, row: hit.row, facing: hit.facing }];
     
-    // If in movement phase, show available range
-    if (currentGameState.phase === 'movement') {
-      const unit = BT_UNITS[hit.unitId];
-      const occupiedHexes = new Set(mechInstances.filter(m => m.instanceId !== hit.instanceId).map(m => `${m.col},${m.row}`));
-      const range = getHexesInRange(hit.col, hit.row, unit.movement.walk, occupiedHexes);
-      hoveredHex = { type: 'range', range: range, sourceId: hit.instanceId };
-      draw();
-    }
+    const unit = BT_UNITS[hit.unitId];
+    const mpCosts = { walk: unit.movement.walk, run: Math.floor(unit.movement.run || unit.movement.walk * 1.5), jump: unit.movement.jump || 0 };
+    moveState.mpUsed = 0;
+    moveState.hexesMoved = 0;
+    moveState.mode = 'walk';
+    
+    draw();
+    renderDetail();
     return;
   }
   
-  // If in movement phase and a unit is selected, try to move
-  if (currentGameState.phase === 'movement' && selectedInstanceId) {
-    const targetHex = pixelToHex(px, py);
-    if (targetHex.col >= 0 && targetHex.col < GRID_COLS && targetHex.row >= 0 && targetHex.row < GRID_ROWS) {
-      const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
-      if (inst) {
-        const unit = BT_UNITS[inst.unitId];
-        const dist = hexDistance(inst.col, inst.row, targetHex.col, targetHex.row);
-        
-        // Check if target is in walk range and not occupied
-        const occupiedHexes = new Set(mechInstances.filter(m => m.instanceId !== inst.instanceId).map(m => `${m.col},${m.row}`));
-        if (!occupiedHexes.has(`${targetHex.col},${targetHex.row}`) && dist <= unit.movement.walk) {
-          // Move the unit!
-          inst.col = targetHex.col;
-          inst.row = targetHex.row;
-          
-          // Update status
-          const statusEl = document.getElementById('status-readout');
-          statusEl.textContent = `${unit.chassis} moved to ${hexCode(targetHex.col, targetHex.row)}`;
-          statusEl.style.color = '#7c9';
-          
-          // Re-render everything
-          renderRoster();
-          renderDetail();
-          draw();
-          
-          // Sync to Supabase
-          if (currentGameId) {
-            await db.from('btech_games').update({
-              state: JSON.stringify({
-                ...currentGameState,
-                mech_positions: mechInstances.map(m => ({ instanceId: m.instanceId, col: m.col, row: m.row }))
-              })
-            }).eq('id', currentGameId);
-          }
-          return;
-        }
-      }
-    }
+  // If in movement phase with selected unit, try to move step
+  if (currentGameState.phase === 'movement' && moveState.selectedInstanceId) {
+    attemptMoveStep(hex.col, hex.row);
+    return;
   }
   
-  // Deselect or select nothing
+  // Normal selection
+  if (hit) {
+    selectInstance(hit.instanceId);
+    return;
+  }
+  
   selectInstance(null);
 });
 
@@ -2205,14 +2454,35 @@ function renderRoster() {
   list.innerHTML = '';
   mechInstances.forEach(inst => {
     const unit = BT_UNITS[inst.unitId];
+    const isSelected = inst.instanceId === moveState.selectedInstanceId;
+    let statusBadge = '';
+    if (currentGameState.phase === 'movement') {
+      if (inst.hasMoved) {
+        statusBadge = '<span style="color:#7c9;font-size:9px;"> ✓ MOVED</span>';
+      } else {
+        statusBadge = '<span style="color:#f0a;font-size:9px;"> ● MOVE</span>';
+      }
+    }
     const row = document.createElement('div');
-    row.className = 'roster-item' + (inst.instanceId === selectedInstanceId ? ' selected' : '');
+    row.className = 'roster-item' + (isSelected ? ' selected' : '');
     row.innerHTML = `
       <div class="roster-swatch" style="background:${unit.color}"></div>
-      <div class="roster-name">${unit.chassis} <span style="color:var(--phosphor-dim)">${unit.variant}</span></div>
+      <div class="roster-name">${unit.chassis} <span style="color:var(--phosphor-dim)">${unit.variant}</span>${statusBadge}</div>
       <div class="roster-sub">P${inst.owner} · ${unit.tonnage}t · ${hexCode(inst.col, inst.row)}</div>
     `;
-    row.addEventListener('click', () => selectInstance(inst.instanceId));
+    row.addEventListener('click', () => {
+      if (currentGameState.phase === 'movement') {
+        moveState.selectedInstanceId = inst.instanceId;
+        moveState.path = [{ col: inst.col, row: inst.row, facing: inst.facing }];
+        moveState.mpUsed = 0;
+        moveState.hexesMoved = 0;
+        moveState.mode = 'walk';
+        draw();
+        renderDetail();
+      } else {
+        selectInstance(inst.instanceId);
+      }
+    });
     list.appendChild(row);
   });
 }
@@ -2223,7 +2493,7 @@ function armorCell(loc, label, armor, structure) {
 
 function renderDetail() {
   const body = document.getElementById('detail-body');
-  const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
+  const inst = mechInstances.find(m => m.instanceId === moveState.selectedInstanceId || m.instanceId === selectedInstanceId);
   if (!inst) {
     body.className = 'no-selection';
     body.innerHTML = 'No unit selected. Click a token on the map, or an entry in the roster above.';
@@ -2232,6 +2502,22 @@ function renderDetail() {
   const unit = BT_UNITS[inst.unitId];
   const axial = offsetToAxial(inst.col, inst.row);
   body.className = '';
+  
+  let movementInfo = '';
+  if (currentGameState.phase === 'movement' && moveState.selectedInstanceId === inst.instanceId) {
+    const maxMP = moveState.mode === 'walk' ? unit.movement.walk : 
+                  moveState.mode === 'run' ? (unit.movement.run || unit.movement.walk * 1.5) :
+                  (unit.movement.jump || 1);
+    movementInfo = `
+      <div class="panel-eyebrow" style="margin-top:14px;">Movement</div>
+      <div class="stat-grid">
+        <div class="k">Mode</div><div class="v">${moveState.mode.toUpperCase()}</div>
+        <div class="k">Hexes Moved</div><div class="v">${moveState.hexesMoved}</div>
+        <div class="k">MP Used / Max</div><div class="v">${moveState.mpUsed} / ${Math.floor(maxMP)}</div>
+      </div>
+    `;
+  }
+  
   body.innerHTML = `
     <div style="font-family:var(--display);font-size:15px;letter-spacing:.04em;color:${unit.color};margin-bottom:2px;">
       ${unit.chassis} ${unit.variant}
@@ -2245,6 +2531,7 @@ function renderDetail() {
       <div class="k">Walk / Run / Jump</div><div class="v">${unit.movement.walk} / ${unit.movement.run} / ${unit.movement.jump}</div>
       <div class="k">Heat Sinks</div><div class="v">${unit.heat_sinks} (${unit.heat_sink_type})</div>
     </div>
+    ${movementInfo}
     <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>
     <div class="stat-grid">
       ${unit.weapons.map(w => `<div class="k">${w.key.replace('_',' ')}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
