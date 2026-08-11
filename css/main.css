@@ -1,0 +1,835 @@
+/* Extracted from index_3_1.html — all inline CSS preserved verbatim. */
+
+
+:root {
+  --void: #f4f4f2;
+  --panel: #ffffff;
+  --panel-line: #c9c9c2;
+  --phosphor: #1a1a1a;
+  --phosphor-dim: #6b6b63;
+  --amber: #9a5b00;
+  --alert: #a3321c;
+  --paper: #111111;
+  --mono: "IBM Plex Mono", "Courier New", monospace;
+  --display: "Oswald", "Arial Narrow", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--void);
+  color: var(--paper);
+  font-family: var(--mono);
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── SCREENS ────────────────────────────────────────────── */
+.screen { display: none; width: 100%; height: 100vh; }
+.screen.active { display: flex; }
+
+/* ── LOGIN SCREEN ───────────────────────────────────────── */
+#login-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+  color: #e0e0d8;
+}
+
+#login-box {
+  background: #ffffff;
+  color: var(--paper);
+  border-radius: 4px;
+  padding: 40px 48px;
+  width: 360px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+#login-box h1 {
+  font-family: var(--display);
+  font-size: 24px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+  color: var(--phosphor);
+}
+
+#login-box .subtitle {
+  font-size: 11px;
+  color: var(--phosphor-dim);
+  margin-bottom: 24px;
+}
+
+#login-box .form-group {
+  margin-bottom: 16px;
+}
+
+#login-box label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
+  margin-bottom: 6px;
+}
+
+#login-box input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 13px;
+  background: var(--void);
+  color: var(--paper);
+}
+
+#login-box input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+#login-box .btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+#login-box button {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid var(--phosphor);
+  background: var(--phosphor);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+#login-box button:hover {
+  background: #333;
+}
+
+#login-box button.secondary {
+  background: transparent;
+  color: var(--phosphor);
+}
+
+#login-box button.secondary:hover {
+  background: var(--void);
+}
+
+#login-error {
+  color: var(--alert);
+  font-size: 11px;
+  margin-top: 12px;
+  min-height: 16px;
+}
+
+/* ── MAIN MENU SCREEN ───────────────────────────────────── */
+#menu-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+  color: #e0e0d8;
+}
+
+#menu-box {
+  text-align: center;
+}
+
+#menu-box h1 {
+  font-family: var(--display);
+  font-size: 36px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+  color: #fff;
+}
+
+#menu-box .tagline {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 40px;
+}
+
+#menu-box .username-display {
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+  margin-bottom: 32px;
+}
+
+#menu-box .btn-large {
+  display: block;
+  width: 280px;
+  margin: 0 auto 12px;
+  padding: 16px 24px;
+  border: 2px solid #fff;
+  background: transparent;
+  color: #fff;
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+#menu-box .btn-large:hover {
+  background: #fff;
+  color: var(--phosphor);
+}
+
+#menu-box .btn-large.primary {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+#menu-box .btn-large.primary:hover {
+  background: #b36b00;
+  border-color: #b36b00;
+  color: #fff;
+}
+
+#menu-box .btn-logout {
+  display: inline-block;
+  margin-top: 32px;
+  padding: 8px 16px;
+  border: 1px solid #555;
+  background: transparent;
+  color: #888;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+#menu-box .btn-logout:hover {
+  border-color: #888;
+  color: #aaa;
+}
+
+#header .btn-back {
+  font-size: 11px;
+  padding: 4px 12px;
+  border: 1px solid #555;
+  background: transparent;
+  color: #888;
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+#header .btn-back:hover {
+  border-color: #888;
+  color: #aaa;
+}
+
+#active-games-list {
+  margin-top: 16px;
+  text-align: center;
+}
+
+#active-games-list .game-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px;
+  padding: 6px 14px;
+  background: #1a1a1e;
+  border: 1px solid #333;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #ccc;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+#active-games-list .game-entry:hover {
+  border-color: #7c9;
+  color: #7c9;
+}
+
+#active-games-list .game-entry .close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 2px;
+  padding: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+#active-games-list .game-entry .close-btn:hover {
+  color: #c4302b;
+  background: rgba(196, 48, 43, 0.1);
+}
+
+#active-games-list .game-label {
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+/* ── LOBBY SCREEN ───────────────────────────────────────── */
+#lobby-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+  color: #e0e0d8;
+}
+
+#lobby-box {
+  background: #ffffff;
+  color: var(--paper);
+  border-radius: 4px;
+  padding: 32px 40px;
+  width: 480px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+#lobby-box h2 {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+  color: var(--phosphor);
+}
+
+#lobby-box .lobby-code {
+  font-size: 28px;
+  font-family: var(--display);
+  letter-spacing: 0.2em;
+  color: var(--amber);
+  margin-bottom: 24px;
+}
+
+.lobby-section {
+  margin-bottom: 20px;
+}
+
+.lobby-section-title {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
+  margin-bottom: 10px;
+}
+
+.seat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 2px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.seat-row.empty {
+  border-style: dashed;
+  color: var(--phosphor-dim);
+}
+
+.seat-number {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: var(--amber);
+  width: 24px;
+  text-align: center;
+}
+
+.seat-name {
+  flex: 1;
+}
+
+.seat-status {
+  font-size: 10px;
+  color: var(--phosphor-dim);
+}
+
+.seat-status.ready {
+  color: #2a7a2a;
+}
+
+.seat-status.spectator {
+  color: var(--amber);
+}
+
+.spectator-list {
+  font-size: 11px;
+  color: var(--phosphor-dim);
+  padding-left: 34px;
+}
+
+.spectator-list .spectator-item {
+  padding: 2px 0;
+}
+
+.lobby-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.lobby-actions button {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid var(--phosphor);
+  background: var(--phosphor);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+
+.lobby-actions button:hover {
+  background: #333;
+}
+
+.lobby-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.lobby-actions button.secondary {
+  background: transparent;
+  color: var(--phosphor);
+}
+
+.lobby-actions button.secondary:hover {
+  background: var(--void);
+}
+
+.lobby-actions button.primary {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.lobby-actions button.primary:hover {
+  background: #b36b00;
+  border-color: #b36b00;
+}
+
+#lobby-status {
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  margin-top: 12px;
+  text-align: center;
+  min-height: 14px;
+}
+
+/* ── JOIN GAME INPUT ────────────────────────────────────── */
+.join-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.join-row input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-line);
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  background: var(--void);
+  color: var(--paper);
+}
+
+.join-row input:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.join-row button {
+  padding: 10px 16px;
+  border: 1px solid var(--phosphor);
+  background: var(--phosphor);
+  color: #fff;
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+/* ── GAME SCREEN ────────────────────────────────────────── */
+#game-screen {
+  display: none;
+}
+
+#game-screen.active {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  grid-template-rows: 48px 1fr;
+  height: 100vh;
+}
+
+/* ── Header bar ── */
+#header {
+  grid-column: 1 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--panel-line);
+}
+
+#header .title {
+  font-family: var(--display);
+  letter-spacing: 0.12em;
+  font-size: 15px;
+  color: var(--phosphor);
+  text-transform: uppercase;
+}
+
+#header .title small {
+  color: var(--phosphor-dim);
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+  margin-left: 10px;
+  font-size: 11px;
+}
+
+#header .status {
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 0.08em;
+}
+
+/* ── Map canvas area ── */
+#map-wrap {
+  position: relative;
+  background: var(--void);
+  overflow: hidden;
+}
+
+#hexmap {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+#map-caption {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+
+#coord-readout {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+}
+
+/* ── Side panel ── */
+#panel {
+  border-left: 1px solid var(--panel-line);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.panel-section {
+  border-bottom: 1px solid var(--panel-line);
+  padding: 14px 16px;
+}
+
+.panel-eyebrow {
+  font-family: var(--display);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--phosphor-dim);
+  margin-bottom: 8px;
+}
+
+/* ── Game Log ── */
+#game-log-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 120px;
+}
+
+#game-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+#game-log-header .btn-clear-log {
+  background: none;
+  border: 1px solid var(--panel-line);
+  color: var(--phosphor-dim);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+#game-log-header .btn-clear-log:hover {
+  border-color: var(--phosphor-dim);
+  color: var(--phosphor);
+}
+
+#game-log {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  background: var(--void);
+  border: 1px solid var(--panel-line);
+  padding: 6px 8px;
+  min-height: 100px;
+  max-height: 320px;
+}
+
+.log-entry {
+  padding: 1px 0;
+  border-bottom: 1px dotted rgba(0,0,0,0.06);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-entry .log-tag {
+  color: var(--phosphor-dim);
+  margin-right: 5px;
+}
+
+.log-entry.cat-roll { color: #2a6a2a; }
+.log-entry.cat-move { color: #2a4a8a; }
+.log-entry.cat-attack { color: var(--alert); }
+.log-entry.cat-phase { color: var(--amber); font-weight: 600; }
+.log-entry.cat-system { color: var(--phosphor-dim); font-style: italic; }
+.log-entry.cat-error { color: var(--alert); font-weight: 700; }
+.log-entry.cat-info { color: var(--phosphor); }
+
+.roster-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.roster-item:hover {
+  border-color: var(--panel-line);
+  background: #f0f0ec;
+}
+
+.roster-item.selected {
+  border-color: var(--phosphor-dim);
+  background: #e8e8e2;
+}
+
+.roster-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.roster-name {
+  font-size: 12px;
+  color: var(--paper);
+}
+
+.roster-sub {
+  font-size: 10px;
+  color: var(--phosphor-dim);
+  margin-left: auto;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 4px;
+  font-size: 11px;
+}
+
+.stat-grid .k { color: var(--phosphor-dim); }
+.stat-grid .v { color: var(--paper); text-align: right; }
+
+.no-selection {
+  font-size: 11px;
+  color: var(--phosphor-dim);
+  line-height: 1.6;
+}
+
+.armor-diagram {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  margin-top: 10px;
+  font-size: 9px;
+}
+
+.armor-cell {
+  background: #f7f7f4;
+  border: 1px solid var(--panel-line);
+  padding: 4px 3px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.armor-cell .loc { color: var(--phosphor-dim); display: block; letter-spacing: 0.06em; }
+.armor-cell .val { color: var(--phosphor); font-family: var(--mono); font-size: 10px; }
+
+/* ── LOADING OVERLAY ────────────────────────────────────── */
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  color: #fff;
+  font-family: var(--display);
+  font-size: 16px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+#loading-overlay.hidden { display: none; }
+
+/* ── CONFIRMATION MODAL ───────────────────────────────── */
+#confirm-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+#confirm-modal.hidden { display: none; }
+
+#confirm-box {
+  background: #1a1a1e;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 24px 28px;
+  max-width: 360px;
+  width: 90%;
+  text-align: center;
+}
+
+#confirm-box h3 {
+  font-family: var(--display);
+  font-size: 16px;
+  color: #ccc;
+  margin: 0 0 8px;
+  letter-spacing: 0.04em;
+}
+
+#confirm-message {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #888;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.confirm-actions button {
+  padding: 6px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid #555;
+  background: transparent;
+  color: #888;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.confirm-actions button:hover {
+  border-color: #888;
+  color: #aaa;
+}
+
+.confirm-actions button.primary {
+  background: #2a4a2a;
+  border-color: #3a6a3a;
+  color: #7c9;
+}
+
+.confirm-actions button.primary:hover {
+  background: #3a5a3a;
+  border-color: #4a7a4a;
+  color: #8da;
+}
+
+.confirm-actions button.secondary:hover {
+  border-color: #666;
+  color: #999;
+}
