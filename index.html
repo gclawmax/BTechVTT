@@ -896,6 +896,22 @@ db.auth.onAuthStateChange((event, session) => {
   }
 });
 
+// Restore persisted session on page load
+(async () => {
+  try {
+    const persisted = localStorage.getItem('sb-' + SUPABASE_URL.split('.')[0] + '-auth-token');
+    if (persisted) {
+      const parsed = JSON.parse(persisted);
+      if (parsed?.access_token) {
+        await db.auth.setSession({
+          access_token: parsed.access_token,
+          refresh_token: parsed.refresh_token
+        });
+      }
+    }
+  } catch(e) { /* ignore */ }
+})();
+
 // ── STATE ────────────────────────────────────────────────
 let currentUser = null;
 let currentGameId = null;
