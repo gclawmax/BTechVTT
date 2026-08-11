@@ -1,0 +1,395 @@
+// ── TURN STRUCTURE (IGOUGO) ──────────────────────────────
+const PHASE_ORDER = ['initiative', 'movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat', 'end'];
+const PHASE_LABELS = {
+  initiative: 'Initiative Roll',
+  movement: 'Movement',
+  reaction: 'Reaction',
+  weapon_attack: 'Weapon Attack',
+  physical_attack: 'Physical Attack',
+  heat: 'Heat Management',
+  end: 'End Turn'
+};
+
+let currentGameState = {
+  round: 1,
+  phase: 'initiative',
+  active_player_id: null,
+  initiative_winner: null,
+  initiative_order: [],
+  initiative_rolls: [],
+  initiative_round: null // which round's initiative_order is currently valid for — gates phase advancement
+};
+
+async function loadGameState() {
+  if (!currentGameId) return;
+
+  const { data: game } = await db
+    .from('btech_games')
+    .select('current_round, current_phase, active_player_id, initiative_winner, state')
+    .eq('id', currentGameId)
+    .single();
+
+  if (!game) return;
+
+  const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+
+  currentGameState = {
+    round: game.current_round || 1,
+    phase: game.current_phase || 'initiative',
+    active_player_id: game.active_player_id,
+    initiative_winner: game.initiative_winner,
+    initiative_order: gameState.initiative_order || [],
+    initiative_rolls: gameState.initiative_rolls || [],
+    initiative_round: gameState.initiative_round ?? null
+  };
+  mergeRemoteLog(gameState.log);
+  if (gameLog.length === 0) logEvent(`Game loaded — Round ${currentGameState.round}, ${PHASE_LABELS[currentGameState.phase] || currentGameState.phase} phase.`, 'system');
+
+  // If units have already been placed/moved (e.g. rejoining), use the saved positions
+  // instead of the default setup positions initGame() placed.
+  if (gameState.mech_instances && gameState.mech_instances.length > 0) {
+    mechInstances = gameState.mech_instances;
+    draw();
+    renderRoster();
+    renderDetail();
+  }
+
+  const initBtn = document.getElementById('btn-roll-initiative');
+  if (initBtn) initBtn.disabled = (currentGameState.initiative_round === currentGameState.round);
+
+  updateGameHeader();
+  renderInitiativeDisplay();
+  renderMovementPanel();
+  renderReactionPanel();
+  updateAdvanceButtonState();
+}
+
+function updateGameHeader() {
+  const statusEl = document.getElementById('status-readout');
+  if (!statusEl) return;
+
+  const phaseLabel = PHASE_LABELS[currentGameState.phase] || currentGameState.phase;
+  statusEl.textContent = `Round ${currentGameState.round} — ${phaseLabel}`;
+
+  if (currentGameState.active_player_id) {
+    // Get player username for active player display
+    db.from('btech_players')
+      .select('profiles(username)')
+      .eq('id', currentGameState.active_player_id)
+      .single()
+      .then(({ data: player }) => {
+        const username = player?.profiles?.username || 'Unknown';
+        statusEl.textContent += ` — ${titleCase(username)}'s Turn`;
+      });
+  }
+}
+
+function renderInitiativeDisplay() {
+  // Find or create initiative display area
+  let initDisplay = document.getElementById('initiative-display');
+  if (!initDisplay) {
+    const header = document.getElementById('header');
+    initDisplay = document.createElement('div');
+    initDisplay.id = 'initiative-display';
+    initDisplay.style.cssText = 'font-size:11px;color:#888;font-family:var(--mono);margin-top:4px;text-align:center;';
+    header.appendChild(initDisplay);
+  }
+
+  if (currentGameState.initiative_order.length === 0) {
+    initDisplay.textContent = 'Roll Initiative to begin!';
+    return;
+  }
+
+  // Show each player's 2D6 roll and who goes first/second
+  const orderText = currentGameState.initiative_order.map((p, idx) => {
+    const roll = currentGameState.initiative_rolls.find(r => r.player_id === p.player_id);
+    const rollVal = roll ? roll.roll : '?';
+    const ordinal = idx === 0 ? '1st' : idx === 1 ? '2nd' : `${idx + 1}th`;
+    const label = p.is_ai ? `AI` : `P${p.seat_number}`;
+    return `${label}: ${rollVal}d6 (${ordinal})`;
+  }).join(' | ');
+
+  // BattleTech convention: highest goes second, so lowest goes first
+  const firstPlayer = currentGameState.initiative_order[0];
+  const firstLabel = firstPlayer?.is_ai ? 'AI' : `Player ${firstPlayer?.seat_number || '?'}`;
+  initDisplay.textContent = `Initiative: ${firstLabel} goes first | ${orderText}`;
+}
+
+// Roll initiative for ALL players (human + AI) using 2D6
+// BattleTech convention: highest roll goes SECOND
+async function rollInitiative() {
+  if (!currentGameId) return;
+
+  // Get all players (including AI)
+  const { data: players } = await db
+    .from('btech_players')
+    .select('*')
+    .eq('game_id', currentGameId)
+    .eq('role', 'player');
+
+  if (!players || players.length < 1) return;
+
+  // Roll 2D6 for each player
+  const initiativeRolls = players.map((p, idx) => ({
+    player_id: p.id,
+    roll: Math.floor(Math.random() * 6) + Math.floor(Math.random() * 6) + 2, // 2D6 (2-12)
+    seat_number: p.seat_number,
+    is_ai: p.user_id === AI_UUID
+  }));
+
+  // Sort ASCENDING — lowest goes FIRST (BattleTech convention)
+  initiativeRolls.sort((a, b) => a.roll - b.roll);
+
+  // Store in game state
+  const { data: game } = await db
+    .from('btech_games')
+    .select('state')
+    .eq('id', currentGameId)
+    .single();
+
+  const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  gameState.initiative_order = initiativeRolls;
+  gameState.initiative_rolls = initiativeRolls.map(r => ({ player_id: r.player_id, roll: r.roll }));
+  gameState.initiative_winner = initiativeRolls[initiativeRolls.length - 1].player_id; // highest goes second
+  gameState.initiative_round = currentGameState.round; // marks initiative as "done" for THIS round only
+
+  await db
+    .from('btech_games')
+    .update({
+      current_phase: 'initiative',
+      initiative_winner: gameState.initiative_winner,
+      active_player_id: initiativeRolls[0].player_id, // lowest goes first
+      state: JSON.stringify(gameState)
+    })
+    .eq('id', currentGameId);
+
+  // Update local state
+  currentGameState.initiative_order = initiativeRolls;
+  currentGameState.initiative_rolls = gameState.initiative_rolls;
+  currentGameState.initiative_winner = gameState.initiative_winner;
+  currentGameState.initiative_round = gameState.initiative_round;
+  currentGameState.active_player_id = initiativeRolls[0].player_id;
+
+  renderInitiativeDisplay();
+  updateGameHeader();
+  updateAdvanceButtonState();
+
+  // Disable button after rolling
+  const btn = document.getElementById('btn-roll-initiative');
+  if (btn) btn.disabled = true;
+
+  const rollSummary = initiativeRolls.map((r, idx) =>
+    `${r.is_ai ? 'AI' : 'P' + r.seat_number}=${r.roll}${idx === 0 ? ' (1st)' : idx === initiativeRolls.length - 1 ? ' (last)' : ''}`
+  ).join(', ');
+  logEvent(`Initiative rolled — ${rollSummary}`, 'roll');
+}
+
+// Returns the player order established by Initiative: loser first, winner second.
+function getPhasePlayerOrder() {
+  return (currentGameState.initiative_order || []).map(p => p.player_id).filter(Boolean);
+}
+
+function getPlayerSeatById(playerId) {
+  const entry = (currentGameState.initiative_order || []).find(p => p.player_id === playerId);
+  return entry?.seat_number ?? null;
+}
+
+function getActivePlayerSeat() {
+  return getPlayerSeatById(currentGameState.active_player_id);
+}
+
+function isMyActiveTurn() {
+  return mySeatNumber != null && getActivePlayerSeat() === mySeatNumber;
+}
+
+function getPhaseUnitsForActivePlayer() {
+  const seat = getActivePlayerSeat();
+  if (seat == null) return [];
+  return mechInstances.filter(m => m.owner === seat && !m.destroyed);
+}
+
+function activePlayerPhaseComplete(phase) {
+  const units = getPhaseUnitsForActivePlayer();
+  if (units.length === 0) return true;
+  if (phase === 'movement') return units.every(m => m.hasMoved);
+  if (phase === 'reaction') return units.every(m => m.hasReacted);
+  return true;
+}
+
+function getNextPhasePlayerId() {
+  const order = getPhasePlayerOrder();
+  const idx = order.indexOf(currentGameState.active_player_id);
+  return idx >= 0 && idx + 1 < order.length ? order[idx + 1] : null;
+}
+
+function resetReactionForRound() {
+  mechInstances.forEach(m => {
+    m.hasReacted = false;
+    if (m.torsoFacing == null) m.torsoFacing = m.facing;
+  });
+  syncMechInstances();
+}
+
+function beginPhaseForFirstPlayer(phase) {
+  const order = getPhasePlayerOrder();
+  currentGameState.active_player_id = order[0] || null;
+  if (phase === 'movement') resetMovementForRound();
+  if (phase === 'reaction') resetReactionForRound();
+}
+
+// Enforces that every required VTT step for the CURRENT phase is actually done
+// before the group can move on — nothing gets skipped by clicking through.
+function canAdvancePhase() {
+  if (currentGameState.phase === 'initiative') {
+    const rolled = currentGameState.initiative_round === currentGameState.round &&
+                   currentGameState.initiative_order && currentGameState.initiative_order.length > 0;
+    if (!rolled) return { ok: false, reason: 'Roll Initiative before continuing to the Movement Phase.' };
+  }
+  if (currentGameState.phase === 'movement' || currentGameState.phase === 'reaction') {
+    if (!currentGameState.active_player_id) {
+      return { ok: false, reason: 'No active player is set for this phase.' };
+    }
+    if (!activePlayerPhaseComplete(currentGameState.phase)) {
+      const phaseName = currentGameState.phase === 'movement' ? 'move' : 'complete their Reaction';
+      return { ok: false, reason: `The active player must ${phaseName} all eligible 'Mechs first.` };
+    }
+  }
+  return { ok: true, reason: '' };
+}
+
+function updateAdvanceButtonState() {
+  const btn = document.getElementById('btn-advance-phase');
+  if (!btn) return;
+  const check = canAdvancePhase();
+  btn.disabled = !check.ok;
+  btn.title = check.ok ? 'Advance to the next phase' : check.reason;
+  btn.style.opacity = check.ok ? '1' : '0.45';
+  btn.style.cursor = check.ok ? 'pointer' : 'not-allowed';
+}
+
+async function advancePhase() {
+  const check = canAdvancePhase();
+  if (!check.ok) {
+    flashMoveWarning(check.reason);
+    return;
+  }
+
+  const currentIdx = PHASE_ORDER.indexOf(currentGameState.phase);
+  const nextIdx = currentIdx + 1;
+  const prevRound = currentGameState.round;
+  const prevPhaseLabel = PHASE_LABELS[currentGameState.phase] || currentGameState.phase;
+
+  if (nextIdx >= PHASE_ORDER.length) {
+    // End of round — start new round. Initiative must be rolled again, so clear last round's roll.
+    const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+    const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+    gameState.initiative_order = [];
+    gameState.initiative_rolls = [];
+    gameState.initiative_round = null;
+    gameState.initiative_winner = null;
+
+    await db
+      .from('btech_games')
+      .update({
+        current_round: currentGameState.round + 1,
+        current_phase: 'initiative',
+        initiative_winner: null,
+        active_player_id: null,
+        state: JSON.stringify(gameState)
+      })
+      .eq('id', currentGameId);
+
+    currentGameState.round += 1;
+    currentGameState.phase = 'initiative';
+    currentGameState.active_player_id = null;
+    currentGameState.initiative_order = [];
+    currentGameState.initiative_rolls = [];
+    currentGameState.initiative_round = null;
+    currentGameState.initiative_winner = null;
+
+    // Re-enable initiative rolling for the new round
+    const initBtn = document.getElementById('btn-roll-initiative');
+    if (initBtn) initBtn.disabled = false;
+
+    logEvent(`End of Round ${prevRound} (${prevPhaseLabel}) — advancing to Round ${currentGameState.round}, Initiative Roll.`, 'phase');
+  } else {
+    // During Movement and Reaction, the active player completes their actions first.
+    // Next Phase acts as a pass to the next player in Initiative order; only the
+    // final player advances the game into the next phase.
+    const samePhasePlayer = (currentGameState.phase === 'movement' || currentGameState.phase === 'reaction')
+      ? getNextPhasePlayerId()
+      : null;
+
+    if (samePhasePlayer) {
+      await db
+        .from('btech_games')
+        .update({ active_player_id: samePhasePlayer })
+        .eq('id', currentGameId);
+
+      currentGameState.active_player_id = samePhasePlayer;
+      logEvent(`Round ${currentGameState.round}: ${prevPhaseLabel} — next player in Initiative order.`, 'phase');
+    } else {
+      const nextPhase = PHASE_ORDER[nextIdx];
+      await db
+        .from('btech_games')
+        .update({
+          current_phase: nextPhase,
+          active_player_id: null
+        })
+        .eq('id', currentGameId);
+
+      currentGameState.phase = nextPhase;
+      currentGameState.active_player_id = null;
+
+      if (nextPhase === 'movement' || nextPhase === 'reaction') {
+        beginPhaseForFirstPlayer(nextPhase);
+        await db
+          .from('btech_games')
+          .update({
+            current_phase: nextPhase,
+            active_player_id: currentGameState.active_player_id,
+            state: JSON.stringify({
+              initiative_order: currentGameState.initiative_order,
+              initiative_rolls: currentGameState.initiative_rolls,
+              initiative_round: currentGameState.initiative_round,
+              initiative_winner: currentGameState.initiative_winner,
+              mech_instances: mechInstances
+            })
+          })
+          .eq('id', currentGameId);
+      }
+
+      logEvent(`Round ${currentGameState.round}: ${prevPhaseLabel} → ${PHASE_LABELS[currentGameState.phase] || currentGameState.phase}.`, 'phase');
+    }
+  }
+
+  cancelMovement();
+
+  // Select the first unmoved 'Mech for the active player when Movement begins or changes player.
+  if (currentGameState.phase === 'movement') {
+    const activeSeat = getActivePlayerSeat();
+    const nextMech = mechInstances.find(m => m.owner === activeSeat && !m.hasMoved);
+    if (nextMech) selectedInstanceId = nextMech.instanceId;
+  }
+
+  updateGameHeader();
+  renderInitiativeDisplay();
+  renderMovementPanel();
+  renderReactionPanel();
+  renderRoster();
+  renderDetail();
+  draw();
+  updateAdvanceButtonState();
+
+  // Trigger the existing algorithmic AI only when it is actually the active player.
+  // Reaction currently waits for the explicit Reaction UI; it must never fall through
+  // into Weapon Attack automatically.
+  const activeEntry = (currentGameState.initiative_order || [])
+    .find(p => p.player_id === currentGameState.active_player_id);
+  if (vsAiMode && activeEntry?.is_ai && ['movement', 'weapon_attack'].includes(currentGameState.phase)) {
+    setTimeout(async () => {
+      await aiTurnHandler();
+      updateAdvanceButtonState();
+    }, 500);
+  }
+}

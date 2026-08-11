@@ -1,5 +1,3 @@
-// Extracted from index_3_1.html — init
-
 // ── INIT ──────────────────────────────────────────────────
 (async () => {
   try {

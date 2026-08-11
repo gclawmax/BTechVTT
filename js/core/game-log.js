@@ -1,5 +1,3 @@
-// Extracted from index_3_1.html — game_log
-
 // ── GAME LOG ──────────────────────────────────────────────
 // A running history of what happened this game (initiative rolls, phase
 // changes, moves, attacks, sync errors). Kept locally for instant feedback

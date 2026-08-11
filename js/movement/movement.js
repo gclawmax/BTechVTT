@@ -1,5 +1,3 @@
-// Extracted from index_3_1.html — movement
-
 // ── MOVEMENT PANEL & CONTROLS ─────────────────────────────
 const HEX_DIR_LABELS = ['E', 'NE', 'NW', 'W', 'SW', 'SE'];
 const MOVE_MODE_LABELS = { stand: 'Standing Still', walk: 'Walked', run: 'Ran', jump: 'Jumped' };
@@ -16,6 +14,8 @@ function resetMovementForRound() {
     m.mpUsed = 0;
     m.hexesMoved = 0;
     m.hasMoved = false;
+    m.hasReacted = false;
+    if (m.torsoFacing == null) m.torsoFacing = m.facing;
   });
   syncMechInstances();
 }
@@ -50,7 +50,7 @@ function flashMoveWarning(msg) {
 // Begin a movement action for a 'Mech: 'stand' resolves instantly, others open an interactive move.
 function startMovementMode(instanceId, mode) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.hasMoved || mech.owner !== mySeatNumber) return;
+  if (!mech || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
   const unit = BT_UNITS[mech.unitId];
 
   if (mode === 'stand') {
@@ -121,6 +121,30 @@ function attemptMoveStep(col, row) {
   }
 
   renderMovementPanel();
+  renderReactionPanel();
+  renderRoster();
+  renderDetail();
+  draw();
+}
+
+// Spend Movement Points to change facing without entering a new hex.
+function turnMovementFacing(instanceId, direction) {
+  if (!moveState.active || currentGameState.phase !== 'movement') return;
+  const mech = mechInstances.find(m => m.instanceId === instanceId);
+  if (!mech || mech.instanceId !== moveState.instanceId || mech.owner !== mySeatNumber || !isMyActiveTurn()) return;
+
+  const mpLeft = moveState.mpMax - moveState.mpUsed;
+  if (mpLeft < 1) {
+    flashMoveWarning('No MP remaining for a facing change.');
+    return;
+  }
+
+  const delta = direction === 'left' ? -1 : 1;
+  mech.facing = (mech.facing + delta + 6) % 6;
+  moveState.mpUsed += 1;
+
+  renderMovementPanel();
+  renderReactionPanel();
   renderRoster();
   renderDetail();
   draw();
@@ -139,6 +163,7 @@ function confirmMove() {
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
   syncMechInstances();
   renderMovementPanel();
+  renderReactionPanel();
   renderRoster();
   renderDetail();
   draw();
@@ -157,6 +182,7 @@ function cancelMovement() {
   }
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
   renderMovementPanel();
+  renderReactionPanel();
   renderRoster();
   renderDetail();
   draw();
@@ -212,7 +238,11 @@ function renderMovementPanel() {
       <div style="font-size:11px;color:var(--paper);margin-bottom:6px;">
         MP ${moveState.mpUsed}/${moveState.mpMax} used (${mpLeft} left) · ${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'} moved
       </div>
-      <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:10px;">Click a highlighted hex on the map to move.</div>
+      <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:10px;">Click a highlighted hex to move, or spend 1 MP per hexside to change facing.</div>
+      <div style="display:flex;gap:6px;margin-bottom:6px;">
+        <button onclick="turnMovementFacing('${mech.instanceId}','left')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">↶ Turn Left — 1 MP</button>
+        <button onclick="turnMovementFacing('${mech.instanceId}','right')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">↷ Turn Right — 1 MP</button>
+      </div>
       <div style="display:flex;gap:8px;">
         <button onclick="confirmMove()" style="flex:1;${MOVE_BTN_STYLE}text-align:center;">Confirm Move</button>
         <button onclick="cancelMovement()" style="flex:1;padding:9px 10px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Cancel</button>
