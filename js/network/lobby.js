@@ -71,7 +71,7 @@ async function loadLobbyUI() {
 
       if (player) {
         // Check if this is the AI player
-        const isAI = player.user_id === AI_UUID;
+        const isAI = player.is_ai === true;
         const username = isAI 
           ? `AI ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`
           : titleCase(player.profiles?.username || player.user_id.substring(0, 8));

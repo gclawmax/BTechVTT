@@ -134,7 +134,7 @@ async function rollInitiative() {
     player_id: p.id,
     roll: Math.floor(Math.random() * 6) + Math.floor(Math.random() * 6) + 2, // 2D6 (2-12)
     seat_number: p.seat_number,
-    is_ai: p.user_id === AI_UUID
+    is_ai: p.is_ai === true
   }));
 
   // Sort ASCENDING — lowest goes FIRST (BattleTech convention)

@@ -12,3 +12,10 @@ Incremental update to the separated VTT.
 
 ## Provisional rule boundary
 The supplied Beginner Box Quick-Start Rules do not define the Reaction/Torso Twist phase. The VTT phase/UI therefore follows the project's stated ruleset; exact torso-twist limits and firing-arc interactions should be refined when their applicable rules text is added.
+
+
+## AI player identity fix
+
+The AI opponent is now represented by `btech_players.is_ai = true` with `user_id = NULL`.
+The previous fake UUID (`__ai_opponent__`) caused PostgreSQL error 22P02 because `user_id` is a UUID.
+All AI detection in lobby and phase code now uses `is_ai`.

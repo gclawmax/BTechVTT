@@ -25,24 +25,31 @@ async function handleCreateVsAI() {
     mySeatNumber = 1;
 
     // Host is player 1
-    await db.from('btech_players').insert({
+    const { error: humanPlayerErr } = await db.from('btech_players').insert({
       game_id: currentGameId,
       user_id: currentUser.id,
       seat_number: 1,
       player_color: '#c4302b',
       role: 'player',
-      ready: true
+      ready: true,
+      is_ai: false
     });
 
-    // AI auto-joins as player 2
-    await db.from('btech_players').insert({
+    if (humanPlayerErr) throw humanPlayerErr;
+
+    // AI auto-joins as player 2. AI opponents are not Supabase auth users,
+    // so user_id is intentionally NULL and is_ai identifies the seat.
+    const { error: aiPlayerErr } = await db.from('btech_players').insert({
       game_id: currentGameId,
-      user_id: AI_UUID,
+      user_id: null,
       seat_number: 2,
       player_color: '#3060c4',
       role: 'player',
-      ready: true
+      ready: true,
+      is_ai: true
     });
+
+    if (aiPlayerErr) throw aiPlayerErr;
 
     await loadLobby();
     showScreen('lobby-screen');
