@@ -1840,6 +1840,7 @@ const MECH_COLORS = ['#c4302b', '#d4800a', '#2a8a2a', '#3060c4'];
 
 let mechInstances = [];
 let selectedInstanceId = null;
+let hoveredHex = null; // {col, row} for movement preview
 let canvas, ctx;
 let gridOffsetX, gridOffsetY;
 
@@ -1872,6 +1873,51 @@ function pixelToHex(px, py) {
   const col = rq + (rr - (rr & 1)) / 2;
   const row = rr;
   return { col: Math.round(col), row: Math.round(row) };
+}
+
+// Hex distance in axial coordinates (BattleTech uses axial distance)
+function hexDistance(col1, row1, col2, row2) {
+  const a1 = offsetToAxial(col1, row1);
+  const a2 = offsetToAxial(col2, row2);
+  return (Math.abs(a1.q - a2.q) + Math.abs(a1.r - a2.r) + Math.abs((-a1.q-a1.r) - (-a2.q-a2.r))) / 2;
+}
+
+// Get all adjacent hexes (6 neighbors in odd-q offset coordinates)
+function getAdjacentHexes(col, row) {
+  const parity = row & 1;
+  const directions = parity ? [
+    [+1, 0], [-1, 0], [0, -1], [+1, -1], [0, +1], [+1, +1]
+  ] : [
+    [+1, 0], [-1, 0], [-1, -1], [0, -1], [-1, +1], [0, +1]
+  ];
+  return directions.map(([dc, dr]) => ({ col: col + dc, row: row + dr }));
+}
+
+// Get all hexes within movement range (BFS flood fill)
+function getHexesInRange(startCol, startRow, maxRange, occupiedHexes) {
+  const visited = new Set();
+  const range = [{ col: startCol, row: startRow, dist: 0 }];
+  const queue = [{ col: startCol, row: startRow, dist: 0 }];
+  visited.add(`${startCol},${startRow}`);
+  
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current.dist >= maxRange) continue;
+    
+    const adjacent = getAdjacentHexes(current.col, current.row);
+    for (const hex of adjacent) {
+      const key = `${hex.col},${hex.row}`;
+      if (visited.has(key)) continue;
+      if (hex.col < 0 || hex.col >= GRID_COLS || hex.row < 0 || hex.row >= GRID_ROWS) continue;
+      if (occupiedHexes.has(key)) continue;
+      
+      visited.add(key);
+      range.push({ col: hex.col, row: hex.row, dist: current.dist + 1 });
+      queue.push({ col: hex.col, row: hex.row, dist: current.dist + 1 });
+    }
+  }
+  
+  return range;
 }
 
 function initGame() {
@@ -1962,6 +2008,39 @@ function draw() {
     const unit = BT_UNITS[inst.unitId];
     drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, inst.facing, inst.instanceId === selectedInstanceId);
   }
+  
+  // Draw movement range highlight if active
+  if (hoveredHex && hoveredHex.type === 'range') {
+    for (const hex of hoveredHex.range) {
+      const { x, y } = hexToPixel(hex.col, hex.row);
+      const px = x + gridOffsetX;
+      const py = y + gridOffsetY;
+      
+      // Highlight hex with semi-transparent green
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = Math.PI / 180 * (60 * i + 30);
+        const hx = px + (HEX_SIZE - 1) * Math.cos(angle);
+        const hy = py + (HEX_SIZE - 1) * Math.sin(angle);
+        i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(124, 204, 153, 0.2)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(124, 204, 153, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      
+      // Draw distance label
+      if (hex.dist > 0) {
+        ctx.fillStyle = 'rgba(124, 204, 153, 0.9)';
+        ctx.font = 'bold 9px "IBM Plex Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${hex.dist}`, px, py);
+      }
+    }
+  }
 }
 
 function drawHex(cx, cy, size, fill, stroke) {
@@ -2016,20 +2095,101 @@ canvas.addEventListener('mousemove', (e) => {
   const hex = pixelToHex(px, py);
   if (hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS) {
     const axial = offsetToAxial(hex.col, hex.row);
-    document.getElementById('coord-readout').textContent =
-      `HEX ${String(hex.col).padStart(2,'0')}${String(hex.row).padStart(2,'0')}  (q${axial.q} r${axial.r})`;
+    let coordText = `HEX ${String(hex.col).padStart(2,'0')}${String(hex.row).padStart(2,'0')}  (q${axial.q} r${axial.r})`;
+    
+    // If in movement phase with selected unit, show distance
+    if (currentGameState.phase === 'movement' && selectedInstanceId) {
+      const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
+      if (inst) {
+        const dist = hexDistance(inst.col, inst.row, hex.col, hex.row);
+        const unit = BT_UNITS[inst.unitId];
+        const inRange = dist <= unit.movement.walk;
+        coordText += ` | DIST: ${dist}${inRange ? ' ✓' : ' ✗'}`;
+      }
+    }
+    
+    document.getElementById('coord-readout').textContent = coordText;
+  }
+});
+
+// ESC key cancels movement selection
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    hoveredHex = null;
+    selectInstance(null);
+    draw();
   }
 });
 
 canvas.addEventListener('click', (e) => {
   const rect = canvas.getBoundingClientRect();
   const px = e.clientX - rect.left - gridOffsetX, py = e.clientY - rect.top - gridOffsetY;
+  
+  // Check if clicking on a mech (select it)
   let hit = null;
   for (const inst of mechInstances) {
     const { x, y } = hexToPixel(inst.col, inst.row);
     if (Math.hypot(px - x, py - y) < HEX_SIZE * 0.55) hit = inst;
   }
-  selectInstance(hit ? hit.instanceId : null);
+  
+  if (hit) {
+    // Select the unit
+    selectInstance(hit.instanceId);
+    
+    // If in movement phase, show available range
+    if (currentGameState.phase === 'movement') {
+      const unit = BT_UNITS[hit.unitId];
+      const occupiedHexes = new Set(mechInstances.filter(m => m.instanceId !== hit.instanceId).map(m => `${m.col},${m.row}`));
+      const range = getHexesInRange(hit.col, hit.row, unit.movement.walk, occupiedHexes);
+      hoveredHex = { type: 'range', range: range, sourceId: hit.instanceId };
+      draw();
+    }
+    return;
+  }
+  
+  // If in movement phase and a unit is selected, try to move
+  if (currentGameState.phase === 'movement' && selectedInstanceId) {
+    const targetHex = pixelToHex(px, py);
+    if (targetHex.col >= 0 && targetHex.col < GRID_COLS && targetHex.row >= 0 && targetHex.row < GRID_ROWS) {
+      const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
+      if (inst) {
+        const unit = BT_UNITS[inst.unitId];
+        const dist = hexDistance(inst.col, inst.row, targetHex.col, targetHex.row);
+        
+        // Check if target is in walk range and not occupied
+        const occupiedHexes = new Set(mechInstances.filter(m => m.instanceId !== inst.instanceId).map(m => `${m.col},${m.row}`));
+        if (!occupiedHexes.has(`${targetHex.col},${targetHex.row}`) && dist <= unit.movement.walk) {
+          // Move the unit!
+          inst.col = targetHex.col;
+          inst.row = targetHex.row;
+          
+          // Update status
+          const statusEl = document.getElementById('status-readout');
+          statusEl.textContent = `${unit.chassis} moved to ${hexCode(targetHex.col, targetHex.row)}`;
+          statusEl.style.color = '#7c9';
+          
+          // Re-render everything
+          renderRoster();
+          renderDetail();
+          draw();
+          
+          // Sync to Supabase
+          if (currentGameId) {
+            await db.from('btech_games').update({
+              state: JSON.stringify({
+                ...currentGameState,
+                mech_positions: mechInstances.map(m => ({ instanceId: m.instanceId, col: m.col, row: m.row }))
+              })
+            }).eq('id', currentGameId);
+          }
+          return;
+        }
+      }
+    }
+  }
+  
+  // Deselect or select nothing
+  selectInstance(null);
 });
 
 function selectInstance(instanceId) {
