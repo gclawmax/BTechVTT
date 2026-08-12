@@ -53,6 +53,7 @@ async function handleCreateVsAI() {
 
     await loadLobby();
     showScreen('lobby-screen');
+    console.log('[BT-DIAG] AI game created', currentGameId, code);
   } catch (err) {
     console.error('Create vs AI error:', err);
     alert('Failed to create AI game: ' + (err.message || 'Unknown error'));

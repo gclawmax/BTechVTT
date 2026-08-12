@@ -20,6 +20,29 @@ let currentGameState = {
   initiative_round: null // which round's initiative_order is currently valid for — gates phase advancement
 };
 
+// `active_player_id` in local state is a btech_players.id. The database column
+// btech_games.active_player_id currently references auth.users(id), so writes
+// to the database must use the player's user_id (NULL for the AI).
+function getActivePlayerRecord() {
+  return (currentGameState.initiative_order || []).find(p => p.player_id === currentGameState.active_player_id) || null;
+}
+
+function getDatabaseActiveUserId() {
+  const entry = getActivePlayerRecord();
+  return entry?.is_ai ? null : (entry?.user_id || null);
+}
+
+function makePhaseState() {
+  return {
+    initiative_order: currentGameState.initiative_order,
+    initiative_rolls: currentGameState.initiative_rolls,
+    initiative_round: currentGameState.initiative_round,
+    initiative_winner: currentGameState.initiative_winner,
+    active_player_player_id: currentGameState.active_player_id,
+    mech_instances: mechInstances
+  };
+}
+
 async function loadGameState() {
   if (!currentGameId) return;
 
@@ -36,12 +59,23 @@ async function loadGameState() {
   currentGameState = {
     round: game.current_round || 1,
     phase: game.current_phase || 'initiative',
-    active_player_id: game.active_player_id,
+    active_player_id: gameState.active_player_player_id || null,
     initiative_winner: game.initiative_winner,
     initiative_order: gameState.initiative_order || [],
     initiative_rolls: gameState.initiative_rolls || [],
     initiative_round: gameState.initiative_round ?? null
   };
+  // Backward-compatible recovery for games created before the explicit
+  // player-record active ID was added. Resolve the auth user ID to a player row.
+  if (!currentGameState.active_player_id && game.active_player_id && currentGameId) {
+    const { data: activePlayer } = await db.from('btech_players')
+      .select('id,is_ai,user_id,seat_number')
+      .eq('game_id', currentGameId)
+      .eq('user_id', game.active_player_id)
+      .maybeSingle();
+    if (activePlayer) currentGameState.active_player_id = activePlayer.id;
+  }
+
   mergeRemoteLog(gameState.log);
   if (gameLog.length === 0) logEvent(`Game loaded — Round ${currentGameState.round}, ${PHASE_LABELS[currentGameState.phase] || currentGameState.phase} phase.`, 'system');
 
@@ -134,6 +168,7 @@ async function rollInitiative() {
     player_id: p.id,
     roll: Math.floor(Math.random() * 6) + Math.floor(Math.random() * 6) + 2, // 2D6 (2-12)
     seat_number: p.seat_number,
+    user_id: p.user_id,
     is_ai: p.is_ai === true
   }));
 
@@ -152,13 +187,15 @@ async function rollInitiative() {
   gameState.initiative_rolls = initiativeRolls.map(r => ({ player_id: r.player_id, roll: r.roll }));
   gameState.initiative_winner = initiativeRolls[initiativeRolls.length - 1].player_id; // highest goes second
   gameState.initiative_round = currentGameState.round; // marks initiative as "done" for THIS round only
+  gameState.active_player_player_id = initiativeRolls[0].player_id;
+  const firstUserId = initiativeRolls[0].is_ai ? null : initiativeRolls[0].user_id;
 
   await db
     .from('btech_games')
     .update({
       current_phase: 'initiative',
       initiative_winner: gameState.initiative_winner,
-      active_player_id: initiativeRolls[0].player_id, // lowest goes first
+      active_player_id: firstUserId,
       state: JSON.stringify(gameState)
     })
     .eq('id', currentGameId);
@@ -320,12 +357,18 @@ async function advancePhase() {
       : null;
 
     if (samePhasePlayer) {
-      await db
-        .from('btech_games')
-        .update({ active_player_id: samePhasePlayer })
-        .eq('id', currentGameId);
-
       currentGameState.active_player_id = samePhasePlayer;
+      const samePhaseUserId = getDatabaseActiveUserId();
+      const samePhaseState = makePhaseState();
+      const { error: samePhaseError } = await db
+        .from('btech_games')
+        .update({ active_player_id: samePhaseUserId, state: JSON.stringify(samePhaseState) })
+        .eq('id', currentGameId);
+      if (samePhaseError) {
+        console.error('Failed to advance active player:', samePhaseError);
+        logEvent(`Failed to advance active player: ${samePhaseError.message}`, 'error');
+        return;
+      }
       logEvent(`Round ${currentGameState.round}: ${prevPhaseLabel} — next player in Initiative order.`, 'phase');
     } else {
       const nextPhase = PHASE_ORDER[nextIdx];
@@ -346,6 +389,7 @@ async function advancePhase() {
         initiative_rolls: currentGameState.initiative_rolls,
         initiative_round: currentGameState.initiative_round,
         initiative_winner: currentGameState.initiative_winner,
+        active_player_player_id: currentGameState.active_player_id,
         mech_instances: mechInstances
       };
 
@@ -353,7 +397,7 @@ async function advancePhase() {
         .from('btech_games')
         .update({
           current_phase: nextPhase,
-          active_player_id: currentGameState.active_player_id,
+          active_player_id: getDatabaseActiveUserId(),
           state: JSON.stringify(transitionState)
         })
         .eq('id', currentGameId);

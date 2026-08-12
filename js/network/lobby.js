@@ -8,8 +8,8 @@ async function loadLobby() {
     .channel('btech_games:' + currentGameId)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'btech_games', filter: `id=eq.${currentGameId}` },
       (payload) => {
+        console.log('[BT-DIAG] lobby game update', payload.new?.status, payload.new?.id);
         if (payload.eventType === 'UPDATE' && payload.new.status === 'in-progress') {
-          // Game started — transition to game screen
           startGameScreen();
         }
       }
@@ -222,12 +222,16 @@ function subscribeGameStateSync() {
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'btech_games', filter: `id=eq.${currentGameId}` },
       (payload) => {
         const remote = payload.new;
+        if (remote.status !== 'in-progress') {
+          console.warn('[BT-DIAG] Game status changed while game screen is active:', remote.status);
+          logEvent(`Diagnostic: database game status changed to ${remote.status}. No automatic lobby navigation is performed.`, 'error');
+        }
         // Round/phase bookkeeping
         currentGameState.round = remote.current_round || currentGameState.round;
         currentGameState.phase = remote.current_phase || currentGameState.phase;
-        currentGameState.active_player_id = remote.active_player_id;
         currentGameState.initiative_winner = remote.initiative_winner;
         const gs = remote.state ? (typeof remote.state === 'string' ? JSON.parse(remote.state) : remote.state) : {};
+        currentGameState.active_player_id = gs.active_player_player_id || null;
         currentGameState.initiative_order = gs.initiative_order || currentGameState.initiative_order;
         currentGameState.initiative_rolls = gs.initiative_rolls || currentGameState.initiative_rolls;
         currentGameState.initiative_round = gs.initiative_round ?? currentGameState.initiative_round;
