@@ -344,7 +344,8 @@ async function handleCreateGame() {
       seat_number: 1,
       player_color: '#c4302b',
       role: 'player',
-      ready: true
+      ready: true,
+      is_ai: true
     });
 
     await loadLobby();
@@ -396,7 +397,7 @@ async function handleCreateVsAI() {
     // AI auto-joins as player 2
     await db.from('btech_players').insert({
       game_id: currentGameId,
-      user_id: AI_UUID,
+      user_id: null,
       seat_number: 2,
       player_color: '#3060c4',
       role: 'player',

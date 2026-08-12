@@ -20,16 +20,15 @@ let currentGameState = {
   initiative_round: null // which round's initiative_order is currently valid for — gates phase advancement
 };
 
-// `active_player_id` in local state is a btech_players.id. The database column
-// btech_games.active_player_id currently references auth.users(id), so writes
-// to the database must use the player's user_id (NULL for the AI).
+// active_player_id is the btech_players.id for the active seat.
 function getActivePlayerRecord() {
-  return (currentGameState.initiative_order || []).find(p => p.player_id === currentGameState.active_player_id) || null;
+  return (currentGameState.initiative_order || []).find(
+    p => p.player_id === currentGameState.active_player_id
+  ) || null;
 }
 
-function getDatabaseActiveUserId() {
-  const entry = getActivePlayerRecord();
-  return entry?.is_ai ? null : (entry?.user_id || null);
+function getDatabaseActivePlayerId() {
+  return currentGameState.active_player_id || null;
 }
 
 function makePhaseState() {
@@ -188,14 +187,14 @@ async function rollInitiative() {
   gameState.initiative_winner = initiativeRolls[initiativeRolls.length - 1].player_id; // highest goes second
   gameState.initiative_round = currentGameState.round; // marks initiative as "done" for THIS round only
   gameState.active_player_player_id = initiativeRolls[0].player_id;
-  const firstUserId = initiativeRolls[0].is_ai ? null : initiativeRolls[0].user_id;
+  const firstPlayerId = initiativeRolls[0].player_id;
 
   await db
     .from('btech_games')
     .update({
       current_phase: 'initiative',
       initiative_winner: gameState.initiative_winner,
-      active_player_id: firstUserId,
+      active_player_id: firstPlayerId,
       state: JSON.stringify(gameState)
     })
     .eq('id', currentGameId);
@@ -358,11 +357,11 @@ async function advancePhase() {
 
     if (samePhasePlayer) {
       currentGameState.active_player_id = samePhasePlayer;
-      const samePhaseUserId = getDatabaseActiveUserId();
+      const samePhasePlayerId = getDatabaseActivePlayerId();
       const samePhaseState = makePhaseState();
       const { error: samePhaseError } = await db
         .from('btech_games')
-        .update({ active_player_id: samePhaseUserId, state: JSON.stringify(samePhaseState) })
+        .update({ active_player_id: samePhasePlayerId, state: JSON.stringify(samePhaseState) })
         .eq('id', currentGameId);
       if (samePhaseError) {
         console.error('Failed to advance active player:', samePhaseError);
@@ -397,7 +396,7 @@ async function advancePhase() {
         .from('btech_games')
         .update({
           current_phase: nextPhase,
-          active_player_id: getDatabaseActiveUserId(),
+          active_player_id: getDatabaseActivePlayerId(),
           state: JSON.stringify(transitionState)
         })
         .eq('id', currentGameId);
