@@ -19,3 +19,9 @@ The supplied Beginner Box Quick-Start Rules do not define the Reaction/Torso Twi
 The AI opponent is now represented by `btech_players.is_ai = true` with `user_id = NULL`.
 The previous fake UUID (`__ai_opponent__`) caused PostgreSQL error 22P02 because `user_id` is a UUID.
 All AI detection in lobby and phase code now uses `is_ai`.
+
+## Consolidated build — active player FK
+
+The database model now treats `btech_games.active_player_id` as a `btech_players.id`.
+This matches the phase engine, which stores player-row IDs in initiative_order and uses
+those same IDs to determine active-seat ownership. See `SQL/03_fix_active_player_fk.sql`.
