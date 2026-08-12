@@ -17,7 +17,6 @@ function resetMovementForRound() {
     m.hasReacted = false;
     if (m.torsoFacing == null) m.torsoFacing = m.facing;
   });
-  syncMechInstances();
 }
 
 // Persist 'Mech positions/facings/movement data so the other browser stays in sync.

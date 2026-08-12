@@ -227,7 +227,6 @@ function resetReactionForRound() {
     m.hasReacted = false;
     if (m.torsoFacing == null) m.torsoFacing = m.facing;
   });
-  syncMechInstances();
 }
 
 function beginPhaseForFirstPlayer(phase) {
@@ -330,33 +329,39 @@ async function advancePhase() {
       logEvent(`Round ${currentGameState.round}: ${prevPhaseLabel} — next player in Initiative order.`, 'phase');
     } else {
       const nextPhase = PHASE_ORDER[nextIdx];
-      await db
+
+      // Set the next phase AND its first active player in ONE database update.
+      // Writing active_player_id = null first lets realtime briefly publish an
+      // invalid state and can overwrite the local active player, preventing the
+      // first player from selecting/moving a 'Mech.
+      currentGameState.phase = nextPhase;
+      if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(nextPhase)) {
+        beginPhaseForFirstPlayer(nextPhase);
+      } else {
+        currentGameState.active_player_id = null;
+      }
+
+      const transitionState = {
+        initiative_order: currentGameState.initiative_order,
+        initiative_rolls: currentGameState.initiative_rolls,
+        initiative_round: currentGameState.initiative_round,
+        initiative_winner: currentGameState.initiative_winner,
+        mech_instances: mechInstances
+      };
+
+      const { error: phaseError } = await db
         .from('btech_games')
         .update({
           current_phase: nextPhase,
-          active_player_id: null
+          active_player_id: currentGameState.active_player_id,
+          state: JSON.stringify(transitionState)
         })
         .eq('id', currentGameId);
 
-      currentGameState.phase = nextPhase;
-      currentGameState.active_player_id = null;
-
-      if (nextPhase === 'movement' || nextPhase === 'reaction') {
-        beginPhaseForFirstPlayer(nextPhase);
-        await db
-          .from('btech_games')
-          .update({
-            current_phase: nextPhase,
-            active_player_id: currentGameState.active_player_id,
-            state: JSON.stringify({
-              initiative_order: currentGameState.initiative_order,
-              initiative_rolls: currentGameState.initiative_rolls,
-              initiative_round: currentGameState.initiative_round,
-              initiative_winner: currentGameState.initiative_winner,
-              mech_instances: mechInstances
-            })
-          })
-          .eq('id', currentGameId);
+      if (phaseError) {
+        console.error('Failed to advance phase:', phaseError);
+        logEvent(`Failed to advance to ${PHASE_LABELS[nextPhase] || nextPhase}: ${phaseError.message}`, 'error');
+        return;
       }
 
       logEvent(`Round ${currentGameState.round}: ${prevPhaseLabel} → ${PHASE_LABELS[currentGameState.phase] || currentGameState.phase}.`, 'phase');

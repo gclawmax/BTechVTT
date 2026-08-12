@@ -294,10 +294,10 @@ async function aiTurnHandler() {
   if (!game) { logEvent('AI turn aborted — could not load game state.', 'error'); return; }
   
   const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-  const aiDifficulty = gameState.ai_difficulty || aiDifficulty;
+  const difficulty = gameState.ai_difficulty || window.aiDifficulty || 'beginner';
   
   // Generate AI plan
-  const aiPlan = generateAIPlan(aiDifficulty, null, gameState, []);
+  const aiPlan = generateAIPlan(difficulty, null, gameState, []);
   
   // Execute AI plan
   await executeAIPlan(aiPlan);
