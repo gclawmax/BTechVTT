@@ -15,7 +15,7 @@ function resetMovementForRound() {
     m.hexesMoved = 0;
     m.hasMoved = false;
     m.hasReacted = false;
-    if (m.torsoFacing == null) m.torsoFacing = m.facing;
+    m.torsoFacing = m.facing;
   });
 }
 
@@ -79,7 +79,8 @@ function startMovementMode(instanceId, mode) {
     hexesMoved: 0,
     origCol: mech.col,
     origRow: mech.row,
-    origFacing: mech.facing
+    origFacing: mech.facing,
+    origTorsoFacing: mech.torsoFacing
   };
   renderMovementPanel();
   draw();
@@ -102,6 +103,7 @@ function attemptMoveStep(col, row) {
     mech.col = col;
     mech.row = row;
     if (dir !== -1) mech.facing = dir; // simple default facing on landing; direct hex clicks let the player choose it
+    mech.torsoFacing = mech.facing;
     moveState.mpUsed += dist;
     moveState.hexesMoved += dist;
   } else {
@@ -115,6 +117,7 @@ function attemptMoveStep(col, row) {
     mech.col = col;
     mech.row = row;
     if (!isRear) mech.facing = dir; // backing up doesn't change which way you're facing
+    mech.torsoFacing = mech.facing;
     moveState.mpUsed += cost;
     moveState.hexesMoved += 1;
   }
@@ -138,8 +141,10 @@ function turnMovementFacing(instanceId, direction) {
     return;
   }
 
-  const delta = direction === 'left' ? -1 : 1;
+  // Direction indices increase counter-clockwise on the rendered board.
+  const delta = direction === 'left' ? 1 : -1;
   mech.facing = (mech.facing + delta + 6) % 6;
+  mech.torsoFacing = mech.facing;
   moveState.mpUsed += 1;
 
   renderMovementPanel();
@@ -177,6 +182,7 @@ function cancelMovement() {
       mech.col = moveState.origCol;
       mech.row = moveState.origRow;
       mech.facing = moveState.origFacing;
+      mech.torsoFacing = moveState.origTorsoFacing;
     }
   }
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };

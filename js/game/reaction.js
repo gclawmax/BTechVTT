@@ -25,7 +25,8 @@ function torsoTwist(instanceId, direction) {
   // Exact limits beyond this are intentionally kept out of this phase until the
   // applicable rules are added to the VTT rules set.
   const current = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
-  const delta = direction === 'left' ? -1 : 1;
+  // Direction indices increase counter-clockwise on the rendered board.
+  const delta = direction === 'left' ? 1 : -1;
   mech.torsoFacing = (current + delta + 6) % 6;
   mech.hasReacted = true;
 
@@ -46,14 +47,24 @@ function renderReactionPanel() {
 
   const mech = mechInstances.find(m => m.instanceId === selectedInstanceId);
   const activeSeat = getActivePlayerSeat();
+  const activePlayerOwnsTurn = activeSeat === mySeatNumber && isMyActiveTurn();
+  const pending = mechInstances.filter(m => m.owner === activeSeat && !m.destroyed && !m.hasReacted);
 
-  if (!mech) {
-    const pending = mechInstances.filter(m => m.owner === activeSeat && !m.destroyed && !m.hasReacted);
+  if (!mech || mech.owner !== activeSeat) {
     panel.innerHTML = `
       <div class="panel-eyebrow">Reaction Phase</div>
       <div style="font-size:11px;color:var(--paper);line-height:1.6;">
-        ${pending.length ? `Select one of the active player's 'Mechs. ${pending.length} remain.` : 'All reactions complete.'}
-      </div>`;
+        ${pending.length
+          ? activePlayerOwnsTurn
+            ? `Choose a 'Mech to set its torso facing. ${pending.length} remain.`
+            : `Waiting for Player ${activeSeat} to complete ${pending.length} reaction${pending.length === 1 ? '' : 's'}.`
+          : 'All reactions complete.'}
+      </div>
+      ${activePlayerOwnsTurn && pending.length
+        ? `<div style="display:flex;flex-direction:column;gap:6px;margin-top:10px;">
+            ${pending.map(unit => `<button onclick="selectInstance('${unit.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">${mechLabel(unit)}</button>`).join('')}
+           </div>`
+        : ''}`;
     return;
   }
 

@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS btech_games (
   current_round INT NOT NULL DEFAULT 1,
   current_phase TEXT NOT NULL DEFAULT 'initiative'
     CHECK (current_phase IN (
-      'initiative', 'movement', 'weapon_attack', 'physical_attack', 'heat', 'end'
+      'initiative', 'movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat', 'end'
     )),
   -- Which SEAT (btech_players.id) is "on the clock" right now within the
   -- current phase. References the seat, not auth.users, because that's
@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS btech_actions (
   game_id UUID REFERENCES btech_games(id) ON DELETE CASCADE NOT NULL,
   round INT NOT NULL,
   phase TEXT NOT NULL
-    CHECK (phase IN ('movement', 'weapon_attack', 'physical_attack', 'heat', 'end')),
+    CHECK (phase IN ('movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat', 'end')),
   sequence INT NOT NULL,
   player_id UUID REFERENCES btech_players(id) ON DELETE CASCADE NOT NULL,
   unit_id TEXT,                   -- id of the unit acting, if applicable

@@ -173,7 +173,8 @@ function draw() {
     const py = y + gridOffsetY;
     const unit = BT_UNITS[inst.unitId];
     const angle = HEX_DIRS[inst.facing || 0].angle;
-    drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, inst.instanceId === selectedInstanceId);
+    const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
+    drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId);
   }
 }
 
@@ -230,7 +231,7 @@ function drawHex(cx, cy, size, fill, stroke) {
   ctx.stroke();
 }
 
-function drawMechToken(x, y, r, color, facing, selected) {
+function drawMechToken(x, y, r, color, facing, torsoFacing, selected) {
   // Hex token
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -256,6 +257,26 @@ function drawMechToken(x, y, r, color, facing, selected) {
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2;
   ctx.stroke();
+
+  // A gold triangle records a torso twist without changing the white leg-facing
+  // indicator. It appears only when the torso and legs point to different hexsides.
+  if (torsoFacing !== facing) {
+    const torsoRad = torsoFacing * Math.PI / 180;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(torsoRad);
+    ctx.beginPath();
+    ctx.moveTo(r * 0.78, 0);
+    ctx.lineTo(r * 0.28, -r * 0.22);
+    ctx.lineTo(r * 0.28, r * 0.22);
+    ctx.closePath();
+    ctx.fillStyle = '#f6cf63';
+    ctx.fill();
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 // Mouse hover
