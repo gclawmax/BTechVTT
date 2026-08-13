@@ -201,6 +201,18 @@ function generateAIAttackAction(mech, playerMechs, settings) {
 async function executeAIPlan(aiPlan) {
   if (!aiPlan || !aiPlan.actions || aiPlan.actions.length === 0) {
     logEvent('AI has no actions to take this phase.', 'system');
+    if (currentGameState.phase === 'movement') {
+      // No planned move is still a legal decision: the AI stands still.
+      mechInstances.filter(m => m.owner === 2 && !m.destroyed).forEach(m => {
+        m.movementMode = 'stand';
+        m.mpUsed = 0;
+        m.hexesMoved = 0;
+        m.hasMoved = true;
+      });
+      await syncMechInstances();
+      updateAdvanceButtonState();
+      logEvent('AI held position and completed Movement.', 'move');
+    }
     if (currentGameState.phase === 'weapon_attack') {
       mechInstances.filter(m => m.owner === 2 && !m.destroyed).forEach(m => { m.hasFired = true; });
       await syncMechInstances();
