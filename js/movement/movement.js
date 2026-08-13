@@ -22,11 +22,16 @@ function resetMovementForRound() {
 // Persist 'Mech positions/facings/movement data so the other browser stays in sync.
 async function syncMechInstances() {
   if (!currentGameId) return;
+  const mechSnapshot = mechInstances.map(mech => ({ ...mech }));
   try {
-    const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
-    const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-    gameState.mech_instances = mechInstances;
-    await db.from('btech_games').update({ state: JSON.stringify(gameState) }).eq('id', currentGameId);
+    await queueGameStateWrite(async () => {
+      const { data: game, error: readError } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+      if (readError) throw readError;
+      const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+      gameState.mech_instances = mechSnapshot;
+      const { error: writeError } = await db.from('btech_games').update({ state: JSON.stringify(gameState) }).eq('id', currentGameId);
+      if (writeError) throw writeError;
+    });
   } catch (err) {
     console.warn('Failed to sync mech positions:', err);
     logEvent(`Failed to sync 'Mech positions: ${err.message || err}`, 'error');
@@ -47,7 +52,7 @@ function flashMoveWarning(msg) {
 }
 
 // Begin a movement action for a 'Mech: 'stand' resolves instantly, others open an interactive move.
-function startMovementMode(instanceId, mode) {
+async function startMovementMode(instanceId, mode) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
   const unit = BT_UNITS[mech.unitId];
@@ -57,12 +62,12 @@ function startMovementMode(instanceId, mode) {
     mech.mpUsed = 0;
     mech.hexesMoved = 0;
     mech.hasMoved = true;
-    syncMechInstances();
     renderMovementPanel();
     renderRoster();
     renderDetail();
     draw();
     updateAdvanceButtonState();
+    await syncMechInstances();
     logEvent(`${mechLabel(mech)} stood still at ${hexCode(mech.col, mech.row)}.`, 'move');
     return;
   }
@@ -155,17 +160,26 @@ function turnMovementFacing(instanceId, direction) {
 }
 
 // Lock in the in-progress move (this becomes the 'Mech's Movement Die for the Attack Phase).
-function confirmMove() {
+async function confirmMove() {
   const mech = mechInstances.find(m => m.instanceId === moveState.instanceId);
   if (mech) {
     mech.movementMode = moveState.mode;
     mech.mpUsed = moveState.mpUsed;
     mech.hexesMoved = moveState.hexesMoved;
     mech.hasMoved = true;
-    logEvent(`${mechLabel(mech)} ${moveState.mode === 'jump' ? 'jumped' : moveState.mode === 'run' ? 'ran' : 'walked'} to ${hexCode(mech.col, mech.row)} (${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'}, ${moveState.mpUsed}/${moveState.mpMax} MP).`, 'move');
+    const moveSummary = `${mechLabel(mech)} ${moveState.mode === 'jump' ? 'jumped' : moveState.mode === 'run' ? 'ran' : 'walked'} to ${hexCode(mech.col, mech.row)} (${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'}, ${moveState.mpUsed}/${moveState.mpMax} MP).`;
+    moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
+    renderMovementPanel();
+    renderReactionPanel();
+    renderRoster();
+    renderDetail();
+    draw();
+    updateAdvanceButtonState();
+    await syncMechInstances();
+    logEvent(moveSummary, 'move');
+    return;
   }
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
-  syncMechInstances();
   renderMovementPanel();
   renderReactionPanel();
   renderRoster();

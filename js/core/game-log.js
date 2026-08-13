@@ -9,6 +9,19 @@ const GAME_LOG_MAX = 200;
 const LOG_CLIENT_ID = Math.random().toString(36).slice(2, 8);
 let _logSeq = 0;
 
+// Game state is a single JSON document. Serialize read-modify-write updates so
+// a confirmed move, reaction, or log entry cannot overwrite another update
+// that was still in flight from the same browser.
+let gameStateWriteQueue = Promise.resolve();
+
+function queueGameStateWrite(write) {
+  const queued = gameStateWriteQueue.then(write, write);
+  // Keep the queue usable after a failed network request while returning the
+  // original promise to the caller for its own error handling.
+  gameStateWriteQueue = queued.catch(() => {});
+  return queued;
+}
+
 function _logTimeLabel() {
   const d = new Date();
   return d.toTimeString().slice(0, 8);
@@ -46,12 +59,16 @@ function logEvent(message, category) {
 // already used elsewhere in this file (syncMechInstances, rollInitiative).
 async function persistLogEntry(entry) {
   try {
-    const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
-    const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-    const log = Array.isArray(gameState.log) ? gameState.log : [];
-    log.push(entry);
-    gameState.log = log.length > GAME_LOG_MAX ? log.slice(-GAME_LOG_MAX) : log;
-    await db.from('btech_games').update({ state: JSON.stringify(gameState) }).eq('id', currentGameId);
+    await queueGameStateWrite(async () => {
+      const { data: game, error: readError } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+      if (readError) throw readError;
+      const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+      const log = Array.isArray(gameState.log) ? gameState.log : [];
+      log.push(entry);
+      gameState.log = log.length > GAME_LOG_MAX ? log.slice(-GAME_LOG_MAX) : log;
+      const { error: writeError } = await db.from('btech_games').update({ state: JSON.stringify(gameState) }).eq('id', currentGameId);
+      if (writeError) throw writeError;
+    });
   } catch (err) {
     // Don't recurse into logEvent here — would loop on persistent failures.
     console.warn('[BT-LOG] failed to persist log entry:', err);
