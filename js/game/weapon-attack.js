@@ -226,6 +226,10 @@ async function confirmWeaponAttack() {
   renderDetail();
   draw();
   updateAdvanceButtonState();
+  // Give immediate feedback before the shared-state write has completed.
+  // The detailed resolution is logged after the save so it remains in order
+  // for the other player as well.
+  logEvent(`${mechLabel(attacker)} weapon attack submitted — saving outcome.`, 'attack');
   await syncMechInstances();
   if (messages.length) messages.forEach(message => logEvent(message, 'attack'));
   else logEvent(`${mechLabel(attacker)} declared no weapon attacks.`, 'attack');
