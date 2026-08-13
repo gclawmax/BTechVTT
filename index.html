@@ -11,8 +11,8 @@
 
   <link rel="stylesheet" href="css/main.css">
 </head>
-<body data-build="20260813-attack-feedback-01">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT 20260813-attack-feedback-01</div>
+<body data-build="20260813-ai-auto-next-01">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT 20260813-ai-auto-next-01</div>
 
 <!-- ── LOADING OVERLAY ──────────────────────────────────── -->
 <div id="loading-overlay" class="hidden">Loading…</div>
@@ -98,6 +98,7 @@
     <button class="btn-back" onclick="handleBackToDropship()">Back to Dropship</button>
     <button id="btn-roll-initiative" class="primary" onclick="rollInitiative()" style="background:#2a4a2a;border-color:#3a6a3a;color:#7c9;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Roll Initiative (2D6)</button>
     <button id="btn-advance-phase" onclick="advancePhase()" disabled title="Roll Initiative before continuing to the Movement Phase." style="background:#2a2a4a;border:1px solid #3a3a6a;color:#99c;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:not-allowed;opacity:0.45;border-radius:2px;">Next Phase</button>
+    <label id="auto-ai-phase-control" hidden title="Automatically pass the turn or phase after the AI has completed its choices." style="display:inline-flex;align-items:center;gap:5px;color:#9ab;font:10px var(--mono);cursor:pointer;white-space:nowrap;"><input id="auto-ai-phase-checkbox" type="checkbox" onchange="setAutoAdvanceAfterAi(this.checked)"> Auto-next after AI</label>
     <div class="status" id="status-readout"></div>
   </div>
   <div id="map-wrap">
@@ -139,7 +140,7 @@
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/join-game.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/lobby.js?v=20260813-heat-management-01"></script>
-<script src="js/game/phases.js?v=20260813-physical-handoff-01"></script>
+<script src="js/game/phases.js?v=20260813-ai-auto-next-01"></script>
 <script src="js/game/board.js?v=20260813-combat-accuracy-01"></script>
 <script src="js/movement/rules.js?v=20260813-combat-accuracy-01"></script>
 <script src="js/ui/panels.js?v=20260813-combat-accuracy-01"></script>

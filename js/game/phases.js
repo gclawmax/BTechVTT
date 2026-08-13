@@ -9,6 +9,8 @@ const PHASE_LABELS = {
   heat: 'Heat Management',
   end: 'End Turn'
 };
+const AUTO_ADVANCE_AI_STORAGE_KEY = 'btech-vtt-auto-advance-after-ai';
+let autoAdvanceAfterAi = localStorage.getItem(AUTO_ADVANCE_AI_STORAGE_KEY) === 'true';
 
 let currentGameState = {
   round: 1,
@@ -54,6 +56,9 @@ async function loadGameState() {
   if (!game) return;
 
   const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  // Rejoining an AI game must restore AI-specific controls, even though the
+  // local vsAiMode flag begins false in a fresh browser session.
+  if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
 
   currentGameState = {
     round: game.current_round || 1,
@@ -116,6 +121,32 @@ function updateGameHeader() {
       : `Player ${activePlayer?.seat_number || '?'}`;
     statusEl.textContent += ` — ${activeLabel}'s Turn`;
   }
+
+  const autoControl = document.getElementById('auto-ai-phase-control');
+  const autoCheckbox = document.getElementById('auto-ai-phase-checkbox');
+  if (autoControl) autoControl.hidden = !vsAiMode;
+  if (autoCheckbox) autoCheckbox.checked = autoAdvanceAfterAi;
+}
+
+function setAutoAdvanceAfterAi(enabled) {
+  autoAdvanceAfterAi = !!enabled;
+  localStorage.setItem(AUTO_ADVANCE_AI_STORAGE_KEY, String(autoAdvanceAfterAi));
+  updateGameHeader();
+  logEvent(`Auto-next after AI ${autoAdvanceAfterAi ? 'enabled' : 'disabled'}.`, 'system');
+}
+
+async function autoAdvanceAfterAiTurn() {
+  if (!vsAiMode || !autoAdvanceAfterAi) return;
+  const activeEntry = getActivePlayerRecord();
+  if (!activeEntry?.is_ai || !canAdvancePhase().ok) return;
+
+  logEvent('AI choices complete — auto-advancing.', 'system');
+  // AI actions and log entries share a serialized write queue. Let that queue
+  // settle before changing the active player or phase, otherwise an older
+  // snapshot could overwrite the automatic hand-off.
+  await gameStateWriteQueue;
+  if (!getActivePlayerRecord()?.is_ai || !canAdvancePhase().ok) return;
+  await advancePhase();
 }
 
 function renderInitiativeDisplay() {
@@ -523,6 +554,7 @@ async function advancePhase(skipPhysicalWarning = false) {
     setTimeout(async () => {
       await aiTurnHandler();
       updateAdvanceButtonState();
+      await autoAdvanceAfterAiTurn();
     }, 500);
   }
 }
