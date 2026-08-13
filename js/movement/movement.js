@@ -2,6 +2,7 @@
 const HEX_DIR_LABELS = ['E', 'NE', 'NW', 'W', 'SW', 'SE'];
 const MOVE_MODE_LABELS = { stand: 'Standing Still', walk: 'Walked', run: 'Ran', jump: 'Jumped' };
 const MOVE_BTN_STYLE = 'padding:9px 10px;border:1px solid var(--phosphor);background:var(--phosphor);color:#fff;font-family:var(--display);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;text-align:left;';
+const MOVEMENT_HEAT = { stand: 0, walk: 1, run: 2, jump: 3 };
 
 function titleCaseMode(mode) {
   return MOVE_MODE_LABELS[mode] || (mode ? titleCase(mode) : '—');
@@ -16,6 +17,12 @@ function resetMovementForRound() {
     m.hasMoved = false;
     m.hasReacted = false;
     m.torsoFacing = m.facing;
+    ensureMechCombatState(m);
+    m.roundStartingHeat = m.heat || 0;
+    m.movementHeat = 0;
+    m.weaponHeat = 0;
+    m.heatDissipated = 0;
+    m.hasManagedHeat = false;
   });
 }
 
@@ -62,6 +69,8 @@ async function startMovementMode(instanceId, mode) {
     mech.mpUsed = 0;
     mech.hexesMoved = 0;
     mech.hasMoved = true;
+    mech.movementHeat = MOVEMENT_HEAT.stand;
+    mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0);
     renderMovementPanel();
     renderRoster();
     renderDetail();
@@ -167,6 +176,8 @@ async function confirmMove() {
     mech.mpUsed = moveState.mpUsed;
     mech.hexesMoved = moveState.hexesMoved;
     mech.hasMoved = true;
+    mech.movementHeat = MOVEMENT_HEAT[moveState.mode] || 0;
+    mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0);
     const moveSummary = `${mechLabel(mech)} ${moveState.mode === 'jump' ? 'jumped' : moveState.mode === 'run' ? 'ran' : 'walked'} to ${hexCode(mech.col, mech.row)} (${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'}, ${moveState.mpUsed}/${moveState.mpMax} MP).`;
     moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
     renderMovementPanel();

@@ -97,6 +97,8 @@ async function loadGameState() {
   renderReactionPanel();
   renderWeaponAttackPanel();
   renderPhysicalAttackPanel();
+  renderHeatPanel();
+  renderEndPanel();
   updateAdvanceButtonState();
 }
 
@@ -250,6 +252,7 @@ function activePlayerPhaseComplete(phase) {
   if (phase === 'reaction') return units.every(m => m.hasReacted);
   if (phase === 'weapon_attack') return units.every(m => m.hasFired);
   if (phase === 'physical_attack') return units.every(m => m.hasPhysicalAttacked);
+  if (phase === 'heat') return units.every(m => m.hasManagedHeat);
   return true;
 }
 
@@ -275,6 +278,10 @@ function resetWeaponAttacksForRound() {
 
 function resetPhysicalAttacksForRound() {
   mechInstances.forEach(m => { m.hasPhysicalAttacked = false; });
+}
+
+function resetHeatManagementForRound() {
+  mechInstances.forEach(m => { m.hasManagedHeat = false; });
 }
 
 function activePlayerHasLegalPhysicalAttack() {
@@ -304,6 +311,7 @@ function beginPhaseForFirstPlayer(phase) {
   if (phase === 'reaction') resetReactionForRound();
   if (phase === 'weapon_attack') resetWeaponAttacksForRound();
   if (phase === 'physical_attack') resetPhysicalAttacksForRound();
+  if (phase === 'heat') resetHeatManagementForRound();
 }
 
 // Enforces that every required VTT step for the CURRENT phase is actually done
@@ -314,7 +322,7 @@ function canAdvancePhase() {
                    currentGameState.initiative_order && currentGameState.initiative_order.length > 0;
     if (!rolled) return { ok: false, reason: 'Roll Initiative before continuing to the Movement Phase.' };
   }
-  if (['movement', 'reaction', 'weapon_attack', 'physical_attack'].includes(currentGameState.phase)) {
+  if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase)) {
     if (!currentGameState.active_player_id) {
       return { ok: false, reason: 'No active player is set for this phase.' };
     }
@@ -328,7 +336,9 @@ function canAdvancePhase() {
           ? 'complete their Reaction'
           : currentGameState.phase === 'weapon_attack'
             ? 'complete their weapon attacks'
-            : 'complete their physical attacks';
+            : currentGameState.phase === 'physical_attack'
+              ? 'complete their physical attacks'
+              : 'complete heat management';
       return { ok: false, reason: `The active player must ${phaseName} all eligible 'Mechs first.` };
     }
   }
@@ -378,13 +388,12 @@ async function advancePhase(skipPhysicalWarning = false) {
     gameState.initiative_rolls = [];
     gameState.initiative_round = null;
     gameState.initiative_winner = null;
-    // End Phase: dissipate the round's weapon heat and return each torso to
-    // its leg facing before the next round's initiative.
+    // End Phase cleans the round state after every player has explicitly
+    // resolved heat in the Heat Management phase.
     mechInstances.forEach(m => {
       ensureMechCombatState(m);
-      m.heat = Math.max(0, (m.heat || 0) - BT_UNITS[m.unitId].heat_sinks);
-      m.weaponHeat = 0;
       m.torsoFacing = m.facing;
+      m.hasManagedHeat = false;
     });
     gameState.mech_instances = mechInstances;
 
@@ -416,7 +425,7 @@ async function advancePhase(skipPhysicalWarning = false) {
     // During unit-action phases, the active player completes their actions first.
     // Next Phase acts as a pass to the next player in Initiative order; only the
     // final player advances the game into the next phase.
-    const samePhasePlayer = ['movement', 'reaction', 'weapon_attack', 'physical_attack'].includes(currentGameState.phase)
+    const samePhasePlayer = ['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase)
       ? getNextPhasePlayerId()
       : null;
 
@@ -496,6 +505,8 @@ async function advancePhase(skipPhysicalWarning = false) {
   renderReactionPanel();
   renderWeaponAttackPanel();
   renderPhysicalAttackPanel();
+  renderHeatPanel();
+  renderEndPanel();
   renderRoster();
   renderDetail();
   draw();
@@ -505,7 +516,7 @@ async function advancePhase(skipPhysicalWarning = false) {
   // In Vs AI games, let the AI explicitly complete every phase it owns.
   const activeEntry = (currentGameState.initiative_order || [])
     .find(p => p.player_id === currentGameState.active_player_id);
-  if (vsAiMode && activeEntry?.is_ai && ['movement', 'reaction', 'weapon_attack', 'physical_attack'].includes(currentGameState.phase)) {
+  if (vsAiMode && activeEntry?.is_ai && ['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase)) {
     setTimeout(async () => {
       await aiTurnHandler();
       updateAdvanceButtonState();

@@ -74,7 +74,7 @@ function renderDetail() {
       <div class="k">Torso Facing</div><div class="v">${HEX_DIR_LABELS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing]}</div>
       <div class="k">Walk / Run / Jump</div><div class="v">${unit.movement.walk} / ${unit.movement.run} / ${unit.movement.jump}</div>
       <div class="k">Heat Sinks</div><div class="v">${unit.heat_sinks} (${unit.heat_sink_type})</div>
-      <div class="k">Heat</div><div class="v">${inst.heat || 0}${inst.weaponHeat ? ` · weapons +${inst.weaponHeat}` : ''}</div>
+      <div class="k">Heat</div><div class="v">${inst.heat || 0}${inst.movementHeat || inst.weaponHeat ? ` · move +${inst.movementHeat || 0}, weapons +${inst.weaponHeat || 0}` : ''}</div>
       ${inst.hasMoved ? `<div class="k">This Turn</div><div class="v">${titleCaseMode(inst.movementMode)} · ${inst.hexesMoved} hex${inst.hexesMoved===1?'':'es'}</div>` : ''}
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>

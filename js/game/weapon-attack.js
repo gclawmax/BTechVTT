@@ -160,7 +160,7 @@ async function confirmWeaponAttack() {
   }
 
   attacker.weaponHeat = (attacker.weaponHeat || 0) + addedHeat;
-  attacker.heat = (attacker.heat || 0) + addedHeat;
+  attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat;
   attacker.hasFired = true;
   weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [] };
   renderWeaponAttackPanel();

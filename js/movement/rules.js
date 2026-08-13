@@ -322,5 +322,7 @@ function selectInstance(instanceId) {
   renderReactionPanel();
   renderWeaponAttackPanel();
   renderPhysicalAttackPanel();
+  renderHeatPanel();
+  renderEndPanel();
   draw();
 }

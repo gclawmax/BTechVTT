@@ -229,6 +229,7 @@ async function executeAIPlan(aiPlan) {
       updateAdvanceButtonState();
       logEvent('AI made no physical attacks.', 'attack');
     }
+    if (currentGameState.phase === 'heat') await resolveAIHeatManagement();
     return;
   }
   
@@ -261,7 +262,7 @@ async function executeAIPlan(aiPlan) {
 
   if (currentGameState.phase === 'movement') {
     const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
-    aiMechs.forEach(m => { if (!m.hasMoved) { m.movementMode = 'stand'; m.mpUsed = 0; m.hexesMoved = 0; m.hasMoved = true; } });
+    aiMechs.forEach(m => { if (!m.hasMoved) { m.movementMode = 'stand'; m.mpUsed = 0; m.hexesMoved = 0; m.movementHeat = 0; m.heat = (m.roundStartingHeat || 0) + (m.weaponHeat || 0); m.hasMoved = true; } });
     await syncMechInstances();
     updateAdvanceButtonState();
   }
@@ -338,6 +339,8 @@ async function executeAIMove(action) {
   mech.hexesMoved = (mech.hexesMoved || 0) + 1;
   mech.mpUsed = (mech.mpUsed || 0) + 1;
   mech.hasMoved = true;
+  mech.movementHeat = MOVEMENT_HEAT.walk;
+  mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0);
 
   // Update UI
   draw();
@@ -361,7 +364,7 @@ async function executeAIAttack(action) {
   if (!attack.valid) return;
 
   attacker.weaponHeat = (attacker.weaponHeat || 0) + attack.weapon.heat;
-  attacker.heat = (attacker.heat || 0) + attack.weapon.heat;
+  attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat;
   const roll = roll2d6();
   const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll >= attack.targetNumber);
   let message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: miss.`;

@@ -257,6 +257,8 @@ function subscribeGameStateSync() {
         renderReactionPanel();
         renderWeaponAttackPanel();
         renderPhysicalAttackPanel();
+        renderHeatPanel();
+        renderEndPanel();
         updateAdvanceButtonState();
       }
     )
