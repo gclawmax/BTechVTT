@@ -1,9 +1,11 @@
 // ── CONFIRMATION MODAL ───────────────────────────────────
 let confirmCallback = null;
 
-function showConfirmModal(title, message, onConfirm) {
+function showConfirmModal(title, message, onConfirm, confirmLabel = 'Confirm', cancelLabel = 'Cancel') {
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-message').textContent = message;
+  document.getElementById('confirm-ok').textContent = confirmLabel;
+  document.getElementById('confirm-cancel').textContent = cancelLabel;
   document.getElementById('confirm-modal').classList.remove('hidden');
   confirmCallback = onConfirm;
 

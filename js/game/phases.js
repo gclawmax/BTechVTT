@@ -277,6 +277,26 @@ function resetPhysicalAttacksForRound() {
   mechInstances.forEach(m => { m.hasPhysicalAttacked = false; });
 }
 
+function activePlayerHasLegalPhysicalAttack() {
+  const attackers = getPhaseUnitsForActivePlayer().filter(m => !m.hasPhysicalAttacked);
+  return attackers.some(attacker => mechInstances.some(target =>
+    target.owner !== attacker.owner && !target.destroyed && evaluatePhysicalAttack(attacker, target, 'punch').valid
+  ));
+}
+
+async function passRemainingPhysicalAttacks() {
+  const pending = getPhaseUnitsForActivePlayer().filter(m => !m.hasPhysicalAttacked);
+  if (!pending.length) return;
+  pending.forEach(m => { m.hasPhysicalAttacked = true; });
+  physicalAttackState = { attackerId: null, targetId: null, attackType: null };
+  renderPhysicalAttackPanel();
+  renderRoster();
+  renderDetail();
+  draw();
+  await syncMechInstances();
+  logEvent(`Player ${getActivePlayerSeat()} declined ${pending.length} remaining physical attack${pending.length === 1 ? '' : 's'}.`, 'phase');
+}
+
 function beginPhaseForFirstPlayer(phase) {
   const order = getPhasePlayerOrder();
   currentGameState.active_player_id = order[0] || null;
@@ -299,6 +319,9 @@ function canAdvancePhase() {
       return { ok: false, reason: 'No active player is set for this phase.' };
     }
     if (!activePlayerPhaseComplete(currentGameState.phase)) {
+      if (currentGameState.phase === 'physical_attack' && activePlayerHasLegalPhysicalAttack()) {
+        return { ok: true, reason: 'Legal physical attacks remain.', warning: true };
+      }
       const phaseName = currentGameState.phase === 'movement'
         ? 'move'
         : currentGameState.phase === 'reaction'
@@ -322,10 +345,23 @@ function updateAdvanceButtonState() {
   btn.style.cursor = check.ok ? 'pointer' : 'not-allowed';
 }
 
-async function advancePhase() {
+async function advancePhase(skipPhysicalWarning = false) {
   const check = canAdvancePhase();
   if (!check.ok) {
     flashMoveWarning(check.reason);
+    return;
+  }
+  if (check.warning && !skipPhysicalWarning) {
+    showConfirmModal(
+      'Skip Physical Attacks?',
+      'One or more legal punches or kicks are available. Continue anyway will record no physical attack for the remaining units and advance the phase.',
+      async () => {
+        await passRemainingPhysicalAttacks();
+        advancePhase(true);
+      },
+      'Continue anyway',
+      'Go back'
+    );
     return;
   }
 
