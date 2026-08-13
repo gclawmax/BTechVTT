@@ -60,8 +60,7 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   // Generate actions for each AI mech
   for (const mech of aiMechs) {
     // The algorithmic AI is phase-scoped: Movement can only create movement
-    // actions; Weapon Attack can only create attack actions. Reaction is handled
-    // separately and never falls through into weapons fire.
+    // actions; Weapon Attack can only create attack actions.
     if (currentGameState.phase === 'movement' && Math.random() < settings.moveChance) {
       const moveAction = generateAIMoveAction(mech, playerMechs, settings);
       if (moveAction) aiPlan.actions.push(moveAction);
@@ -71,9 +70,41 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
       const attackAction = generateAIAttackAction(mech, playerMechs, settings);
       if (attackAction) aiPlan.actions.push(attackAction);
     }
+
+    if (currentGameState.phase === 'reaction') {
+      aiPlan.actions.push(generateAIReactionAction(mech, playerMechs));
+    }
   }
   
   return aiPlan;
+}
+
+// Pick a legal one-hexside torso twist toward the nearest opposing 'Mech.
+// If the target is outside that arc, the AI deliberately holds its torso
+// facing and still completes the required Reaction action.
+function generateAIReactionAction(mech, playerMechs) {
+  const target = [...playerMechs].sort((a, b) =>
+    axialDistance(mech.col, mech.row, a.col, a.row) - axialDistance(mech.col, mech.row, b.col, b.row)
+  )[0];
+
+  if (!target) return { type: 'complete_reaction', instanceId: mech.instanceId };
+
+  let desiredFacing = mech.facing;
+  let bestDistance = Infinity;
+  for (let direction = 0; direction < 6; direction++) {
+    const neighbor = hexNeighbor(mech.col, mech.row, direction);
+    const distance = axialDistance(neighbor.col, neighbor.row, target.col, target.row);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      desiredFacing = direction;
+    }
+  }
+
+  const torsoFacing = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
+  const turn = (desiredFacing - torsoFacing + 6) % 6;
+  if (turn === 1) return { type: 'torso_twist', instanceId: mech.instanceId, direction: 'left' };
+  if (turn === 5) return { type: 'torso_twist', instanceId: mech.instanceId, direction: 'right' };
+  return { type: 'complete_reaction', instanceId: mech.instanceId };
 }
 
 // Generate a movement action for AI mech
@@ -186,6 +217,12 @@ async function executeAIPlan(aiPlan) {
       case 'attack':
         await executeAIAttack(action);
         break;
+      case 'torso_twist':
+        await executeAIReaction(action);
+        break;
+      case 'complete_reaction':
+        await executeAIReaction(action);
+        break;
     }
   }
   
@@ -197,6 +234,28 @@ async function executeAIPlan(aiPlan) {
     await syncMechInstances();
     updateAdvanceButtonState();
   }
+}
+
+async function executeAIReaction(action) {
+  const mech = mechInstances.find(m => m.instanceId === action.instanceId);
+  if (!mech || mech.destroyed || mech.hasReacted) return;
+
+  if (action.type === 'torso_twist') {
+    const delta = action.direction === 'left' ? 1 : -1;
+    const torsoFacing = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
+    mech.torsoFacing = (torsoFacing + delta + 6) % 6;
+    logEvent(`${mechLabel(mech)} (AI) twisted torso ${action.direction}.`, 'phase');
+  } else {
+    logEvent(`${mechLabel(mech)} (AI) held torso facing.`, 'phase');
+  }
+
+  mech.hasReacted = true;
+  await syncMechInstances();
+  draw();
+  renderRoster();
+  renderDetail();
+  renderReactionPanel();
+  updateAdvanceButtonState();
 }
 
 // Execute AI movement
