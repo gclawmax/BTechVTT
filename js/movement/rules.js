@@ -102,6 +102,7 @@ function initGame() {
     m.hasMoved = false;
     m.hasReacted = false;
     if (m.torsoFacing == null) m.torsoFacing = m.facing;
+    ensureMechCombatState(m);
   });
 
   try {
@@ -319,5 +320,6 @@ function selectInstance(instanceId) {
   renderDetail();
   renderMovementPanel();
   renderReactionPanel();
+  renderWeaponAttackPanel();
   draw();
 }

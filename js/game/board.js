@@ -44,6 +44,29 @@ const BT_UNITS = {
   }
 };
 
+// First-pass standard weapon data. Cluster weapons are deliberately treated as
+// one simplified damage packet until their individual-cluster rules are added.
+const BT_WEAPONS = {
+  ac20:       { name: 'AC/20', damage: 20, heat: 7, range: [3, 6, 9] },
+  lr20:       { name: 'LRM-20', damage: 20, heat: 6, range: [7, 14, 21] },
+  sr6:        { name: 'SRM-6', damage: 6, heat: 4, range: [3, 6, 9] },
+  med_laser:  { name: 'Medium Laser', damage: 5, heat: 3, range: [3, 6, 9] },
+  erl:        { name: 'ER Large Laser', damage: 8, heat: 12, range: [7, 14, 19] },
+  lr6:        { name: 'LRM-6', damage: 6, heat: 2, range: [7, 14, 21] },
+  ac2:        { name: 'AC/2', damage: 2, heat: 1, range: [8, 16, 24] },
+  streak_sr4: { name: 'Streak SRM-4', damage: 4, heat: 3, range: [3, 6, 9] }
+};
+
+function ensureMechCombatState(mech) {
+  const unit = BT_UNITS[mech.unitId];
+  if (!unit) return;
+  if (!mech.armor) mech.armor = { ...unit.armor };
+  if (!mech.structure) mech.structure = { ...unit.structure };
+  if (mech.heat == null) mech.heat = 0;
+  if (mech.weaponHeat == null) mech.weaponHeat = 0;
+  if (mech.hasFired == null) mech.hasFired = false;
+}
+
 const MECH_COLORS = ['#c4302b', '#d4800a', '#2a8a2a', '#3060c4'];
 
 let mechInstances = [];

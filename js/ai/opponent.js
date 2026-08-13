@@ -201,6 +201,11 @@ function generateAIAttackAction(mech, playerMechs, settings) {
 async function executeAIPlan(aiPlan) {
   if (!aiPlan || !aiPlan.actions || aiPlan.actions.length === 0) {
     logEvent('AI has no actions to take this phase.', 'system');
+    if (currentGameState.phase === 'weapon_attack') {
+      mechInstances.filter(m => m.owner === 2 && !m.destroyed).forEach(m => { m.hasFired = true; });
+      await syncMechInstances();
+      updateAdvanceButtonState();
+    }
     return;
   }
   
@@ -231,6 +236,13 @@ async function executeAIPlan(aiPlan) {
   if (currentGameState.phase === 'movement') {
     const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
     aiMechs.forEach(m => { if (!m.hasMoved) { m.movementMode = 'stand'; m.mpUsed = 0; m.hexesMoved = 0; m.hasMoved = true; } });
+    await syncMechInstances();
+    updateAdvanceButtonState();
+  }
+
+  if (currentGameState.phase === 'weapon_attack') {
+    const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
+    aiMechs.forEach(m => { m.hasFired = true; });
     await syncMechInstances();
     updateAdvanceButtonState();
   }
@@ -283,8 +295,7 @@ async function executeAIMove(action) {
   renderRoster();
   renderDetail();
   renderMovementPanel();
-  syncMechInstances();
-
+  await syncMechInstances();
   logEvent(`${mechLabel(mech)} (AI) moved to ${hexCode(action.toCol, action.toRow)}.`, 'move');
 }
 
@@ -295,41 +306,22 @@ async function executeAIAttack(action) {
   
   if (!attacker || !target) return;
   
-  const attackerUnit = BT_UNITS[attacker.unitId];
-  const targetUnit = BT_UNITS[target.unitId];
-  
-  // Calculate damage (simplified)
-  const weapon = attackerUnit.weapons.find(w => w.key === action.weaponKey);
-  if (!weapon) return;
-  
-  // Random damage based on weapon type (simplified)
-  let damage = 0;
-  switch (action.weaponKey) {
-    case 'ac20': damage = 20 + Math.floor(Math.random() * 5); break;
-    case 'lr20': damage = 15 + Math.floor(Math.random() * 5); break;
-    case 'sr6': damage = 10 + Math.floor(Math.random() * 3); break;
-    case 'med_laser': damage = 8 + Math.floor(Math.random() * 4); break;
-    case 'erl': damage = 12 + Math.floor(Math.random() * 4); break;
-    case 'lr6': damage = 8 + Math.floor(Math.random() * 3); break;
-    case 'ac2': damage = 5 + Math.floor(Math.random() * 2); break;
-    case 'streak_sr4': damage = 10 + Math.floor(Math.random() * 3); break;
-    default: damage = 5 + Math.floor(Math.random() * 5);
+  const weaponEntry = BT_UNITS[attacker.unitId].weapons.find(w => w.key === action.weaponKey);
+  if (!weaponEntry) return;
+  const attack = evaluateWeaponAttack(attacker, target, weaponEntry);
+  if (!attack.valid) return;
+
+  attacker.weaponHeat = (attacker.weaponHeat || 0) + attack.weapon.heat;
+  attacker.heat = (attacker.heat || 0) + attack.weapon.heat;
+  const roll = roll2d6();
+  const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll >= attack.targetNumber);
+  let message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: miss.`;
+  if (hit) {
+    const damage = applyWeaponDamage(target, attack.weapon.damage);
+    message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.destroyed ? ' Target destroyed.' : ''}`;
   }
-  
-  // Apply damage to target (simplified - hit center torso)
-  const targetArmor = targetUnit.armor.ct || 0;
-  const targetStructure = targetUnit.structure.ct || 0;
-  
-  let remainingDamage = damage;
-  if (remainingDamage > targetArmor) {
-    remainingDamage -= targetArmor;
-    targetUnit.armor.ct = 0;
-    targetUnit.structure.ct = Math.max(0, targetStructure - remainingDamage);
-  } else {
-    targetUnit.armor.ct = Math.max(0, targetArmor - remainingDamage);
-  }
-  
-  logEvent(`${mechLabel(attacker)} (AI) fired ${weapon.name || action.weaponKey} at ${mechLabel(target)} — ${damage} dmg to CT (armor ${targetUnit.armor.ct}, structure ${targetUnit.structure.ct}).`, 'attack');
+  await syncMechInstances();
+  logEvent(message, 'attack');
 
   // Update UI
   draw();

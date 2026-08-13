@@ -255,6 +255,7 @@ function subscribeGameStateSync() {
         renderInitiativeDisplay();
         renderMovementPanel();
         renderReactionPanel();
+        renderWeaponAttackPanel();
         updateAdvanceButtonState();
       }
     )

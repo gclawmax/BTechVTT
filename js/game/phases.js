@@ -82,6 +82,7 @@ async function loadGameState() {
   // instead of the default setup positions initGame() placed.
   if (gameState.mech_instances && gameState.mech_instances.length > 0) {
     mechInstances = gameState.mech_instances;
+    mechInstances.forEach(ensureMechCombatState);
     draw();
     renderRoster();
     renderDetail();
@@ -94,6 +95,7 @@ async function loadGameState() {
   renderInitiativeDisplay();
   renderMovementPanel();
   renderReactionPanel();
+  renderWeaponAttackPanel();
   updateAdvanceButtonState();
 }
 
@@ -245,6 +247,7 @@ function activePlayerPhaseComplete(phase) {
   if (units.length === 0) return true;
   if (phase === 'movement') return units.every(m => m.hasMoved);
   if (phase === 'reaction') return units.every(m => m.hasReacted);
+  if (phase === 'weapon_attack') return units.every(m => m.hasFired);
   return true;
 }
 
@@ -261,11 +264,19 @@ function resetReactionForRound() {
   });
 }
 
+function resetWeaponAttacksForRound() {
+  mechInstances.forEach(m => {
+    m.hasFired = false;
+    m.weaponHeat = 0;
+  });
+}
+
 function beginPhaseForFirstPlayer(phase) {
   const order = getPhasePlayerOrder();
   currentGameState.active_player_id = order[0] || null;
   if (phase === 'movement') resetMovementForRound();
   if (phase === 'reaction') resetReactionForRound();
+  if (phase === 'weapon_attack') resetWeaponAttacksForRound();
 }
 
 // Enforces that every required VTT step for the CURRENT phase is actually done
@@ -276,12 +287,16 @@ function canAdvancePhase() {
                    currentGameState.initiative_order && currentGameState.initiative_order.length > 0;
     if (!rolled) return { ok: false, reason: 'Roll Initiative before continuing to the Movement Phase.' };
   }
-  if (currentGameState.phase === 'movement' || currentGameState.phase === 'reaction') {
+  if (['movement', 'reaction', 'weapon_attack'].includes(currentGameState.phase)) {
     if (!currentGameState.active_player_id) {
       return { ok: false, reason: 'No active player is set for this phase.' };
     }
     if (!activePlayerPhaseComplete(currentGameState.phase)) {
-      const phaseName = currentGameState.phase === 'movement' ? 'move' : 'complete their Reaction';
+      const phaseName = currentGameState.phase === 'movement'
+        ? 'move'
+        : currentGameState.phase === 'reaction'
+          ? 'complete their Reaction'
+          : 'complete their weapon attacks';
       return { ok: false, reason: `The active player must ${phaseName} all eligible 'Mechs first.` };
     }
   }
@@ -318,6 +333,15 @@ async function advancePhase() {
     gameState.initiative_rolls = [];
     gameState.initiative_round = null;
     gameState.initiative_winner = null;
+    // End Phase: dissipate the round's weapon heat and return each torso to
+    // its leg facing before the next round's initiative.
+    mechInstances.forEach(m => {
+      ensureMechCombatState(m);
+      m.heat = Math.max(0, (m.heat || 0) - BT_UNITS[m.unitId].heat_sinks);
+      m.weaponHeat = 0;
+      m.torsoFacing = m.facing;
+    });
+    gameState.mech_instances = mechInstances;
 
     await db
       .from('btech_games')
@@ -344,10 +368,10 @@ async function advancePhase() {
 
     logEvent(`End of Round ${prevRound} (${prevPhaseLabel}) — advancing to Round ${currentGameState.round}, Initiative Roll.`, 'phase');
   } else {
-    // During Movement and Reaction, the active player completes their actions first.
+    // During unit-action phases, the active player completes their actions first.
     // Next Phase acts as a pass to the next player in Initiative order; only the
     // final player advances the game into the next phase.
-    const samePhasePlayer = (currentGameState.phase === 'movement' || currentGameState.phase === 'reaction')
+    const samePhasePlayer = ['movement', 'reaction', 'weapon_attack'].includes(currentGameState.phase)
       ? getNextPhasePlayerId()
       : null;
 
@@ -409,10 +433,11 @@ async function advancePhase() {
 
   cancelMovement();
 
-  // Select the first unmoved 'Mech for the active player when Movement begins or changes player.
-  if (currentGameState.phase === 'movement') {
+  // Select the first unit that still needs an action when a unit-action phase begins or changes player.
+  if (currentGameState.phase === 'movement' || currentGameState.phase === 'weapon_attack') {
     const activeSeat = getActivePlayerSeat();
-    const nextMech = mechInstances.find(m => m.owner === activeSeat && !m.hasMoved);
+    const nextMech = mechInstances.find(m => m.owner === activeSeat &&
+      (currentGameState.phase === 'movement' ? !m.hasMoved : !m.hasFired));
     if (nextMech) selectedInstanceId = nextMech.instanceId;
   }
 
@@ -420,6 +445,7 @@ async function advancePhase() {
   renderInitiativeDisplay();
   renderMovementPanel();
   renderReactionPanel();
+  renderWeaponAttackPanel();
   renderRoster();
   renderDetail();
   draw();

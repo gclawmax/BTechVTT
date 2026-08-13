@@ -17,6 +17,15 @@ function renderRoster() {
         moveBadge = `<span style="font-size:9px;color:var(--phosphor-dim);letter-spacing:.06em;margin-left:6px;">WAITING</span>`;
       }
     }
+    if (currentGameState.phase === 'weapon_attack') {
+      if (inst.hasFired) {
+        moveBadge = `<span style="font-size:9px;color:#2a7a2a;letter-spacing:.06em;margin-left:6px;">FIRED</span>`;
+      } else if (inst.owner === mySeatNumber) {
+        moveBadge = `<span style="font-size:9px;color:var(--amber);letter-spacing:.06em;margin-left:6px;">● FIRE</span>`;
+      } else {
+        moveBadge = `<span style="font-size:9px;color:var(--phosphor-dim);letter-spacing:.06em;margin-left:6px;">WAITING</span>`;
+      }
+    }
 
     row.innerHTML = `
       <div class="roster-swatch" style="background:${unit.color}"></div>
@@ -56,6 +65,7 @@ function renderDetail() {
       <div class="k">Torso Facing</div><div class="v">${HEX_DIR_LABELS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing]}</div>
       <div class="k">Walk / Run / Jump</div><div class="v">${unit.movement.walk} / ${unit.movement.run} / ${unit.movement.jump}</div>
       <div class="k">Heat Sinks</div><div class="v">${unit.heat_sinks} (${unit.heat_sink_type})</div>
+      <div class="k">Heat</div><div class="v">${inst.heat || 0}${inst.weaponHeat ? ` · weapons +${inst.weaponHeat}` : ''}</div>
       ${inst.hasMoved ? `<div class="k">This Turn</div><div class="v">${titleCaseMode(inst.movementMode)} · ${inst.hexesMoved} hex${inst.hexesMoved===1?'':'es'}</div>` : ''}
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>
@@ -64,9 +74,9 @@ function renderDetail() {
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Armor / Structure</div>
     <div class="armor-diagram">
-      ${armorCell('la','LA', unit.armor.la, unit.structure.la)}${armorCell('h','HD', unit.armor.head, unit.structure.head)}${armorCell('ra','RA', unit.armor.ra, unit.structure.ra)}
-      ${armorCell('lt','LT', unit.armor.lt, unit.structure.lt)}${armorCell('ct','CT', unit.armor.ct, unit.structure.ct)}${armorCell('rt','RT', unit.armor.rt, unit.structure.rt)}
-      ${armorCell('ll','LL', unit.armor.ll, unit.structure.ll)}${armorCell('','', null, null)}${armorCell('rl','RL', unit.armor.rl, unit.structure.rl)}
+      ${armorCell('la','LA', inst.armor.la, inst.structure.la)}${armorCell('h','HD', inst.armor.head, inst.structure.head)}${armorCell('ra','RA', inst.armor.ra, inst.structure.ra)}
+      ${armorCell('lt','LT', inst.armor.lt, inst.structure.lt)}${armorCell('ct','CT', inst.armor.ct, inst.structure.ct)}${armorCell('rt','RT', inst.armor.rt, inst.structure.rt)}
+      ${armorCell('ll','LL', inst.armor.ll, inst.structure.ll)}${armorCell('','', null, null)}${armorCell('rl','RL', inst.armor.rl, inst.structure.rl)}
     </div>
   `;
 }
