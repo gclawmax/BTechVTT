@@ -11,6 +11,8 @@ const PHASE_LABELS = {
 };
 const AUTO_ADVANCE_AI_STORAGE_KEY = 'btech-vtt-auto-advance-after-ai';
 let autoAdvanceAfterAi = localStorage.getItem(AUTO_ADVANCE_AI_STORAGE_KEY) === 'true';
+let autoAdvanceRetryTimer = null;
+let scheduledAiTurnKey = null;
 
 let currentGameState = {
   round: 1,
@@ -105,6 +107,7 @@ async function loadGameState() {
   renderHeatPanel();
   renderEndPanel();
   updateAdvanceButtonState();
+  scheduleActiveAiTurn();
 }
 
 function updateGameHeader() {
@@ -135,18 +138,48 @@ function setAutoAdvanceAfterAi(enabled) {
   logEvent(`Auto-next after AI ${autoAdvanceAfterAi ? 'enabled' : 'disabled'}.`, 'system');
 }
 
-async function autoAdvanceAfterAiTurn() {
+async function autoAdvanceAfterAiTurn(attempt = 0) {
   if (!vsAiMode || !autoAdvanceAfterAi) return;
-  const activeEntry = getActivePlayerRecord();
-  if (!activeEntry?.is_ai || !canAdvancePhase().ok) return;
-
-  logEvent('AI choices complete — auto-advancing.', 'system');
   // AI actions and log entries share a serialized write queue. Let that queue
   // settle before changing the active player or phase, otherwise an older
   // snapshot could overwrite the automatic hand-off.
   await gameStateWriteQueue;
-  if (!getActivePlayerRecord()?.is_ai || !canAdvancePhase().ok) return;
+  if (!getActivePlayerRecord()?.is_ai) return;
+  const check = canAdvancePhase();
+  if (!check.ok) {
+    // A realtime event can briefly expose an older 'Mech snapshot directly
+    // after the AI saves. Retry a few times rather than leaving the player to
+    // press Next Phase for an otherwise completed AI turn.
+    if (attempt < 5) {
+      clearTimeout(autoAdvanceRetryTimer);
+      autoAdvanceRetryTimer = setTimeout(() => autoAdvanceAfterAiTurn(attempt + 1), 250);
+    } else {
+      logEvent(`AI auto-next stopped: ${check.reason}`, 'error');
+    }
+    return;
+  }
+
+  logEvent('AI choices complete — auto-advancing.', 'system');
   await advancePhase();
+}
+
+function scheduleActiveAiTurn() {
+  const activeEntry = getActivePlayerRecord();
+  const aiPhase = ['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase);
+  if (!vsAiMode || !activeEntry?.is_ai || !aiPhase) return;
+
+  const turnKey = `${currentGameId}:${currentGameState.round}:${currentGameState.phase}:${currentGameState.active_player_id}`;
+  if (scheduledAiTurnKey === turnKey || aiTurnInProgress) return;
+  scheduledAiTurnKey = turnKey;
+  setTimeout(async () => {
+    if (scheduledAiTurnKey === turnKey) scheduledAiTurnKey = null;
+    // Ignore an outdated callback if the human has received the turn while
+    // the short AI-start delay was pending.
+    if (currentGameState.active_player_id !== activeEntry.player_id || !getActivePlayerRecord()?.is_ai) return;
+    const aiCompleted = await aiTurnHandler();
+    updateAdvanceButtonState();
+    if (aiCompleted) await autoAdvanceAfterAiTurn();
+  }, 500);
 }
 
 function renderInitiativeDisplay() {
@@ -546,20 +579,7 @@ async function advancePhase(skipPhysicalWarning = false) {
   draw();
   updateAdvanceButtonState();
 
-  // Trigger the existing algorithmic AI only when it is actually the active player.
-  // In Vs AI games, let the AI explicitly complete every phase it owns.
-  const activeEntry = (currentGameState.initiative_order || [])
-    .find(p => p.player_id === currentGameState.active_player_id);
-  if (vsAiMode && activeEntry?.is_ai && ['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase)) {
-    const scheduledPlayerId = currentGameState.active_player_id;
-    const scheduledPhase = currentGameState.phase;
-    setTimeout(async () => {
-      // Ignore an outdated callback if the human has received the turn while
-      // the short AI-start delay was pending.
-      if (currentGameState.active_player_id !== scheduledPlayerId || currentGameState.phase !== scheduledPhase || !getActivePlayerRecord()?.is_ai) return;
-      await aiTurnHandler();
-      updateAdvanceButtonState();
-      await autoAdvanceAfterAiTurn();
-    }, 500);
-  }
+  // Trigger the AI for a newly active AI turn. The same helper is also used
+  // when rejoining a game already waiting on the AI.
+  scheduleActiveAiTurn();
 }

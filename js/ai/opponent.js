@@ -386,7 +386,7 @@ async function executeAIAttack(action) {
 async function aiTurnHandler() {
   // A delayed callback can survive a hand-off to the human player. Only the
   // player currently on turn may execute AI choices, and never in parallel.
-  if (!vsAiMode || aiTurnInProgress || !getActivePlayerRecord()?.is_ai) return;
+  if (!vsAiMode || aiTurnInProgress || !getActivePlayerRecord()?.is_ai) return false;
   aiTurnInProgress = true;
   
   try {
@@ -399,7 +399,7 @@ async function aiTurnHandler() {
       .eq('id', currentGameId)
       .single();
 
-    if (!game) { logEvent('AI turn aborted — could not load game state.', 'error'); return; }
+    if (!game) { logEvent('AI turn aborted — could not load game state.', 'error'); return false; }
 
     const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
     const difficulty = gameState.ai_difficulty || window.aiDifficulty || 'beginner';
@@ -411,6 +411,7 @@ async function aiTurnHandler() {
     await executeAIPlan(aiPlan);
 
     logEvent('AI turn complete.', 'system');
+    return true;
   } finally {
     aiTurnInProgress = false;
   }

@@ -260,6 +260,7 @@ function subscribeGameStateSync() {
         renderHeatPanel();
         renderEndPanel();
         updateAdvanceButtonState();
+        scheduleActiveAiTurn();
       }
     )
     .subscribe();
