@@ -264,18 +264,29 @@ function subscribeGameStateSync() {
 async function handleLeaveLobby() {
   if (!currentGameId) return;
 
-  if (currentUser) {
+  // A host deletes the game itself; its player rows are removed by the
+  // btech_players.game_id ON DELETE CASCADE relationship.
+  if (isHost) {
+    const { error: clearError } = await db
+      .from('btech_games')
+      .update({ active_player_id: null, initiative_winner: null })
+      .eq('id', currentGameId);
+    if (clearError) {
+      console.error('Failed to clear game turn references before leaving:', clearError);
+      return;
+    }
+
+    const { error: deleteError } = await db.from('btech_games').delete().eq('id', currentGameId);
+    if (deleteError) {
+      console.error('Failed to delete hosted game:', deleteError);
+      return;
+    }
+  } else if (currentUser) {
     await db
       .from('btech_players')
       .delete()
       .eq('game_id', currentGameId)
       .eq('user_id', currentUser.id);
-  }
-
-  // If host leaves, delete the game
-  if (isHost) {
-    await db.from('btech_players').delete().eq('game_id', currentGameId);
-    await db.from('btech_games').delete().eq('id', currentGameId);
   }
 
   currentGameId = null;

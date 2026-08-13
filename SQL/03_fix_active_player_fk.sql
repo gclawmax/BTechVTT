@@ -8,4 +8,4 @@ DROP CONSTRAINT IF EXISTS btech_games_active_player_id_fkey;
 ALTER TABLE btech_games
 ADD CONSTRAINT btech_games_active_player_id_fkey
 FOREIGN KEY (active_player_id)
-REFERENCES btech_players(id);
+REFERENCES btech_players(id) ON DELETE SET NULL;

@@ -47,9 +47,9 @@ CREATE TABLE IF NOT EXISTS btech_games (
   -- Which SEAT (btech_players.id) is "on the clock" right now within the
   -- current phase. References the seat, not auth.users, because that's
   -- what the app's profiles(username) lookups key off.
-  active_player_id UUID REFERENCES btech_players(id),
+  active_player_id UUID REFERENCES btech_players(id) ON DELETE SET NULL,
   -- Winner of this round's initiative roll (also a seat id).
-  initiative_winner UUID REFERENCES btech_players(id),
+  initiative_winner UUID REFERENCES btech_players(id) ON DELETE SET NULL,
 
   created_at TIMESTAMPTZ DEFAULT now()
 );

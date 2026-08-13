@@ -34,17 +34,24 @@ async function handleConcedeGame(code) {
     async () => {
       showLoading(true);
       try {
-        // Remove player record
-        await db
-          .from('btech_players')
-          .delete()
-          .eq('game_id', game.id)
-          .eq('user_id', currentUser.id);
-
-        // If host, delete the entire game
+        // A hosted game owns its player seats. Delete it first so its ON DELETE
+        // CASCADE cleans up all seats without violating an initiative reference.
         if (game.host_id === currentUser.id) {
-          await db.from('btech_players').delete().eq('game_id', game.id);
-          await db.from('btech_games').delete().eq('id', game.id);
+          const { error } = await db
+            .from('btech_games')
+            .update({ active_player_id: null, initiative_winner: null })
+            .eq('id', game.id);
+          if (error) throw error;
+
+          const { error: deleteError } = await db.from('btech_games').delete().eq('id', game.id);
+          if (deleteError) throw deleteError;
+        } else {
+          const { error } = await db
+            .from('btech_players')
+            .delete()
+            .eq('game_id', game.id)
+            .eq('user_id', currentUser.id);
+          if (error) throw error;
         }
 
         // Refresh the active games list
