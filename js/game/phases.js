@@ -327,7 +327,10 @@ function canAdvancePhase() {
       return { ok: false, reason: 'No active player is set for this phase.' };
     }
     if (!activePlayerPhaseComplete(currentGameState.phase)) {
-      if (currentGameState.phase === 'physical_attack' && activePlayerHasLegalPhysicalAttack()) {
+      // The optional skip confirmation belongs only to the human who owns the
+      // current turn. Never show it while an AI turn is finishing or handing
+      // control across to the player.
+      if (currentGameState.phase === 'physical_attack' && isMyActiveTurn() && activePlayerHasLegalPhysicalAttack()) {
         return { ok: true, reason: 'Legal physical attacks remain.', warning: true };
       }
       const phaseName = currentGameState.phase === 'movement'
