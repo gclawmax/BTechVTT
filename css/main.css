@@ -496,7 +496,7 @@ html, body {
 
 #game-screen.active {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: minmax(0, 1fr) var(--side-panel-width, 360px);
   grid-template-rows: 48px 1fr;
   height: 100vh;
 }
@@ -570,11 +570,42 @@ html, body {
 
 /* ── Side panel ── */
 #panel {
+  position: relative;
   border-left: 1px solid var(--panel-line);
   background: var(--panel);
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+}
+
+/* Drag the left edge to give the log/detail column more or less space. */
+#panel::before {
+  content: '';
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 11px;
+  cursor: col-resize;
+}
+
+#panel::after {
+  content: '⋮';
+  position: absolute;
+  z-index: 6;
+  left: -7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--phosphor-dim);
+  background: var(--panel);
+  font: 18px/20px var(--mono);
+  pointer-events: none;
+}
+
+body.resizing-side-panel, body.resizing-side-panel * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .panel-section {
