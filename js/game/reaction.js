@@ -7,14 +7,15 @@ function resetReactionState() {
   syncMechInstances();
 }
 
-function completeReaction(instanceId) {
+async function completeReaction(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction') return;
+  const twisted = (mech.torsoFacing == null ? mech.facing : mech.torsoFacing) !== mech.facing;
   mech.hasReacted = true;
-  syncMechInstances();
   renderReactionPanel();
   updateAdvanceButtonState();
-  logEvent(`${mechLabel(mech)} completed its Reaction.`, 'phase');
+  await syncMechInstances();
+  logEvent(`${mechLabel(mech)} ${twisted ? 'confirmed torso twist and completed' : 'completed'} its Reaction.`, 'phase');
 }
 
 function torsoTwist(instanceId, direction) {
@@ -29,12 +30,19 @@ function torsoTwist(instanceId, direction) {
   const delta = direction === 'left' ? 1 : -1;
   mech.torsoFacing = (current + delta + 6) % 6;
 
-  syncMechInstances();
   renderReactionPanel();
   renderDetail();
   draw();
-  updateAdvanceButtonState();
-  logEvent(`${mechLabel(mech)} twisted torso ${direction}.`, 'phase');
+}
+
+function undoTorsoTwist(instanceId) {
+  const mech = mechInstances.find(m => m.instanceId === instanceId);
+  if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction' || mech.hasReacted) return;
+
+  mech.torsoFacing = mech.facing;
+  renderReactionPanel();
+  renderDetail();
+  draw();
 }
 
 function renderReactionPanel() {
@@ -80,12 +88,15 @@ function renderReactionPanel() {
       ? `<div style="font-size:11px;color:var(--phosphor-dim);">Reaction complete.</div>`
       : isMine
         ? `${hasTwisted
-            ? `<div style="font-size:11px;color:var(--amber);margin-bottom:6px;">Torso twist set. It remains in effect through the End Phase.</div>`
+            ? `<div style="font-size:11px;color:var(--amber);margin-bottom:6px;">Torso twist selected. Confirm it to keep it through the End Phase.</div>
+               <div style="display:flex;gap:6px;margin-bottom:6px;">
+                 <button onclick="undoTorsoTwist('${mech.instanceId}')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Undo Twist</button>
+               </div>`
             : `<div style="display:flex;gap:6px;margin-bottom:6px;">
              <button onclick="torsoTwist('${mech.instanceId}','left')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">↶ Twist Left</button>
              <button onclick="torsoTwist('${mech.instanceId}','right')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">↷ Twist Right</button>
            </div>`}
-           <button onclick="completeReaction('${mech.instanceId}')" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">${hasTwisted ? 'Complete Reaction' : 'No Twist / Complete Reaction'}</button>`
+           <button onclick="completeReaction('${mech.instanceId}')" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">${hasTwisted ? 'Confirm Twist / Complete Reaction' : 'No Twist / Complete Reaction'}</button>`
         : `<div style="font-size:11px;color:var(--phosphor-dim);">Waiting on the active player.</div>`}
   `;
 }
