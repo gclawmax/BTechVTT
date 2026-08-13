@@ -116,6 +116,7 @@ function selectWeaponAttacker(instanceId) {
   if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || mech.hasFired) return;
   weaponAttackState = { attackerId: instanceId, targetId: null, weaponKeys: [] };
   selectedInstanceId = instanceId;
+  logEvent(`${mechLabel(mech)} selected for weapon attack declaration.`, 'system');
   renderRoster();
   renderDetail();
   renderWeaponAttackPanel();

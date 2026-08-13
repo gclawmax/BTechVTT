@@ -1,4 +1,5 @@
 // ── AI OPPONENT SYSTEM ──────────────────────────────────────
+let aiTurnInProgress = false;
 
 // AI difficulty settings
 const AI_SETTINGS = {
@@ -383,29 +384,36 @@ async function executeAIAttack(action) {
 
 // AI turn handler - called when it's AI's turn
 async function aiTurnHandler() {
-  if (!vsAiMode) return;
+  // A delayed callback can survive a hand-off to the human player. Only the
+  // player currently on turn may execute AI choices, and never in parallel.
+  if (!vsAiMode || aiTurnInProgress || !getActivePlayerRecord()?.is_ai) return;
+  aiTurnInProgress = true;
   
-  logEvent(`AI turn started (${PHASE_LABELS[currentGameState.phase] || currentGameState.phase}).`, 'system');
-  
-  // Get game state from Supabase
-  const { data: game } = await db
-    .from('btech_games')
-    .select('state')
-    .eq('id', currentGameId)
-    .single();
-  
-  if (!game) { logEvent('AI turn aborted — could not load game state.', 'error'); return; }
-  
-  const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-  const difficulty = gameState.ai_difficulty || window.aiDifficulty || 'beginner';
-  
-  // Generate AI plan
-  const aiPlan = generateAIPlan(difficulty, null, gameState, []);
-  
-  // Execute AI plan
-  await executeAIPlan(aiPlan);
-  
-  logEvent('AI turn complete.', 'system');
+  try {
+    logEvent(`AI turn started (${PHASE_LABELS[currentGameState.phase] || currentGameState.phase}).`, 'system');
+
+    // Get game state from Supabase
+    const { data: game } = await db
+      .from('btech_games')
+      .select('state')
+      .eq('id', currentGameId)
+      .single();
+
+    if (!game) { logEvent('AI turn aborted — could not load game state.', 'error'); return; }
+
+    const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+    const difficulty = gameState.ai_difficulty || window.aiDifficulty || 'beginner';
+
+    // Generate AI plan
+    const aiPlan = generateAIPlan(difficulty, null, gameState, []);
+
+    // Execute AI plan
+    await executeAIPlan(aiPlan);
+
+    logEvent('AI turn complete.', 'system');
+  } finally {
+    aiTurnInProgress = false;
+  }
 }
 
 // ── END AI OPPONENT SYSTEM ──────────────────────────────────

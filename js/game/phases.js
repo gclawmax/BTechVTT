@@ -551,7 +551,12 @@ async function advancePhase(skipPhysicalWarning = false) {
   const activeEntry = (currentGameState.initiative_order || [])
     .find(p => p.player_id === currentGameState.active_player_id);
   if (vsAiMode && activeEntry?.is_ai && ['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase)) {
+    const scheduledPlayerId = currentGameState.active_player_id;
+    const scheduledPhase = currentGameState.phase;
     setTimeout(async () => {
+      // Ignore an outdated callback if the human has received the turn while
+      // the short AI-start delay was pending.
+      if (currentGameState.active_player_id !== scheduledPlayerId || currentGameState.phase !== scheduledPhase || !getActivePlayerRecord()?.is_ai) return;
       await aiTurnHandler();
       updateAdvanceButtonState();
       await autoAdvanceAfterAiTurn();

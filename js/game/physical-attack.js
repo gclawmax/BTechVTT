@@ -35,6 +35,7 @@ function selectPhysicalAttacker(instanceId) {
   if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked) return;
   physicalAttackState = { attackerId: instanceId, targetId: null, attackType: null };
   selectedInstanceId = instanceId;
+  logEvent(`${mechLabel(mech)} selected for physical attack declaration.`, 'system');
   renderRoster();
   renderDetail();
   renderPhysicalAttackPanel();
