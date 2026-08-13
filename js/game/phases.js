@@ -426,11 +426,10 @@ async function advancePhase() {
   updateAdvanceButtonState();
 
   // Trigger the existing algorithmic AI only when it is actually the active player.
-  // Reaction currently waits for the explicit Reaction UI; it must never fall through
-  // into Weapon Attack automatically.
+  // In Vs AI games, let the AI explicitly complete every phase it owns.
   const activeEntry = (currentGameState.initiative_order || [])
     .find(p => p.player_id === currentGameState.active_player_id);
-  if (vsAiMode && activeEntry?.is_ai && ['movement', 'weapon_attack'].includes(currentGameState.phase)) {
+  if (vsAiMode && activeEntry?.is_ai && ['movement', 'reaction', 'weapon_attack'].includes(currentGameState.phase)) {
     setTimeout(async () => {
       await aiTurnHandler();
       updateAdvanceButtonState();

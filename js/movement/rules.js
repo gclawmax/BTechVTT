@@ -318,5 +318,6 @@ function selectInstance(instanceId) {
   renderRoster();
   renderDetail();
   renderMovementPanel();
+  renderReactionPanel();
   draw();
 }
