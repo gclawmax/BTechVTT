@@ -321,5 +321,6 @@ function selectInstance(instanceId) {
   renderMovementPanel();
   renderReactionPanel();
   renderWeaponAttackPanel();
+  renderPhysicalAttackPanel();
   draw();
 }

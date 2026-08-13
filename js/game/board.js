@@ -65,6 +65,7 @@ function ensureMechCombatState(mech) {
   if (mech.heat == null) mech.heat = 0;
   if (mech.weaponHeat == null) mech.weaponHeat = 0;
   if (mech.hasFired == null) mech.hasFired = false;
+  if (mech.hasPhysicalAttacked == null) mech.hasPhysicalAttacked = false;
 }
 
 const MECH_COLORS = ['#c4302b', '#d4800a', '#2a8a2a', '#3060c4'];

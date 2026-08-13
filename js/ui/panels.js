@@ -26,6 +26,15 @@ function renderRoster() {
         moveBadge = `<span style="font-size:9px;color:var(--phosphor-dim);letter-spacing:.06em;margin-left:6px;">WAITING</span>`;
       }
     }
+    if (currentGameState.phase === 'physical_attack') {
+      if (inst.hasPhysicalAttacked) {
+        moveBadge = `<span style="font-size:9px;color:#2a7a2a;letter-spacing:.06em;margin-left:6px;">DONE</span>`;
+      } else if (inst.owner === mySeatNumber) {
+        moveBadge = `<span style="font-size:9px;color:var(--amber);letter-spacing:.06em;margin-left:6px;">● MELEE</span>`;
+      } else {
+        moveBadge = `<span style="font-size:9px;color:var(--phosphor-dim);letter-spacing:.06em;margin-left:6px;">WAITING</span>`;
+      }
+    }
 
     row.innerHTML = `
       <div class="roster-swatch" style="background:${unit.color}"></div>

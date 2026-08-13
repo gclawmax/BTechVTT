@@ -74,6 +74,11 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
     if (currentGameState.phase === 'reaction') {
       aiPlan.actions.push(generateAIReactionAction(mech, playerMechs));
     }
+
+    if (currentGameState.phase === 'physical_attack') {
+      const target = playerMechs.find(candidate => evaluatePhysicalAttack(mech, candidate, 'kick').valid);
+      if (target) aiPlan.actions.push({ type: 'physical_attack', instanceId: mech.instanceId, targetInstanceId: target.instanceId, attackType: 'kick' });
+    }
   }
   
   return aiPlan;
@@ -218,6 +223,12 @@ async function executeAIPlan(aiPlan) {
       await syncMechInstances();
       updateAdvanceButtonState();
     }
+    if (currentGameState.phase === 'physical_attack') {
+      mechInstances.filter(m => m.owner === 2 && !m.destroyed).forEach(m => { m.hasPhysicalAttacked = true; });
+      await syncMechInstances();
+      updateAdvanceButtonState();
+      logEvent('AI made no physical attacks.', 'attack');
+    }
     return;
   }
   
@@ -240,6 +251,9 @@ async function executeAIPlan(aiPlan) {
       case 'complete_reaction':
         await executeAIReaction(action);
         break;
+      case 'physical_attack':
+        await executeAIPhysicalAttack(action);
+        break;
     }
   }
   
@@ -258,6 +272,29 @@ async function executeAIPlan(aiPlan) {
     await syncMechInstances();
     updateAdvanceButtonState();
   }
+
+  if (currentGameState.phase === 'physical_attack') {
+    const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
+    aiMechs.forEach(m => { m.hasPhysicalAttacked = true; });
+    await syncMechInstances();
+    updateAdvanceButtonState();
+  }
+}
+
+async function executeAIPhysicalAttack(action) {
+  const attacker = mechInstances.find(m => m.instanceId === action.instanceId);
+  const target = mechInstances.find(m => m.instanceId === action.targetInstanceId);
+  const attack = evaluatePhysicalAttack(attacker, target, action.attackType);
+  if (!attack.valid) return;
+  const roll = roll2d6();
+  const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll >= attack.targetNumber);
+  let message = `${mechLabel(attacker)} (AI) kicked ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: miss.`;
+  if (hit) {
+    const damage = applyWeaponDamage(target, attack.damage);
+    message = `${mechLabel(attacker)} (AI) kicked ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.destroyed ? ' Target destroyed.' : ''}`;
+  }
+  await syncMechInstances();
+  logEvent(message, 'attack');
 }
 
 async function executeAIReaction(action) {
