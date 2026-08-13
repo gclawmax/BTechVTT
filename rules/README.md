@@ -1,7 +1,14 @@
-# BT-VTT Quick-Start Rules --- Token-Optimised Development Set
+# BT-VTT Rules --- Token-Optimised Development Set
 
-These Markdown files are a compact, implementation-oriented summary of
-the supplied BattleTech Beginner Box Quick-Start Rules.
+These Markdown files are compact, implementation-oriented references for
+BT-VTT. Files `00`--`08` summarise the supplied BattleTech Beginner Box
+Quick-Start Rules. Files `09`--`12` record the currently relevant Total
+Warfare expansion scope and implementation boundaries.
+
+The complete Total Warfare PDF is a local reference only and is deliberately
+ignored by Git. The Gemini-generated extraction material is also kept locally
+and ignored; its useful content has been distilled into the tracked files
+below. Generated pseudocode is a planning aid, not a rules authority.
 
 ## Recommended use with LLM coding assistants
 
@@ -23,7 +30,20 @@ Use: 1. `00_sequence_of_play.md` 2. the relevant phase/state source file
 ### Combat work
 
 Use: 1. `04_combat_rules.md` 2. `05_line_of_sight_and_range.md` 3.
-`06_damage_rules.md`
+`06_damage_rules.md` 4. the relevant `10` or `11` Total Warfare file
+
+### Total Warfare expansion work
+
+Use only the relevant focused file:
+
+1. `09_total_warfare_turn_and_facing.md` for initiative, activation, and
+   torso/leg facing.
+2. `10_total_warfare_weapon_attacks.md` for declarations, arcs, and weapon
+   resolution.
+3. `11_total_warfare_damage_heat.md` for physical attacks, damage, criticals,
+   and heat.
+4. `12_total_warfare_unit_data.md` for unit records, equipment data, and any
+   future construction/import work.
 
 ### Unit/data work
 
@@ -40,8 +60,10 @@ redundant only where useful for a coding task - free of flavour,
 examples and prose that do not affect implementation - separated by
 concern - explicit about values that are easy to misread
 
-The source PDF remains the authority for resolving anything not
-represented here.
+The relevant published rules text remains the authority for resolving anything
+not represented here. Before implementing an exact Total Warfare mechanic,
+verify the corresponding local PDF section rather than relying on the older
+Quick-Start summaries or generated pseudocode.
 
 ## Recommended development workflow
 

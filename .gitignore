@@ -29,3 +29,8 @@ yarn-error.log*
 
 # Test coverage
 coverage/
+
+# Local rulebook and working extraction material
+rules/Battletech_ Total Warfare.pdf
+rules/markdowns.zip
+rules/markdowns/
