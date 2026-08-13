@@ -117,7 +117,7 @@ async function populateActiveGames() {
 
   const { data: players } = await db
     .from('btech_players')
-    .select('game_id, btech_games(game_code, status)')
+    .select('game_id, btech_games!btech_players_game_id_fkey(game_code, status)')
     .eq('user_id', currentUser.id);
 
   if (!players || players.length === 0) {

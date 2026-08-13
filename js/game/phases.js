@@ -105,15 +105,11 @@ function updateGameHeader() {
   statusEl.textContent = `Round ${currentGameState.round} — ${phaseLabel}`;
 
   if (currentGameState.active_player_id) {
-    // Get player username for active player display
-    db.from('btech_players')
-      .select('profiles(username)')
-      .eq('id', currentGameState.active_player_id)
-      .single()
-      .then(({ data: player }) => {
-        const username = player?.profiles?.username || 'Unknown';
-        statusEl.textContent += ` — ${titleCase(username)}'s Turn`;
-      });
+    const activePlayer = getActivePlayerRecord();
+    const activeLabel = activePlayer?.is_ai
+      ? 'AI'
+      : `Player ${activePlayer?.seat_number || '?'}`;
+    statusEl.textContent += ` — ${activeLabel}'s Turn`;
   }
 }
 

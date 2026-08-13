@@ -55,7 +55,7 @@ async function loadLobbyUI() {
   // Get spectators
   const { data: spectators } = await db
     .from('btech_players')
-    .select('*, profiles(username)')
+    .select('*')
     .eq('game_id', currentGameId)
     .eq('role', 'spectator')
     .order('created_at');
@@ -74,7 +74,7 @@ async function loadLobbyUI() {
         const isAI = player.is_ai === true;
         const username = isAI 
           ? `AI ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`
-          : titleCase(player.profiles?.username || player.user_id.substring(0, 8));
+          : titleCase(player.user_id?.substring(0, 8) || `Player ${player.seat_number}`);
         const isCurrentPlayer = !isAI && player.user_id === currentUser?.id;
         const isReadyClass = player.ready ? 'ready' : '';
         const readyText = player.ready ? 'READY' : 'NOT READY';
@@ -104,7 +104,7 @@ async function loadLobbyUI() {
   const specEl = document.getElementById('lobby-spectators');
   if (spectators && spectators.length > 0) {
     specEl.innerHTML = spectators.map(s => {
-      const username = titleCase(s.profiles?.username || s.user_id.substring(0, 8));
+      const username = titleCase(s.user_id?.substring(0, 8) || 'Spectator');
       return `<div class="spectator-item">${username}</div>`;
     }).join('');
   } else {
