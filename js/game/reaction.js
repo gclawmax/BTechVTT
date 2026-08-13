@@ -21,14 +21,13 @@ function torsoTwist(instanceId, direction) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction' || mech.hasReacted) return;
 
-  // First implementation: a single hexside left/right torso twist.
-  // Exact limits beyond this are intentionally kept out of this phase until the
-  // applicable rules are added to the VTT rules set.
+  // A 'Mech may twist its torso one hexside during Reaction, then must
+  // explicitly complete the Reaction before the phase can move on.
   const current = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
+  if (current !== mech.facing) return;
   // Direction indices increase counter-clockwise on the rendered board.
   const delta = direction === 'left' ? 1 : -1;
   mech.torsoFacing = (current + delta + 6) % 6;
-  mech.hasReacted = true;
 
   syncMechInstances();
   renderReactionPanel();
@@ -69,7 +68,9 @@ function renderReactionPanel() {
   }
 
   const isMine = mech.owner === mySeatNumber && isMyActiveTurn();
-  const torso = HEX_DIR_LABELS[mech.torsoFacing == null ? mech.facing : mech.torsoFacing];
+  const torsoFacing = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
+  const torso = HEX_DIR_LABELS[torsoFacing];
+  const hasTwisted = torsoFacing !== mech.facing;
   panel.innerHTML = `
     <div class="panel-eyebrow">Reaction — Torso Twist</div>
     <div style="font-size:11px;color:var(--paper);line-height:1.6;margin-bottom:8px;">
@@ -78,11 +79,13 @@ function renderReactionPanel() {
     ${mech.hasReacted
       ? `<div style="font-size:11px;color:var(--phosphor-dim);">Reaction complete.</div>`
       : isMine
-        ? `<div style="display:flex;gap:6px;margin-bottom:6px;">
+        ? `${hasTwisted
+            ? `<div style="font-size:11px;color:var(--amber);margin-bottom:6px;">Torso twist set. It remains in effect through the End Phase.</div>`
+            : `<div style="display:flex;gap:6px;margin-bottom:6px;">
              <button onclick="torsoTwist('${mech.instanceId}','left')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">↶ Twist Left</button>
              <button onclick="torsoTwist('${mech.instanceId}','right')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">↷ Twist Right</button>
-           </div>
-           <button onclick="completeReaction('${mech.instanceId}')" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">No Twist / Complete Reaction</button>`
+           </div>`}
+           <button onclick="completeReaction('${mech.instanceId}')" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">${hasTwisted ? 'Complete Reaction' : 'No Twist / Complete Reaction'}</button>`
         : `<div style="font-size:11px;color:var(--phosphor-dim);">Waiting on the active player.</div>`}
   `;
 }
