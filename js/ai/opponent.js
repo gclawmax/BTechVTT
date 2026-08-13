@@ -291,8 +291,8 @@ async function executeAIPhysicalAttack(action) {
   const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll >= attack.targetNumber);
   let message = `${mechLabel(attacker)} (AI) kicked ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: miss.`;
   if (hit) {
-    const damage = applyWeaponDamage(target, attack.damage);
-    message = `${mechLabel(attacker)} (AI) kicked ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.destroyed ? ' Target destroyed.' : ''}`;
+    const damage = applyWeaponDamage(target, attack.damage, 'front');
+    message = `${mechLabel(attacker)} (AI) kicked ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
   }
   await syncMechInstances();
   logEvent(message, 'attack');
@@ -369,8 +369,8 @@ async function executeAIAttack(action) {
   const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll >= attack.targetNumber);
   let message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: miss.`;
   if (hit) {
-    const damage = applyWeaponDamage(target, attack.weapon.damage);
-    message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.destroyed ? ' Target destroyed.' : ''}`;
+    const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
+    message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
   }
   await syncMechInstances();
   logEvent(message, 'attack');

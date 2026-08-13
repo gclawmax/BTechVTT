@@ -48,11 +48,46 @@ function weaponArcFacing(weaponEntry, attacker) {
     : attacker.facing;
 }
 
+function weaponLocationDestroyed(attacker, weaponEntry) {
+  const location = weaponEntry.location.toLowerCase();
+  const key = location.includes('right arm') ? 'ra' : location.includes('left arm') ? 'la'
+    : location.includes('right torso') ? 'rt' : location.includes('left torso') ? 'lt'
+      : location.includes('center torso') ? 'ct' : location.includes('head') ? 'head' : null;
+  return key && (attacker.structure[key] || 0) <= 0;
+}
+
+function attackDirection(attacker, target) {
+  const diff = (weaponDirectionTo(target, attacker) - target.facing + 6) % 6;
+  return diff === 0 ? 'front' : (diff === 1 || diff === 5) ? 'side' : 'rear';
+}
+
+function axialRound(q, r) {
+  const s = -q - r;
+  let rq = Math.round(q), rr = Math.round(r), rs = Math.round(s);
+  const dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs - s);
+  if (dq > dr && dq > ds) rq = -rr - rs;
+  else if (dr > ds) rr = -rq - rs;
+  return { q: rq, r: rr };
+}
+
+function woodsBetween(attacker, target) {
+  const a = offsetToAxial(attacker.col, attacker.row), b = offsetToAxial(target.col, target.row);
+  const distance = axialDistance(attacker.col, attacker.row, target.col, target.row);
+  let points = 0;
+  for (let step = 1; step < distance; step++) {
+    const axial = axialRound(a.q + (b.q - a.q) * step / distance, a.r + (b.r - a.r) * step / distance);
+    const hex = axialToOffset(axial.q, axial.r);
+    points += terrainAt(hex.col, hex.row) === 'heavy_woods' ? 2 : terrainAt(hex.col, hex.row) === 'light_woods' ? 1 : 0;
+  }
+  return points;
+}
+
 function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const weapon = BT_WEAPONS[weaponEntry.key];
   if (!weapon || attacker.destroyed || target.destroyed || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
   }
+  if (weaponLocationDestroyed(attacker, weaponEntry)) return { valid: false, reason: `${weapon.name} is mounted in a destroyed location.` };
   const distance = axialDistance(attacker.col, attacker.row, target.col, target.row);
   const range = weaponRangeModifier(weapon, distance);
   if (!range) return { valid: false, reason: `${weapon.name} is beyond long range (${distance} hexes).` };
@@ -62,13 +97,17 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   }
   const attackerMove = movementToHitModifier(attacker);
   const targetMove = targetMovementModifier(target);
+  const woods = woodsBetween(attacker, target);
+  if (woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
+  const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
   return {
     valid: true,
     weapon,
     distance,
     range,
-    targetNumber: 4 + attackerMove + targetMove + range.modifier,
-    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier}`
+    targetNumber: 4 + attackerMove + targetMove + range.modifier + woods + targetWoods,
+    attackAngle: attackDirection(attacker, target),
+    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}`
   };
 }
 
@@ -103,8 +142,10 @@ function roll2d6() {
   return Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
 }
 
-function hitLocationForRoll(roll) {
-  if (roll === 2 || roll === 12) return 'head';
+function hitLocationForRoll(roll, angle = 'front') {
+  if (angle === 'rear') return ({ 2:'ct',3:'ra',4:'ra',5:'rl',6:'rt',7:'ct',8:'lt',9:'ll',10:'la',11:'la',12:'head' })[roll];
+  if (angle === 'side') return ({ 2:'ct',3:'ra',4:'ra',5:'rl',6:'rt',7:'rt',8:'ct',9:'lt',10:'ll',11:'la',12:'head' })[roll];
+  if (roll === 2) return 'ct';
   if (roll === 3 || roll === 4) return 'ra';
   if (roll === 5) return 'rl';
   if (roll === 6) return 'rt';
@@ -118,16 +159,33 @@ function hitLocationLabel(location) {
   return ({ head: 'Head', ct: 'Center Torso', lt: 'Left Torso', rt: 'Right Torso', la: 'Left Arm', ra: 'Right Arm', ll: 'Left Leg', rl: 'Right Leg' })[location] || location;
 }
 
-function applyWeaponDamage(target, damage) {
-  const location = hitLocationForRoll(roll2d6());
-  const armorBefore = target.armor[location] || 0;
-  const absorbed = Math.min(armorBefore, damage);
-  target.armor[location] = armorBefore - absorbed;
-  const internalDamage = damage - absorbed;
-  const structureBefore = target.structure[location] || 0;
-  if (internalDamage > 0) target.structure[location] = Math.max(0, structureBefore - internalDamage);
-  if ((location === 'head' || location === 'ct') && target.structure[location] <= 0 && internalDamage > 0) target.destroyed = true;
-  return { location, armorBefore, internalDamage, structureBefore, destroyed: !!target.destroyed };
+function applyWeaponDamage(target, damage, angle = 'front') {
+  const location = hitLocationForRoll(roll2d6(), angle);
+  const armorLocation = angle === 'rear' && ['ct', 'lt', 'rt'].includes(location) ? `${location}_rear` : location;
+  const transfer = { la:'lt', ra:'rt', ll:'lt', rl:'rt', lt:'ct', rt:'ct', head:'ct' };
+  let remaining = damage, current = location, first = true, critical = false, destroyedLocations = [];
+  while (remaining > 0 && current && !target.destroyed) {
+    const currentArmor = first ? armorLocation : current;
+    const armor = target.armor[currentArmor] || 0;
+    const absorbed = Math.min(armor, remaining);
+    target.armor[currentArmor] = armor - absorbed;
+    remaining -= absorbed;
+    if (remaining <= 0) break;
+    const structure = target.structure[current] || 0;
+    const internal = Math.min(structure, remaining);
+    target.structure[current] = structure - internal;
+    remaining -= internal;
+    if (internal > 0 && roll2d6() >= 8) { target.criticalHits = (target.criticalHits || 0) + 1; critical = true; }
+    if (target.structure[current] <= 0) {
+      destroyedLocations.push(current);
+      if (current === 'head' || current === 'ct') { target.destroyed = true; break; }
+      if (current === 'lt') { target.structure.la = 0; destroyedLocations.push('la'); }
+      if (current === 'rt') { target.structure.ra = 0; destroyedLocations.push('ra'); }
+      current = transfer[current];
+      first = false;
+    } else break;
+  }
+  return { location, armorLocation, critical, destroyedLocations, destroyed: !!target.destroyed };
 }
 
 async function confirmWeaponAttack() {
@@ -154,8 +212,8 @@ async function confirmWeaponAttack() {
         messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${roll}: miss.`);
         continue;
       }
-      const damage = applyWeaponDamage(target, attack.weapon.damage);
-      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.destroyed ? ' Target destroyed.' : ''}`);
+      const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
+      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`);
     }
   }
 

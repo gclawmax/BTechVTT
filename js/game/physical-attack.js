@@ -64,8 +64,8 @@ async function confirmPhysicalAttack() {
     const roll = roll2d6();
     const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll >= attack.targetNumber);
     if (hit) {
-      const damage = applyWeaponDamage(target, attack.damage);
-      message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${roll}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.destroyed ? ' Target destroyed.' : ''}`;
+      const damage = applyWeaponDamage(target, attack.damage, 'front');
+      message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${roll}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
     } else {
       message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${roll}: miss.`;
     }

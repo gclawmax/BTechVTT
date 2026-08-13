@@ -155,6 +155,13 @@ function draw() {
     for (let col = 0; col < GRID_COLS; col++) {
       const { x, y } = hexToPixel(col, row);
       drawHex(x + gridOffsetX, y + gridOffsetY, HEX_SIZE - 0.5, '#e8e8e2', '#c9c9c2');
+      const terrain = terrainAt(col, row);
+      if (terrain !== 'clear') {
+        ctx.fillStyle = terrain === 'heavy_woods' ? 'rgba(34,105,45,.28)' : 'rgba(71,140,77,.20)';
+        ctx.beginPath();
+        ctx.arc(x + gridOffsetX, y + gridOffsetY, terrain === 'heavy_woods' ? 12 : 9, 0, Math.PI * 2);
+        ctx.fill();
+      }
       // Hex code label
       ctx.fillStyle = '#b0b0a8';
       ctx.font = '7px "IBM Plex Mono", monospace';

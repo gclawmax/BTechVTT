@@ -62,6 +62,10 @@ function flashMoveWarning(msg) {
 async function startMovementMode(instanceId, mode) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  if ((mech.structure.ll || 0) <= 0 || (mech.structure.rl || 0) <= 0) {
+    flashMoveWarning("A destroyed leg prevents this 'Mech from moving.");
+    return;
+  }
   const unit = BT_UNITS[mech.unitId];
 
   if (mode === 'stand') {

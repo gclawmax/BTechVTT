@@ -57,6 +57,15 @@ const BT_WEAPONS = {
   streak_sr4: { name: 'Streak SRM-4', damage: 4, heat: 3, range: [3, 6, 9] }
 };
 
+// Fixed demonstration terrain for the current skirmish map.  It is part of
+// the board, not a player decision: light woods add +1 to-hit, heavy woods +2.
+const BT_TERRAIN = {
+  '0602': 'light_woods', '0702': 'light_woods', '1203': 'heavy_woods',
+  '0308': 'light_woods', '0408': 'light_woods', '1109': 'heavy_woods'
+};
+
+function terrainAt(col, row) { return BT_TERRAIN[hexCode(col, row)] || 'clear'; }
+
 function ensureMechCombatState(mech) {
   const unit = BT_UNITS[mech.unitId];
   if (!unit) return;
