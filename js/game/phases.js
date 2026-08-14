@@ -569,18 +569,9 @@ async function advancePhase(skipPhysicalWarning = false) {
   }
 
   cancelMovement();
-
-  // Select the first unit that still needs an action when a unit-action phase begins or changes player.
-  if (['movement', 'weapon_attack', 'physical_attack'].includes(currentGameState.phase)) {
-    const activeSeat = getActivePlayerSeat();
-    const nextMech = mechInstances.find(m => m.owner === activeSeat &&
-      (currentGameState.phase === 'movement'
-        ? !m.hasMoved
-        : currentGameState.phase === 'weapon_attack'
-          ? !m.hasFired
-          : !m.hasPhysicalAttacked));
-    if (nextMech) selectedInstanceId = nextMech.instanceId;
-  }
+  // Phase changes deliberately leave the board unselected. This keeps the
+  // phase/log context visible until the player chooses a 'Mech themselves.
+  selectedInstanceId = null;
 
   updateGameHeader();
   renderInitiativeDisplay();
