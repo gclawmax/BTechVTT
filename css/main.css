@@ -537,6 +537,7 @@ html, body {
 /* ── Map canvas area ── */
 #map-wrap {
   grid-column: 2;
+  min-height: 0;
   position: relative;
   background: var(--void);
   overflow: hidden;
@@ -548,6 +549,8 @@ html, body {
   height: 100%;
   cursor: crosshair;
 }
+
+#hexmap.panning { cursor: grabbing; }
 
 #map-caption {
   position: absolute;
@@ -573,6 +576,7 @@ html, body {
 #mech-panel {
   grid-column: 1;
   min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   background: var(--panel);
   border-right: 1px solid var(--panel-line);
@@ -596,6 +600,7 @@ html, body {
 #panel {
   grid-column: 3;
   position: relative;
+  min-height: 0;
   border-left: 1px solid var(--panel-line);
   background: var(--panel);
   display: flex;

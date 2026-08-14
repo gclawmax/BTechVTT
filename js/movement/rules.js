@@ -154,12 +154,12 @@ function draw() {
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
       const { x, y } = hexToPixel(col, row);
-      drawHex(x + gridOffsetX, y + gridOffsetY, HEX_SIZE - 0.5, '#e8e8e2', '#c9c9c2');
+      drawHex(x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY, HEX_SIZE - 0.5, '#e8e8e2', '#c9c9c2');
       const terrain = terrainAt(col, row);
       if (terrain !== 'clear') {
         ctx.fillStyle = terrain === 'heavy_woods' ? 'rgba(34,105,45,.28)' : 'rgba(71,140,77,.20)';
         ctx.beginPath();
-        ctx.arc(x + gridOffsetX, y + gridOffsetY, terrain === 'heavy_woods' ? 12 : 9, 0, Math.PI * 2);
+        ctx.arc(x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY, terrain === 'heavy_woods' ? 12 : 9, 0, Math.PI * 2);
         ctx.fill();
       }
       // Hex code label
@@ -167,7 +167,7 @@ function draw() {
       ctx.font = '7px "IBM Plex Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(hexCode(col, row), x + gridOffsetX, y + gridOffsetY);
+      ctx.fillText(hexCode(col, row), x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY);
     }
   }
 
@@ -177,8 +177,8 @@ function draw() {
   // Draw mechs
   for (const inst of mechInstances) {
     const { x, y } = hexToPixel(inst.col, inst.row);
-    const px = x + gridOffsetX;
-    const py = y + gridOffsetY;
+    const px = x + gridOffsetX + mapPanX;
+    const py = y + gridOffsetY + mapPanY;
     const unit = BT_UNITS[inst.unitId];
     const angle = HEX_DIRS[inst.facing || 0].angle;
     const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
@@ -196,7 +196,7 @@ function drawMovementHighlights() {
   const highlightHex = (col, row, fill) => {
     if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return;
     const { x, y } = hexToPixel(col, row);
-    drawHex(x + gridOffsetX, y + gridOffsetY, HEX_SIZE - 1.5, fill, 'transparent');
+    drawHex(x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY, HEX_SIZE - 1.5, fill, 'transparent');
   };
 
   if (moveState.mode === 'jump') {
@@ -287,11 +287,40 @@ function drawMechToken(x, y, r, color, facing, torsoFacing, selected) {
   }
 }
 
-// Mouse hover
 canvas = document.getElementById('hexmap');
+
+// Pan the view without affecting unit selection or shared state. Right-click
+// drag is the primary control; middle-click drag helps mouse users too.
+let mapPanDrag = null;
+canvas.addEventListener('pointerdown', event => {
+  if (event.button !== 2 && event.button !== 1) return;
+  mapPanDrag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, panX: mapPanX, panY: mapPanY };
+  canvas.setPointerCapture(event.pointerId);
+  canvas.classList.add('panning');
+  event.preventDefault();
+});
+
+canvas.addEventListener('pointermove', event => {
+  if (!mapPanDrag || event.pointerId !== mapPanDrag.pointerId) return;
+  mapPanX = mapPanDrag.panX + event.clientX - mapPanDrag.startX;
+  mapPanY = mapPanDrag.panY + event.clientY - mapPanDrag.startY;
+  draw();
+});
+
+const finishMapPan = event => {
+  if (!mapPanDrag || event.pointerId !== mapPanDrag.pointerId) return;
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  mapPanDrag = null;
+  canvas.classList.remove('panning');
+};
+canvas.addEventListener('pointerup', finishMapPan);
+canvas.addEventListener('pointercancel', finishMapPan);
+canvas.addEventListener('contextmenu', event => event.preventDefault());
+
+// Mouse hover
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
-  const px = e.clientX - rect.left - gridOffsetX, py = e.clientY - rect.top - gridOffsetY;
+  const px = e.clientX - rect.left - gridOffsetX - mapPanX, py = e.clientY - rect.top - gridOffsetY - mapPanY;
   const hex = pixelToHex(px, py);
   if (hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS) {
     const axial = offsetToAxial(hex.col, hex.row);
@@ -302,7 +331,7 @@ canvas.addEventListener('mousemove', (e) => {
 
 canvas.addEventListener('click', (e) => {
   const rect = canvas.getBoundingClientRect();
-  const px = e.clientX - rect.left - gridOffsetX, py = e.clientY - rect.top - gridOffsetY;
+  const px = e.clientX - rect.left - gridOffsetX - mapPanX, py = e.clientY - rect.top - gridOffsetY - mapPanY;
   let hit = null;
   for (const inst of mechInstances) {
     const { x, y } = hexToPixel(inst.col, inst.row);
