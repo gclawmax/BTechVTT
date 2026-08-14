@@ -62,21 +62,21 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   for (const mech of aiMechs) {
     // The algorithmic AI is phase-scoped: Movement can only create movement
     // actions; Weapon Attack can only create attack actions.
-    if (currentGameState.phase === 'movement' && Math.random() < settings.moveChance) {
+    if (currentGameState.phase === 'movement' && !mech.hasMoved && Math.random() < settings.moveChance) {
       const moveAction = generateAIMoveAction(mech, playerMechs, settings);
       if (moveAction) aiPlan.actions.push(moveAction);
     }
 
-    if (currentGameState.phase === 'weapon_attack' && Math.random() < settings.attackChance) {
+    if (currentGameState.phase === 'weapon_attack' && !mech.hasFired && Math.random() < settings.attackChance) {
       const attackAction = generateAIAttackAction(mech, playerMechs, settings);
       if (attackAction) aiPlan.actions.push(attackAction);
     }
 
-    if (currentGameState.phase === 'reaction') {
+    if (currentGameState.phase === 'reaction' && !mech.hasReacted) {
       aiPlan.actions.push(generateAIReactionAction(mech, playerMechs));
     }
 
-    if (currentGameState.phase === 'physical_attack') {
+    if (currentGameState.phase === 'physical_attack' && !mech.hasPhysicalAttacked) {
       const target = playerMechs.find(candidate => evaluatePhysicalAttack(mech, candidate, 'kick').valid);
       if (target) aiPlan.actions.push({ type: 'physical_attack', instanceId: mech.instanceId, targetInstanceId: target.instanceId, attackType: 'kick' });
     }
@@ -357,7 +357,7 @@ async function executeAIAttack(action) {
   const attacker = mechInstances.find(m => m.instanceId === action.instanceId);
   const target = mechInstances.find(m => m.instanceId === action.targetInstanceId);
   
-  if (!attacker || !target) return;
+  if (!attacker || !target || attacker.hasFired) return;
   
   const weaponEntry = BT_UNITS[attacker.unitId].weapons.find(w => w.key === action.weaponKey);
   if (!weaponEntry) return;

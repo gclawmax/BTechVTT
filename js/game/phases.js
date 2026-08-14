@@ -160,6 +160,11 @@ async function autoAdvanceAfterAiTurn(attempt = 0) {
   }
 
   logEvent('AI choices complete — auto-advancing.', 'system');
+  // The confirmation log captures the current (AI) active-player state.
+  // Persist it before the hand-off so it cannot overwrite the new player's
+  // active_player_player_id after advancePhase writes it.
+  await gameStateWriteQueue;
+  if (!getActivePlayerRecord()?.is_ai || !canAdvancePhase().ok) return;
   await advancePhase();
 }
 
