@@ -34,3 +34,8 @@ coverage/
 rules/Battletech_ Total Warfare.pdf
 rules/markdowns.zip
 rules/markdowns/
+
+# Local MegaMek reference data and generated catalogue. These files are an
+# optional developer-only import cache and must never be committed.
+local-data/megamek-mm-data/
+local-data/megamek-catalogue.json
