@@ -54,7 +54,10 @@ function selectPhysicalAttackType(type) {
 }
 
 async function confirmPhysicalAttack() {
-  const attacker = mechInstances.find(m => m.instanceId === physicalAttackState.attackerId);
+  // Match the panel's selection behaviour: roster/map selection is just as
+  // valid as choosing the 'Mech from the physical-attack panel.
+  const attacker = mechInstances.find(m => m.instanceId === physicalAttackState.attackerId) ||
+    mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!attacker || attacker.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || attacker.hasPhysicalAttacked) return;
   const target = mechInstances.find(m => m.instanceId === physicalAttackState.targetId);
   const type = physicalAttackState.attackType;

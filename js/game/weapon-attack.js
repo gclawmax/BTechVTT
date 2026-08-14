@@ -201,11 +201,17 @@ function applyWeaponDamage(target, damage, angle = 'front') {
 }
 
 async function confirmWeaponAttack() {
-  const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
+  // A player may select their 'Mech from the roster/map or from this panel.
+  // Both paths render the declaration controls, so both must be valid here.
+  const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId) ||
+    mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!attacker || attacker.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || attacker.hasFired) return;
   const target = mechInstances.find(m => m.instanceId === weaponAttackState.targetId);
   const selectedWeapons = BT_UNITS[attacker.unitId].weapons.filter(w => weaponAttackState.weaponKeys.includes(w.key));
-  if (selectedWeapons.length && !target) return;
+  if (selectedWeapons.length && !target) {
+    flashMoveWarning('Choose a target before confirming weapon attacks.');
+    return;
+  }
 
   const messages = [];
   let addedHeat = 0;
