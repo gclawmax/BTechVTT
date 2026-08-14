@@ -140,7 +140,18 @@ function toggleWeaponForAttack(weaponKey) {
 }
 
 function roll2d6() {
-  return Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
+  return roll2d6Detailed().total;
+}
+
+function roll2d6Detailed() {
+  const dieA = Math.floor(Math.random() * 6) + 1;
+  const dieB = Math.floor(Math.random() * 6) + 1;
+  return { dieA, dieB, total: dieA + dieB };
+}
+
+function format2d6(roll) {
+  if (roll && typeof roll === 'object') return `${roll.dieA} + ${roll.dieB} = ${roll.total}`;
+  return String(roll);
 }
 
 function hitLocationForRoll(roll, angle = 'front') {
@@ -206,15 +217,15 @@ async function confirmWeaponAttack() {
     }
     addedHeat += attack.weapon.heat * weaponEntry.count;
     for (let shot = 1; shot <= weaponEntry.count; shot++) {
-      const roll = roll2d6();
-      const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll >= attack.targetNumber);
+      const roll = roll2d6Detailed();
+      const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);
       const shotLabel = weaponEntry.count > 1 ? ` #${shot}` : '';
       if (!hit) {
-        messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${roll}: miss.`);
+        messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.`);
         continue;
       }
       const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
-      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${roll}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`);
+      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`);
     }
   }
 

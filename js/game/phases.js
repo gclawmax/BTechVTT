@@ -201,10 +201,10 @@ function renderInitiativeDisplay() {
   // Show each player's 2D6 roll and who goes first/second
   const orderText = currentGameState.initiative_order.map((p, idx) => {
     const roll = currentGameState.initiative_rolls.find(r => r.player_id === p.player_id);
-    const rollVal = roll ? roll.roll : '?';
+    const rollVal = roll ? (roll.die_a != null && roll.die_b != null ? `${roll.die_a} + ${roll.die_b} = ${roll.roll}` : roll.roll) : '?';
     const ordinal = idx === 0 ? '1st' : idx === 1 ? '2nd' : `${idx + 1}th`;
     const label = p.is_ai ? `AI` : `P${p.seat_number}`;
-    return `${label}: ${rollVal}d6 (${ordinal})`;
+    return `${label}: ${rollVal} (${ordinal})`;
   }).join(' | ');
 
   // BattleTech convention: highest goes second, so lowest goes first
@@ -227,14 +227,26 @@ async function rollInitiative() {
 
   if (!players || players.length < 1) return;
 
-  // Roll 2D6 for each player
-  const initiativeRolls = players.map((p, idx) => ({
-    player_id: p.id,
-    roll: Math.floor(Math.random() * 6) + Math.floor(Math.random() * 6) + 2, // 2D6 (2-12)
-    seat_number: p.seat_number,
-    user_id: p.user_id,
-    is_ai: p.is_ai === true
-  }));
+  // BattleTech initiative ties are re-rolled. Re-roll all participants so
+  // both sides receive a fresh 2D6 result and the resulting order is unique.
+  let initiativeRolls;
+  const tiedRolls = [];
+  do {
+    initiativeRolls = players.map(p => {
+      const dice = roll2d6Detailed();
+      return {
+        player_id: p.id,
+        roll: dice.total,
+        die_a: dice.dieA,
+        die_b: dice.dieB,
+        seat_number: p.seat_number,
+        user_id: p.user_id,
+        is_ai: p.is_ai === true
+      };
+    });
+    const hasTie = new Set(initiativeRolls.map(r => r.roll)).size !== initiativeRolls.length;
+    if (hasTie) tiedRolls.push(initiativeRolls);
+  } while (tiedRolls.length > 0 && new Set(initiativeRolls.map(r => r.roll)).size !== initiativeRolls.length);
 
   // Sort ASCENDING — lowest goes FIRST (BattleTech convention)
   initiativeRolls.sort((a, b) => a.roll - b.roll);
@@ -248,7 +260,7 @@ async function rollInitiative() {
 
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   gameState.initiative_order = initiativeRolls;
-  gameState.initiative_rolls = initiativeRolls.map(r => ({ player_id: r.player_id, roll: r.roll }));
+  gameState.initiative_rolls = initiativeRolls.map(r => ({ player_id: r.player_id, roll: r.roll, die_a: r.die_a, die_b: r.die_b }));
   gameState.initiative_winner = initiativeRolls[initiativeRolls.length - 1].player_id; // highest goes second
   gameState.initiative_round = currentGameState.round; // marks initiative as "done" for THIS round only
   gameState.active_player_player_id = initiativeRolls[0].player_id;
@@ -279,8 +291,12 @@ async function rollInitiative() {
   const btn = document.getElementById('btn-roll-initiative');
   if (btn) btn.disabled = true;
 
+  tiedRolls.forEach(tiedRound => {
+    const tieSummary = tiedRound.map(r => `${r.is_ai ? 'AI' : 'P' + r.seat_number}=${r.die_a} + ${r.die_b} = ${r.roll}`).join(', ');
+    logEvent(`Initiative tie — ${tieSummary}. Re-rolling.`, 'roll');
+  });
   const rollSummary = initiativeRolls.map((r, idx) =>
-    `${r.is_ai ? 'AI' : 'P' + r.seat_number}=${r.roll}${idx === 0 ? ' (1st)' : idx === initiativeRolls.length - 1 ? ' (last)' : ''}`
+    `${r.is_ai ? 'AI' : 'P' + r.seat_number}=${r.die_a} + ${r.die_b} = ${r.roll}${idx === 0 ? ' (1st)' : idx === initiativeRolls.length - 1 ? ' (last)' : ''}`
   ).join(', ');
   logEvent(`Initiative rolled — ${rollSummary}`, 'roll');
 }
