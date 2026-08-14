@@ -296,6 +296,7 @@ async function executeAIPhysicalAttack(action) {
     message = `${mechLabel(attacker)} (AI) kicked ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
   }
   await syncMechInstances();
+  await checkForMatchEnd();
   logEvent(message, 'attack');
 }
 
@@ -374,6 +375,7 @@ async function executeAIAttack(action) {
     message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
   }
   await syncMechInstances();
+  await checkForMatchEnd();
   logEvent(message, 'attack');
 
   // Update UI

@@ -119,14 +119,20 @@ async function loadLobbyUI() {
     btnReady.textContent = isReady ? 'Unready' : 'Ready Up';
   }
   if (btnStart) {
-    btnStart.disabled = !isHost || !isReady;
+    const playerSeats = (players || []).filter(player => player.role === 'player');
+    const canStart = vsAiMode
+      ? playerSeats.length === 2 && playerSeats.some(player => !player.is_ai && player.ready)
+      : playerSeats.length === 2 && playerSeats.every(player => player.ready);
+    btnStart.disabled = !isHost || !canStart;
   }
 
   // Update status
   const statusEl = document.getElementById('lobby-status');
   if (statusEl) {
     const playerCount = players ? players.filter(p => p.role === 'player').length : 0;
-    statusEl.textContent = `${playerCount}/2 players in lobby`;
+    statusEl.textContent = vsAiMode
+      ? `${playerCount}/2 players in lobby`
+      : `${playerCount}/2 human players in lobby${playerCount < 2 ? ' — waiting for an opponent' : ''}`;
   }
 }
 
@@ -161,8 +167,8 @@ async function handleStartGame() {
     .eq('game_id', currentGameId)
     .eq('role', 'player');
 
-  if (!players || players.length < 1) {
-    document.getElementById('lobby-status').textContent = 'Need at least 1 player!';
+  if (!players || players.length !== 2) {
+    document.getElementById('lobby-status').textContent = 'Two player seats are required to start.';
     return;
   }
 
@@ -231,10 +237,14 @@ function subscribeGameStateSync() {
         currentGameState.phase = remote.current_phase || currentGameState.phase;
         currentGameState.initiative_winner = remote.initiative_winner;
         const gs = remote.state ? (typeof remote.state === 'string' ? JSON.parse(remote.state) : remote.state) : {};
-        currentGameState.active_player_id = gs.active_player_player_id || null;
+        // active_player_id is the authoritative database column. The state
+        // copy exists for a single JSON snapshot, but can briefly lag behind
+        // during concurrent human actions and must not steal a player's turn.
+        currentGameState.active_player_id = remote.active_player_id || gs.active_player_player_id || null;
         currentGameState.initiative_order = gs.initiative_order || currentGameState.initiative_order;
         currentGameState.initiative_rolls = gs.initiative_rolls || currentGameState.initiative_rolls;
         currentGameState.initiative_round = gs.initiative_round ?? currentGameState.initiative_round;
+        currentGameState.match_result = gs.match_result || null;
         mergeRemoteLog(gs.log);
 
         const initBtn = document.getElementById('btn-roll-initiative');

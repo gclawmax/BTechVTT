@@ -249,6 +249,7 @@ async function confirmWeaponAttack() {
   // for the other player as well.
   logEvent(`${mechLabel(attacker)} weapon attack submitted — saving outcome.`, 'attack');
   await syncMechInstances();
+  await checkForMatchEnd();
   if (messages.length) messages.forEach(message => logEvent(message, 'attack'));
   else logEvent(`${mechLabel(attacker)} declared no weapon attacks.`, 'attack');
 }

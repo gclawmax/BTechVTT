@@ -66,6 +66,8 @@ async function handleRejoinGame(code) {
     }
 
     currentGameId = game.id;
+    const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+    vsAiMode = gameState.vs_ai_mode === true;
 
     if (game.status === 'lobby') {
       // Check if user is already a player in this game
@@ -77,7 +79,7 @@ async function handleRejoinGame(code) {
         .single();
 
       if (existingPlayer) {
-        isHost = false;
+        isHost = game.host_id === currentUser.id;
         isReady = existingPlayer.ready;
         mySeatNumber = existingPlayer.seat_number;
         await loadLobby();
@@ -89,12 +91,14 @@ async function handleRejoinGame(code) {
           .select('seat_number')
           .eq('game_id', currentGameId);
 
-        let seatNumber = 1;
-        if (existingPlayers && existingPlayers.some(p => p.seat_number === 1)) {
-          seatNumber = 2;
+        const occupiedSeats = new Set((existingPlayers || []).map(p => p.seat_number));
+        const seatNumber = [1, 2].find(seat => !occupiedSeats.has(seat));
+        if (!seatNumber) {
+          alert('This game lobby is already full.');
+          return;
         }
 
-        await db.from('btech_players').insert({
+        const { error: joinError } = await db.from('btech_players').insert({
           game_id: currentGameId,
           user_id: currentUser.id,
           seat_number: seatNumber,
@@ -102,6 +106,7 @@ async function handleRejoinGame(code) {
           role: 'player',
           ready: false
         });
+        if (joinError) throw joinError;
 
         mySeatNumber = seatNumber;
         await loadLobby();
@@ -117,6 +122,7 @@ async function handleRejoinGame(code) {
         .single();
 
       if (existingPlayer) {
+        isHost = game.host_id === currentUser.id;
         mySeatNumber = existingPlayer.seat_number; // null if spectator
       } else {
         await db.from('btech_players').insert({

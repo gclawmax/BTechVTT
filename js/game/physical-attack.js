@@ -89,6 +89,7 @@ async function confirmPhysicalAttack() {
   // for the other player as well.
   logEvent(`${mechLabel(attacker)} physical attack submitted — saving outcome.`, 'attack');
   await syncMechInstances();
+  await checkForMatchEnd();
   logEvent(message, 'attack');
 }
 

@@ -82,6 +82,14 @@ function renderEndPanel() {
   const panel = document.getElementById('movement-panel');
   if (!panel || currentGameState.phase !== 'end') return;
   panel.style.display = 'block';
+  if (currentGameState.match_result) {
+    const result = currentGameState.match_result;
+    panel.innerHTML = `
+      <div class="panel-eyebrow">Match Complete</div>
+      <div style="font:16px var(--display);letter-spacing:.06em;color:var(--amber);margin-bottom:7px;">${result.winner_seat == null ? 'DRAW' : `PLAYER ${result.winner_seat} VICTORY`}</div>
+      <div style="font-size:11px;color:var(--paper);line-height:1.6;">All opposing 'Mechs have been destroyed. Return to the Dropship to review or leave the game.</div>`;
+    return;
+  }
   const units = mechInstances.filter(m => !m.destroyed);
   panel.innerHTML = `
     <div class="panel-eyebrow">End Phase</div>

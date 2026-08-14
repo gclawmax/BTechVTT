@@ -21,7 +21,8 @@ let currentGameState = {
   initiative_winner: null,
   initiative_order: [],
   initiative_rolls: [],
-  initiative_round: null // which round's initiative_order is currently valid for — gates phase advancement
+  initiative_round: null, // which round's initiative_order is currently valid for — gates phase advancement
+  match_result: null
 };
 
 // active_player_id is the btech_players.id for the active seat.
@@ -41,6 +42,7 @@ function makePhaseState() {
     initiative_rolls: currentGameState.initiative_rolls,
     initiative_round: currentGameState.initiative_round,
     initiative_winner: currentGameState.initiative_winner,
+    match_result: currentGameState.match_result,
     active_player_player_id: currentGameState.active_player_id,
     mech_instances: mechInstances
   };
@@ -65,11 +67,14 @@ async function loadGameState() {
   currentGameState = {
     round: game.current_round || 1,
     phase: game.current_phase || 'initiative',
-    active_player_id: gameState.active_player_player_id || null,
+    // The column is the single source of truth for turn ownership. Keep the
+    // JSON copy only as backward-compatible recovery for older saved games.
+    active_player_id: game.active_player_id || gameState.active_player_player_id || null,
     initiative_winner: game.initiative_winner,
     initiative_order: gameState.initiative_order || [],
     initiative_rolls: gameState.initiative_rolls || [],
-    initiative_round: gameState.initiative_round ?? null
+    initiative_round: gameState.initiative_round ?? null,
+    match_result: gameState.match_result || null
   };
   // Backward-compatible recovery for games created before the explicit
   // player-record active ID was added. Resolve the auth user ID to a player row.
@@ -114,6 +119,15 @@ function updateGameHeader() {
   const statusEl = document.getElementById('status-readout');
   if (!statusEl) return;
 
+  if (currentGameState.match_result) {
+    const result = currentGameState.match_result;
+    statusEl.textContent = result.winner_seat == null
+      ? 'Match Complete — Draw'
+      : `Match Complete — Player ${result.winner_seat} Wins`;
+    updateInitiativeButtonState();
+    return;
+  }
+
   const phaseLabel = PHASE_LABELS[currentGameState.phase] || currentGameState.phase;
   statusEl.textContent = `Round ${currentGameState.round} — ${phaseLabel}`;
 
@@ -129,6 +143,16 @@ function updateGameHeader() {
   const autoCheckbox = document.getElementById('auto-ai-phase-checkbox');
   if (autoControl) autoControl.hidden = !vsAiMode;
   if (autoCheckbox) autoCheckbox.checked = autoAdvanceAfterAi;
+  updateInitiativeButtonState();
+}
+
+function updateInitiativeButtonState() {
+  const initBtn = document.getElementById('btn-roll-initiative');
+  if (!initBtn) return;
+  const alreadyRolled = currentGameState.initiative_round === currentGameState.round;
+  const canRoll = isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result;
+  initBtn.disabled = !canRoll;
+  initBtn.title = canRoll ? 'Host rolls initiative for both players.' : isHost ? 'Initiative has already been rolled this round.' : 'The host rolls initiative for both players.';
 }
 
 function setAutoAdvanceAfterAi(enabled) {
@@ -221,7 +245,7 @@ function renderInitiativeDisplay() {
 // Roll initiative for ALL players (human + AI) using 2D6
 // BattleTech convention: highest roll goes SECOND
 async function rollInitiative() {
-  if (!currentGameId) return;
+  if (!currentGameId || !isHost || currentGameState.match_result) return;
 
   // Get all players (including AI)
   const { data: players } = await db
@@ -330,6 +354,62 @@ function getPhaseUnitsForActivePlayer() {
   return mechInstances.filter(m => m.owner === seat && !m.destroyed);
 }
 
+function determineMatchResult() {
+  const survivingSeats = [...new Set(mechInstances.filter(mech => !mech.destroyed).map(mech => mech.owner))];
+  if (survivingSeats.length > 1) return null;
+  return {
+    winner_seat: survivingSeats.length === 1 ? survivingSeats[0] : null,
+    resolved_at: new Date().toISOString()
+  };
+}
+
+// Record a finished match once all of one side's 'Mechs are destroyed. The
+// result lives in the shared state so both browsers, rejoining players, and
+// spectators receive the same definitive outcome.
+async function checkForMatchEnd() {
+  if (currentGameState.match_result) return currentGameState.match_result;
+  const result = determineMatchResult();
+  if (!result) return null;
+
+  await gameStateWriteQueue;
+  const { data: game, error: readError } = await db
+    .from('btech_games')
+    .select('state')
+    .eq('id', currentGameId)
+    .single();
+  if (readError || !game) {
+    logEvent(`Unable to record match result: ${readError?.message || 'game not found'}`, 'error');
+    return null;
+  }
+
+  const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  if (gameState.match_result) {
+    currentGameState.match_result = gameState.match_result;
+    return gameState.match_result;
+  }
+  gameState.match_result = result;
+  gameState.active_player_player_id = null;
+  gameState.mech_instances = mechInstances.map(mech => ({ ...mech }));
+
+  const { error: writeError } = await db
+    .from('btech_games')
+    .update({ current_phase: 'end', active_player_id: null, state: JSON.stringify(gameState) })
+    .eq('id', currentGameId);
+  if (writeError) {
+    logEvent(`Unable to save match result: ${writeError.message}`, 'error');
+    return null;
+  }
+
+  currentGameState.phase = 'end';
+  currentGameState.active_player_id = null;
+  currentGameState.match_result = result;
+  logEvent(result.winner_seat == null ? 'Match complete — all forces destroyed. Draw.' : `Match complete — Player ${result.winner_seat} wins.`, 'phase');
+  updateGameHeader();
+  renderEndPanel();
+  updateAdvanceButtonState();
+  return result;
+}
+
 function activePlayerPhaseComplete(phase) {
   const units = getPhaseUnitsForActivePlayer();
   if (units.length === 0) return true;
@@ -402,6 +482,10 @@ function beginPhaseForFirstPlayer(phase) {
 // Enforces that every required VTT step for the CURRENT phase is actually done
 // before the group can move on — nothing gets skipped by clicking through.
 function canAdvancePhase() {
+  if (currentGameState.match_result) return { ok: false, reason: 'This match is complete.' };
+  if ((currentGameState.phase === 'initiative' || currentGameState.phase === 'end') && !isHost) {
+    return { ok: false, reason: 'The host advances this shared step.' };
+  }
   if (currentGameState.phase === 'initiative') {
     const rolled = currentGameState.initiative_round === currentGameState.round &&
                    currentGameState.initiative_order && currentGameState.initiative_order.length > 0;
@@ -410,6 +494,10 @@ function canAdvancePhase() {
   if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase)) {
     if (!currentGameState.active_player_id) {
       return { ok: false, reason: 'No active player is set for this phase.' };
+    }
+    const activeEntry = getActivePlayerRecord();
+    if (!isMyActiveTurn() && !(vsAiMode && activeEntry?.is_ai)) {
+      return { ok: false, reason: 'Wait for the active player to complete their turn.' };
     }
     if (!activePlayerPhaseComplete(currentGameState.phase)) {
       // The optional skip confirmation belongs only to the human who owns the
@@ -550,6 +638,7 @@ async function advancePhase(skipPhysicalWarning = false) {
         initiative_rolls: currentGameState.initiative_rolls,
         initiative_round: currentGameState.initiative_round,
         initiative_winner: currentGameState.initiative_winner,
+        match_result: currentGameState.match_result,
         active_player_player_id: currentGameState.active_player_id,
         mech_instances: mechInstances
       };

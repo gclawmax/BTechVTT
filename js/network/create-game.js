@@ -1,6 +1,9 @@
 // ── CREATE GAME ──────────────────────────────────────────
 async function handleCreateGame() {
   if (!currentUser) return;
+  // A previous test game against the AI must not turn a new human-created
+  // lobby into an AI game merely because the browser retained local state.
+  vsAiMode = false;
   showLoading(true);
   try {
     const code = generateGameCode();

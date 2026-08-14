@@ -23,6 +23,7 @@ async function handleJoinGame() {
     currentGameId = game.id;
     isHost = false;
     isReady = false;
+    vsAiMode = false;
 
     // Find available seat (2 for now)
     const { data: existingPlayers } = await db
@@ -30,12 +31,14 @@ async function handleJoinGame() {
       .select('seat_number')
       .eq('game_id', currentGameId);
 
-    let seatNumber = 1;
-    if (existingPlayers && existingPlayers.some(p => p.seat_number === 1)) {
-      seatNumber = 2;
+    const occupiedSeats = new Set((existingPlayers || []).map(p => p.seat_number));
+    const seatNumber = [1, 2].find(seat => !occupiedSeats.has(seat));
+    if (!seatNumber) {
+      alert('This game lobby is already full.');
+      return;
     }
 
-    await db.from('btech_players').insert({
+    const { error: joinError } = await db.from('btech_players').insert({
       game_id: currentGameId,
       user_id: currentUser.id,
       seat_number: seatNumber,
@@ -43,6 +46,7 @@ async function handleJoinGame() {
       role: 'player',
       ready: false
     });
+    if (joinError) throw joinError;
 
     mySeatNumber = seatNumber;
     await loadLobby();
