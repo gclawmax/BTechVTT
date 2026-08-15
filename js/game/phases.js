@@ -404,7 +404,9 @@ function getPhasePlayerOrder() {
 
 function getPlayerSeatById(playerId) {
   const entry = (currentGameState.initiative_order || []).find(p => p.player_id === playerId);
-  return entry?.seat_number ?? null;
+  // JSON from older saves may contain the seat as a string. Normalize it so
+  // turn ownership cannot fail a strict comparison in the action controls.
+  return entry?.seat_number == null ? null : Number(entry.seat_number);
 }
 
 function getActivePlayerSeat() {

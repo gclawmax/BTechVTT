@@ -370,12 +370,14 @@ function buildRosterInstances(rosters) {
   }));
 }
 
-function startGameScreen() {
+async function startGameScreen() {
   stopLobbySubscriptions();
 
   showScreen('game-screen');
   initGame();
-  loadGameState();
+  // Finish the initial snapshot before listening for changes. Otherwise a
+  // slower initial read can overwrite a newer realtime turn hand-off.
+  await loadGameState();
   subscribeGameStateSync();
 }
 
@@ -406,6 +408,9 @@ function subscribeGameStateSync() {
           ...(typeof gs.vs_ai_mode === 'boolean' ? { vs_ai_mode: gs.vs_ai_mode } : {}),
           ...(gs.ai_difficulty ? { ai_difficulty: gs.ai_difficulty } : {})
         };
+        // Realtime updates must update this too: a tab may previously have
+        // been used for an AI match before entering a human game.
+        vsAiMode = gs.vs_ai_mode === true;
         // active_player_id is the authoritative database column. The state
         // copy exists for a single JSON snapshot, but can briefly lag behind
         // during concurrent human actions and must not steal a player's turn.
