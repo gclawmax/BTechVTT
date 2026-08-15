@@ -67,14 +67,43 @@
   </div>
 </div>
 
+<!-- ── NEW MATCH SETUP ─────────────────────────────────── -->
+<div id="match-setup-screen" class="screen">
+  <div id="match-setup-box">
+    <h2>Create Match</h2>
+    <p>Choose the battlefield and the tonnage each player may bring.</p>
+    <label for="create-map-select">Built-in map</label>
+    <select id="create-map-select"></select>
+    <label for="create-tonnage-select">Dropship tonnage per player</label>
+    <select id="create-tonnage-select">
+      <option value="100">100 tons</option>
+      <option value="150">150 tons</option>
+      <option value="200" selected>200 tons</option>
+      <option value="250">250 tons</option>
+    </select>
+    <div class="setup-actions">
+      <button class="primary" onclick="handleCreateConfiguredGame()">Create Lobby</button>
+      <button class="secondary" onclick="cancelCreateGameSetup()">Back</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── LOBBY SCREEN ─────────────────────────────────────── -->
 <div id="lobby-screen" class="screen">
   <div id="lobby-box">
     <h2>Game Lobby</h2>
     <div class="lobby-code" id="lobby-code"></div>
     <div class="lobby-section">
+      <div class="lobby-section-title">Match Setup</div>
+      <div id="lobby-match-settings"></div>
+    </div>
+    <div class="lobby-section">
       <div class="lobby-section-title">Players</div>
       <div id="lobby-seats"></div>
+    </div>
+    <div class="lobby-section" id="lobby-roster-section">
+      <div class="lobby-section-title">Your Roster</div>
+      <div id="lobby-roster-builder"></div>
     </div>
     <div class="lobby-section">
       <div class="lobby-section-title">Spectators</div>
@@ -138,13 +167,14 @@
 <script src="js/core/helpers.js?v=20260814-human-v-human-01"></script>
 <script src="js/core/modal.js?v=20260813-physical-warning-01"></script>
 <script src="js/network/game-code.js?v=20260813-reaction-ui-01"></script>
-<script src="js/network/create-game.js?v=20260814-human-v-human-01"></script>
+<script src="js/game/maps.js?v=20260815-match-setup-01"></script>
+<script src="js/game/unit-catalogue.js?v=20260815-unit-catalogue-01"></script>
+<script src="js/network/create-game.js?v=20260815-match-setup-01"></script>
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/join-game.js?v=20260814-human-v-human-01"></script>
-<script src="js/network/lobby.js?v=20260814-human-v-human-01"></script>
-<script src="js/game/phases.js?v=20260814-human-v-human-01"></script>
-<script src="js/game/unit-catalogue.js?v=20260815-unit-catalogue-01"></script>
-<script src="js/game/board.js?v=20260815-unit-catalogue-01"></script>
+<script src="js/network/lobby.js?v=20260815-match-setup-01"></script>
+<script src="js/game/phases.js?v=20260815-match-setup-01"></script>
+<script src="js/game/board.js?v=20260815-match-setup-01"></script>
 <script src="js/movement/rules.js?v=20260814-map-pan-layout-01"></script>
 <script src="js/ui/panels.js?v=20260814-split-detail-log-01"></script>
 <script src="js/ui/panel-resize.js?v=20260813-resizable-panel-01"></script>

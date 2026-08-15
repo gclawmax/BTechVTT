@@ -11,6 +11,8 @@ async function loadLobby() {
         console.log('[BT-DIAG] lobby game update', payload.new?.status, payload.new?.id);
         if (payload.eventType === 'UPDATE' && payload.new.status === 'in-progress') {
           startGameScreen();
+        } else {
+          loadLobbyUI();
         }
       }
     )
@@ -37,13 +39,15 @@ async function loadLobbyUI() {
   // Get game info
   const { data: game } = await db
     .from('btech_games')
-    .select('game_code')
+    .select('game_code,state')
     .eq('id', currentGameId)
     .single();
 
   if (game) {
     document.getElementById('lobby-code').textContent = game.game_code;
   }
+  const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
 
   // Get players
   const { data: players } = await db
@@ -76,6 +80,7 @@ async function loadLobbyUI() {
           ? `AI ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`
           : titleCase(player.user_id?.substring(0, 8) || `Player ${player.seat_number}`);
         const isCurrentPlayer = !isAI && player.user_id === currentUser?.id;
+        if (isCurrentPlayer) isReady = player.ready === true;
         const isReadyClass = player.ready ? 'ready' : '';
         const readyText = player.ready ? 'READY' : 'NOT READY';
         const currentTag = isCurrentPlayer ? ' (you)' : '';
@@ -100,6 +105,8 @@ async function loadLobbyUI() {
     }
   }
 
+  renderLobbyMatchSetup(gameState, players || []);
+
   // Render spectators
   const specEl = document.getElementById('lobby-spectators');
   if (spectators && spectators.length > 0) {
@@ -120,9 +127,10 @@ async function loadLobbyUI() {
   }
   if (btnStart) {
     const playerSeats = (players || []).filter(player => player.role === 'player');
+    const rostersReady = vsAiMode || playerSeats.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage));
     const canStart = vsAiMode
       ? playerSeats.length === 2 && playerSeats.some(player => !player.is_ai && player.ready)
-      : playerSeats.length === 2 && playerSeats.every(player => player.ready);
+      : playerSeats.length === 2 && playerSeats.every(player => player.ready) && rostersReady;
     btnStart.disabled = !isHost || !canStart;
   }
 
@@ -134,6 +142,63 @@ async function loadLobbyUI() {
       ? `${playerCount}/2 players in lobby`
       : `${playerCount}/2 human players in lobby${playerCount < 2 ? ' — waiting for an opponent' : ''}`;
   }
+}
+
+function supportedUnitEntries() {
+  return Object.entries(BT_UNIT_CATALOGUE).filter(([id]) => isSupportedUnit(id));
+}
+
+function rosterTonnage(roster) {
+  return (roster || []).reduce((total, unitId) => total + (getSupportedUnit(unitId)?.tonnage || 0), 0);
+}
+
+function isRosterLegal(roster, tonnageLimit) {
+  const units = roster || [];
+  return units.length > 0 && units.every(isSupportedUnit) && rosterTonnage(units) <= Number(tonnageLimit || 0);
+}
+
+function renderLobbyMatchSetup(gameState, players) {
+  const settingsEl = document.getElementById('lobby-match-settings');
+  const rosterSection = document.getElementById('lobby-roster-section');
+  const rosterEl = document.getElementById('lobby-roster-builder');
+  if (!settingsEl || !rosterSection || !rosterEl) return;
+
+  if (vsAiMode || !gameState.map_id) {
+    settingsEl.innerHTML = '<div class="match-setting-summary">AI skirmish using the current demonstration map and test roster.</div>';
+    rosterSection.hidden = true;
+    return;
+  }
+
+  const map = getMapDefinition(gameState.map_id);
+  const limit = Number(gameState.dropship_tonnage || 0);
+  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${map.name}</strong><br>${map.description}<br>Force limit: <strong>${limit} tons per player</strong></div>`;
+  rosterSection.hidden = false;
+  const roster = gameState.rosters?.[String(mySeatNumber)] || [];
+  const total = rosterTonnage(roster);
+  rosterEl.innerHTML = `<div class="roster-summary">${total} / ${limit} tons · choose at least one tested unit</div><div class="roster-options">${supportedUnitEntries().map(([id, unit]) => {
+    const selected = roster.includes(id);
+    const disabled = !selected && total + unit.tonnage > limit;
+    return `<button class="roster-option ${selected ? 'selected' : ''}" onclick="toggleRosterUnit('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons${selected ? ' · selected' : ''}</span></button>`;
+  }).join('')}</div>`;
+}
+
+async function toggleRosterUnit(unitId) {
+  if (!currentGameId || !currentUser || vsAiMode || !isSupportedUnit(unitId)) return;
+  const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  if (error || !game) return;
+  const state = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const rosterKey = String(mySeatNumber);
+  const roster = [...(state.rosters?.[rosterKey] || [])];
+  const index = roster.indexOf(unitId);
+  if (index >= 0) roster.splice(index, 1);
+  else if (rosterTonnage(roster) + getSupportedUnit(unitId).tonnage <= Number(state.dropship_tonnage)) roster.push(unitId);
+  else return;
+  state.rosters = { ...(state.rosters || {}), [rosterKey]: roster };
+  const { error: updateError } = await db.from('btech_games').update({ state: JSON.stringify(state) }).eq('id', currentGameId);
+  if (updateError) return;
+  isReady = false;
+  await db.from('btech_players').update({ ready: false }).eq('game_id', currentGameId).eq('user_id', currentUser.id);
+  await loadLobbyUI();
 }
 
 async function handleReadyUp() {
@@ -149,6 +214,14 @@ async function handleReadyUp() {
   if (!player) return;
 
   const newReady = !player.ready;
+  if (newReady) {
+    const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+    const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+    if (!vsAiMode && !isRosterLegal(state.rosters?.[String(player.seat_number)], state.dropship_tonnage)) {
+      document.getElementById('lobby-status').textContent = 'Choose a legal roster before readying up.';
+      return;
+    }
+  }
   isReady = newReady;
 
   await db
@@ -190,6 +263,14 @@ async function handleStartGame() {
     .single();
 
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  if (!vsAiMode) {
+    const rostersValid = players.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage));
+    if (!rostersValid) {
+      document.getElementById('lobby-status').textContent = 'Each player needs a legal roster within the dropship limit.';
+      return;
+    }
+    gameState.mech_instances = buildRosterInstances(gameState.rosters);
+  }
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
 
@@ -206,6 +287,21 @@ async function handleStartGame() {
 
   // Transition to game screen
   startGameScreen();
+}
+
+function buildRosterInstances(rosters) {
+  const deployment = {
+    1: [{ col: 4, row: 5, facing: 0 }, { col: 3, row: 6, facing: 0 }, { col: 4, row: 7, facing: 0 }],
+    2: [{ col: 11, row: 5, facing: 3 }, { col: 12, row: 6, facing: 3 }, { col: 11, row: 7, facing: 3 }]
+  };
+  return [1, 2].flatMap(seat => (rosters?.[String(seat)] || []).map((unitId, index) => {
+    const position = deployment[seat][index];
+    return {
+      instanceId: `${unitId}-p${seat}-${index + 1}`,
+      unitId, owner: seat, col: position.col, row: position.row,
+      facing: position.facing, torsoFacing: position.facing
+    };
+  }));
 }
 
 function startGameScreen() {
@@ -237,6 +333,14 @@ function subscribeGameStateSync() {
         currentGameState.phase = remote.current_phase || currentGameState.phase;
         currentGameState.initiative_winner = remote.initiative_winner;
         const gs = remote.state ? (typeof remote.state === 'string' ? JSON.parse(remote.state) : remote.state) : {};
+        setActiveMap(gs.map_id);
+        currentMatchConfig = {
+          ...(gs.map_id ? { map_id: gs.map_id } : {}),
+          ...(gs.dropship_tonnage ? { dropship_tonnage: gs.dropship_tonnage } : {}),
+          ...(gs.rosters ? { rosters: gs.rosters } : {}),
+          ...(typeof gs.vs_ai_mode === 'boolean' ? { vs_ai_mode: gs.vs_ai_mode } : {}),
+          ...(gs.ai_difficulty ? { ai_difficulty: gs.ai_difficulty } : {})
+        };
         // active_player_id is the authoritative database column. The state
         // copy exists for a single JSON snapshot, but can briefly lag behind
         // during concurrent human actions and must not steal a player's turn.

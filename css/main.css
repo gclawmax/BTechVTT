@@ -141,6 +141,30 @@ html, body {
   color: #e0e0d8;
 }
 
+#match-setup-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+}
+
+#match-setup-box {
+  width: 420px;
+  padding: 32px 40px;
+  background: #fff;
+  color: var(--paper);
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+}
+
+#match-setup-box h2 { margin: 0 0 8px; font: 20px var(--display); letter-spacing: .12em; text-transform: uppercase; }
+#match-setup-box p { margin: 0 0 22px; color: var(--phosphor-dim); font-size: 11px; line-height: 1.5; }
+#match-setup-box label { display:block; margin: 14px 0 6px; color: var(--phosphor-dim); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
+#match-setup-box select { width:100%; padding:10px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); font:12px var(--mono); }
+.setup-actions { display:flex; gap:8px; margin-top:24px; }
+.setup-actions button { flex:1; padding:10px 14px; border:1px solid var(--phosphor); background:var(--phosphor); color:#fff; font:11px var(--display); letter-spacing:.1em; text-transform:uppercase; cursor:pointer; }
+.setup-actions button.secondary { background:transparent; color:var(--phosphor); }
+
 #menu-box {
   text-align: center;
 }
@@ -312,6 +336,16 @@ html, body {
   width: 480px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.3);
 }
+
+.match-setting-summary { padding:9px 12px; border:1px solid var(--panel-line); border-radius:2px; font-size:11px; line-height:1.6; }
+.match-setting-summary strong { color:var(--amber); }
+.roster-summary { margin-bottom:8px; color:var(--phosphor-dim); font-size:11px; }
+.roster-options { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+.roster-option { min-height:72px; padding:7px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); text-align:left; font:10px var(--mono); cursor:pointer; }
+.roster-option.selected { border-color:var(--amber); background:#fff6e5; }
+.roster-option:disabled { opacity:.45; cursor:not-allowed; }
+.roster-option .roster-option-name { display:block; font-weight:bold; margin-bottom:5px; }
+.roster-option .roster-option-tonnage { color:var(--phosphor-dim); }
 
 #lobby-box h2 {
   font-family: var(--display);

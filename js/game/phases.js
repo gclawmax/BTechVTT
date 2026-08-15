@@ -44,7 +44,8 @@ function makePhaseState() {
     initiative_winner: currentGameState.initiative_winner,
     match_result: currentGameState.match_result,
     active_player_player_id: currentGameState.active_player_id,
-    mech_instances: mechInstances
+    mech_instances: mechInstances,
+    ...currentMatchConfig
   };
 }
 
@@ -60,6 +61,14 @@ async function loadGameState() {
   if (!game) return;
 
   const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  setActiveMap(gameState.map_id);
+  currentMatchConfig = {
+    ...(gameState.map_id ? { map_id: gameState.map_id } : {}),
+    ...(gameState.dropship_tonnage ? { dropship_tonnage: gameState.dropship_tonnage } : {}),
+    ...(gameState.rosters ? { rosters: gameState.rosters } : {}),
+    ...(typeof gameState.vs_ai_mode === 'boolean' ? { vs_ai_mode: gameState.vs_ai_mode } : {}),
+    ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {})
+  };
   // Rejoining an AI game must restore AI-specific controls, even though the
   // local vsAiMode flag begins false in a fresh browser session.
   if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;

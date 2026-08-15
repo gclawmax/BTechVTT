@@ -5,14 +5,7 @@ const HEX_SIZE = 32;
 const GRID_COLS = 16;
 const GRID_ROWS = 12;
 
-// Fixed demonstration terrain for the current skirmish map.  It is part of
-// the board, not a player decision: light woods add +1 to-hit, heavy woods +2.
-const BT_TERRAIN = {
-  '0602': 'light_woods', '0702': 'light_woods', '1203': 'heavy_woods',
-  '0308': 'light_woods', '0408': 'light_woods', '1109': 'heavy_woods'
-};
-
-function terrainAt(col, row) { return BT_TERRAIN[hexCode(col, row)] || 'clear'; }
+function terrainAt(col, row) { return getMapDefinition(activeMapId).terrain[hexCode(col, row)] || 'clear'; }
 
 function ensureMechCombatState(mech) {
   mech.unitId = canonicalUnitId(mech.unitId);
