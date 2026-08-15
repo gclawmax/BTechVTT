@@ -25,53 +25,79 @@ async function filesUnder(directory, collected = []) {
   return collected;
 }
 
-function firstMatch(text, expression) {
-  const match = text.match(expression);
-  return match ? match[1].trim() : null;
-}
-
-function integerMatch(text, expression) {
-  const value = firstMatch(text, expression);
+function integer(value) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parseWeapons(lines) {
-  const start = lines.findIndex(line => /^weapons\s*:/i.test(line));
+  const start = lines.findIndex(line => /^weapons\s*:\s*\d+/i.test(line));
   if (start < 0) return [];
-  return lines.slice(start + 1)
-    .map(line => line.trim())
-    .filter(Boolean)
-    .filter(line => !/^(location|critical slots|overview)\s*:/i.test(line))
-    .map(line => line.replace(/^\d+\s+/, ''))
-    .slice(0, 32);
+  const count = integer(lines[start].match(/^weapons\s*:\s*(\d+)/i)?.[1]) ?? 0;
+  return lines.slice(start + 1, start + 1 + count).map(line => {
+    const [name, ...location] = line.split(',').map(part => part.trim());
+    return { name, location: location.join(', ') || null };
+  });
+}
+
+function headersFrom(lines) {
+  const headers = new Map();
+  for (const line of lines) {
+    const match = line.match(/^([^:]+):\s*(.+)$/);
+    if (match) headers.set(match[1].trim().toLowerCase(), match[2].trim());
+  }
+  return headers;
+}
+
+function parseArmor(lines) {
+  const locations = {
+    la: 'left_arm', ra: 'right_arm', lt: 'left_torso', rt: 'right_torso',
+    ct: 'centre_torso', hd: 'head', ll: 'left_leg', rl: 'right_leg',
+    rtl: 'left_torso_rear', rtr: 'right_torso_rear', rtc: 'centre_torso_rear'
+  };
+  const armor = {};
+  for (const line of lines) {
+    const match = line.match(/^([a-z]+)\s+armor:\s*(\d+)$/i);
+    if (match && locations[match[1].toLowerCase()]) {
+      armor[locations[match[1].toLowerCase()]] = integer(match[2]);
+    }
+  }
+  return armor;
 }
 
 function parseMtf(text, sourceFile) {
-  const lines = text.replace(/\r/g, '').split('\n');
-  const name = lines.find(line => /^name\s*:/i.test(line))?.replace(/^name\s*:\s*/i, '').trim()
-    || lines.find(line => line.trim() && !/^version\s*:/i.test(line))?.trim()
-    || 'Unknown unit';
-  const [chassis, ...variantParts] = name.split(/\s+/);
-  const walk = integerMatch(text, /^walk\s*mp\s*:\s*(\d+)/im);
-  const run = integerMatch(text, /^run\s*mp\s*:\s*(\d+)/im);
-  const jump = integerMatch(text, /^jump\s*mp\s*:\s*(\d+)/im);
-  const mass = integerMatch(text, /^mass\s*:\s*(\d+)/im);
+  // Current MegaMek files start with CC BY-NC-SA notices. Ignore those
+  // comments before identifying headers, so their attribution is preserved
+  // in the source while never being mistaken for a unit name.
+  const lines = text.replace(/\r/g, '').split('\n')
+    .map(line => line.trim())
+    .filter(line => line && !line.startsWith('#'));
+  const headers = headersFrom(lines);
+  const legacyNameLines = lines.filter(line => !line.includes(':'));
+  const chassis = headers.get('chassis') || headers.get('name') || legacyNameLines[0] || 'Unknown unit';
+  const variant = headers.get('model') || headers.get('variant') || legacyNameLines[1] || null;
+  const name = variant ? `${chassis} ${variant}` : chassis;
+  const walk = integer(headers.get('walk mp'));
+  const run = integer(headers.get('run mp'));
+  const jump = integer(headers.get('jump mp'));
+  const mass = integer(headers.get('mass'));
 
   return {
-    id: relative(process.cwd(), sourceFile).replace(/\\/g, '/').replace(/\.mtf$/i, ''),
+    id: headers.get('uuid') || relative(process.cwd(), sourceFile).replace(/\\/g, '/').replace(/\.mtf$/i, ''),
     name,
     chassis,
-    variant: variantParts.join(' ') || null,
+    variant,
     mass,
     movement: { walk, run, jump },
-    tech_base: firstMatch(text, /^techbase\s*:\s*(.+)$/im),
-    era: integerMatch(text, /^era\s*:\s*(\d+)/im),
+    tech_base: headers.get('techbase') || null,
+    era: integer(headers.get('era')),
     weapons: parseWeapons(lines),
+    armor: parseArmor(lines),
     source_file: relative(process.cwd(), sourceFile).replace(/\\/g, '/'),
     // The current VTT only supports a small equipment subset. Importing a
     // record makes it discoverable; it does not make it playable yet.
-    supported_by_vtt: false
+    supported_by_vtt: false,
+    catalogue_status: 'discovered'
   };
 }
 

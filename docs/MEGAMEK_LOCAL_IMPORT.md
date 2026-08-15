@@ -18,10 +18,11 @@ Then run:
 node tools/import-megamek-mechs.mjs
 ```
 
-This writes `local-data/megamek-catalogue.json`. The importer only reads MTF
-files and creates a searchable catalogue; it does not make each record
-playable in BT-VTT. A unit needs supported movement, weapons, armour, and
-equipment rules before it can be selected in a game.
+This writes `local-data/megamek-catalogue.json`. The importer recognises the
+current MegaMek MTF headers (including `chassis`, `model`, armour, movement,
+and weapon locations) and creates a searchable local catalogue. It does not
+make each record playable in BT-VTT. A unit needs supported movement, weapons,
+armour, and equipment rules before it can be selected in a game.
 
 ## Attribution and licence
 
