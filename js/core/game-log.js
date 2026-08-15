@@ -50,7 +50,10 @@ function logEvent(message, category) {
   if (category === 'error') console.error(tag, message);
   else console.log(tag, message);
 
-  if (currentGameId) persistLogEntry(entry);
+  // A human-versus-human game has authoritative, seat-scoped state writes.
+  // Writing an entire JSON snapshot merely to append a log line can otherwise
+  // overwrite a newer initiative/action update from the other browser.
+  if (currentGameId && vsAiMode) persistLogEntry(entry);
 }
 
 // Read-modify-write the game's shared state to append this one entry.

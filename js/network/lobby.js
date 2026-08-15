@@ -410,9 +410,12 @@ function subscribeGameStateSync() {
         // copy exists for a single JSON snapshot, but can briefly lag behind
         // during concurrent human actions and must not steal a player's turn.
         currentGameState.active_player_id = remote.active_player_id || gs.active_player_player_id || null;
-        currentGameState.initiative_order = gs.initiative_order || currentGameState.initiative_order;
-        currentGameState.initiative_rolls = gs.initiative_rolls || currentGameState.initiative_rolls;
-        currentGameState.initiative_round = gs.initiative_round ?? currentGameState.initiative_round;
+        // Empty arrays/null are meaningful here: they are how an initiative
+        // tie resets both players for a re-roll. Never retain stale values.
+        currentGameState.initiative_order = gs.initiative_order || [];
+        currentGameState.initiative_rolls = gs.initiative_rolls || [];
+        currentGameState.initiative_round = gs.initiative_round ?? null;
+        currentGameState.initiative_pending = gs.initiative_pending || [];
         currentGameState.match_result = gs.match_result || null;
         mergeRemoteLog(gs.log);
 
