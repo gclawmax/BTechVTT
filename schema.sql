@@ -294,7 +294,14 @@ BEGIN
   END IF;
 
   UPDATE btech_games
-  SET state = jsonb_set(COALESCE(state, '{}'::jsonb), ARRAY['rosters', v_seat_number::text], p_roster, true)
+  SET state = jsonb_set(
+    CASE jsonb_typeof(state)
+      WHEN 'string' THEN COALESCE((state #>> '{}')::jsonb, '{}'::jsonb)
+      WHEN 'object' THEN state
+      ELSE '{}'::jsonb
+    END,
+    ARRAY['rosters', v_seat_number::text], p_roster, true
+  )
   WHERE id = p_game_id AND status = 'lobby';
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Roster updates are available only while the game is in the lobby';
