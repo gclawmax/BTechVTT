@@ -96,6 +96,26 @@ CREATE TABLE IF NOT EXISTS btech_actions (
   UNIQUE (game_id, round, phase, sequence)
 );
 
+-- 5. Authoritative combat records. A declaration is immutable once accepted;
+-- resolution records every server roll and damage group so a reconnect never
+-- re-rolls dice or loses ammunition/damage consequences.
+CREATE TABLE IF NOT EXISTS btech_combat_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  game_id UUID REFERENCES btech_games(id) ON DELETE CASCADE NOT NULL,
+  round INT NOT NULL,
+  phase TEXT NOT NULL CHECK (phase IN ('weapon_attack', 'physical_attack')),
+  sequence INT NOT NULL,
+  player_id UUID REFERENCES btech_players(id) ON DELETE CASCADE NOT NULL,
+  attacker_instance_id TEXT NOT NULL,
+  target_instance_id TEXT,
+  declaration JSONB NOT NULL DEFAULT '{}',
+  resolution JSONB,
+  status TEXT NOT NULL DEFAULT 'declared' CHECK (status IN ('declared', 'resolved', 'rejected')),
+  declared_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ,
+  UNIQUE (game_id, round, phase, sequence)
+);
+
 -- 5. Game events (event log)
 CREATE TABLE IF NOT EXISTS btech_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -121,6 +141,7 @@ CREATE INDEX IF NOT EXISTS idx_btech_initiative_game_round ON btech_initiative(g
 
 CREATE INDEX IF NOT EXISTS idx_btech_actions_game_round_phase ON btech_actions(game_id, round, phase);
 CREATE INDEX IF NOT EXISTS idx_btech_actions_player ON btech_actions(player_id);
+CREATE INDEX IF NOT EXISTS idx_btech_combat_events_game_round ON btech_combat_events(game_id, round, phase, sequence);
 
 CREATE INDEX IF NOT EXISTS idx_btech_events_game_id ON btech_events(game_id);
 
@@ -233,6 +254,25 @@ DROP POLICY IF EXISTS "Players can insert their own actions" ON btech_actions;
 CREATE POLICY "Players can insert their own actions"
   ON btech_actions FOR INSERT
   WITH CHECK (auth.uid() IN (SELECT user_id FROM btech_players WHERE id = player_id));
+
+-- Combat results are server-authored. Participants may inspect them, but no
+-- browser receives a direct insert/update policy.
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'btech_combat_events' AND rowsecurity = true) THEN
+    ALTER TABLE btech_combat_events ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
+
+DROP POLICY IF EXISTS "Participants can view combat events" ON btech_combat_events;
+CREATE POLICY "Participants can view combat events"
+  ON btech_combat_events FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM btech_players
+      WHERE btech_players.game_id = btech_combat_events.game_id
+      AND btech_players.user_id = auth.uid()
+    )
+  );
 
 -- Events: participants can read, only the game host can write
 DO $$ BEGIN
