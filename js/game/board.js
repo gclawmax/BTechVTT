@@ -24,6 +24,9 @@ function ensureMechCombatState(mech) {
   if (mech.hasFired == null) mech.hasFired = false;
   if (mech.hasPhysicalAttacked == null) mech.hasPhysicalAttacked = false;
   if (mech.hasManagedHeat == null) mech.hasManagedHeat = false;
+  if (!Array.isArray(mech.ammoBins)) {
+    mech.ammoBins = (unit.ammoBins || []).map(bin => ({ ...bin, maxShots: bin.shots }));
+  }
   return true;
 }
 

@@ -16,6 +16,11 @@ const BT_UNIT_CATALOGUE = Object.freeze({
       { key: 'med_laser', count: 1, location: 'Center Torso' },
       { key: 'med_laser', count: 1, location: 'Center Torso' }
     ],
+    ammoBins: [
+      { id: 'atlas-lrm20-lt', type: 'lrm20', location: 'Left Torso', shots: 6 },
+      { id: 'atlas-srm6-lt', type: 'srm6', location: 'Left Torso', shots: 15 },
+      { id: 'atlas-ac20-rt', type: 'ac20', location: 'Right Torso', shots: 10 }
+    ],
     armor: { head:9, ct:47, ct_rear:14, lt:32, lt_rear:10, rt:32, rt_rear:10, la:34, ra:34, ll:41, rl:41 },
     structure: { head:3, ct:31, lt:21, rt:21, la:17, ra:17, ll:21, rl:21 }
   },
@@ -29,6 +34,7 @@ const BT_UNIT_CATALOGUE = Object.freeze({
       { key: 'ac20', count: 1, location: 'Right Torso' },
       { key: 'small_laser', count: 1, location: 'Head' }
     ],
+    ammoBins: [{ id: 'hunchback-ac20-lt', type: 'ac20', location: 'Left Torso', shots: 5 }],
     armor: { head:9, ct:26, ct_rear:5, lt:20, lt_rear:4, rt:20, rt_rear:4, la:16, ra:16, ll:20, rl:20 },
     structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
   },
@@ -41,6 +47,7 @@ const BT_UNIT_CATALOGUE = Object.freeze({
       { key: 'machine_gun', count: 1, location: 'Right Arm' },
       { key: 'med_laser', count: 1, location: 'Center Torso' }
     ],
+    ammoBins: [{ id: 'locust-mg-ct', type: 'machine_gun', location: 'Center Torso', shots: 200 }],
     armor: { head:8, ct:10, ct_rear:2, lt:8, lt_rear:2, rt:8, rt_rear:2, la:4, ra:4, ll:8, rl:8 },
     structure: { head:3, ct:6, lt:5, rt:5, la:3, ra:3, ll:4, rl:4 }
   },
@@ -55,6 +62,7 @@ const BT_UNIT_CATALOGUE = Object.freeze({
       { key: 'med_laser', count: 1, location: 'Right Arm' },
       { key: 'ac5', count: 1, location: 'Right Torso' }
     ],
+    ammoBins: [{ id: 'marauder-ac5-lt', type: 'ac5', location: 'Left Torso', shots: 20 }],
     armor: { head:9, ct:35, ct_rear:10, lt:17, lt_rear:8, rt:17, rt_rear:8, la:22, ra:22, ll:18, rl:18 },
     structure: { head:3, ct:23, lt:16, rt:16, la:12, ra:12, ll:16, rl:16 }
   },
@@ -67,6 +75,7 @@ const BT_UNIT_CATALOGUE = Object.freeze({
       { key: 'ac10', count: 1, location: 'Right Arm' },
       { key: 'small_laser', count: 1, location: 'Left Torso' }
     ],
+    ammoBins: [{ id: 'enforcer-ac10-rt', type: 'ac10', location: 'Right Torso', shots: 10 }],
     armor: { head:9, ct:23, ct_rear:4, lt:17, lt_rear:3, rt:17, rt_rear:3, la:14, ra:14, ll:20, rl:20 },
     structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
   },
@@ -78,6 +87,10 @@ const BT_UNIT_CATALOGUE = Object.freeze({
       { key: 'ac10', count: 1, location: 'Right Arm' },
       { key: 'lrm10', count: 1, location: 'Left Torso' },
       { key: 'med_laser', count: 2, location: 'Center Torso' }
+    ],
+    ammoBins: [
+      { id: 'centurion-lrm10-lt', type: 'lrm10', location: 'Left Torso', shots: 12 },
+      { id: 'centurion-ac10-rt', type: 'ac10', location: 'Right Torso', shots: 20 }
     ],
     armor: { head:9, ct:18, ct_rear:7, lt:13, lt_rear:6, rt:13, rt_rear:6, la:16, ra:16, ll:16, rl:16 },
     structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
@@ -123,17 +136,17 @@ const BT_UNITS = BT_UNIT_CATALOGUE;
 // First-pass standard weapon data. Cluster weapons are deliberately treated as
 // one simplified damage packet until their individual-cluster rules are added.
 const BT_WEAPONS = {
-  ac20:       { name: 'AC/20', damage: 20, heat: 7, range: [3, 6, 9] },
-  lr20:       { name: 'LRM-20', damage: 20, heat: 6, range: [7, 14, 21] },
-  sr6:        { name: 'SRM-6', damage: 6, heat: 4, range: [3, 6, 9] },
+  ac20:       { name: 'AC/20', damage: 20, heat: 7, range: [3, 6, 9], ammoType: 'ac20' },
+  lr20:       { name: 'LRM-20', damage: 20, heat: 6, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm20', clusterSize: 20, damagePerMissile: 1 },
+  sr6:        { name: 'SRM-6', damage: 6, heat: 4, range: [3, 6, 9], ammoType: 'srm6', clusterSize: 6, damagePerMissile: 2 },
   med_laser:  { name: 'Medium Laser', damage: 5, heat: 3, range: [3, 6, 9] },
   small_laser: { name: 'Small Laser', damage: 3, heat: 1, range: [1, 2, 3] },
-  machine_gun: { name: 'Machine Gun', damage: 2, heat: 0, range: [1, 2, 3] },
+  machine_gun: { name: 'Machine Gun', damage: 2, heat: 0, range: [1, 2, 3], ammoType: 'machine_gun' },
   large_laser: { name: 'Large Laser', damage: 8, heat: 8, range: [5, 10, 15] },
-  ppc:        { name: 'PPC', damage: 10, heat: 10, range: [3, 6, 12] },
-  ac5:        { name: 'AC/5', damage: 5, heat: 1, range: [6, 12, 18] },
-  ac10:       { name: 'AC/10', damage: 10, heat: 3, range: [5, 10, 15] },
-  lrm10:      { name: 'LRM-10', damage: 10, heat: 4, range: [7, 14, 21] },
+  ppc:        { name: 'PPC', damage: 10, heat: 10, range: [3, 6, 12], minimumRange: 3 },
+  ac5:        { name: 'AC/5', damage: 5, heat: 1, range: [6, 12, 18], ammoType: 'ac5' },
+  ac10:       { name: 'AC/10', damage: 10, heat: 3, range: [5, 10, 15], ammoType: 'ac10' },
+  lrm10:      { name: 'LRM-10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm10', clusterSize: 10, damagePerMissile: 1 },
   erl:        { name: 'ER Large Laser', damage: 8, heat: 12, range: [7, 14, 19] },
   lr6:        { name: 'LRM-6', damage: 6, heat: 2, range: [7, 14, 21] },
   ac2:        { name: 'AC/2', damage: 2, heat: 1, range: [8, 16, 24] },
