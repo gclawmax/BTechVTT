@@ -158,6 +158,9 @@ function updateGameHeader() {
 function updateInitiativeButtonState() {
   const initBtn = document.getElementById('btn-roll-initiative');
   if (!initBtn) return;
+  // Initiative is the only phase where this control is relevant. Hiding it
+  // outside that phase keeps the shared-game header focused on current play.
+  initBtn.hidden = currentGameState.phase !== 'initiative';
   const alreadyRolled = currentGameState.initiative_round === currentGameState.round;
   const canRoll = isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result;
   initBtn.disabled = !canRoll;
