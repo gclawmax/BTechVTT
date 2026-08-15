@@ -46,8 +46,23 @@ function renderRoster() {
   });
 }
 
-function armorCell(loc, label, armor, structure) {
-  return `<div class="armor-cell"><span class="loc">${label}</span><span class="val">${armor ?? '—'}${structure !== undefined ? ` <span style="color:var(--phosphor-dim)">(${structure})</span>` : ''}</span></div>`;
+function damageColour(current, maximum) {
+  if (!Number.isFinite(current) || !Number.isFinite(maximum) || maximum <= 0) return '#8d8d8d';
+  const ratio = Math.max(0, Math.min(1, current / maximum));
+  // 0% is red, 50% amber, and 100% green.
+  return `hsl(${Math.round(ratio * 120)} 62% 35%)`;
+}
+
+function armorCell(loc, label, armor, armorMax, structure, structureMax) {
+  if (!label) return '<div></div>';
+  const armorColour = damageColour(armor, armorMax);
+  const structureColour = damageColour(structure, structureMax);
+  const ratio = Math.min(
+    Number.isFinite(armor) && Number.isFinite(armorMax) && armorMax > 0 ? armor / armorMax : 1,
+    Number.isFinite(structure) && Number.isFinite(structureMax) && structureMax > 0 ? structure / structureMax : 1
+  );
+  const background = `hsla(${Math.round(Math.max(0, Math.min(1, ratio)) * 120)} 62% 45% / .10)`;
+  return `<div class="armor-cell" style="background:${background}" title="Armour ${armor ?? '—'} / ${armorMax ?? '—'} · Internal structure ${structure ?? '—'} / ${structureMax ?? '—'}"><span class="loc">${label}</span><span class="val"><span style="color:${armorColour}">A ${armor ?? '—'} / ${armorMax ?? '—'}</span><br><span style="color:${structureColour}">I ${structure ?? '—'} / ${structureMax ?? '—'}</span></span></div>`;
 }
 
 function renderDetail() {
@@ -89,11 +104,12 @@ function renderDetail() {
     <div class="stat-grid">
       ${unit.weapons.map(w => `<div class="k">${w.key.replace('_',' ')}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
     </div>
-    <div class="panel-eyebrow" style="margin-top:14px;">Armor / Structure</div>
+    <div class="panel-eyebrow" style="margin-top:14px;">Armour / Internal Structure</div>
+    <div style="font-size:9px;color:var(--phosphor-dim);margin:-8px 0 6px;">A = current / maximum armour · I = current / maximum internal structure</div>
     <div class="armor-diagram">
-      ${armorCell('la','LA', inst.armor.la, inst.structure.la)}${armorCell('h','HD', inst.armor.head, inst.structure.head)}${armorCell('ra','RA', inst.armor.ra, inst.structure.ra)}
-      ${armorCell('lt','LT', inst.armor.lt, inst.structure.lt)}${armorCell('ct','CT', inst.armor.ct, inst.structure.ct)}${armorCell('rt','RT', inst.armor.rt, inst.structure.rt)}
-      ${armorCell('ll','LL', inst.armor.ll, inst.structure.ll)}${armorCell('','', null, null)}${armorCell('rl','RL', inst.armor.rl, inst.structure.rl)}
+      ${armorCell('la','LA', inst.armor.la, unit.armor.la, inst.structure.la, unit.structure.la)}${armorCell('h','HD', inst.armor.head, unit.armor.head, inst.structure.head, unit.structure.head)}${armorCell('ra','RA', inst.armor.ra, unit.armor.ra, inst.structure.ra, unit.structure.ra)}
+      ${armorCell('lt','LT', inst.armor.lt, unit.armor.lt, inst.structure.lt, unit.structure.lt)}${armorCell('ct','CT', inst.armor.ct, unit.armor.ct, inst.structure.ct, unit.structure.ct)}${armorCell('rt','RT', inst.armor.rt, unit.armor.rt, inst.structure.rt, unit.structure.rt)}
+      ${armorCell('ll','LL', inst.armor.ll, unit.armor.ll, inst.structure.ll, unit.structure.ll)}${armorCell('','', null, null, null, null)}${armorCell('rl','RL', inst.armor.rl, unit.armor.rl, inst.structure.rl, unit.structure.rl)}
     </div>
   `;
 }
