@@ -9,3 +9,4 @@ let playersSubscription = null;
 let gameStateSubscription = null;
 // Lobby-created settings must survive the phase engine's full state snapshots.
 let currentMatchConfig = {};
+let lobbyClosureInProgress = false;

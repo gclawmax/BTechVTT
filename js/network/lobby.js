@@ -1,6 +1,7 @@
 // ── LOBBY MANAGEMENT ─────────────────────────────────────
 async function loadLobby() {
   if (!currentGameId) return;
+  lobbyClosureInProgress = false;
 
   // Subscribe to game changes
   if (gameSubscription) gameSubscription.unsubscribe();
@@ -9,6 +10,10 @@ async function loadLobby() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'btech_games', filter: `id=eq.${currentGameId}` },
       (payload) => {
         console.log('[BT-DIAG] lobby game update', payload.new?.status, payload.new?.id);
+        if (payload.eventType === 'DELETE') {
+          handleLobbyClosed();
+          return;
+        }
         if (payload.eventType === 'UPDATE' && payload.new.status === 'in-progress') {
           startGameScreen();
         } else {
@@ -37,11 +42,22 @@ async function loadLobbyUI() {
   if (!currentGameId) return;
 
   // Get game info
-  const { data: game } = await db
+  const { data: game, error: gameError } = await db
     .from('btech_games')
     .select('game_code,state')
     .eq('id', currentGameId)
     .single();
+
+  // A cascading player-delete event can arrive before the game DELETE event.
+  // Treat a missing game row as a closed lobby in either order.
+  if (!game && gameError?.code === 'PGRST116') {
+    await handleLobbyClosed();
+    return;
+  }
+  if (!game) {
+    console.warn('Unable to refresh lobby:', gameError);
+    return;
+  }
 
   if (game) {
     document.getElementById('lobby-code').textContent = game.game_code;
@@ -145,6 +161,23 @@ async function loadLobbyUI() {
       ? `${playerCount}/2 players in lobby`
       : `${playerCount}/2 human players in lobby${playerCount < 2 ? ' — waiting for an opponent' : ''}`;
   }
+}
+
+function stopLobbySubscriptions() {
+  if (gameSubscription) { gameSubscription.unsubscribe(); gameSubscription = null; }
+  if (playersSubscription) { playersSubscription.unsubscribe(); playersSubscription = null; }
+}
+
+async function handleLobbyClosed() {
+  if (lobbyClosureInProgress) return;
+  lobbyClosureInProgress = true;
+  stopLobbySubscriptions();
+  currentGameId = null;
+  isHost = false;
+  isReady = false;
+  mySeatNumber = null;
+  alert('The host has closed this room. You have been returned to the Dropship.');
+  await showMainMenu();
 }
 
 function supportedUnitEntries() {
@@ -338,8 +371,7 @@ function buildRosterInstances(rosters) {
 }
 
 function startGameScreen() {
-  if (gameSubscription) { gameSubscription.unsubscribe(); gameSubscription = null; }
-  if (playersSubscription) { playersSubscription.unsubscribe(); playersSubscription = null; }
+  stopLobbySubscriptions();
 
   showScreen('game-screen');
   initGame();
@@ -416,6 +448,11 @@ function subscribeGameStateSync() {
 async function handleLeaveLobby() {
   if (!currentGameId) return;
 
+  // The host intentionally closes the room below. Stop listening first so
+  // their own DELETE event does not display the room-closed notice.
+  lobbyClosureInProgress = true;
+  stopLobbySubscriptions();
+
   // A host deletes the game itself; its player rows are removed by the
   // btech_players.game_id ON DELETE CASCADE relationship.
   if (isHost) {
@@ -425,12 +462,16 @@ async function handleLeaveLobby() {
       .eq('id', currentGameId);
     if (clearError) {
       console.error('Failed to clear game turn references before leaving:', clearError);
+      lobbyClosureInProgress = false;
+      await loadLobby();
       return;
     }
 
     const { error: deleteError } = await db.from('btech_games').delete().eq('id', currentGameId);
     if (deleteError) {
       console.error('Failed to delete hosted game:', deleteError);
+      lobbyClosureInProgress = false;
+      await loadLobby();
       return;
     }
   } else if (currentUser) {
@@ -444,5 +485,7 @@ async function handleLeaveLobby() {
   currentGameId = null;
   isHost = false;
   isReady = false;
+  mySeatNumber = null;
+  lobbyClosureInProgress = false;
   showScreen('menu-screen');
 }
