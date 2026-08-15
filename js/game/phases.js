@@ -71,9 +71,10 @@ async function loadGameState() {
     ...(typeof gameState.vs_ai_mode === 'boolean' ? { vs_ai_mode: gameState.vs_ai_mode } : {}),
     ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {})
   };
-  // Rejoining an AI game must restore AI-specific controls, even though the
-  // local vsAiMode flag begins false in a fresh browser session.
-  if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
+  // Always derive this from the loaded game. Otherwise an AI game visited in
+  // the same tab can leave AI-only controls visible in a human game created
+  // before the flag existed in saved state.
+  vsAiMode = gameState.vs_ai_mode === true;
   if (!vsAiMode && currentUser?.id) {
     const { data: myPlayer } = await db.from('btech_players')
       .select('id').eq('game_id', currentGameId).eq('user_id', currentUser.id).eq('role', 'player').maybeSingle();
@@ -158,7 +159,10 @@ function updateGameHeader() {
 
   const autoControl = document.getElementById('auto-ai-phase-control');
   const autoCheckbox = document.getElementById('auto-ai-phase-checkbox');
-  if (autoControl) autoControl.hidden = !vsAiMode;
+  if (autoControl) {
+    autoControl.hidden = !vsAiMode;
+    autoControl.style.display = vsAiMode ? 'inline-flex' : 'none';
+  }
   if (autoCheckbox) autoCheckbox.checked = autoAdvanceAfterAi;
   updateInitiativeButtonState();
 }
