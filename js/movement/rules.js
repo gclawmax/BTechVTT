@@ -82,16 +82,16 @@ function initGame() {
   if (vsAiMode) {
     // AI mode: Player 1 gets Atlas, AI (owner 2) gets Hunchback + Locust
     mechInstances = [
-      { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0, torsoFacing: 0 },
-      { instanceId: 'hunchback-ai', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 3, torsoFacing: 3 },
-      { instanceId: 'locust-ai', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 2, torsoFacing: 2 }
+      { instanceId: 'atlas-1', unitId: 'atlas-as7-d', col: 4, row: 5, owner: 1, facing: 0, torsoFacing: 0 },
+      { instanceId: 'hunchback-ai', unitId: 'hunchback-hbk-4g', col: 9, row: 7, owner: 2, facing: 3, torsoFacing: 3 },
+      { instanceId: 'locust-ai', unitId: 'locust-lct-1v', col: 10, row: 4, owner: 2, facing: 2, torsoFacing: 2 }
     ];
   } else {
     // Multiplayer demo: 3 units for 2 players
     mechInstances = [
-      { instanceId: 'atlas-1', unitId: 'atlas', col: 4, row: 5, owner: 1, facing: 0, torsoFacing: 0 },
-      { instanceId: 'hunchback-1', unitId: 'hunchback', col: 9, row: 7, owner: 2, facing: 3, torsoFacing: 3 },
-      { instanceId: 'locust-1', unitId: 'locust', col: 10, row: 4, owner: 2, facing: 2, torsoFacing: 2 }
+      { instanceId: 'atlas-1', unitId: 'atlas-as7-d', col: 4, row: 5, owner: 1, facing: 0, torsoFacing: 0 },
+      { instanceId: 'hunchback-1', unitId: 'hunchback-hbk-4g', col: 9, row: 7, owner: 2, facing: 3, torsoFacing: 3 },
+      { instanceId: 'locust-1', unitId: 'locust-lct-1v', col: 10, row: 4, owner: 2, facing: 2, torsoFacing: 2 }
     ];
   }
   // Movement bookkeeping fields, reset each round when the Movement Phase begins.
