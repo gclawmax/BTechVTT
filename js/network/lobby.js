@@ -430,6 +430,10 @@ function subscribeGameStateSync() {
         // Don't clobber a move currently in progress locally
         if (gs.mech_instances && !moveState.active) {
           mechInstances = gs.mech_instances;
+          // The compact multiplayer state stores only unit placement and
+          // action flags. Restore derived combat fields before any panel can
+          // inspect armour or structure after a realtime update.
+          mechInstances.forEach(ensureMechCombatState);
           if (selectedInstanceId && !mechInstances.some(m => m.instanceId === selectedInstanceId)) {
             selectedInstanceId = null;
           }

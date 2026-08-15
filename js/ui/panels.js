@@ -58,6 +58,13 @@ function renderDetail() {
     body.innerHTML = 'No unit selected. Click a token on the map, or an entry in the roster above.';
     return;
   }
+  // Realtime game snapshots can contain the compact unit representation.
+  // Keep this panel safe even if a snapshot arrives between render passes.
+  if (!ensureMechCombatState(inst)) {
+    body.className = 'no-selection';
+    body.textContent = 'This unit is not supported by the current catalogue.';
+    return;
+  }
   const unit = BT_UNITS[inst.unitId];
   const axial = offsetToAxial(inst.col, inst.row);
   body.className = '';
