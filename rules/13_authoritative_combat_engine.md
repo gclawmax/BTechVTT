@@ -22,7 +22,8 @@ all follow-up checks.
 
 ## Delivery order
 
-1. Server-side declaration/event and random-dice foundation.
+1. Server-side declaration/event and random-dice foundation. Declarations are
+   now accepted only from the active player and persisted in the combat ledger.
 2. Standard direct-fire weapons: legal arcs/range/minimum range, ammunition,
    grouped damage, locations, transfer, and critical checks.
 3. Missile cluster resolution and ammunition-bin selection.
