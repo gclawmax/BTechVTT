@@ -81,3 +81,6 @@ cd BTechVTT
 ## License
 
 Private repository — all rights reserved.
+
+Some supported unit records are derived from MegaMek Data and are separately
+provided under CC BY-NC-SA 4.0; see [MegaMek data attribution](docs/MEGAMEK_ATTRIBUTION.md).

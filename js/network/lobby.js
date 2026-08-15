@@ -85,11 +85,14 @@ async function loadLobbyUI() {
         const readyText = player.ready ? 'READY' : 'NOT READY';
         const currentTag = isCurrentPlayer ? ' (you)' : '';
         const aiTag = isAI ? ' 🤖' : '';
+        const rosterSummary = !isAI && !vsAiMode && gameState.map_id
+          ? `<div class="seat-roster">${rosterSummaryForSeat(gameState, player.seat_number)}</div>`
+          : '';
 
         row.className = 'seat-row';
         row.innerHTML = `
           <div class="seat-number">${i + 1}</div>
-          <div class="seat-name">${username}${aiTag}${currentTag}</div>
+          <div class="seat-name">${username}${aiTag}${currentTag}${rosterSummary}</div>
           <div class="seat-status ${isReadyClass}">${readyText}</div>
         `;
       } else {
@@ -155,6 +158,17 @@ function rosterTonnage(roster) {
 function isRosterLegal(roster, tonnageLimit) {
   const units = roster || [];
   return units.length > 0 && units.every(isSupportedUnit) && rosterTonnage(units) <= Number(tonnageLimit || 0);
+}
+
+function rosterSummaryForSeat(gameState, seatNumber) {
+  const roster = gameState.rosters?.[String(seatNumber)] || [];
+  const names = roster.map(unitId => {
+    const unit = getSupportedUnit(unitId);
+    return unit ? `${unit.chassis} ${unit.variant}` : unitId;
+  });
+  return names.length
+    ? `Roster: ${names.join(', ')} · ${rosterTonnage(roster)} tons`
+    : 'Roster: not selected';
 }
 
 function renderLobbyMatchSetup(gameState, players) {
@@ -291,8 +305,16 @@ async function handleStartGame() {
 
 function buildRosterInstances(rosters) {
   const deployment = {
-    1: [{ col: 4, row: 5, facing: 0 }, { col: 3, row: 6, facing: 0 }, { col: 4, row: 7, facing: 0 }],
-    2: [{ col: 11, row: 5, facing: 3 }, { col: 12, row: 6, facing: 3 }, { col: 11, row: 7, facing: 3 }]
+    1: [
+      { col: 4, row: 4, facing: 0 }, { col: 3, row: 5, facing: 0 },
+      { col: 4, row: 6, facing: 0 }, { col: 3, row: 7, facing: 0 },
+      { col: 4, row: 8, facing: 0 }, { col: 5, row: 6, facing: 0 }
+    ],
+    2: [
+      { col: 11, row: 4, facing: 3 }, { col: 12, row: 5, facing: 3 },
+      { col: 11, row: 6, facing: 3 }, { col: 12, row: 7, facing: 3 },
+      { col: 11, row: 8, facing: 3 }, { col: 10, row: 6, facing: 3 }
+    ]
   };
   return [1, 2].flatMap(seat => (rosters?.[String(seat)] || []).map((unitId, index) => {
     const position = deployment[seat][index];

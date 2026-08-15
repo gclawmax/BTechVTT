@@ -405,6 +405,13 @@ html, body {
   flex: 1;
 }
 
+.seat-roster {
+  margin-top: 3px;
+  color: var(--phosphor-dim);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
 .seat-status {
   font-size: 10px;
   color: var(--phosphor-dim);
