@@ -5,6 +5,13 @@
 
 let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [] };
 
+// A weapon type is not a unique mount: e.g. a Marauder carries PPCs in both
+// arms.  Selection must identify the specific catalogue entry, not just its
+// weapon key, so the player can fire either arm independently.
+function weaponMountId(entry, index) {
+  return `${entry.key}:${entry.location}:${index}`;
+}
+
 function weaponDirectionTo(attacker, target) {
   let bestDirection = 0;
   let bestDistance = Infinity;
@@ -131,11 +138,11 @@ function selectWeaponTarget(instanceId) {
   renderWeaponAttackPanel();
 }
 
-function toggleWeaponForAttack(weaponKey) {
+function toggleWeaponForAttack(mountId) {
   const selected = weaponAttackState.weaponKeys;
-  weaponAttackState.weaponKeys = selected.includes(weaponKey)
-    ? selected.filter(key => key !== weaponKey)
-    : [...selected, weaponKey];
+  weaponAttackState.weaponKeys = selected.includes(mountId)
+    ? selected.filter(id => id !== mountId)
+    : [...selected, mountId];
   renderWeaponAttackPanel();
 }
 
@@ -207,7 +214,9 @@ async function confirmWeaponAttack() {
     mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!attacker || attacker.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || attacker.hasFired) return;
   const target = mechInstances.find(m => m.instanceId === weaponAttackState.targetId);
-  const selectedWeapons = BT_UNITS[attacker.unitId].weapons.filter(w => weaponAttackState.weaponKeys.includes(w.key));
+  const selectedWeapons = BT_UNITS[attacker.unitId].weapons.filter((entry, index) =>
+    weaponAttackState.weaponKeys.includes(weaponMountId(entry, index))
+  );
   if (selectedWeapons.length && !target) {
     flashMoveWarning('Choose a target before confirming weapon attacks.');
     return;
@@ -277,14 +286,15 @@ function renderWeaponAttackPanel() {
   }
 
   const enemies = mechInstances.filter(m => m.owner !== attacker.owner && !m.destroyed);
-  const weaponRows = BT_UNITS[attacker.unitId].weapons.map(entry => {
-    const checked = weaponAttackState.weaponKeys.includes(entry.key);
+  const weaponRows = BT_UNITS[attacker.unitId].weapons.map((entry, index) => {
+    const mountId = weaponMountId(entry, index);
+    const checked = weaponAttackState.weaponKeys.includes(mountId);
     const evaluation = target ? evaluateWeaponAttack(attacker, target, entry) : null;
     const disabled = target && !evaluation.valid;
     const weapon = BT_WEAPONS[entry.key];
     const countLabel = entry.count > 1 ? ` ×${entry.count}` : '';
     const heat = weapon ? weapon.heat * entry.count : '?';
-    return `<button onclick="toggleWeaponForAttack('${entry.key}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} dmg / ${heat} heat · ${entry.location}${evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>`;
+    return `<button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} dmg / ${heat} heat · ${entry.location}${evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>`;
   }).join('');
 
   panel.innerHTML = `
