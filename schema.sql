@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS btech_combat_events (
   target_instance_id TEXT,
   declaration JSONB NOT NULL DEFAULT '{}',
   resolution JSONB,
-  status TEXT NOT NULL DEFAULT 'declared' CHECK (status IN ('declared', 'resolved', 'rejected')),
+  status TEXT NOT NULL DEFAULT 'declared' CHECK (status IN ('declared', 'rolled', 'resolved', 'rejected')),
   declared_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at TIMESTAMPTZ,
   UNIQUE (game_id, round, phase, sequence)
