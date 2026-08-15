@@ -208,10 +208,21 @@ async function toggleRosterUnit(unitId) {
   else if (rosterTonnage(roster) + getSupportedUnit(unitId).tonnage <= Number(state.dropship_tonnage)) roster.push(unitId);
   else return;
   state.rosters = { ...(state.rosters || {}), [rosterKey]: roster };
-  const { error: updateError } = await db.from('btech_games').update({ state: JSON.stringify(state) }).eq('id', currentGameId);
-  if (updateError) return;
+  const { error: updateError } = await db.rpc('update_lobby_roster', {
+    p_game_id: currentGameId,
+    p_roster: roster
+  });
+  if (updateError) {
+    console.error('Failed to save lobby roster:', updateError);
+    document.getElementById('lobby-status').textContent = 'Roster could not be saved. Please refresh and try again.';
+    return;
+  }
   isReady = false;
-  await db.from('btech_players').update({ ready: false }).eq('game_id', currentGameId).eq('user_id', currentUser.id);
+  const { error: readyError } = await db.from('btech_players')
+    .update({ ready: false })
+    .eq('game_id', currentGameId)
+    .eq('user_id', currentUser.id);
+  if (readyError) console.error('Failed to clear readiness after roster change:', readyError);
   await loadLobbyUI();
 }
 
