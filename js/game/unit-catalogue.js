@@ -6,37 +6,42 @@ const BT_UNIT_CATALOGUE = Object.freeze({
   'atlas-as7-d': {
     chassis: 'Atlas', variant: 'AS7-D', tonnage: 100, color: '#c4302b',
     movement: { walk: 3, run: 5, jump: 0 },
-    heat_sinks: 20, heat_sink_type: 'double',
+    heat_sinks: 20, heat_sink_type: 'single',
     weapons: [
-      { key: 'ac20', count: 1, location: 'Right Arm' },
-      { key: 'lr20', count: 1, location: 'Right Torso' },
+      { key: 'med_laser', count: 1, location: 'Left Arm' },
+      { key: 'med_laser', count: 1, location: 'Right Arm' },
+      { key: 'lr20', count: 1, location: 'Left Torso' },
       { key: 'sr6', count: 1, location: 'Left Torso' },
-      { key: 'med_laser', count: 4, location: 'Center Torso' }
+      { key: 'ac20', count: 1, location: 'Right Torso' },
+      { key: 'med_laser', count: 1, location: 'Center Torso' },
+      { key: 'med_laser', count: 1, location: 'Center Torso' }
     ],
     armor: { head:9, ct:47, ct_rear:14, lt:32, lt_rear:10, rt:32, rt_rear:10, la:34, ra:34, ll:41, rl:41 },
     structure: { head:3, ct:31, lt:21, rt:21, la:17, ra:17, ll:21, rl:21 }
   },
   'hunchback-hbk-4g': {
     chassis: 'Hunchback', variant: 'HBK-4G', tonnage: 50, color: '#d4800a',
-    movement: { walk: 3, run: 5, jump: 0 },
+    movement: { walk: 4, run: 6, jump: 0 },
     heat_sinks: 10, heat_sink_type: 'single',
     weapons: [
-      { key: 'erl', count: 1, location: 'Center Torso' },
-      { key: 'lr6', count: 1, location: 'Right Torso' },
-      { key: 'ac2', count: 1, location: 'Right Arm' }
+      { key: 'med_laser', count: 1, location: 'Left Arm' },
+      { key: 'med_laser', count: 1, location: 'Right Arm' },
+      { key: 'ac20', count: 1, location: 'Right Torso' },
+      { key: 'small_laser', count: 1, location: 'Head' }
     ],
-    armor: { head:9, ct:19, ct_rear:5, lt:14, lt_rear:4, rt:14, rt_rear:4, la:9, ra:9, ll:14, rl:14 },
+    armor: { head:9, ct:26, ct_rear:5, lt:20, lt_rear:4, rt:20, rt_rear:4, la:16, ra:16, ll:20, rl:20 },
     structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
   },
   'locust-lct-1v': {
     chassis: 'Locust', variant: 'LCT-1V', tonnage: 20, color: '#2a8a2a',
-    movement: { walk: 3, run: 5, jump: 6 },
-    heat_sinks: 4, heat_sink_type: 'single',
+    movement: { walk: 8, run: 12, jump: 0 },
+    heat_sinks: 10, heat_sink_type: 'single',
     weapons: [
-      { key: 'erl', count: 1, location: 'Center Torso' },
-      { key: 'streak_sr4', count: 1, location: 'Left Torso' }
+      { key: 'machine_gun', count: 1, location: 'Left Arm' },
+      { key: 'machine_gun', count: 1, location: 'Right Arm' },
+      { key: 'med_laser', count: 1, location: 'Center Torso' }
     ],
-    armor: { head:8, ct:10, ct_rear:4, lt:6, lt_rear:3, rt:6, rt_rear:3, la:4, ra:4, ll:6, rl:6 },
+    armor: { head:8, ct:10, ct_rear:2, lt:8, lt_rear:2, rt:8, rt_rear:2, la:4, ra:4, ll:8, rl:8 },
     structure: { head:3, ct:6, lt:5, rt:5, la:3, ra:3, ll:4, rl:4 }
   },
   'marauder-mad-3r': {
@@ -123,6 +128,7 @@ const BT_WEAPONS = {
   sr6:        { name: 'SRM-6', damage: 6, heat: 4, range: [3, 6, 9] },
   med_laser:  { name: 'Medium Laser', damage: 5, heat: 3, range: [3, 6, 9] },
   small_laser: { name: 'Small Laser', damage: 3, heat: 1, range: [1, 2, 3] },
+  machine_gun: { name: 'Machine Gun', damage: 2, heat: 0, range: [1, 2, 3] },
   large_laser: { name: 'Large Laser', damage: 8, heat: 8, range: [5, 10, 15] },
   ppc:        { name: 'PPC', damage: 10, heat: 10, range: [3, 6, 12] },
   ac5:        { name: 'AC/5', damage: 5, heat: 1, range: [6, 12, 18] },
