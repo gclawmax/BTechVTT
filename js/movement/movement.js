@@ -32,6 +32,18 @@ async function syncMechInstances() {
   const mechSnapshot = mechInstances.map(mech => ({ ...mech }));
   try {
     await queueGameStateWrite(async () => {
+      // In a human game, only the player currently taking the turn may save
+      // their own units. The RPC preserves the opponent's units and advances
+      // the turn/phase once this seat has completed its required actions.
+      if (!vsAiMode) {
+        const { error } = await db.rpc('submit_phase_state', {
+          p_game_id: currentGameId,
+          p_mech_instances: mechSnapshot
+        });
+        if (error) throw error;
+        await loadGameState();
+        return;
+      }
       const { data: game, error: readError } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
       if (readError) throw readError;
       const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};

@@ -13,6 +13,7 @@ const AUTO_ADVANCE_AI_STORAGE_KEY = 'btech-vtt-auto-advance-after-ai';
 let autoAdvanceAfterAi = localStorage.getItem(AUTO_ADVANCE_AI_STORAGE_KEY) === 'true';
 let autoAdvanceRetryTimer = null;
 let scheduledAiTurnKey = null;
+let myInitiativePlayerId = null;
 
 let currentGameState = {
   round: 1,
@@ -22,6 +23,7 @@ let currentGameState = {
   initiative_order: [],
   initiative_rolls: [],
   initiative_round: null, // which round's initiative_order is currently valid for — gates phase advancement
+  initiative_pending: [],
   match_result: null
 };
 
@@ -72,6 +74,11 @@ async function loadGameState() {
   // Rejoining an AI game must restore AI-specific controls, even though the
   // local vsAiMode flag begins false in a fresh browser session.
   if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
+  if (!vsAiMode && currentUser?.id) {
+    const { data: myPlayer } = await db.from('btech_players')
+      .select('id').eq('game_id', currentGameId).eq('user_id', currentUser.id).eq('role', 'player').maybeSingle();
+    myInitiativePlayerId = myPlayer?.id || null;
+  }
 
   currentGameState = {
     round: game.current_round || 1,
@@ -83,6 +90,7 @@ async function loadGameState() {
     initiative_order: gameState.initiative_order || [],
     initiative_rolls: gameState.initiative_rolls || [],
     initiative_round: gameState.initiative_round ?? null,
+    initiative_pending: gameState.initiative_pending || [],
     match_result: gameState.match_result || null
   };
   // Backward-compatible recovery for games created before the explicit
@@ -162,9 +170,16 @@ function updateInitiativeButtonState() {
   // outside that phase keeps the shared-game header focused on current play.
   initBtn.hidden = currentGameState.phase !== 'initiative';
   const alreadyRolled = currentGameState.initiative_round === currentGameState.round;
-  const canRoll = isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result;
+  const iHaveRolled = currentGameState.initiative_pending.some(roll =>
+    (typeof roll === 'string' ? roll : roll.player_id) === myInitiativePlayerId
+  );
+  const canRoll = vsAiMode
+    ? isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
+    : mySeatNumber != null && currentGameState.phase === 'initiative' && !alreadyRolled && !iHaveRolled && !currentGameState.match_result;
   initBtn.disabled = !canRoll;
-  initBtn.title = canRoll ? 'Host rolls initiative for both players.' : isHost ? 'Initiative has already been rolled this round.' : 'The host rolls initiative for both players.';
+  initBtn.title = canRoll
+    ? (vsAiMode ? 'Roll initiative for both sides.' : 'Roll your own 2D6 initiative.')
+    : (alreadyRolled ? 'Initiative has already been resolved this round.' : 'Waiting for the other player to roll initiative.');
 }
 
 function setAutoAdvanceAfterAi(enabled) {
@@ -257,7 +272,43 @@ function renderInitiativeDisplay() {
 // Roll initiative for ALL players (human + AI) using 2D6
 // BattleTech convention: highest roll goes SECOND
 async function rollInitiative() {
-  if (!currentGameId || !isHost || currentGameState.match_result) return;
+  if (!currentGameId || currentGameState.match_result) return;
+
+  // Human-versus-human initiative is deliberately submitted separately by
+  // each seat. The database resolves the order only after both rolls arrive.
+  if (!vsAiMode) {
+    const { data: me, error: meError } = await db.from('btech_players')
+      .select('id,seat_number')
+      .eq('game_id', currentGameId).eq('user_id', currentUser.id).eq('role', 'player').maybeSingle();
+    if (meError || !me) {
+      logEvent(`Unable to identify your player seat: ${meError?.message || 'seat not found'}`, 'error');
+      return;
+    }
+    myInitiativePlayerId = me.id;
+    if (currentGameState.initiative_pending.some(roll => (typeof roll === 'string' ? roll : roll.player_id) === me.id)) return;
+    const dice = roll2d6Detailed();
+    const { data, error } = await db.rpc('submit_initiative_roll', {
+      p_game_id: currentGameId,
+      p_die_a: dice.dieA,
+      p_die_b: dice.dieB
+    });
+    if (error) {
+      logEvent(`Failed to submit initiative: ${error.message}`, 'error');
+      return;
+    }
+    const result = data || {};
+    if (result.status === 'tie') {
+      logEvent(`Initiative tie — ${result.summary || 'both players rolled the same total'}. Both players re-roll.`, 'roll');
+    } else if (result.status === 'resolved') {
+      logEvent(`Initiative resolved — ${result.summary}`, 'roll');
+    } else {
+      logEvent(`Initiative rolled — P${me.seat_number}=${dice.dieA} + ${dice.dieB} = ${dice.total}. Waiting for the other player.`, 'roll');
+    }
+    await loadGameState();
+    return;
+  }
+
+  if (!isHost) return;
 
   // Get all players (including AI)
   const { data: players } = await db
@@ -536,6 +587,10 @@ function canAdvancePhase() {
 function updateAdvanceButtonState() {
   const btn = document.getElementById('btn-advance-phase');
   if (!btn) return;
+  // Human games advance automatically once each seat confirms its actions.
+  // The button remains an AI-testing aid only.
+  btn.hidden = !vsAiMode;
+  if (!vsAiMode) return;
   const check = canAdvancePhase();
   btn.disabled = !check.ok;
   btn.title = check.ok ? 'Advance to the next phase' : check.reason;

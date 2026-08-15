@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS btech_initiative (
   round INT NOT NULL,
   player_id UUID REFERENCES btech_players(id) ON DELETE CASCADE NOT NULL,
   roll NUMERIC NOT NULL,          -- e.g. 2d6, or your die + seat-tiebreak scheme
+  die_a SMALLINT,
+  die_b SMALLINT,
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (game_id, round, player_id)
 );
