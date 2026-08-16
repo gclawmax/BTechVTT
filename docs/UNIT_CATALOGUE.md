@@ -15,14 +15,18 @@ The scalable source is the versioned database catalogue introduced by
 remain developer-local and ignored by Git.
 
 This separates MegaMek discovery data, reviewed supported content and mutable
-match state. The lobby, record sheets and authoritative direct-fire resolver
-read the pinned versioned tables. The six browser definitions remain only for
-old unpinned saves and the AI testing mode.
+match state. The lobby, record sheets and authoritative resolver read the
+pinned versioned tables. The six browser definitions remain for AI testing.
 
-`btech_games.catalogue_version` pins a match to one immutable release. Existing
-matches remain nullable during the compatibility transition; every new human
-lobby sets it when created. `SQL/18_pin_versioned_catalogue.sql` prevents a
-pinned match from being repointed to different definitions.
+`btech_games.catalogue_version` pins a match to one immutable release. Every
+new human lobby sets it when created. `SQL/18_pin_versioned_catalogue.sql`
+prevents a pinned match from being repointed to different definitions. Current
+development builds do not support continuing old unpinned matches.
 
-Prototype IDs used in earlier saved games are translated through
-`BT_UNIT_ID_ALIASES`, so existing games continue to load during the migration.
+The `megamek-2026-08-missiles-01` release adds explicit per-missile damage to
+supported LRM/SRM mount definitions. Install its generated content pack before
+testing authoritative missile attacks; new lobbies automatically choose it as
+the latest release.
+
+Prototype ID aliases remain only as inexpensive developer diagnostics; they do
+not make old matches supported gameplay data.

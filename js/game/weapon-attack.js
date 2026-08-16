@@ -3,13 +3,21 @@
 // standard weapons in BT_WEAPONS.  Critical-hit slot damage and primary
 // component effects are resolved from the BattleMech record sheet.
 
-let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [] };
+let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
 
 // A weapon type is not a unique mount: e.g. a Marauder carries PPCs in both
 // arms.  Selection must identify the specific catalogue entry, not just its
 // weapon key, so the player can fire either arm independently.
 function weaponMountId(entry, index) {
   return entry.mountId || `${entry.key}:${entry.location}:${index}`;
+}
+
+function compatibleAmmoBins(attacker, weaponEntry) {
+  const ammoType = BT_WEAPONS[weaponEntry.key]?.ammoType;
+  if (!ammoType) return [];
+  return (attacker.ammoBins || []).filter(bin =>
+    bin.type === ammoType && bin.shots > 0 && !bin.destroyed
+  );
 }
 
 function weaponDirectionTo(attacker, target) {
@@ -37,13 +45,32 @@ function movementToHitModifier(mech) {
 
 function targetMovementModifier(mech) {
   const moved = mech.hexesMoved || 0;
-  let modifier = moved >= 10 ? 4 : moved >= 7 ? 3 : moved >= 5 ? 2 : moved >= 3 ? 1 : 0;
+  let modifier = moved >= 25 ? 6 : moved >= 18 ? 5 : moved >= 10 ? 4 : moved >= 7 ? 3 : moved >= 5 ? 2 : moved >= 3 ? 1 : 0;
   if (mech.movementMode === 'jump') modifier += 1;
   return modifier;
 }
 
+function weaponComponentToHitModifier(mech, weaponEntry) {
+  const location = criticalLocationKey(weaponEntry.location);
+  if (!['la', 'ra'].includes(location)) return 0;
+  const layout = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [];
+  const damaged = mech.criticalSlotDamage?.[location] || [];
+  if (damaged.some(index => criticalSlotName(layout[index]) === 'Shoulder')) return 4;
+  return damaged.filter(index => ['Upper Arm Actuator', 'Lower Arm Actuator'].includes(criticalSlotName(layout[index]))).length;
+}
+
+function weaponHeatToHitModifier(mech) {
+  const heat = (mech.roundStartingHeat || 0) + (mech.movementHeat || 0);
+  return heat >= 24 ? 4 : heat >= 17 ? 3 : heat >= 13 ? 2 : heat >= 8 ? 1 : 0;
+}
+
 function weaponRangeModifier(weapon, distance) {
-  if (distance <= weapon.range[0]) return { label: 'Short', modifier: 0 };
+  if (distance <= weapon.range[0]) {
+    const minimum = weapon.minimumRange && distance <= weapon.minimumRange
+      ? weapon.minimumRange - distance + 1
+      : 0;
+    return { label: minimum ? 'Minimum' : 'Short', modifier: minimum };
+  }
   if (distance <= weapon.range[1]) return { label: 'Medium', modifier: 2 };
   if (distance <= weapon.range[2]) return { label: 'Long', modifier: 4 };
   return null;
@@ -109,21 +136,23 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const woods = woodsBetween(attacker, target);
   if (woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
   const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
+  const critical = criticalToHitModifier(attacker) + weaponComponentToHitModifier(attacker, weaponEntry);
+  const heat = weaponHeatToHitModifier(attacker);
   return {
     valid: true,
     weapon,
     distance,
     range,
-    targetNumber: 4 + attackerMove + targetMove + range.modifier + woods + targetWoods + criticalToHitModifier(attacker),
+    targetNumber: 4 + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat,
     attackAngle: attackDirection(attacker, target),
-    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${criticalToHitModifier(attacker) ? ` + sensors ${criticalToHitModifier(attacker)}` : ''}`
+    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}`
   };
 }
 
 function selectWeaponAttacker(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || mech.hasFired) return;
-  weaponAttackState = { attackerId: instanceId, targetId: null, weaponKeys: [] };
+  weaponAttackState = { attackerId: instanceId, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
   selectedInstanceId = instanceId;
   logEvent(`${mechLabel(mech)} selected for weapon attack declaration.`, 'system');
   renderRoster();
@@ -137,15 +166,30 @@ function selectWeaponTarget(instanceId) {
   if (!target || target.destroyed) return;
   weaponAttackState.targetId = instanceId;
   weaponAttackState.weaponKeys = [];
+  weaponAttackState.ammoBinsByMount = {};
   renderWeaponAttackPanel();
 }
 
 function toggleWeaponForAttack(mountId) {
+  const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
+  const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
   const selected = weaponAttackState.weaponKeys;
-  weaponAttackState.weaponKeys = selected.includes(mountId)
-    ? selected.filter(id => id !== mountId)
-    : [...selected, mountId];
+  if (selected.includes(mountId)) {
+    weaponAttackState.weaponKeys = selected.filter(id => id !== mountId);
+    delete weaponAttackState.ammoBinsByMount[mountId];
+  } else {
+    weaponAttackState.weaponKeys = [...selected, mountId];
+    const bins = entry ? compatibleAmmoBins(attacker, entry) : [];
+    if (bins.length) weaponAttackState.ammoBinsByMount[mountId] = bins[0].id;
+  }
   renderWeaponAttackPanel();
+}
+
+function selectAmmoBinForMount(mountId, binId) {
+  const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
+  const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
+  if (!entry || !compatibleAmmoBins(attacker, entry).some(bin => bin.id === binId)) return;
+  weaponAttackState.ammoBinsByMount[mountId] = binId;
 }
 
 function roll2d6() {
@@ -218,22 +262,34 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
   if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
-  const criticals = (result.critical_checks || []).map(check =>
+  const formatCriticals = checks => (checks || []).map(check =>
     ` Critical check ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.${(check.events || []).map(event =>
       event.special === 'blown_off' ? ` ${hitLocationLabel(event.location)} blown off.` :
         event.ammo_explosion ? ` ${event.ammo_explosion} ammunition exploded for ${event.damage} damage.` :
           event.label ? ` ${hitLocationLabel(event.location)} slot ${event.slot_index + 1}: ${event.label} destroyed.` : ''
     ).join('')}`
   ).join('');
+  if (result.cluster_roll) {
+    const cluster = result.cluster_roll;
+    const groups = (result.groups || []).map(group =>
+      `${hitLocationLabel(group.location)} ${group.damage}${formatCriticals(group.critical_checks)}`
+    ).join('; ');
+    return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit. Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}: ${result.missiles_hit} missile${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.`;
+  }
+  const criticals = formatCriticals(result.critical_checks);
   return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${criticals}`;
 }
 
 async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons) {
-  const unsupported = selectedWeapons.find(entry => BT_WEAPONS[entry.key]?.clusterSize);
-  if (unsupported) {
-    flashMoveWarning('Missile cluster resolution is not yet available in human-v-human games.');
-    logEvent(`${BT_WEAPONS[unsupported.key].name} cannot be submitted yet: authoritative missile clusters are the next combat slice.`, 'error');
-    return;
+  for (const entry of selectedWeapons) {
+    const weapon = BT_WEAPONS[entry.key];
+    if (weapon?.ammoType) {
+      const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
+      if (!weaponAttackState.ammoBinsByMount[mountId]) {
+        flashMoveWarning(`Choose an ammunition bin for ${weapon.name}.`);
+        return;
+      }
+    }
   }
   logEvent(`${mechLabel(attacker)} weapon attack submitted to the server.`, 'attack');
   const { data, error } = await db.rpc('resolve_standard_weapon_attack', {
@@ -243,7 +299,8 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
     p_weapon_mounts: selectedWeapons.map((entry, index) => {
       const catalogueIndex = BT_UNITS[attacker.unitId].weapons.indexOf(entry);
       return weaponMountId(entry, catalogueIndex >= 0 ? catalogueIndex : index);
-    })
+    }),
+    p_ammo_bins: weaponAttackState.ammoBinsByMount
   });
   if (error) {
     logEvent(`Server rejected the weapon attack: ${error.message}`, 'error');
@@ -251,7 +308,7 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
     return;
   }
   (data?.results || []).forEach(result => logEvent(authoritativeWeaponResultMessage(attacker, target, result), 'attack'));
-  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [] };
+  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
   await loadGameState();
   renderWeaponAttackPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
   await syncMechInstances();
@@ -302,7 +359,7 @@ async function confirmWeaponAttack() {
   attacker.weaponHeat = (attacker.weaponHeat || 0) + addedHeat;
   attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat;
   attacker.hasFired = true;
-  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [] };
+  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
   renderWeaponAttackPanel();
   renderRoster();
   renderDetail();
@@ -345,12 +402,14 @@ function renderWeaponAttackPanel() {
     const mountId = weaponMountId(entry, index);
     const checked = weaponAttackState.weaponKeys.includes(mountId);
     const evaluation = target ? evaluateWeaponAttack(attacker, target, entry) : null;
-    const authoritativeUnsupported = !vsAiMode && Boolean(BT_WEAPONS[entry.key]?.clusterSize);
-    const disabled = authoritativeUnsupported || (target && !evaluation.valid);
     const weapon = BT_WEAPONS[entry.key];
+    const bins = compatibleAmmoBins(attacker, entry);
+    const outOfAmmo = Boolean(weapon?.ammoType) && bins.length === 0;
+    const disabled = outOfAmmo || (target && !evaluation.valid);
     const countLabel = entry.count > 1 ? ` ×${entry.count}` : '';
     const heat = weapon ? weapon.heat * entry.count : '?';
-    return `<button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} dmg / ${heat} heat · ${entry.location}${authoritativeUnsupported ? ' · missile server resolution pending' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>`;
+    const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${bin.location} · ${bin.shots}/${bin.maxShots} shots</option>`).join('')}</select></label>` : '';
+    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${heat} heat · ${entry.location}${outOfAmmo ? ' · no ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}</div>`;
   }).join('');
 
   panel.innerHTML = `

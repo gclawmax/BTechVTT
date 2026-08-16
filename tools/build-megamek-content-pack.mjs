@@ -31,9 +31,9 @@ const WEAPONS = {
   'AC/10': { key: 'ac10', damage: 10, heat: 3, range: [5, 10, 15], ammoType: 'ac10' },
   'AC/5': { key: 'ac5', damage: 5, heat: 1, range: [6, 12, 18], ammoType: 'ac5' },
   'Machine Gun': { key: 'machine_gun', damage: 2, heat: 0, range: [1, 2, 3], ammoType: 'machine_gun' },
-  'LRM 20': { key: 'lrm20', damage: 20, heat: 6, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm20', clusterSize: 20 },
-  'LRM 10': { key: 'lrm10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm10', clusterSize: 10 },
-  'SRM 6': { key: 'srm6', damage: 12, heat: 4, range: [3, 6, 9], ammoType: 'srm6', clusterSize: 6 }
+  'LRM 20': { key: 'lrm20', damage: 20, heat: 6, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm20', clusterSize: 20, damagePerMissile: 1 },
+  'LRM 10': { key: 'lrm10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm10', clusterSize: 10, damagePerMissile: 1 },
+  'SRM 6': { key: 'srm6', damage: 12, heat: 4, range: [3, 6, 9], ammoType: 'srm6', clusterSize: 6, damagePerMissile: 2 }
 };
 const AMMO = [
   [/Ammo AC\/20/i, 'ac20', 5], [/Ammo AC\/10/i, 'ac10', 10], [/Ammo AC\/5/i, 'ac5', 20],

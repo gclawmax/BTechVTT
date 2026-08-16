@@ -27,7 +27,9 @@ all follow-up checks.
    The server now attaches an immutable 2D6 to-hit roll to each declaration.
 2. Standard direct-fire weapons: legal arcs/range/minimum range, ammunition,
    grouped damage, locations, transfer, and critical checks.
-3. Missile cluster resolution and ammunition-bin selection.
+3. Missile cluster resolution and ammunition-bin selection. Implemented for
+   the currently supported standard LRM-10, LRM-20 and SRM-6 launchers in
+   `SQL/19_authoritative_missile_attacks.sql`.
 4. Complete punches/kicks, limb availability, physical location tables, and
    piloting consequences.
 5. Heat, shutdown/ammunition interactions, End Phase effects, and advanced

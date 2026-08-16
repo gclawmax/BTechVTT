@@ -146,12 +146,13 @@ async function loadUnitCatalogue(catalogueVersion) {
     if (!mounts.length || mounts.some(mount => !mount.weapon_key)) return;
     for (const mount of mounts) {
       const weapon = mount.definition || {};
-      if (!BT_WEAPONS[mount.weapon_key] && Array.isArray(weapon.range)) {
+      if (Array.isArray(weapon.range)) {
         BT_WEAPONS[mount.weapon_key] = {
           name: mount.raw_name, damage: weapon.damage, heat: weapon.heat, range: weapon.range,
           ...(weapon.minimumRange ? { minimumRange: weapon.minimumRange } : {}),
           ...(weapon.ammoType ? { ammoType: weapon.ammoType } : {}),
-          ...(weapon.clusterSize ? { clusterSize: weapon.clusterSize } : {})
+          ...(weapon.clusterSize ? { clusterSize: weapon.clusterSize } : {}),
+          ...(weapon.damagePerMissile ? { damagePerMissile: weapon.damagePerMissile } : {})
         };
       }
     }

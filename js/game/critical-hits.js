@@ -54,7 +54,7 @@ function markCriticalSlot(mech, location, index) {
 function criticalWeaponLabel(key) {
   return ({
     ac20: 'Autocannon/20', ac10: 'Autocannon/10', ac5: 'Autocannon/5', ac2: 'Autocannon/2',
-    lr20: 'LRM 20', lrm10: 'LRM 10', lr6: 'LRM 6', sr6: 'SRM 6',
+    lr20: 'LRM 20', lrm20: 'LRM 20', lrm10: 'LRM 10', lr6: 'LRM 6', sr6: 'SRM 6', srm6: 'SRM 6',
     med_laser: 'Medium Laser', small_laser: 'Small Laser', large_laser: 'Large Laser',
     erl: 'ER Large Laser', ppc: 'PPC', machine_gun: 'Machine Gun', streak_sr4: 'Streak SRM 4'
   })[key] || key;
@@ -67,9 +67,9 @@ function criticalAmmoType(slot) {
   if (label.includes('ac/10')) return 'ac10';
   if (label.includes('ac/5')) return 'ac5';
   if (label.includes('ac/2')) return 'ac2';
-  if (label.includes('lrm-20')) return 'lr20';
+  if (label.includes('lrm-20')) return 'lrm20';
   if (label.includes('lrm-10')) return 'lrm10';
-  if (label.includes('srm-6')) return 'sr6';
+  if (label.includes('srm-6')) return 'srm6';
   if (label.includes('ammo mg')) return 'machine_gun';
   return null;
 }
@@ -156,8 +156,7 @@ function isWeaponCriticallyDestroyed(mech, weaponEntry) {
   const location = criticalLocationKey(weaponEntry.location);
   const layout = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [];
   const wanted = criticalWeaponLabel(weaponEntry.key);
-  return (mech.criticalSlotDamage?.[location] || []).some(index => criticalSlotName(layout[index]) === wanted) ||
-    (location === 'la' || location === 'ra') && (mech.criticalSlotDamage?.[location] || []).some(index => /Shoulder/.test(layout[index] || ''));
+  return (mech.criticalSlotDamage?.[location] || []).some(index => criticalSlotName(layout[index]) === wanted);
 }
 
 function criticalToHitModifier(mech) {
