@@ -23,6 +23,13 @@ Implement after basic weapon attacks are reliable. Keep declarations separate
 from resolution and validate target arc, range, eligible limbs, prior weapon
 use, and special consequences before applying damage.
 
+`SQL/23_authoritative_physical_attacks.sql` implements the first trustworthy
+standard-biped slice: one- or two-arm punches and a chosen-leg kick, actuator
+and weapon-use restrictions, attack modifiers, the dedicated 1D6 punch/kick
+location tables, simultaneous damage, transfer and critical results. Required
+kick Piloting Skill Rolls are recorded in the result; resolving those rolls,
+falls and fall damage is the next physical-combat slice.
+
 ## Heat
 
 Heat should be a per-unit round ledger, not a single opaque number:

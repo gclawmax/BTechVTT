@@ -291,25 +291,28 @@ function applyWeaponDamage(target, damage, angle = 'front') {
   return { location, armorLocation, critical, criticalEvents, destroyedLocations, destroyed: !!target.destroyed };
 }
 
-function authoritativeWeaponResultMessage(attacker, target, result) {
-  const roll = result.to_hit || {};
-  const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
-  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
-  const formatCriticals = checks => (checks || []).map(check =>
+function formatAuthoritativeCriticals(checks) {
+  return (checks || []).map(check =>
     ` Critical check ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.${(check.events || []).map(event =>
       event.special === 'blown_off' ? ` ${hitLocationLabel(event.location)} blown off.` :
         event.ammo_explosion ? ` ${event.ammo_explosion} ammunition exploded for ${event.damage} damage.` :
           event.label ? ` ${hitLocationLabel(event.location)} slot ${event.slot_index + 1}: ${event.label} destroyed.` : ''
     ).join('')}`
   ).join('');
+}
+
+function authoritativeWeaponResultMessage(attacker, target, result) {
+  const roll = result.to_hit || {};
+  const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
+  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
   if (result.cluster_roll) {
     const cluster = result.cluster_roll;
     const groups = (result.groups || []).map(group =>
-      `${hitLocationLabel(group.location)} ${group.damage}${formatCriticals(group.critical_checks)}`
+      `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}`
     ).join('; ');
     return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit. Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}: ${result.missiles_hit} missile${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.`;
   }
-  const criticals = formatCriticals(result.critical_checks);
+  const criticals = formatAuthoritativeCriticals(result.critical_checks);
   return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${criticals}`;
 }
 
@@ -322,7 +325,7 @@ async function loadResolvedWeaponEvents() {
   if (error) { console.warn('[BT-LOG] failed to load resolved weapon events:', error); return; }
   const entries = [];
   for (const event of data || []) {
-    if (event.resolution?.state_version !== 'simultaneous-declarations-01') continue;
+    if (!['simultaneous-declarations-01', 'alternating-activations-01'].includes(event.resolution?.state_version)) continue;
     const attacker = mechInstances.find(mech => mech.instanceId === event.attacker_instance_id);
     const target = mechInstances.find(mech => mech.instanceId === event.target_instance_id);
     if (!attacker) continue;

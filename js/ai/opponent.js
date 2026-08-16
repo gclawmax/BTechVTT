@@ -77,7 +77,7 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
     }
 
     if (currentGameState.phase === 'physical_attack' && !mech.hasPhysicalAttacked) {
-      const target = playerMechs.find(candidate => evaluatePhysicalAttack(mech, candidate, 'kick').valid);
+      const target = playerMechs.find(candidate => physicalLimbCandidates('kick').some(limb => evaluatePhysicalAttack(mech, candidate, 'kick', limb).valid));
       if (target) aiPlan.actions.push({ type: 'physical_attack', instanceId: mech.instanceId, targetInstanceId: target.instanceId, attackType: 'kick' });
     }
   }
@@ -286,7 +286,8 @@ async function executeAIPlan(aiPlan) {
 async function executeAIPhysicalAttack(action) {
   const attacker = mechInstances.find(m => m.instanceId === action.instanceId);
   const target = mechInstances.find(m => m.instanceId === action.targetInstanceId);
-  const attack = evaluatePhysicalAttack(attacker, target, action.attackType);
+  const limb = physicalLimbCandidates(action.attackType).find(candidate => evaluatePhysicalAttack(attacker, target, action.attackType, candidate).valid);
+  const attack = evaluatePhysicalAttack(attacker, target, action.attackType, limb);
   if (!attack.valid) return;
   const roll = roll2d6Detailed();
   const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);

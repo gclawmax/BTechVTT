@@ -131,6 +131,7 @@ async function loadGameState() {
     renderDetail();
   }
   await loadResolvedWeaponEvents();
+  await loadResolvedPhysicalEvents();
 
   const initBtn = document.getElementById('btn-roll-initiative');
   if (initBtn) initBtn.disabled = (currentGameState.initiative_round === currentGameState.round);
@@ -543,14 +544,15 @@ function resetHeatManagementForRound() {
 function activePlayerHasLegalPhysicalAttack() {
   const attackers = getPhaseUnitsForActivePlayer().filter(m => !m.hasPhysicalAttacked);
   return attackers.some(attacker => mechInstances.some(target =>
-    target.owner !== attacker.owner && !target.destroyed && evaluatePhysicalAttack(attacker, target, 'punch').valid
+    target.owner !== attacker.owner && !target.destroyed && ['punch', 'kick'].some(type =>
+      physicalLimbCandidates(type).some(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid))
   ));
 }
 
 function anyLegalPhysicalAttackExists() {
   return mechInstances.some(attacker => !attacker.destroyed && mechInstances.some(target =>
     target.owner !== attacker.owner && !target.destroyed &&
-    (evaluatePhysicalAttack(attacker, target, 'punch').valid || evaluatePhysicalAttack(attacker, target, 'kick').valid)
+    ['punch', 'kick'].some(type => physicalLimbCandidates(type).some(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid))
   ));
 }
 
@@ -568,8 +570,21 @@ async function skipEmptyPhysicalPhase() {
 async function passRemainingPhysicalAttacks() {
   const pending = getPhaseUnitsForActivePlayer().filter(m => !m.hasPhysicalAttacked);
   if (!pending.length) return;
+  if (!vsAiMode) {
+    const allowance = Math.min(currentActivationAllowance('physical_attack'), pending.length);
+    for (const mech of pending.slice(0, allowance)) {
+      const { error } = await db.rpc('submit_simultaneous_physical_declaration', {
+        p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId,
+        p_target_instance_id: null, p_attack_type: 'pass', p_limbs: []
+      });
+      if (error) { logEvent(`Server rejected the Physical Attack pass: ${error.message}`, 'error'); return; }
+    }
+    physicalAttackState = { attackerId: null, targetId: null, attackType: null, limbs: [] };
+    await loadGameState();
+    return;
+  }
   pending.forEach(m => { m.hasPhysicalAttacked = true; });
-  physicalAttackState = { attackerId: null, targetId: null, attackType: null };
+  physicalAttackState = { attackerId: null, targetId: null, attackType: null, limbs: [] };
   renderPhysicalAttackPanel();
   renderRoster();
   renderDetail();

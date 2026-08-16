@@ -37,8 +37,10 @@ all follow-up checks.
    declarations, and physical attacks are enforced by the shared scheduler in
    `SQL/22_alternating_unit_activations.sql`. Weapon results remain simultaneous
    even though declarations alternate.
-4. Complete punches/kicks, limb availability, physical location tables, and
-   piloting consequences.
+4. Standard biped punches/kicks, limb availability and physical location
+   tables are authoritative via `SQL/23_authoritative_physical_attacks.sql`.
+   Kick-triggered Piloting Skill Roll requirements are persisted; authoritative
+   Piloting Skill Rolls, falls and fall damage remain the next sub-slice.
 5. Heat, shutdown/ammunition interactions, End Phase effects, and advanced
    equipment.
 
