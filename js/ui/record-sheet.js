@@ -28,11 +28,12 @@ function showRecordSheet(instanceId) {
     const armourMax = unit.armor?.[key] ?? 0;
     const structure = mech.structure?.[key] ?? 0;
     const structureMax = unit.structure?.[key] ?? 0;
-    const slots = (layout[key] || Array(12).fill(null)).map((slot, index) => {
+    const slotCount = ['head', 'll', 'rl'].includes(key) ? 6 : 12;
+    const slots = Array.from({ length: slotCount }, (_, index) => layout[key]?.[index] || null).map((slot, index) => {
       const state = slot ? recordSheetSlotState(mech, key, index) : 'empty';
       return `<li class="record-slot ${state}"><span>${String(index + 1).padStart(2, '0')}</span>${slot ? `${slot}${recordAmmoForSlot(mech, key, index, slot)}` : '—'}</li>`;
     }).join('');
-    return `<section class="record-location"><h4>${label}</h4><div class="record-condition"><span>A ${armour} / ${armourMax}</span><span>I ${structure} / ${structureMax}</span></div><ol>${slots}</ol></section>`;
+    return `<section class="record-location record-${key}"><h4>${label}</h4><div class="record-condition"><span>A ${armour} / ${armourMax}</span><span>I ${structure} / ${structureMax}</span></div><ol>${slots}</ol></section>`;
   }).join('');
   const criticalCount = Object.values(mech.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0);
   const modal = document.createElement('div');

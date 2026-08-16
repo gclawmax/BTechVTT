@@ -844,7 +844,24 @@ body.resizing-side-panel, body.resizing-side-panel * {
 .record-sheet p { margin:0; color:var(--phosphor-dim); font:10px var(--mono); }
 .record-sheet header button { align-self:start; padding:7px 10px; border:1px solid var(--panel-line); background:transparent; color:var(--paper); font:10px var(--display); cursor:pointer; }
 .record-note { margin:12px 0; color:var(--phosphor-dim); font:10px var(--mono); }
-.record-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+.record-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-areas:
+    "la head ra"
+    "lt ct rt"
+    "ll . rl";
+  gap:10px;
+  align-items:start;
+}
+.record-head { grid-area:head; }
+.record-la { grid-area:la; }
+.record-ra { grid-area:ra; }
+.record-lt { grid-area:lt; }
+.record-ct { grid-area:ct; }
+.record-rt { grid-area:rt; }
+.record-ll { grid-area:ll; }
+.record-rl { grid-area:rl; }
 .record-location { border:1px solid var(--panel-line); background:#fafaf7; padding:8px; }
 .record-location h4 { margin:0 0 5px; color:var(--ink); font:12px var(--display); letter-spacing:.05em; }
 .record-condition { display:flex; justify-content:space-between; color:var(--ink); font:10px var(--mono); margin-bottom:6px; }
@@ -854,6 +871,9 @@ body.resizing-side-panel, body.resizing-side-panel * {
 .record-slot.empty { color:#aaa; }
 .record-slot.damaged { background:#ffe3a6; color:#7a4b00; text-decoration:line-through; }
 .record-slot.destroyed { background:#f1b4ad; color:#7e2018; text-decoration:line-through; }
+@media (max-width:760px) {
+  .record-grid { grid-template-columns:1fr; grid-template-areas:"head" "la" "ra" "lt" "ct" "rt" "ll" "rl"; }
+}
 
 /* ── LOADING OVERLAY ────────────────────────────────────── */
 #loading-overlay {
