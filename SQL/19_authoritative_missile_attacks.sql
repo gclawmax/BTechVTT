@@ -44,7 +44,7 @@ CREATE OR REPLACE FUNCTION public.resolve_standard_weapon_attack(
 )
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE g btech_games%ROWTYPE;player btech_players%ROWTYPE;st jsonb;attacker jsonb;target jsonb;selected_mount_id text;
- mount_location text;weapon_key text;weapon jsonb;weapon_name text;weapon_damage int;weapon_heat int;ammo_type text;ammo_bin_id text;
+ mount_location text;selected_weapon_key text;weapon jsonb;weapon_name text;weapon_damage int;weapon_heat int;selected_ammo_type text;ammo_bin_id text;
  short_range int;medium_range int;long_range int;minimum_range int;cluster_size int;damage_per_missile int;
  dist int;range_mod int;move_mod int;target_mod int;woods int;base_tn int;tn int;sensor_mod int;heat_mod int;component_mod int;
  da int;db int;angle text:='front';damage_result jsonb;results jsonb:='[]'::jsonb;heat_added int:=0;event_id uuid;sequence_no int;units jsonb;
@@ -79,18 +79,18 @@ BEGIN
  VALUES(p_game_id,g.current_round,'weapon_attack',sequence_no,player.id,p_attacker_instance_id,p_target_instance_id,jsonb_build_object('weapon_mounts',p_weapon_mounts,'ammo_bins',p_ammo_bins,'catalogue_version',g.catalogue_version)) RETURNING id INTO event_id;
 
  FOREACH selected_mount_id IN ARRAY p_weapon_mounts LOOP
-  SELECT mount.location,mount.weapon_key,mount.definition,mount.raw_name INTO mount_location,weapon_key,weapon,weapon_name
+  SELECT mount.location,mount.weapon_key,mount.definition,mount.raw_name INTO mount_location,selected_weapon_key,weapon,weapon_name
   FROM btech_catalogue_mounts mount WHERE mount.catalogue_version=g.catalogue_version AND mount.unit_id=attacker->>'unitId' AND mount.mount_id=selected_mount_id;
-  IF NOT FOUND OR weapon_key IS NULL THEN RAISE EXCEPTION 'Unsupported weapon mount: %',selected_mount_id;END IF;
+  IF NOT FOUND OR selected_weapon_key IS NULL THEN RAISE EXCEPTION 'Unsupported weapon mount: %',selected_mount_id;END IF;
   weapon_damage:=(weapon->>'damage')::int;weapon_heat:=(weapon->>'heat')::int;short_range:=(weapon->'range'->>0)::int;medium_range:=(weapon->'range'->>1)::int;long_range:=(weapon->'range'->>2)::int;
-  minimum_range:=coalesce((weapon->>'minimumRange')::int,0);ammo_type:=weapon->>'ammoType';cluster_size:=(weapon->>'clusterSize')::int;
-  damage_per_missile:=coalesce((weapon->>'damagePerMissile')::int,CASE WHEN weapon_key LIKE 'lrm%' THEN 1 WHEN weapon_key LIKE 'srm%' THEN 2 END);
+  minimum_range:=coalesce((weapon->>'minimumRange')::int,0);selected_ammo_type:=weapon->>'ammoType';cluster_size:=(weapon->>'clusterSize')::int;
+  damage_per_missile:=coalesce((weapon->>'damagePerMissile')::int,CASE WHEN selected_weapon_key LIKE 'lrm%' THEN 1 WHEN selected_weapon_key LIKE 'srm%' THEN 2 END);
   IF cluster_size IS NOT NULL AND (damage_per_missile IS NULL OR btech_cluster_hits(cluster_size,7) IS NULL) THEN RAISE EXCEPTION '% cluster rules are not supported by this build',weapon_name;END IF;
   ammo_bin_id:=p_ammo_bins->>selected_mount_id;
-  IF ammo_type IS NOT NULL AND NOT EXISTS (SELECT 1 FROM btech_catalogue_ammo_bins bin WHERE bin.catalogue_version=g.catalogue_version AND bin.unit_id=attacker->>'unitId' AND bin.bin_id=ammo_bin_id AND bin.ammo_type=ammo_type) THEN RAISE EXCEPTION 'Selected ammunition bin is not compatible with %',weapon_name;END IF;
-  attacker:=btech_consume_selected_ammo(attacker,ammo_type,ammo_bin_id);
+  IF selected_ammo_type IS NOT NULL AND NOT EXISTS (SELECT 1 FROM btech_catalogue_ammo_bins bin WHERE bin.catalogue_version=g.catalogue_version AND bin.unit_id=attacker->>'unitId' AND bin.bin_id=ammo_bin_id AND bin.ammo_type=selected_ammo_type) THEN RAISE EXCEPTION 'Selected ammunition bin is not compatible with %',weapon_name;END IF;
+  attacker:=btech_consume_selected_ammo(attacker,selected_ammo_type,ammo_bin_id);
 
-  critical_label:=CASE weapon_key WHEN 'ac20' THEN 'Autocannon/20' WHEN 'ac10' THEN 'Autocannon/10' WHEN 'ac5' THEN 'Autocannon/5' ELSE weapon_name END;
+  critical_label:=CASE selected_weapon_key WHEN 'ac20' THEN 'Autocannon/20' WHEN 'ac10' THEN 'Autocannon/10' WHEN 'ac5' THEN 'Autocannon/5' ELSE weapon_name END;
   IF EXISTS (SELECT 1 FROM btech_catalogue_critical_slots slot WHERE slot.catalogue_version=g.catalogue_version AND slot.unit_id=attacker->>'unitId' AND slot.location=mount_location AND regexp_replace(slot.label,'[[:space:]]*\([A-Z]\)$','')=critical_label AND btech_critical_slot_is_damaged(attacker,mount_location,slot.slot_index)) THEN RAISE EXCEPTION '% was destroyed by a critical hit',weapon_name;END IF;
   component_mod:=0;
   IF mount_location IN ('la','ra') THEN
@@ -111,10 +111,10 @@ BEGIN
    ELSE
     cluster_da:=floor(random()*6+1);cluster_db:=floor(random()*6+1);missiles_hit:=btech_cluster_hits(cluster_size,cluster_da+cluster_db);missiles_remaining:=missiles_hit;groups:='[]'::jsonb;
     WHILE missiles_remaining>0 LOOP
-     group_damage:=CASE WHEN weapon_key LIKE 'lrm%' THEN least(5,missiles_remaining) ELSE damage_per_missile END;
+     group_damage:=CASE WHEN selected_weapon_key LIKE 'lrm%' THEN least(5,missiles_remaining) ELSE damage_per_missile END;
      location_roll:=btech_roll_mech_hit_location(angle);damage_result:=btech_apply_direct_damage(target,group_damage,location_roll->>'location',angle='rear');target:=damage_result->'mech';
      groups:=groups||jsonb_build_array(jsonb_build_object('location_roll',location_roll,'location',location_roll->>'location','damage',group_damage,'critical_checks',damage_result->'critical_checks'));
-     missiles_remaining:=missiles_remaining-CASE WHEN weapon_key LIKE 'lrm%' THEN least(5,missiles_remaining) ELSE 1 END;
+     missiles_remaining:=missiles_remaining-CASE WHEN selected_weapon_key LIKE 'lrm%' THEN least(5,missiles_remaining) ELSE 1 END;
     END LOOP;
     results:=results||jsonb_build_array(jsonb_build_object('mount_id',selected_mount_id,'weapon',weapon_name,'ammo_bin_id',ammo_bin_id,'to_hit',jsonb_build_object('die_a',da,'die_b',db,'total',da+db,'target',tn),'hit',true,'angle',angle,'cluster_roll',jsonb_build_object('die_a',cluster_da,'die_b',cluster_db,'total',cluster_da+cluster_db),'missiles_hit',missiles_hit,'groups',groups));
    END IF;
