@@ -7,6 +7,7 @@ let mySeatNumber = null; // 1 or 2 — which side this browser controls on the m
 let gameSubscription = null;
 let playersSubscription = null;
 let gameStateSubscription = null;
+let gameLogSubscription = null;
 // Lobby-created settings must survive the phase engine's full state snapshots.
 let currentMatchConfig = {};
 let lobbyClosureInProgress = false;

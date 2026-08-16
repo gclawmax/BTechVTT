@@ -106,6 +106,7 @@ async function loadGameState() {
   }
 
   mergeRemoteLog(gameState.log);
+  await loadPersistentGameLog();
   if (gameLog.length === 0) logEvent(`Game loaded — Round ${currentGameState.round}, ${PHASE_LABELS[currentGameState.phase] || currentGameState.phase} phase.`, 'system');
 
   // If units have already been placed/moved (e.g. rejoining), use the saved positions

@@ -1,8 +1,6 @@
 // ── GAME LOG ──────────────────────────────────────────────
-// A running history of what happened this game (initiative rolls, phase
-// changes, moves, attacks, sync errors). Kept locally for instant feedback
-// and persisted into btech_games.state.log so it also travels between
-// browsers via the existing realtime state sync, and survives rejoin/reload.
+// A running history of what happened this game. It is persisted in the
+// dedicated btech_events table, never inside the mutable game-state snapshot.
 let gameLog = [];
 const GAME_LOG_MAX = 200;
 // Unique per browser tab so ids never collide with another player's client.
@@ -50,32 +48,37 @@ function logEvent(message, category) {
   if (category === 'error') console.error(tag, message);
   else console.log(tag, message);
 
-  // A human-versus-human game has authoritative, seat-scoped state writes.
-  // Writing an entire JSON snapshot merely to append a log line can otherwise
-  // overwrite a newer initiative/action update from the other browser.
-  if (currentGameId && vsAiMode) persistLogEntry(entry);
+  if (currentGameId) persistLogEntry(entry);
 }
 
-// Read-modify-write the game's shared state to append this one entry.
-// Non-blocking by design (callers never await this) so gameplay never stalls
-// on it; last-write-wins is an acceptable tradeoff for a log, same pattern
-// already used elsewhere in this file (syncMechInstances, rollInitiative).
+// Append safely through a server function. This has no interaction with the
+// game-state write queue, so a log line cannot overwrite a turn update.
 async function persistLogEntry(entry) {
   try {
-    await queueGameStateWrite(async () => {
-      const { data: game, error: readError } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
-      if (readError) throw readError;
-      const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-      const log = Array.isArray(gameState.log) ? gameState.log : [];
-      log.push(entry);
-      gameState.log = log.length > GAME_LOG_MAX ? log.slice(-GAME_LOG_MAX) : log;
-      const { error: writeError } = await db.from('btech_games').update({ state: JSON.stringify(gameState) }).eq('id', currentGameId);
-      if (writeError) throw writeError;
-    });
+    const { error } = await db.rpc('append_game_log', { p_game_id: currentGameId, p_entry: entry });
+    if (error) throw error;
   } catch (err) {
     // Don't recurse into logEvent here — would loop on persistent failures.
     console.warn('[BT-LOG] failed to persist log entry:', err);
   }
+}
+
+async function loadPersistentGameLog() {
+  if (!currentGameId) return;
+  const { data, error } = await db.from('btech_events')
+    .select('event,created_at').eq('game_id', currentGameId)
+    .order('created_at', { ascending: true }).limit(GAME_LOG_MAX);
+  if (error) { console.warn('[BT-LOG] failed to load persistent log:', error); return; }
+  mergeRemoteLog((data || []).map(row => row.event));
+}
+
+function subscribePersistentGameLog() {
+  if (gameLogSubscription) { gameLogSubscription.unsubscribe(); gameLogSubscription = null; }
+  if (!currentGameId) return;
+  gameLogSubscription = db.channel('btech_events:' + currentGameId)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'btech_events', filter: `game_id=eq.${currentGameId}` },
+      payload => mergeRemoteLog([payload.new.event]))
+    .subscribe();
 }
 
 function renderGameLog() {

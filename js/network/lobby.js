@@ -166,6 +166,7 @@ async function loadLobbyUI() {
 function stopLobbySubscriptions() {
   if (gameSubscription) { gameSubscription.unsubscribe(); gameSubscription = null; }
   if (playersSubscription) { playersSubscription.unsubscribe(); playersSubscription = null; }
+  if (gameLogSubscription) { gameLogSubscription.unsubscribe(); gameLogSubscription = null; }
 }
 
 async function handleLobbyClosed() {
@@ -374,11 +375,14 @@ async function startGameScreen() {
   stopLobbySubscriptions();
 
   showScreen('game-screen');
+  gameLog = [];
+  renderGameLog();
   initGame();
   // Finish the initial snapshot before listening for changes. Otherwise a
   // slower initial read can overwrite a newer realtime turn hand-off.
   await loadGameState();
   subscribeGameStateSync();
+  subscribePersistentGameLog();
 }
 
 // Keep unit positions/facings/movement in sync between both browsers during play.
