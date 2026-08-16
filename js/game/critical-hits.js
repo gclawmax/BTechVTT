@@ -39,6 +39,12 @@ function criticalSlotCanTakeDamage(mech, location, index) {
   return !/^(Endo Steel|Ferro-Fibrous|CASE)$/i.test(criticalSlotName(slot));
 }
 
+function availableCriticalSlots(mech, location) {
+  return (BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [])
+    .map((_, index) => index)
+    .filter(index => criticalSlotCanTakeDamage(mech, location, index));
+}
+
 function markCriticalSlot(mech, location, index) {
   mech.criticalSlotDamage ||= {};
   mech.criticalSlotDamage[location] ||= [];
@@ -197,6 +203,13 @@ function resolveCriticalHits(mech, initialLocation) {
     for (let attempts = 0; attempts < 60; attempts++) {
       const index = criticalSlotIndex(current);
       if (criticalSlotCanTakeDamage(mech, current, index)) { found = index; break; }
+    }
+    // A normal random roll will always settle naturally.  This guard only
+    // protects the UI against a pathological random source: it still selects
+    // a legal remaining slot in this location, never transfers a valid crit.
+    if (found == null) {
+      const available = availableCriticalSlots(mech, current);
+      if (available.length) found = available[criticalDie() % available.length];
     }
     if (found == null) {
       current = CRITICAL_TRANSFER[current];
