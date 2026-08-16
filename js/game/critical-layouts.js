@@ -1,5 +1,5 @@
 // Generated from local MegaMek MTF records; see tools/export-supported-critical-layouts.mjs.
-const BT_CRITICAL_LAYOUTS = Object.freeze({
+const BT_CRITICAL_LAYOUTS = {
   "atlas-as7-d": {
     "la": [
       "Shoulder",
@@ -684,4 +684,4 @@ const BT_CRITICAL_LAYOUTS = Object.freeze({
       null
     ]
   }
-});
+};

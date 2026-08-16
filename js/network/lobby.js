@@ -44,7 +44,7 @@ async function loadLobbyUI() {
   // Get game info
   const { data: game, error: gameError } = await db
     .from('btech_games')
-    .select('game_code,state')
+    .select('game_code,state,catalogue_version')
     .eq('id', currentGameId)
     .single();
 
@@ -61,6 +61,15 @@ async function loadLobbyUI() {
 
   if (game) {
     document.getElementById('lobby-code').textContent = game.game_code;
+  }
+  if (game.catalogue_version) {
+    try {
+      await loadUnitCatalogue(game.catalogue_version);
+    } catch (error) {
+      console.error('Unable to load match catalogue:', error);
+      document.getElementById('lobby-status').textContent = 'The BattleMech catalogue for this match could not be loaded.';
+      return;
+    }
   }
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
@@ -317,11 +326,15 @@ async function handleStartGame() {
   // Store AI difficulty and mode in game state
   const { data: game } = await db
     .from('btech_games')
-    .select('state')
+    .select('state,catalogue_version')
     .eq('id', currentGameId)
     .single();
 
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  if (game?.catalogue_version) {
+    await loadUnitCatalogue(game.catalogue_version);
+    gameState.catalogue_version = game.catalogue_version;
+  }
   if (!vsAiMode) {
     const rostersValid = players.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage));
     if (!rostersValid) {
@@ -366,7 +379,8 @@ function buildRosterInstances(rosters) {
     return {
       instanceId: `${unitId}-p${seat}-${index + 1}`,
       unitId, owner: seat, col: position.col, row: position.row,
-      facing: position.facing, torsoFacing: position.facing
+      facing: position.facing, torsoFacing: position.facing,
+      ...(activeCatalogueVersion ? { catalogueVersion: activeCatalogueVersion } : {})
     };
   }));
 }
@@ -393,7 +407,7 @@ function subscribeGameStateSync() {
   gameStateSubscription = db
     .channel('btech_games_state:' + currentGameId)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'btech_games', filter: `id=eq.${currentGameId}` },
-      (payload) => {
+      async (payload) => {
         const remote = payload.new;
         if (remote.status !== 'in-progress') {
           console.warn('[BT-DIAG] Game status changed while game screen is active:', remote.status);
@@ -404,13 +418,15 @@ function subscribeGameStateSync() {
         currentGameState.phase = remote.current_phase || currentGameState.phase;
         currentGameState.initiative_winner = remote.initiative_winner;
         const gs = remote.state ? (typeof remote.state === 'string' ? JSON.parse(remote.state) : remote.state) : {};
+        if (remote.catalogue_version) await loadUnitCatalogue(remote.catalogue_version);
         setActiveMap(gs.map_id);
         currentMatchConfig = {
           ...(gs.map_id ? { map_id: gs.map_id } : {}),
           ...(gs.dropship_tonnage ? { dropship_tonnage: gs.dropship_tonnage } : {}),
           ...(gs.rosters ? { rosters: gs.rosters } : {}),
           ...(typeof gs.vs_ai_mode === 'boolean' ? { vs_ai_mode: gs.vs_ai_mode } : {}),
-          ...(gs.ai_difficulty ? { ai_difficulty: gs.ai_difficulty } : {})
+          ...(gs.ai_difficulty ? { ai_difficulty: gs.ai_difficulty } : {}),
+          ...(remote.catalogue_version ? { catalogue_version: remote.catalogue_version } : {})
         };
         // Realtime updates must update this too: a tab may previously have
         // been used for an AI match before entering a human game.

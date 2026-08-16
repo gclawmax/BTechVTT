@@ -9,7 +9,7 @@ let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [] };
 // arms.  Selection must identify the specific catalogue entry, not just its
 // weapon key, so the player can fire either arm independently.
 function weaponMountId(entry, index) {
-  return `${entry.key}:${entry.location}:${index}`;
+  return entry.mountId || `${entry.key}:${entry.location}:${index}`;
 }
 
 function weaponDirectionTo(attacker, target) {

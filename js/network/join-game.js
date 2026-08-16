@@ -20,6 +20,8 @@ async function handleJoinGame() {
       return;
     }
 
+    if (game.catalogue_version) await loadUnitCatalogue(game.catalogue_version);
+
     currentGameId = game.id;
     isHost = false;
     isReady = false;

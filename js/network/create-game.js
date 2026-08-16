@@ -24,15 +24,18 @@ async function handleCreateConfiguredGame() {
   if (!BT_MAPS[mapId] || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
   showLoading(true);
   try {
+    const catalogueVersion = await loadLatestUnitCatalogue();
     const code = generateGameCode();
     const { data: game, error: gameErr } = await db
       .from('btech_games')
       .insert({
         game_code: code,
         host_id: currentUser.id,
+        catalogue_version: catalogueVersion,
         state: JSON.stringify({
           units: [], turn: 0, phase: 'setup', vs_ai_mode: false,
           map_id: mapId, dropship_tonnage: dropshipTonnage,
+          catalogue_version: catalogueVersion,
           rosters: { '1': [], '2': [] }
         }),
         status: 'lobby',

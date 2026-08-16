@@ -1,8 +1,7 @@
-// BT-VTT's shipped unit catalogue. This is the sole source of gameplay stats
-// for units that have been tested in the VTT. It intentionally remains
-// separate from the large, local-only MegaMek reference catalogue.
+// Compatibility definitions keep old saves and AI tests playable. New human
+// matches replace these entries with their pinned Supabase catalogue release.
 
-const BT_UNIT_CATALOGUE = Object.freeze({
+const BT_UNIT_CATALOGUE = {
   'atlas-as7-d': {
     chassis: 'Atlas', variant: 'AS7-D', tonnage: 100, color: '#c4302b',
     movement: { walk: 3, run: 5, jump: 0 },
@@ -95,7 +94,7 @@ const BT_UNIT_CATALOGUE = Object.freeze({
     armor: { head:9, ct:18, ct_rear:7, lt:13, lt_rear:6, rt:13, rt_rear:6, la:16, ra:16, ll:16, rl:16 },
     structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
   }
-});
+};
 
 // Support status deliberately contains no copied unit statistics. Future
 // MegaMek-derived records can be reviewed and enabled here by their catalogue
@@ -108,6 +107,95 @@ const BT_UNIT_SUPPORT = Object.freeze({
   'enforcer-enf-4r': { status: 'supported' },
   'centurion-cn9-a': { status: 'supported' }
 });
+
+let activeCatalogueVersion = null;
+const databaseSupportedUnitIds = new Set();
+const BT_LOCATION_NAMES = Object.freeze({
+  la: 'Left Arm', ra: 'Right Arm', lt: 'Left Torso', rt: 'Right Torso',
+  ct: 'Center Torso', head: 'Head', ll: 'Left Leg', rl: 'Right Leg'
+});
+
+function catalogueUnitColor(unitId, index) {
+  return BT_UNIT_CATALOGUE[unitId]?.color || ['#c4302b', '#d4800a', '#2a8a2a', '#6450a6', '#397b97', '#4b8051'][index % 6];
+}
+
+async function loadUnitCatalogue(catalogueVersion) {
+  if (!catalogueVersion || activeCatalogueVersion === catalogueVersion) return catalogueVersion;
+  const [unitsResult, mountsResult, slotsResult, ammoResult] = await Promise.all([
+    db.from('btech_catalogue_units').select('unit_id,definition').eq('catalogue_version', catalogueVersion),
+    db.from('btech_catalogue_mounts').select('unit_id,mount_id,weapon_key,raw_name,location,definition').eq('catalogue_version', catalogueVersion),
+    db.from('btech_catalogue_critical_slots').select('unit_id,location,slot_index,label').eq('catalogue_version', catalogueVersion),
+    db.from('btech_catalogue_ammo_bins').select('unit_id,bin_id,ammo_type,raw_name,location,shots').eq('catalogue_version', catalogueVersion)
+  ]);
+  const failed = [unitsResult, mountsResult, slotsResult, ammoResult].find(result => result.error);
+  if (failed) throw failed.error;
+  if (!unitsResult.data?.length) throw new Error(`Catalogue ${catalogueVersion} contains no supported units.`);
+
+  const groupByUnit = rows => (rows || []).reduce((groups, row) => {
+    (groups[row.unit_id] ||= []).push(row);
+    return groups;
+  }, {});
+  const mountsByUnit = groupByUnit(mountsResult.data);
+  const slotsByUnit = groupByUnit(slotsResult.data);
+  const ammoByUnit = groupByUnit(ammoResult.data);
+  databaseSupportedUnitIds.clear();
+  unitsResult.data.forEach((row, index) => {
+    const definition = row.definition || {};
+    if (definition.supported_by_vtt !== true) return;
+    const mounts = mountsByUnit[row.unit_id] || [];
+    if (!mounts.length || mounts.some(mount => !mount.weapon_key)) return;
+    for (const mount of mounts) {
+      const weapon = mount.definition || {};
+      if (!BT_WEAPONS[mount.weapon_key] && Array.isArray(weapon.range)) {
+        BT_WEAPONS[mount.weapon_key] = {
+          name: mount.raw_name, damage: weapon.damage, heat: weapon.heat, range: weapon.range,
+          ...(weapon.minimumRange ? { minimumRange: weapon.minimumRange } : {}),
+          ...(weapon.ammoType ? { ammoType: weapon.ammoType } : {}),
+          ...(weapon.clusterSize ? { clusterSize: weapon.clusterSize } : {})
+        };
+      }
+    }
+    BT_UNIT_CATALOGUE[row.unit_id] = {
+      chassis: definition.chassis,
+      variant: definition.variant,
+      tonnage: definition.mass,
+      color: catalogueUnitColor(row.unit_id, index),
+      movement: definition.movement,
+      heat_sinks: definition.heat_sinks,
+      heat_sink_type: definition.heat_sink_type,
+      armor: definition.armor,
+      structure: definition.structure,
+      weapons: mounts.map(mount => ({
+        key: mount.weapon_key, count: 1,
+        location: BT_LOCATION_NAMES[mount.location] || mount.location,
+        mountId: mount.mount_id
+      })),
+      ammoBins: (ammoByUnit[row.unit_id] || []).map(bin => ({
+        id: bin.bin_id, type: bin.ammo_type,
+        location: BT_LOCATION_NAMES[bin.location] || bin.location,
+        shots: bin.shots
+      }))
+    };
+    const layout = {};
+    for (const slot of slotsByUnit[row.unit_id] || []) {
+      if (!layout[slot.location]) layout[slot.location] = Array(12).fill(null);
+      layout[slot.location][slot.slot_index] = slot.label;
+    }
+    BT_CRITICAL_LAYOUTS[row.unit_id] = layout;
+    databaseSupportedUnitIds.add(row.unit_id);
+  });
+  if (!databaseSupportedUnitIds.size) throw new Error(`Catalogue ${catalogueVersion} has no VTT-supported unit definitions.`);
+  activeCatalogueVersion = catalogueVersion;
+  return catalogueVersion;
+}
+
+async function loadLatestUnitCatalogue() {
+  const { data, error } = await db.from('btech_catalogue_releases')
+    .select('version').order('generated_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  if (!data?.version) throw new Error('No BattleMech catalogue release is installed.');
+  return loadUnitCatalogue(data.version);
+}
 
 // Existing saved games used these short prototype IDs. Keep them readable as
 // the game transitions to durable catalogue IDs.
@@ -123,6 +211,9 @@ function canonicalUnitId(unitId) {
 
 function getSupportedUnit(unitId) {
   const id = canonicalUnitId(unitId);
+  if (activeCatalogueVersion) {
+    return databaseSupportedUnitIds.has(id) ? BT_UNIT_CATALOGUE[id] || null : null;
+  }
   return BT_UNIT_SUPPORT[id]?.status === 'supported' ? BT_UNIT_CATALOGUE[id] || null : null;
 }
 

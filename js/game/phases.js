@@ -56,11 +56,13 @@ async function loadGameState() {
 
   const { data: game } = await db
     .from('btech_games')
-    .select('current_round, current_phase, active_player_id, initiative_winner, state')
+    .select('current_round, current_phase, active_player_id, initiative_winner, state, catalogue_version')
     .eq('id', currentGameId)
     .single();
 
   if (!game) return;
+
+  if (game.catalogue_version) await loadUnitCatalogue(game.catalogue_version);
 
   const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   setActiveMap(gameState.map_id);
@@ -69,7 +71,8 @@ async function loadGameState() {
     ...(gameState.dropship_tonnage ? { dropship_tonnage: gameState.dropship_tonnage } : {}),
     ...(gameState.rosters ? { rosters: gameState.rosters } : {}),
     ...(typeof gameState.vs_ai_mode === 'boolean' ? { vs_ai_mode: gameState.vs_ai_mode } : {}),
-    ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {})
+    ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {}),
+    ...(game.catalogue_version ? { catalogue_version: game.catalogue_version } : {})
   };
   // Always derive this from the loaded game. Otherwise an AI game visited in
   // the same tab can leave AI-only controls visible in a human game created
