@@ -836,6 +836,25 @@ body.resizing-side-panel, body.resizing-side-panel * {
 .armor-cell .loc { color: var(--phosphor-dim); display: block; letter-spacing: 0.06em; }
 .armor-cell .val { color: var(--phosphor); font-family: var(--mono); font-size: 10px; }
 
+/* ── FULL RECORD SHEET ─────────────────────────────────── */
+.record-sheet-modal { position:fixed; inset:0; z-index:60; background:rgba(12,15,15,.76); display:flex; justify-content:center; align-items:center; padding:20px; }
+.record-sheet { width:min(1100px,96vw); max-height:90vh; overflow:auto; background:var(--panel); border:1px solid var(--phosphor); box-shadow:0 14px 48px rgba(0,0,0,.45); padding:18px; color:var(--paper); }
+.record-sheet header { display:flex; justify-content:space-between; gap:18px; border-bottom:1px solid var(--panel-line); padding-bottom:12px; }
+.record-sheet h2 { margin:3px 0; font:20px var(--display); letter-spacing:.05em; }
+.record-sheet p { margin:0; color:var(--phosphor-dim); font:10px var(--mono); }
+.record-sheet header button { align-self:start; padding:7px 10px; border:1px solid var(--panel-line); background:transparent; color:var(--paper); font:10px var(--display); cursor:pointer; }
+.record-note { margin:12px 0; color:var(--phosphor-dim); font:10px var(--mono); }
+.record-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+.record-location { border:1px solid var(--panel-line); background:#fafaf7; padding:8px; }
+.record-location h4 { margin:0 0 5px; color:var(--ink); font:12px var(--display); letter-spacing:.05em; }
+.record-condition { display:flex; justify-content:space-between; color:var(--ink); font:10px var(--mono); margin-bottom:6px; }
+.record-location ol { list-style:none; padding:0; margin:0; border-top:1px solid #d4d4cf; }
+.record-slot { display:grid; grid-template-columns:24px 1fr; min-height:19px; padding:2px 3px; border-bottom:1px solid #e2e2dc; color:#1e3024; font:10px var(--mono); }
+.record-slot span { color:#74746e; }
+.record-slot.empty { color:#aaa; }
+.record-slot.damaged { background:#ffe3a6; color:#7a4b00; text-decoration:line-through; }
+.record-slot.destroyed { background:#f1b4ad; color:#7e2018; text-decoration:line-through; }
+
 /* ── LOADING OVERLAY ────────────────────────────────────── */
 #loading-overlay {
   position: fixed;

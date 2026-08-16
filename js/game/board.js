@@ -27,6 +27,9 @@ function ensureMechCombatState(mech) {
   if (!Array.isArray(mech.ammoBins)) {
     mech.ammoBins = (unit.ammoBins || []).map(bin => ({ ...bin, maxShots: bin.shots }));
   }
+  if (!mech.criticalSlotDamage || typeof mech.criticalSlotDamage !== 'object') {
+    mech.criticalSlotDamage = {};
+  }
   return true;
 }
 

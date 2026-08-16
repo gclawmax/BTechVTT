@@ -87,6 +87,7 @@ function renderDetail() {
     <div style="font-family:var(--display);font-size:15px;letter-spacing:.04em;color:${unit.color};margin-bottom:2px;">
       ${unit.chassis} ${unit.variant}
     </div>
+    <button onclick="showRecordSheet('${inst.instanceId}')" style="margin:2px 0 10px;padding:6px 8px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font:9px var(--display);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;">Open Full Record Sheet</button>
     <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:12px;">
       ${unit.tonnage} TONS · PLAYER ${inst.owner}
     </div>
