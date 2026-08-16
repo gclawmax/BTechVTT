@@ -9,12 +9,11 @@ function recordSheetSlotState(mech, location, index) {
   return mech.criticalSlotDamage?.[location]?.includes(index) ? 'damaged' : 'intact';
 }
 
-function recordAmmoForSlot(mech, slotName) {
-  const name = slotName.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const bin = (mech.ammoBins || []).find(candidate =>
-    name.includes(candidate.type.replace(/[^a-z0-9]/g, '')) ||
-    (candidate.type === 'machine_gun' && name.includes('ammomg'))
-  );
+function recordAmmoForSlot(mech, location, index, slotName) {
+  // Weapon criticals and ammunition criticals may contain the same weapon
+  // name. Only the exact ammunition-bin slot owns a shot count.
+  if (!/ammo/i.test(slotName)) return '';
+  const bin = (mech.ammoBins || []).find(candidate => candidate.id === `${location}:${index}`);
   return bin ? ` — ${bin.shots}/${bin.maxShots} shots` : '';
 }
 
@@ -31,7 +30,7 @@ function showRecordSheet(instanceId) {
     const structureMax = unit.structure?.[key] ?? 0;
     const slots = (layout[key] || Array(12).fill(null)).map((slot, index) => {
       const state = slot ? recordSheetSlotState(mech, key, index) : 'empty';
-      return `<li class="record-slot ${state}"><span>${String(index + 1).padStart(2, '0')}</span>${slot ? `${slot}${recordAmmoForSlot(mech, slot)}` : '—'}</li>`;
+      return `<li class="record-slot ${state}"><span>${String(index + 1).padStart(2, '0')}</span>${slot ? `${slot}${recordAmmoForSlot(mech, key, index, slot)}` : '—'}</li>`;
     }).join('');
     return `<section class="record-location"><h4>${label}</h4><div class="record-condition"><span>A ${armour} / ${armourMax}</span><span>I ${structure} / ${structureMax}</span></div><ol>${slots}</ol></section>`;
   }).join('');

@@ -12,10 +12,19 @@ function weaponMountId(entry, index) {
   return entry.mountId || `${entry.key}:${entry.location}:${index}`;
 }
 
+function weaponPhaseStartMech(mech) {
+  const snapshot = mech?.weaponPhaseStart;
+  return snapshot?.round === currentGameState.round && snapshot.mech ? snapshot.mech : mech;
+}
+
+function canFireFromWeaponPhaseStart(mech) {
+  return Boolean(mech && !weaponPhaseStartMech(mech)?.destroyed);
+}
+
 function compatibleAmmoBins(attacker, weaponEntry) {
   const ammoType = BT_WEAPONS[weaponEntry.key]?.ammoType;
   if (!ammoType) return [];
-  return (attacker.ammoBins || []).filter(bin =>
+  return (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
     bin.type === ammoType && bin.shots > 0 && !bin.destroyed
   );
 }
@@ -123,13 +132,15 @@ function woodsBetween(attacker, target) {
 }
 
 function evaluateWeaponAttack(attacker, target, weaponEntry) {
+  const eligibleAttacker = weaponPhaseStartMech(attacker);
+  const eligibleTarget = weaponPhaseStartMech(target);
   const weapon = BT_WEAPONS[weaponEntry.key];
-  if (!weapon || attacker.destroyed || target.destroyed || attacker.owner === target.owner) {
+  if (!weapon || eligibleAttacker.destroyed || eligibleTarget.destroyed || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
   }
-  if (weaponLocationDestroyed(attacker, weaponEntry)) return { valid: false, reason: `${weapon.name} is mounted in a destroyed location.` };
-  if (typeof weaponsDisabledByCritical === 'function' && weaponsDisabledByCritical(attacker)) return { valid: false, reason: 'Sensors are destroyed.' };
-  if (typeof isWeaponCriticallyDestroyed === 'function' && isWeaponCriticallyDestroyed(attacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was destroyed by a critical hit.` };
+  if (weaponLocationDestroyed(eligibleAttacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was mounted in a location destroyed before this phase.` };
+  if (typeof weaponsDisabledByCritical === 'function' && weaponsDisabledByCritical(eligibleAttacker)) return { valid: false, reason: 'Sensors were destroyed before this phase.' };
+  if (typeof isWeaponCriticallyDestroyed === 'function' && isWeaponCriticallyDestroyed(eligibleAttacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was destroyed before this phase.` };
   const distance = axialDistance(attacker.col, attacker.row, target.col, target.row);
   const range = weaponRangeModifier(weapon, distance);
   if (!range) return { valid: false, reason: `${weapon.name} is beyond long range (${distance} hexes).` };
@@ -142,9 +153,9 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const woods = woodsBetween(attacker, target);
   if (woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
   const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
-  const sensorCritical = typeof criticalToHitModifier === 'function' ? criticalToHitModifier(attacker) : 0;
-  const critical = sensorCritical + weaponComponentToHitModifier(attacker, weaponEntry);
-  const heat = weaponHeatToHitModifier(attacker);
+  const sensorCritical = typeof criticalToHitModifier === 'function' ? criticalToHitModifier(eligibleAttacker) : 0;
+  const critical = sensorCritical + weaponComponentToHitModifier(eligibleAttacker, weaponEntry);
+  const heat = weaponHeatToHitModifier(eligibleAttacker);
   return {
     valid: true,
     weapon,
@@ -158,7 +169,7 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
 
 function selectWeaponAttacker(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || mech.hasFired) return;
+  if (!canFireFromWeaponPhaseStart(mech) || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || mech.hasFired) return;
   weaponAttackState = { attackerId: instanceId, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
   selectedInstanceId = instanceId;
   logEvent(`${mechLabel(mech)} selected for weapon attack declaration.`, 'system');
@@ -170,7 +181,7 @@ function selectWeaponAttacker(instanceId) {
 
 function selectWeaponTarget(instanceId) {
   const target = mechInstances.find(m => m.instanceId === instanceId);
-  if (!target || target.destroyed) return;
+  if (!canFireFromWeaponPhaseStart(target)) return;
   weaponAttackState.targetId = instanceId;
   weaponAttackState.weaponKeys = [];
   weaponAttackState.ammoBinsByMount = {};
@@ -403,7 +414,7 @@ function renderWeaponAttackPanel() {
 
   const activeSeat = getActivePlayerSeat();
   const isMine = activeSeat === mySeatNumber && isMyActiveTurn();
-  const pending = mechInstances.filter(m => m.owner === activeSeat && !m.destroyed && !m.hasFired);
+  const pending = mechInstances.filter(m => m.owner === activeSeat && canFireFromWeaponPhaseStart(m) && !m.hasFired);
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId) || mechInstances.find(m => m.instanceId === selectedInstanceId);
   const target = mechInstances.find(m => m.instanceId === weaponAttackState.targetId);
 
@@ -418,7 +429,7 @@ function renderWeaponAttackPanel() {
     return;
   }
 
-  const enemies = mechInstances.filter(m => m.owner !== attacker.owner && !m.destroyed);
+  const enemies = mechInstances.filter(m => m.owner !== attacker.owner && canFireFromWeaponPhaseStart(m));
   const weaponRows = BT_UNITS[attacker.unitId].weapons.map((entry, index) => {
     const mountId = weaponMountId(entry, index);
     const checked = weaponAttackState.weaponKeys.includes(mountId);

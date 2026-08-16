@@ -430,7 +430,11 @@ function isMyActiveTurn() {
 function getPhaseUnitsForActivePlayer() {
   const seat = getActivePlayerSeat();
   if (seat == null) return [];
-  return mechInstances.filter(m => m.owner === seat && !m.destroyed);
+  return mechInstances.filter(m => m.owner === seat && (
+    currentGameState.phase === 'weapon_attack' && typeof canFireFromWeaponPhaseStart === 'function'
+      ? canFireFromWeaponPhaseStart(m)
+      : !m.destroyed
+  ));
 }
 
 function determineMatchResult() {
@@ -447,6 +451,10 @@ function determineMatchResult() {
 // spectators receive the same definitive outcome.
 async function checkForMatchEnd() {
   if (currentGameState.match_result) return currentGameState.match_result;
+  // Weapon attacks are simultaneous. A force destroyed by an earlier saved
+  // result must still make every attack it was eligible for at phase start.
+  if (currentGameState.phase === 'weapon_attack' && typeof canFireFromWeaponPhaseStart === 'function' &&
+      mechInstances.some(mech => canFireFromWeaponPhaseStart(mech) && !mech.hasFired)) return null;
   const result = determineMatchResult();
   if (!result) return null;
 
