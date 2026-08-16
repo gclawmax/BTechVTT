@@ -214,6 +214,46 @@ function applyWeaponDamage(target, damage, angle = 'front') {
   return { location, armorLocation, critical, criticalEvents, destroyedLocations, destroyed: !!target.destroyed };
 }
 
+function authoritativeWeaponResultMessage(attacker, target, result) {
+  const roll = result.to_hit || {};
+  const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
+  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
+  const criticals = (result.critical_checks || []).map(check =>
+    ` Critical check ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.`
+  ).join('');
+  return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${criticals}`;
+}
+
+async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons) {
+  const unsupported = selectedWeapons.find(entry => BT_WEAPONS[entry.key]?.clusterSize);
+  if (unsupported) {
+    flashMoveWarning('Missile cluster resolution is not yet available in human-v-human games.');
+    logEvent(`${BT_WEAPONS[unsupported.key].name} cannot be submitted yet: authoritative missile clusters are the next combat slice.`, 'error');
+    return;
+  }
+  logEvent(`${mechLabel(attacker)} weapon attack submitted to the server.`, 'attack');
+  const { data, error } = await db.rpc('resolve_standard_weapon_attack', {
+    p_game_id: currentGameId,
+    p_attacker_instance_id: attacker.instanceId,
+    p_target_instance_id: target.instanceId,
+    p_weapon_mounts: selectedWeapons.map((entry, index) => {
+      const catalogueIndex = BT_UNITS[attacker.unitId].weapons.indexOf(entry);
+      return weaponMountId(entry, catalogueIndex >= 0 ? catalogueIndex : index);
+    })
+  });
+  if (error) {
+    logEvent(`Server rejected the weapon attack: ${error.message}`, 'error');
+    flashMoveWarning(error.message);
+    return;
+  }
+  (data?.results || []).forEach(result => logEvent(authoritativeWeaponResultMessage(attacker, target, result), 'attack'));
+  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [] };
+  await loadGameState();
+  renderWeaponAttackPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
+  await syncMechInstances();
+  await checkForMatchEnd();
+}
+
 async function confirmWeaponAttack() {
   // A player may select their 'Mech from the roster/map or from this panel.
   // Both paths render the declaration controls, so both must be valid here.
@@ -226,6 +266,10 @@ async function confirmWeaponAttack() {
   );
   if (selectedWeapons.length && !target) {
     flashMoveWarning('Choose a target before confirming weapon attacks.');
+    return;
+  }
+  if (!vsAiMode && selectedWeapons.length) {
+    await confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons);
     return;
   }
 
@@ -297,11 +341,12 @@ function renderWeaponAttackPanel() {
     const mountId = weaponMountId(entry, index);
     const checked = weaponAttackState.weaponKeys.includes(mountId);
     const evaluation = target ? evaluateWeaponAttack(attacker, target, entry) : null;
-    const disabled = target && !evaluation.valid;
+    const authoritativeUnsupported = !vsAiMode && Boolean(BT_WEAPONS[entry.key]?.clusterSize);
+    const disabled = authoritativeUnsupported || (target && !evaluation.valid);
     const weapon = BT_WEAPONS[entry.key];
     const countLabel = entry.count > 1 ? ` ×${entry.count}` : '';
     const heat = weapon ? weapon.heat * entry.count : '?';
-    return `<button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} dmg / ${heat} heat · ${entry.location}${evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>`;
+    return `<button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} dmg / ${heat} heat · ${entry.location}${authoritativeUnsupported ? ' · missile server resolution pending' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>`;
   }).join('');
 
   panel.innerHTML = `
