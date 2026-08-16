@@ -15,8 +15,15 @@ run each other's actions.
 - Resolve initiative before a round's player actions.
 - Record both the winning side and the activation order used for that round.
 - The lower-initiative side acts first where the applicable rules require it.
-- Future multi-unit play must model alternating unit activations, including
-  unequal unit counts, rather than assuming one activation per player.
+- Movement, Weapon Attack declarations, and Physical Attacks alternate by
+  activation group, beginning with the initiative loser.
+- Before each pair of opposing activations, compare the number of eligible
+  units each side still has left. A side activates at least one unit; when it
+  has at least twice as many remaining it activates two, at least three times
+  as many it activates three, and so on. In engine terms its allowance is
+  `max(1, floor(own remaining / opposing remaining))`.
+- Recalculate both sides' allowances at the start of every new pair. Do not
+  reuse the opening force ratio for the entire phase.
 - Ties must be resolved before creating a final activation order.
 
 ## Facing state

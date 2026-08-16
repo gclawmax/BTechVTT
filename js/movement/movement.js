@@ -8,6 +8,32 @@ function titleCaseMode(mode) {
   return MOVE_MODE_LABELS[mode] || (mode ? titleCase(mode) : '—');
 }
 
+function activationUnitsLeft(seat, phase = currentGameState.phase) {
+  const flag = phase === 'movement' ? 'hasMoved' : phase === 'weapon_attack' ? 'hasFired' : 'hasPhysicalAttacked';
+  return mechInstances.filter(mech => {
+    if (mech.owner !== seat || mech[flag]) return false;
+    if (phase === 'weapon_attack') {
+      return mech.weaponPhaseStart?.round === currentGameState.round && !mech.weaponPhaseStart?.mech?.destroyed;
+    }
+    return !mech.destroyed;
+  }).length;
+}
+
+// The database is authoritative. This mirror only explains the current
+// unequal-force activation allowance in the panel before the first action.
+function currentActivationAllowance(phase = currentGameState.phase) {
+  const tracker = currentGameState.phase_activation;
+  if (tracker && tracker.round === currentGameState.round && tracker.phase === phase &&
+      tracker.current_player_id === currentGameState.active_player_id) {
+    return Math.max(1, Number(tracker.remaining) || 1);
+  }
+  const activeSeat = getActivePlayerSeat();
+  const own = activationUnitsLeft(activeSeat, phase);
+  const otherSeat = (currentGameState.initiative_order || []).map(entry => entry.seat_number).find(seat => seat !== activeSeat);
+  const other = activationUnitsLeft(otherSeat, phase);
+  return other ? Math.max(1, Math.floor(own / other)) : Math.max(1, own);
+}
+
 // Clears every 'Mech's movement flags at the start of a fresh Movement Phase.
 function resetMovementForRound() {
   mechInstances.forEach(m => {
@@ -249,14 +275,21 @@ function renderMovementPanel() {
 
   panel.style.display = 'block';
 
+  if (!isMyActiveTurn()) {
+    const activeSeat = getActivePlayerSeat();
+    panel.innerHTML = `<div class="panel-eyebrow">Movement Phase</div><div style="font-size:11px;color:var(--phosphor-dim);">Waiting for Player ${activeSeat} to complete the current activation.</div>`;
+    return;
+  }
+
   const mech = mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!mech) {
     const unmoved = mechInstances.filter(m => m.owner === mySeatNumber && !m.hasMoved);
+    const allowance = Math.min(currentActivationAllowance('movement'), unmoved.length);
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement Phase</div>
       <div style="font-size:11px;color:var(--paper);line-height:1.6;">
         ${unmoved.length > 0
-          ? `Select one of your 'Mechs — on the map or in the Roster above — to move it. ${unmoved.length} 'Mech${unmoved.length === 1 ? '' : 's'} still need${unmoved.length === 1 ? 's' : ''} to act.`
+          ? `Move ${allowance} 'Mech${allowance === 1 ? '' : 's'} in this activation. ${unmoved.length} total still need${unmoved.length === 1 ? 's' : ''} to act.`
           : `All your 'Mechs have acted this turn. Waiting on the other side, or click Next Phase.`}
       </div>`;
     return;

@@ -441,6 +441,7 @@ function subscribeGameStateSync() {
         currentGameState.initiative_rolls = gs.initiative_rolls || [];
         currentGameState.initiative_round = gs.initiative_round ?? null;
         currentGameState.initiative_pending = gs.initiative_pending || [];
+        currentGameState.phase_activation = gs.phase_activation || null;
         currentGameState.match_result = gs.match_result || null;
         mergeRemoteLog(gs.log);
 

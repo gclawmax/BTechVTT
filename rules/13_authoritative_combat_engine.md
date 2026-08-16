@@ -33,6 +33,10 @@ all follow-up checks.
    Human matches now persist every eligible unit's declaration before any
    dice or damage are resolved; the final declaration resolves the complete
    Weapon Attack batch atomically via `SQL/21_simultaneous_weapon_declarations.sql`.
+   Alternating unequal-force activation groups for movement, weapon
+   declarations, and physical attacks are enforced by the shared scheduler in
+   `SQL/22_alternating_unit_activations.sql`. Weapon results remain simultaneous
+   even though declarations alternate.
 4. Complete punches/kicks, limb availability, physical location tables, and
    piloting consequences.
 5. Heat, shutdown/ammunition interactions, End Phase effects, and advanced

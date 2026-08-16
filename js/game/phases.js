@@ -1,4 +1,4 @@
-// ── TURN STRUCTURE (IGOUGO) ──────────────────────────────
+// ── TURN STRUCTURE & ALTERNATING ACTIVATIONS ─────────────
 const PHASE_ORDER = ['initiative', 'movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat', 'end'];
 const PHASE_LABELS = {
   initiative: 'Initiative Roll',
@@ -24,6 +24,7 @@ let currentGameState = {
   initiative_rolls: [],
   initiative_round: null, // which round's initiative_order is currently valid for — gates phase advancement
   initiative_pending: [],
+  phase_activation: null,
   match_result: null
 };
 
@@ -44,6 +45,7 @@ function makePhaseState() {
     initiative_rolls: currentGameState.initiative_rolls,
     initiative_round: currentGameState.initiative_round,
     initiative_winner: currentGameState.initiative_winner,
+    phase_activation: currentGameState.phase_activation,
     match_result: currentGameState.match_result,
     active_player_player_id: currentGameState.active_player_id,
     mech_instances: mechInstances,
@@ -95,6 +97,7 @@ async function loadGameState() {
     initiative_rolls: gameState.initiative_rolls || [],
     initiative_round: gameState.initiative_round ?? null,
     initiative_pending: gameState.initiative_pending || [],
+    phase_activation: gameState.phase_activation || null,
     match_result: gameState.match_result || null
   };
   // A Physical Attack phase exists only when opposing 'Mechs are adjacent.
