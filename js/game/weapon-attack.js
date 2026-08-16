@@ -1,7 +1,7 @@
 // ── WEAPON ATTACK PHASE ──────────────────────────────────
 // This first pass implements player declarations and resolution for the
-// standard weapons in BT_WEAPONS. Terrain, ammunition, critical hits, and
-// damage transfer remain later rules milestones.
+// standard weapons in BT_WEAPONS.  Critical-hit slot damage and primary
+// component effects are resolved from the BattleMech record sheet.
 
 let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [] };
 
@@ -95,6 +95,8 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
   }
   if (weaponLocationDestroyed(attacker, weaponEntry)) return { valid: false, reason: `${weapon.name} is mounted in a destroyed location.` };
+  if (weaponsDisabledByCritical(attacker)) return { valid: false, reason: 'Sensors are destroyed.' };
+  if (isWeaponCriticallyDestroyed(attacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was destroyed by a critical hit.` };
   const distance = axialDistance(attacker.col, attacker.row, target.col, target.row);
   const range = weaponRangeModifier(weapon, distance);
   if (!range) return { valid: false, reason: `${weapon.name} is beyond long range (${distance} hexes).` };
@@ -112,9 +114,9 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
     weapon,
     distance,
     range,
-    targetNumber: 4 + attackerMove + targetMove + range.modifier + woods + targetWoods,
+    targetNumber: 4 + attackerMove + targetMove + range.modifier + woods + targetWoods + criticalToHitModifier(attacker),
     attackAngle: attackDirection(attacker, target),
-    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}`
+    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${criticalToHitModifier(attacker) ? ` + sensors ${criticalToHitModifier(attacker)}` : ''}`
   };
 }
 
@@ -182,7 +184,7 @@ function applyWeaponDamage(target, damage, angle = 'front') {
   const location = hitLocationForRoll(roll2d6(), angle);
   const armorLocation = angle === 'rear' && ['ct', 'lt', 'rt'].includes(location) ? `${location}_rear` : location;
   const transfer = { la:'lt', ra:'rt', ll:'lt', rl:'rt', lt:'ct', rt:'ct', head:'ct' };
-  let remaining = damage, current = location, first = true, critical = false, destroyedLocations = [];
+  let remaining = damage, current = location, first = true, critical = false, destroyedLocations = [], criticalEvents = [];
   while (remaining > 0 && current && !target.destroyed) {
     const currentArmor = first ? armorLocation : current;
     const armor = target.armor[currentArmor] || 0;
@@ -194,7 +196,12 @@ function applyWeaponDamage(target, damage, angle = 'front') {
     const internal = Math.min(structure, remaining);
     target.structure[current] = structure - internal;
     remaining -= internal;
-    if (internal > 0 && roll2d6() >= 8) { target.criticalHits = (target.criticalHits || 0) + 1; critical = true; }
+    if (internal > 0) {
+      const criticalResult = resolveCriticalHits(target, current);
+      critical = critical || criticalResult.triggered;
+      target.criticalChecks = (target.criticalChecks || 0) + 1;
+      criticalEvents.push(`Critical roll ${format2d6(criticalResult.roll)}: ${criticalResult.events.length ? criticalResult.events.join(' ') : 'no critical hit.'}`);
+    }
     if (target.structure[current] <= 0) {
       destroyedLocations.push(current);
       if (current === 'head' || current === 'ct') { target.destroyed = true; break; }
@@ -204,7 +211,7 @@ function applyWeaponDamage(target, damage, angle = 'front') {
       first = false;
     } else break;
   }
-  return { location, armorLocation, critical, destroyedLocations, destroyed: !!target.destroyed };
+  return { location, armorLocation, critical, criticalEvents, destroyedLocations, destroyed: !!target.destroyed };
 }
 
 async function confirmWeaponAttack() {
@@ -240,7 +247,7 @@ async function confirmWeaponAttack() {
         continue;
       }
       const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
-      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`);
+      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.criticalEvents.length ? ` ${damage.criticalEvents.join(' ')}` : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`);
     }
   }
 

@@ -35,13 +35,13 @@ function showRecordSheet(instanceId) {
     }).join('');
     return `<section class="record-location"><h4>${label}</h4><div class="record-condition"><span>A ${armour} / ${armourMax}</span><span>I ${structure} / ${structureMax}</span></div><ol>${slots}</ol></section>`;
   }).join('');
-  const unresolved = mech.criticalHits || 0;
+  const criticalCount = Object.values(mech.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0);
   const modal = document.createElement('div');
   modal.id = 'record-sheet-modal';
   modal.className = 'record-sheet-modal';
   modal.innerHTML = `<div class="record-sheet" role="dialog" aria-modal="true" aria-label="${unit.chassis} ${unit.variant} record sheet">
     <header><div><div class="panel-eyebrow">BattleMech Record Sheet</div><h2>${unit.chassis} ${unit.variant}</h2><p>Player ${mech.owner} · ${unit.tonnage} tons · Heat ${mech.heat || 0}</p></div><button onclick="closeRecordSheet()">Close</button></header>
-    <div class="record-note">Critical slots are shown from the unit record. ${unresolved ? `${unresolved} critical-hit check${unresolved === 1 ? '' : 's'} is awaiting slot resolution.` : 'No unresolved critical-hit checks.'}</div>
+    <div class="record-note">Critical slots are shown from the unit record. ${criticalCount ? `${criticalCount} critical slot${criticalCount === 1 ? '' : 's'} damaged.` : 'No critical slots damaged.'}</div>
     <div class="record-grid">${locations}</div>
   </div>`;
   document.body.appendChild(modal);

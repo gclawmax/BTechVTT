@@ -78,6 +78,10 @@ async function startMovementMode(instanceId, mode) {
     flashMoveWarning("A destroyed leg prevents this 'Mech from moving.");
     return;
   }
+  if (gyroDestroyedByCritical(mech)) {
+    flashMoveWarning("A destroyed gyro prevents this 'Mech from moving.");
+    return;
+  }
   const unit = BT_UNITS[mech.unitId];
 
   if (mode === 'stand') {

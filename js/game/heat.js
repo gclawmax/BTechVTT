@@ -5,13 +5,15 @@
 
 function heatLedger(mech) {
   ensureMechCombatState(mech);
-  const before = mech.heat || 0;
-  const sinks = BT_UNITS[mech.unitId].heat_sinks;
+  const engineHeat = engineCriticalHeat(mech);
+  const before = (mech.heat || 0) + engineHeat;
+  const sinks = Math.max(0, BT_UNITS[mech.unitId].heat_sinks - destroyedHeatSinkCapacity(mech));
   const dissipated = Math.min(before, sinks);
   return {
     starting: mech.roundStartingHeat || 0,
     movement: mech.movementHeat || 0,
     weapons: mech.weaponHeat || 0,
+    engineHeat,
     before,
     sinks,
     dissipated,
@@ -28,7 +30,7 @@ async function resolveHeatForSeat(seat) {
     mech.heatDissipated = ledger.dissipated;
     mech.heat = ledger.after;
     mech.hasManagedHeat = true;
-    messages.push(`${mechLabel(mech)} heat: start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons} = ${ledger.before}; dissipated ${ledger.dissipated}/${ledger.sinks}, ending ${ledger.after}.`);
+    messages.push(`${mechLabel(mech)} heat: start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before}; dissipated ${ledger.dissipated}/${ledger.sinks}, ending ${ledger.after}.`);
   }
   await syncMechInstances();
   return messages;
@@ -67,7 +69,7 @@ function renderHeatPanel() {
     const ledger = heatLedger(mech);
     return `<div style="padding:7px 0;border-top:1px solid var(--panel-line);font-size:10px;line-height:1.55;">
       <div style="color:var(--paper);">${mechLabel(mech)}${mech.hasManagedHeat ? ' · resolved' : ''}</div>
-      <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons} = ${ledger.before} heat</div>
+      <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
       <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : `will dissipate ${ledger.dissipated}, ending ${ledger.after}`}</div>
     </div>`;
   }).join('');
