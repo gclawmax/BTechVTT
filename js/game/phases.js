@@ -94,6 +94,12 @@ async function loadGameState() {
     initiative_pending: gameState.initiative_pending || [],
     match_result: gameState.match_result || null
   };
+  // A Physical Attack phase exists only when opposing 'Mechs are adjacent.
+  // The server rechecks this for human games; this call merely requests the
+  // safe automatic transition after the prior phase has completed.
+  if (!vsAiMode && currentGameState.phase === 'physical_attack' && await skipEmptyPhysicalPhase()) {
+    return loadGameState();
+  }
   // Backward-compatible recovery for games created before the explicit
   // player-record active ID was added. Resolve the auth user ID to a player row.
   if (!currentGameState.active_player_id && game.active_player_id && currentGameId) {
@@ -526,6 +532,24 @@ function activePlayerHasLegalPhysicalAttack() {
   ));
 }
 
+function anyLegalPhysicalAttackExists() {
+  return mechInstances.some(attacker => !attacker.destroyed && mechInstances.some(target =>
+    target.owner !== attacker.owner && !target.destroyed &&
+    (evaluatePhysicalAttack(attacker, target, 'punch').valid || evaluatePhysicalAttack(attacker, target, 'kick').valid)
+  ));
+}
+
+async function skipEmptyPhysicalPhase() {
+  if (!currentGameId || currentGameState.phase !== 'physical_attack') return false;
+  const { data: skipped, error } = await db.rpc('skip_empty_physical_phase', { p_game_id: currentGameId });
+  if (error) {
+    console.warn('Failed to check empty physical phase:', error);
+    return false;
+  }
+  if (skipped) logEvent('No opposing \'Mechs are adjacent — Physical Attack skipped.', 'phase');
+  return skipped === true;
+}
+
 async function passRemainingPhysicalAttacks() {
   const pending = getPhaseUnitsForActivePlayer().filter(m => !m.hasPhysicalAttacked);
   if (!pending.length) return;
@@ -694,7 +718,13 @@ async function advancePhase(skipPhysicalWarning = false) {
       }
       logEvent(`Round ${currentGameState.round}: ${prevPhaseLabel} — next player in Initiative order.`, 'phase');
     } else {
-      const nextPhase = PHASE_ORDER[nextIdx];
+      let nextPhase = PHASE_ORDER[nextIdx];
+      // AI games retain their local phase engine. Skip an empty physical phase
+      // rather than asking both sides to pass through a phase with no choices.
+      if (vsAiMode && nextPhase === 'physical_attack' && !anyLegalPhysicalAttackExists()) {
+        nextPhase = 'heat';
+        logEvent('No opposing \'Mechs are adjacent — Physical Attack skipped.', 'phase');
+      }
 
       // Set the next phase AND its first active player in ONE database update.
       // Writing active_player_id = null first lets realtime briefly publish an
