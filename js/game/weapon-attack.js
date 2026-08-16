@@ -51,12 +51,18 @@ function targetMovementModifier(mech) {
 }
 
 function weaponComponentToHitModifier(mech, weaponEntry) {
-  const location = criticalLocationKey(weaponEntry.location);
+  const location = typeof criticalLocationKey === 'function'
+    ? criticalLocationKey(weaponEntry.location)
+    : weaponEntry.location.toLowerCase().includes('left arm') ? 'la'
+      : weaponEntry.location.toLowerCase().includes('right arm') ? 'ra' : null;
   if (!['la', 'ra'].includes(location)) return 0;
   const layout = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [];
   const damaged = mech.criticalSlotDamage?.[location] || [];
-  if (damaged.some(index => criticalSlotName(layout[index]) === 'Shoulder')) return 4;
-  return damaged.filter(index => ['Upper Arm Actuator', 'Lower Arm Actuator'].includes(criticalSlotName(layout[index]))).length;
+  const slotName = slot => typeof criticalSlotName === 'function'
+    ? criticalSlotName(slot)
+    : String(slot || '').replace(/\s*\([A-Z]\)$/, '');
+  if (damaged.some(index => slotName(layout[index]) === 'Shoulder')) return 4;
+  return damaged.filter(index => ['Upper Arm Actuator', 'Lower Arm Actuator'].includes(slotName(layout[index]))).length;
 }
 
 function weaponHeatToHitModifier(mech) {
@@ -122,8 +128,8 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
   }
   if (weaponLocationDestroyed(attacker, weaponEntry)) return { valid: false, reason: `${weapon.name} is mounted in a destroyed location.` };
-  if (weaponsDisabledByCritical(attacker)) return { valid: false, reason: 'Sensors are destroyed.' };
-  if (isWeaponCriticallyDestroyed(attacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was destroyed by a critical hit.` };
+  if (typeof weaponsDisabledByCritical === 'function' && weaponsDisabledByCritical(attacker)) return { valid: false, reason: 'Sensors are destroyed.' };
+  if (typeof isWeaponCriticallyDestroyed === 'function' && isWeaponCriticallyDestroyed(attacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was destroyed by a critical hit.` };
   const distance = axialDistance(attacker.col, attacker.row, target.col, target.row);
   const range = weaponRangeModifier(weapon, distance);
   if (!range) return { valid: false, reason: `${weapon.name} is beyond long range (${distance} hexes).` };
@@ -136,7 +142,8 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const woods = woodsBetween(attacker, target);
   if (woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
   const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
-  const critical = criticalToHitModifier(attacker) + weaponComponentToHitModifier(attacker, weaponEntry);
+  const sensorCritical = typeof criticalToHitModifier === 'function' ? criticalToHitModifier(attacker) : 0;
+  const critical = sensorCritical + weaponComponentToHitModifier(attacker, weaponEntry);
   const heat = weaponHeatToHitModifier(attacker);
   return {
     valid: true,
