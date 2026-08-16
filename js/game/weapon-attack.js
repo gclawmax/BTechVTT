@@ -313,6 +313,38 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${criticals}`;
 }
 
+async function loadResolvedWeaponEvents() {
+  if (!currentGameId || vsAiMode) return;
+  const { data, error } = await db.from('btech_combat_events')
+    .select('id,round,phase,sequence,attacker_instance_id,target_instance_id,declaration,resolution,resolved_at')
+    .eq('game_id', currentGameId).eq('phase', 'weapon_attack').eq('status', 'resolved')
+    .order('round', { ascending: true }).order('sequence', { ascending: true }).limit(GAME_LOG_MAX);
+  if (error) { console.warn('[BT-LOG] failed to load resolved weapon events:', error); return; }
+  const entries = [];
+  for (const event of data || []) {
+    if (event.resolution?.state_version !== 'simultaneous-declarations-01') continue;
+    const attacker = mechInstances.find(mech => mech.instanceId === event.attacker_instance_id);
+    const target = mechInstances.find(mech => mech.instanceId === event.target_instance_id);
+    if (!attacker) continue;
+    const resolvedAt = Date.parse(event.resolved_at || '') || Date.now();
+    const results = event.resolution?.results || [];
+    if (!results.length) {
+      entries.push({
+        id: `combat-${event.id}-pass`, ts: resolvedAt + event.sequence,
+        time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round,
+        phase: event.phase, cat: 'attack', msg: `${mechLabel(attacker)} declared no weapon fire.`
+      });
+      continue;
+    }
+    results.forEach((result, index) => entries.push({
+      id: `combat-${event.id}-${index}`, ts: resolvedAt + event.sequence * 100 + index,
+      time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round,
+      phase: event.phase, cat: 'attack', msg: authoritativeWeaponResultMessage(attacker, target, result)
+    }));
+  }
+  mergeRemoteLog(entries);
+}
+
 async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons) {
   const ammoDeclaration = resolveDeclaredAmmoBins(attacker, selectedWeapons);
   if (ammoDeclaration.error) {
@@ -323,11 +355,10 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
   // event has fired. Persist the derived choice so UI state and RPC payload
   // always describe the same ammunition bin.
   weaponAttackState.ammoBinsByMount = ammoDeclaration.choices;
-  logEvent(`${mechLabel(attacker)} weapon attack submitted to the server.`, 'attack');
-  const { data, error } = await db.rpc('resolve_standard_weapon_attack', {
+  const { data, error } = await db.rpc('submit_simultaneous_weapon_declaration', {
     p_game_id: currentGameId,
     p_attacker_instance_id: attacker.instanceId,
-    p_target_instance_id: target.instanceId,
+    p_target_instance_id: target?.instanceId || null,
     p_weapon_mounts: selectedWeapons.map((entry, index) => {
       const catalogueIndex = BT_UNITS[attacker.unitId].weapons.indexOf(entry);
       return weaponMountId(entry, catalogueIndex >= 0 ? catalogueIndex : index);
@@ -335,16 +366,18 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
     p_ammo_bins: ammoDeclaration.choices
   });
   if (error) {
-    logEvent(`Server rejected the weapon attack: ${error.message}`, 'error');
+    logEvent(`Server rejected the weapon declaration: ${error.message}`, 'error');
     flashMoveWarning(error.message);
     return;
   }
-  (data?.results || []).forEach(result => logEvent(authoritativeWeaponResultMessage(attacker, target, result), 'attack'));
+  const statusMessage = data?.status === 'resolved'
+    ? `${mechLabel(attacker)} declaration saved — all Weapon Attacks are now resolving.`
+    : `${mechLabel(attacker)} declaration saved — results wait for all eligible 'Mechs.`;
+  logEvent(statusMessage, 'attack');
   weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
   await loadGameState();
   renderWeaponAttackPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
-  await syncMechInstances();
-  await checkForMatchEnd();
+  if (data?.status === 'resolved') await checkForMatchEnd();
 }
 
 async function confirmWeaponAttack() {
@@ -361,7 +394,7 @@ async function confirmWeaponAttack() {
     flashMoveWarning('Choose a target before confirming weapon attacks.');
     return;
   }
-  if (!vsAiMode && selectedWeapons.length) {
+  if (!vsAiMode) {
     await confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons);
     return;
   }
@@ -425,7 +458,7 @@ function renderWeaponAttackPanel() {
   if (!attacker || attacker.owner !== activeSeat || attacker.hasFired) {
     panel.innerHTML = pending.length
       ? `<div class="panel-eyebrow">Weapon Attack</div><div style="font-size:11px;color:var(--paper);margin-bottom:8px;">Choose a 'Mech to declare attacks. ${pending.length} remain.</div><div style="display:flex;flex-direction:column;gap:6px;">${pending.map(m => `<button onclick="selectWeaponAttacker('${m.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">${mechLabel(m)}</button>`).join('')}</div>`
-      : `<div class="panel-eyebrow">Weapon Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">All weapon attacks complete. Pass to the next player.</div>`;
+      : `<div class="panel-eyebrow">Weapon Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">All declarations saved. Waiting for simultaneous resolution.</div>`;
     return;
   }
 

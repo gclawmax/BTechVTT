@@ -461,6 +461,7 @@ function subscribeGameStateSync() {
           renderRoster();
           renderDetail();
         }
+        await loadResolvedWeaponEvents();
 
         updateGameHeader();
         renderInitiativeDisplay();

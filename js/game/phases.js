@@ -127,6 +127,7 @@ async function loadGameState() {
     renderRoster();
     renderDetail();
   }
+  await loadResolvedWeaponEvents();
 
   const initBtn = document.getElementById('btn-roll-initiative');
   if (initBtn) initBtn.disabled = (currentGameState.initiative_round === currentGameState.round);

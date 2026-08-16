@@ -30,6 +30,9 @@ all follow-up checks.
 3. Missile cluster resolution and ammunition-bin selection. Implemented for
    the currently supported standard LRM-10, LRM-20 and SRM-6 launchers in
    `SQL/19_authoritative_missile_attacks.sql`.
+   Human matches now persist every eligible unit's declaration before any
+   dice or damage are resolved; the final declaration resolves the complete
+   Weapon Attack batch atomically via `SQL/21_simultaneous_weapon_declarations.sql`.
 4. Complete punches/kicks, limb availability, physical location tables, and
    piloting consequences.
 5. Heat, shutdown/ammunition interactions, End Phase effects, and advanced
