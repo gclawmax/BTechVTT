@@ -128,7 +128,7 @@ EXCEPTION WHEN OTHERS THEN
 END $$;
 REVOKE ALL ON FUNCTION public.resolve_standard_weapon_attack(uuid,text,text,text[],jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.resolve_standard_weapon_attack(uuid,text,text,text[],jsonb) TO authenticated;
-+
+
 -- Capture the simultaneous-fire baseline at the Reaction -> Weapon Attack
 -- transition, and do not consider a newly destroyed eligible unit complete
 -- until it has submitted its Weapon Attack choice.
