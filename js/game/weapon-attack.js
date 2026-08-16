@@ -192,6 +192,21 @@ function selectAmmoBinForMount(mountId, binId) {
   weaponAttackState.ammoBinsByMount[mountId] = binId;
 }
 
+function resolveDeclaredAmmoBins(attacker, selectedWeapons) {
+  const choices = {};
+  for (const entry of selectedWeapons) {
+    const weapon = BT_WEAPONS[entry.key];
+    if (!weapon?.ammoType) continue;
+    const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
+    const bins = compatibleAmmoBins(attacker, entry);
+    const selectedId = weaponAttackState.ammoBinsByMount[mountId];
+    const selected = bins.find(bin => bin.id === selectedId) || bins[0];
+    if (!selected) return { error: `Choose an ammunition bin for ${weapon.name}.` };
+    choices[mountId] = selected.id;
+  }
+  return { choices };
+}
+
 function roll2d6() {
   return roll2d6Detailed().total;
 }
@@ -281,16 +296,15 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
 }
 
 async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons) {
-  for (const entry of selectedWeapons) {
-    const weapon = BT_WEAPONS[entry.key];
-    if (weapon?.ammoType) {
-      const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
-      if (!weaponAttackState.ammoBinsByMount[mountId]) {
-        flashMoveWarning(`Choose an ammunition bin for ${weapon.name}.`);
-        return;
-      }
-    }
+  const ammoDeclaration = resolveDeclaredAmmoBins(attacker, selectedWeapons);
+  if (ammoDeclaration.error) {
+    flashMoveWarning(ammoDeclaration.error);
+    return;
   }
+  // A select element visibly defaults to its first option even if no change
+  // event has fired. Persist the derived choice so UI state and RPC payload
+  // always describe the same ammunition bin.
+  weaponAttackState.ammoBinsByMount = ammoDeclaration.choices;
   logEvent(`${mechLabel(attacker)} weapon attack submitted to the server.`, 'attack');
   const { data, error } = await db.rpc('resolve_standard_weapon_attack', {
     p_game_id: currentGameId,
@@ -300,7 +314,7 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
       const catalogueIndex = BT_UNITS[attacker.unitId].weapons.indexOf(entry);
       return weaponMountId(entry, catalogueIndex >= 0 ? catalogueIndex : index);
     }),
-    p_ammo_bins: weaponAttackState.ammoBinsByMount
+    p_ammo_bins: ammoDeclaration.choices
   });
   if (error) {
     logEvent(`Server rejected the weapon attack: ${error.message}`, 'error');
