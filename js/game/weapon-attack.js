@@ -219,7 +219,11 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
   if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
   const criticals = (result.critical_checks || []).map(check =>
-    ` Critical check ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.`
+    ` Critical check ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.${(check.events || []).map(event =>
+      event.special === 'blown_off' ? ` ${hitLocationLabel(event.location)} blown off.` :
+        event.ammo_explosion ? ` ${event.ammo_explosion} ammunition exploded for ${event.damage} damage.` :
+          event.label ? ` ${hitLocationLabel(event.location)} slot ${event.slot_index + 1}: ${event.label} destroyed.` : ''
+    ).join('')}`
   ).join('');
   return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${criticals}`;
 }
