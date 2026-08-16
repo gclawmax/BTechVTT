@@ -24,11 +24,40 @@ and weapon locations) and creates a searchable local catalogue. It does not
 make each record playable in BT-VTT. A unit needs supported movement, weapons,
 armour, and equipment rules before it can be selected in a game.
 
+## Build the playable, versioned content pack
+
+The discovery catalogue is useful for searching the full data set. Playable
+units use the reviewed allowlist in
+`config/supported-megamek-units.json`. Generate their normalized registry and
+Supabase content pack with:
+
+```text
+node tools/build-megamek-content-pack.mjs
+```
+
+This produces two Git-ignored files:
+
+```text
+local-data/btech-supported-registry.json
+local-data/btech-supported-content-pack.sql
+```
+
+Run `SQL/17_versioned_unit_catalogue.sql` once to create the generic schema.
+The generated content pack can then be loaded independently. Adding units
+regenerates the pack; it does not require another numbered schema migration.
+
+Catalogue versions are immutable. Increment `catalogue_version` in the
+allowlist whenever its contents change, allowing active and saved matches to
+retain the definitions with which they started.
+
+Unknown equipment makes supported-pack generation fail visibly instead of
+silently producing an incorrect playable BattleMech.
+
 ## Attribution and licence
 
 Source: [MegaMek Data Repository](https://github.com/MegaMek/mm-data)
 
-MegaMek Data © 2025 by The MegaMek Team is licensed under
+MegaMek Data © 2025-2026 by The MegaMek Team is licensed under
 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
 Keeping this cache out of Git avoids copying a large external dataset into
