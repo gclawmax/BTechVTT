@@ -58,3 +58,7 @@ the alternating activation order.
 `SQL/29_authoritative_pilot_injuries.sql` adds head-hit and damaged-life-support
 heat injuries, consciousness checks, End Phase recovery checks, pilot death,
 and activation blocking for unconscious pilots.
+
+`SQL/30_prone_weapon_fire.sql` requires a prone BattleMech to choose a
+supporting arm before firing, prevents that arm's weapons firing, and applies
+the prone attacker/target to-hit modifiers on Supabase.

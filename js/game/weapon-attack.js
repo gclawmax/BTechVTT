@@ -138,6 +138,13 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   if (!weapon || eligibleAttacker.destroyed || eligibleTarget.destroyed || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
   }
+  const supportArm = attacker.proneSupportArm;
+  const weaponLocation = typeof criticalLocationKey === 'function'
+    ? criticalLocationKey(weaponEntry.location)
+    : weaponEntry.location.toLowerCase().includes('left arm') ? 'la'
+      : weaponEntry.location.toLowerCase().includes('right arm') ? 'ra' : null;
+  if (attacker.prone && !['la', 'ra'].includes(supportArm)) return { valid: false, reason: 'Choose a supporting arm before firing while prone.' };
+  if (attacker.prone && weaponLocation === supportArm) return { valid: false, reason: 'Supporting-arm weapons cannot fire while prone.' };
   if (weaponLocationDestroyed(eligibleAttacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was mounted in a location destroyed before this phase.` };
   if (typeof weaponsDisabledByCritical === 'function' && weaponsDisabledByCritical(eligibleAttacker)) return { valid: false, reason: 'Sensors were destroyed before this phase.' };
   if (typeof isWeaponCriticallyDestroyed === 'function' && isWeaponCriticallyDestroyed(eligibleAttacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was destroyed before this phase.` };
@@ -161,10 +168,19 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
     weapon,
     distance,
     range,
-    targetNumber: 4 + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat,
+    targetNumber: 4 + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0),
     attackAngle: attackDirection(attacker, target),
-    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}`
+    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}`
   };
+}
+
+async function setProneWeaponSupportArm(instanceId, arm) {
+  const { error } = await db.rpc('set_prone_weapon_support_arm', { p_game_id: currentGameId, p_instance_id: instanceId, p_arm: arm });
+  if (error) { flashMoveWarning(error.message); return; }
+  await loadGameState();
+  weaponAttackState.weaponKeys = [];
+  weaponAttackState.ammoBinsByMount = {};
+  renderWeaponAttackPanel();
 }
 
 function selectWeaponAttacker(instanceId) {
@@ -485,6 +501,7 @@ function renderWeaponAttackPanel() {
   }
 
   const enemies = mechInstances.filter(m => m.owner !== attacker.owner && canFireFromWeaponPhaseStart(m));
+  const supportPicker = attacker.prone ? `<div style="font-size:10px;color:var(--amber);margin-bottom:7px;">PRONE SUPPORT ARM — choose the arm holding the BattleMech up.</div><div style="display:flex;gap:6px;margin-bottom:8px;">${['la','ra'].map(arm => `<button onclick="setProneWeaponSupportArm('${attacker.instanceId}','${arm}')" style="flex:1;padding:7px;border:1px solid ${attacker.proneSupportArm === arm ? 'var(--amber)' : 'var(--panel-line)'};background:${attacker.proneSupportArm === arm ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">${attacker.proneSupportArm === arm ? '✓ ' : ''}${arm === 'la' ? 'Left Arm' : 'Right Arm'}</button>`).join('')}</div>` : '';
   const weaponRows = BT_UNITS[attacker.unitId].weapons.map((entry, index) => {
     const mountId = weaponMountId(entry, index);
     const checked = weaponAttackState.weaponKeys.includes(mountId);
@@ -501,7 +518,8 @@ function renderWeaponAttackPanel() {
 
   panel.innerHTML = `
     <div class="panel-eyebrow">Weapon Attack — Declaration</div>
-    <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · heat ${attacker.heat || 0}</div>
+    <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · heat ${attacker.heat || 0}${attacker.prone ? ' · PRONE (+2 to hit)' : ''}</div>
+    ${supportPicker}
     <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:4px;">TARGET</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => `<button onclick="selectWeaponTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${mechLabel(enemy)}</button>`).join('')}</div>
     ${target ? `<div style="font-size:10px;color:var(--amber);margin-bottom:4px;">TARGET: ${mechLabel(target)}</div>${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}
