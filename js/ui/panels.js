@@ -118,7 +118,7 @@ function renderDetail() {
     <div class="stat-grid">
       ${unit.weapons.map(w => `<div class="k">${w.key.replace('_',' ')}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
     </div>
-    ${(inst.ammoBins || []).length ? `<div class="panel-eyebrow" style="margin-top:14px;">Ammunition</div><div class="stat-grid">${inst.ammoBins.map(bin => `<div class="k">${bin.type.replace('_',' ')} · ${bin.location}</div><div class="v">${bin.shots} / ${bin.maxShots} shots</div>`).join('')}</div>` : ''}
+    ${(inst.ammoBins || []).length ? `<div class="panel-eyebrow" style="margin-top:14px;">Ammunition</div><div class="stat-grid">${inst.ammoBins.map(bin => `<div class="k">${bin.type.replace('_',' ')}${bin.loadType ? ` · ${bin.loadType}` : ''} · ${bin.location}</div><div class="v">${bin.shots} / ${bin.maxShots} shots</div>`).join('')}</div>` : ''}
     <div class="panel-eyebrow" style="margin-top:14px;">Armour / Internal Structure</div>
     <div style="font-size:9px;color:var(--phosphor-dim);margin:-8px 0 6px;">A = current / maximum armour · I = current / maximum internal structure</div>
     <div class="armor-diagram">

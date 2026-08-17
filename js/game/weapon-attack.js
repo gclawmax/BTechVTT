@@ -24,13 +24,18 @@ function canFireFromWeaponPhaseStart(mech) {
 function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
   const ammoType = BT_WEAPONS[weaponEntry.key]?.ammoType;
   if (!ammoType) return [];
+  const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
+  const mode = weaponFireMode(mountId, weaponEntry);
   return (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
-    bin.type === ammoType && bin.shots >= shotsRequired && !bin.destroyed
+    bin.type === ammoType && bin.shots >= shotsRequired && !bin.destroyed &&
+    (weaponEntry.key !== 'lb10x' || !bin.loadType || bin.loadType === mode)
   );
 }
 
 function weaponFireMode(mountId, weaponEntry) {
-  return weaponEntry?.key === 'uac5' ? (weaponAttackState.fireModesByMount[mountId] || 'single') : 'single';
+  if (weaponEntry?.key === 'uac5') return weaponAttackState.fireModesByMount[mountId] || 'single';
+  if (weaponEntry?.key === 'lb10x') return weaponAttackState.fireModesByMount[mountId] || 'slug';
+  return 'single';
 }
 
 function weaponShotsForMode(mountId, weaponEntry) {
@@ -253,10 +258,14 @@ function toggleWeaponForAttack(mountId) {
 function selectWeaponFireMode(mountId, mode) {
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
-  if (!entry || entry.key !== 'uac5' || !['single', 'rapid'].includes(mode)) return;
-  const bins = compatibleAmmoBins(attacker, entry, mode === 'rapid' ? 2 : 1);
+  const validModes = entry?.key === 'uac5' ? ['single', 'rapid'] : entry?.key === 'lb10x' ? ['slug', 'cluster'] : [];
+  if (!entry || !validModes.includes(mode)) return;
+  const bins = (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
+    bin.type === BT_WEAPONS[entry.key]?.ammoType && bin.shots >= (mode === 'rapid' ? 2 : 1) && !bin.destroyed &&
+    (entry.key !== 'lb10x' || !bin.loadType || bin.loadType === mode)
+  );
   if (!bins.length) {
-    flashMoveWarning('Rapid fire requires two rounds in one selected Ultra AC ammunition bin.');
+    flashMoveWarning(mode === 'rapid' ? 'Rapid fire requires two rounds in one selected Ultra AC ammunition bin.' : 'Choose an LB-X ammunition bin loaded for that ammunition type.');
     return;
   }
   weaponAttackState.fireModesByMount[mountId] = mode;
@@ -284,7 +293,7 @@ function resolveDeclaredAmmoBins(attacker, selectedWeapons) {
     if (!selected) return { error: `Choose an ammunition bin for ${weapon.name}.` };
     choices[mountId] = selected.id;
   }
-  const fireModes = Object.fromEntries(selectedWeapons.filter(entry => entry.key === 'uac5').map(entry => {
+  const fireModes = Object.fromEntries(selectedWeapons.filter(entry => ['uac5', 'lb10x'].includes(entry.key)).map(entry => {
     const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
     return [mountId, weaponFireMode(mountId, entry)];
   }));
@@ -304,6 +313,11 @@ function roll2d6Detailed() {
 function format2d6(roll) {
   if (roll && typeof roll === 'object') return `${roll.dieA} + ${roll.dieB} = ${roll.total}`;
   return String(roll);
+}
+
+function clusterHitsForRoll(size, total) {
+  const tables = { 10: [3, 3, 4, 6, 6, 6, 6, 8, 8, 10, 10] };
+  return tables[size]?.[total - 2] || 0;
 }
 
 function hitLocationForRoll(roll, angle = 'front') {
@@ -376,18 +390,19 @@ function formatAuthoritativePilotCheck(check) {
 function authoritativeWeaponResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
-  const rapid = result.fire_mode === 'rapid' ? ' (rapid fire)' : '';
-  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${rapid} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.${result.jammed ? ' Ultra AC jammed.' : ''}`;
+  const modeSuffix = result.fire_mode === 'rapid' ? ' (rapid fire)' : result.fire_mode === 'cluster' ? ' (cluster ammunition)' : '';
+  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.${result.jammed ? ' Ultra AC jammed.' : ''}`;
   if (result.cluster_roll) {
     const cluster = result.cluster_roll;
     const groups = (result.groups || []).map(group =>
       `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}${formatAuthoritativePilotCheck(group.pilot_check)}`
     ).join('; ');
-    return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit. Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}: ${result.missiles_hit} missile${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.`;
+    const pellets = result.cluster_kind === 'lb_x' ? 'pellet' : 'missile';
+    return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit. Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.`;
   }
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
   const flamerHeat = result.heat_inflicted ? ` ${mechLabel(target)} gains ${result.heat_inflicted} heat.` : '';
-  return `${mechLabel(attacker)} fired ${result.weapon}${rapid} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function weaponDeclarationSummary(attacker, mountIds, fireModes = {}) {
@@ -395,7 +410,8 @@ function weaponDeclarationSummary(attacker, mountIds, fireModes = {}) {
   const counts = new Map();
   for (const mountId of mountIds || []) {
     const entry = weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
-    const name = `${BT_WEAPONS[entry?.key]?.name || entry?.key || mountId}${fireModes[mountId] === 'rapid' ? ' (rapid fire)' : ''}`;
+    const modeSuffix = fireModes[mountId] === 'rapid' ? ' (rapid fire)' : fireModes[mountId] === 'cluster' ? ' (cluster ammunition)' : '';
+    const name = `${BT_WEAPONS[entry?.key]?.name || entry?.key || mountId}${modeSuffix}`;
     counts.set(name, (counts.get(name) || 0) + 1);
   }
   const labels = [...counts].map(([name, count]) => count === 1 ? name : `${count} ${name}${name.endsWith('s') ? '' : 's'}`);
@@ -518,6 +534,17 @@ async function confirmWeaponAttack() {
         }
         continue;
       }
+      if (weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster') {
+        const clusterRoll = roll2d6Detailed();
+        const pellets = clusterHitsForRoll(10, clusterRoll.total);
+        const groups = [];
+        for (let pellet = 0; pellet < pellets; pellet++) {
+          const damage = applyWeaponDamage(target, 1, attack.attackAngle);
+          groups.push(hitLocationLabel(damage.location));
+        }
+        messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name} (cluster ammunition)${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: hit. Cluster roll ${format2d6(clusterRoll)}: ${pellets} pellet${pellets === 1 ? '' : 's'} hit${groups.length ? ` (${groups.join(', ')}).` : '.'}`);
+        continue;
+      }
       const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
       const flamerHeat = weaponEntry.key === 'flamer' ? 2 : 0;
       if (flamerHeat) {
@@ -584,9 +611,10 @@ function renderWeaponAttackPanel() {
     const countLabel = entry.count > 1 ? ` ×${entry.count}` : '';
     const heat = weapon ? weapon.heat * entry.count : '?';
     const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${bin.location} · ${bin.shots}/${bin.maxShots} shots</option>`).join('')}</select></label>` : '';
-    const rapid = weapon?.key === 'uac5';
-    const modePicker = checked && rapid ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : '';
-    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${rapid && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location}${outOfAmmo ? ' · no ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${modePicker}${binPicker}</div>`;
+    const ultra = weapon?.key === 'uac5';
+    const lbx = weapon?.key === 'lb10x';
+    const modePicker = checked && ultra ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : checked && lbx ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','slug')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'slug' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'slug' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SLUG · 10 DAMAGE</button><button onclick="selectWeaponFireMode('${mountId}','cluster')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'cluster' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'cluster' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">CLUSTER · 10 PELLETS</button></div>` : '';
+    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${modePicker}${binPicker}</div>`;
   }).join('');
 
   panel.innerHTML = `

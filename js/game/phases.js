@@ -14,6 +14,7 @@ let autoAdvanceAfterAi = localStorage.getItem(AUTO_ADVANCE_AI_STORAGE_KEY) === '
 let autoAdvanceRetryTimer = null;
 let scheduledAiTurnKey = null;
 let myInitiativePlayerId = null;
+const roundOneAmmoChoices = {};
 
 let currentGameState = {
   round: 1,
@@ -211,10 +212,13 @@ function updateInitiativeButtonState() {
   const canRoll = vsAiMode
     ? isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
     : mySeatNumber != null && currentGameState.phase === 'initiative' && !alreadyRolled && !iHaveRolled && !currentGameState.match_result;
-  initBtn.disabled = !canRoll;
-  initBtn.title = canRoll
+  const lbXPending = currentGameState.round === 1 && mechInstances.some(mech =>
+    (!vsAiMode || mech.owner === mySeatNumber) && (mech.ammoBins || []).some(bin => bin.type === 'lb10x' && !bin.loadType)
+  );
+  initBtn.disabled = !canRoll || lbXPending;
+  initBtn.title = canRoll && !lbXPending
     ? (vsAiMode ? 'Roll initiative for both sides.' : 'Roll your own 2D6 initiative.')
-    : (alreadyRolled ? 'Initiative has already been resolved this round.' : 'Waiting for the other player to roll initiative.');
+    : (lbXPending ? 'Each LB-X ammunition bin must be declared during Round 1 setup.' : (alreadyRolled ? 'Initiative has already been resolved this round.' : 'Waiting for the other player to roll initiative.'));
 }
 
 function setAutoAdvanceAfterAi(enabled) {
@@ -284,6 +288,22 @@ function renderInitiativeDisplay() {
     header.appendChild(initDisplay);
   }
 
+  const allUnloadedLbBins = currentGameState.round === 1 && currentGameState.phase === 'initiative'
+    ? mechInstances.flatMap(mech => (mech.ammoBins || []).filter(bin => bin.type === 'lb10x' && !bin.loadType).map(bin => ({ mech, bin })))
+    : [];
+  const ownUnloadedLbBins = allUnloadedLbBins.filter(({ mech }) => mech.owner === mySeatNumber);
+  if (ownUnloadedLbBins.length) {
+    initDisplay.innerHTML = `<div style="color:var(--amber);font-size:10px;margin-bottom:4px;">ROUND 1 AMMUNITION LOADOUT — declare each LB-X bin before initiative.</div>${ownUnloadedLbBins.map(({ mech, bin }) => {
+      const key = `${mech.instanceId}:${bin.id}`;
+      const selected = roundOneAmmoChoices[key] || 'slug';
+      return `<label style="display:flex;justify-content:center;gap:6px;align-items:center;margin:3px 0;color:var(--paper);">${mechLabel(mech)} · ${bin.location}<select onchange="setRoundOneAmmoChoice('${key}',this.value)" style="font:10px var(--mono);padding:3px;"><option value="slug" ${selected === 'slug' ? 'selected' : ''}>Slug</option><option value="cluster" ${selected === 'cluster' ? 'selected' : ''}>Cluster</option></select></label>`;
+    }).join('')}<button onclick="submitRoundOneAmmoLoadout()" style="margin-top:4px;padding:5px 10px;font:10px var(--mono);cursor:pointer;">Confirm LB-X Ammunition</button>`;
+    return;
+  }
+  if (allUnloadedLbBins.length) {
+    initDisplay.textContent = 'Waiting for the other player to declare Round 1 LB-X ammunition.';
+    return;
+  }
   if (currentGameState.initiative_order.length === 0) {
     initDisplay.textContent = 'Roll Initiative to begin!';
     return;
@@ -302,6 +322,41 @@ function renderInitiativeDisplay() {
   const firstPlayer = currentGameState.initiative_order[0];
   const firstLabel = firstPlayer?.is_ai ? 'AI' : `Player ${firstPlayer?.seat_number || '?'}`;
   initDisplay.textContent = `Initiative: ${firstLabel} goes first | ${orderText}`;
+}
+
+function setRoundOneAmmoChoice(key, loadType) {
+  if (['slug', 'cluster'].includes(loadType)) roundOneAmmoChoices[key] = loadType;
+}
+
+async function submitRoundOneAmmoLoadout() {
+  const entries = mechInstances.flatMap(mech => mech.owner === mySeatNumber
+    ? (mech.ammoBins || []).filter(bin => bin.type === 'lb10x' && !bin.loadType).map(bin => [
+      `${mech.instanceId}:${bin.id}`, roundOneAmmoChoices[`${mech.instanceId}:${bin.id}`] || 'slug'
+    ]) : []);
+  if (!entries.length) return;
+  if (vsAiMode) {
+    entries.forEach(([key, loadType]) => {
+      const separator = key.indexOf(':');
+      const instanceId = key.slice(0, separator);
+      const binId = key.slice(separator + 1);
+      const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
+      const bin = mech?.ammoBins?.find(candidate => candidate.id === binId);
+      if (bin) bin.loadType = loadType;
+    });
+    await syncMechInstances();
+    await loadGameState();
+    return;
+  }
+  const { error } = await db.rpc('submit_round_one_ammo_loadout', {
+    p_game_id: currentGameId,
+    p_loadouts: Object.fromEntries(entries)
+  });
+  if (error) {
+    logEvent(`Could not save LB-X ammunition: ${error.message}`, 'error');
+    return;
+  }
+  logEvent('Round 1 LB-X ammunition loadout saved.', 'system');
+  await loadGameState();
 }
 
 // Roll initiative for ALL players (human + AI) using 2D6
