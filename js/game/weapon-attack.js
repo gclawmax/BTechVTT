@@ -131,6 +131,23 @@ function woodsBetween(attacker, target) {
   return points;
 }
 
+// Keep this deliberately aligned with the database resolver: walk the same
+// deterministic shortest path (the first direction that reduces range) and
+// test only intervening hexes. A ridge blocks this introductory elevation-LOS
+// layer when it rises above both BattleMechs.
+function elevationBlocksLineOfSight(attacker, target) {
+  const attackerElevation = elevationAt(attacker.col, attacker.row);
+  const targetElevation = elevationAt(target.col, target.row);
+  let current = { col: attacker.col, row: attacker.row };
+  let remaining = axialDistance(current.col, current.row, target.col, target.row);
+  while (remaining > 1) {
+    current = hexNeighbor(current.col, current.row, weaponDirectionTo(current, target));
+    if (elevationAt(current.col, current.row) > Math.max(attackerElevation, targetElevation)) return true;
+    remaining = axialDistance(current.col, current.row, target.col, target.row);
+  }
+  return false;
+}
+
 function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const eligibleAttacker = weaponPhaseStartMech(attacker);
   const eligibleTarget = weaponPhaseStartMech(target);
@@ -159,6 +176,7 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const targetMove = targetMovementModifier(target);
   const woods = woodsBetween(attacker, target);
   if (woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
+  if (elevationBlocksLineOfSight(attacker, target)) return { valid: false, reason: 'Line of sight is blocked by an intervening ridge.' };
   const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
   const sensorCritical = typeof criticalToHitModifier === 'function' ? criticalToHitModifier(eligibleAttacker) : 0;
   const critical = sensorCritical + weaponComponentToHitModifier(eligibleAttacker, weaponEntry);
