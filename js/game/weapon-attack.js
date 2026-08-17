@@ -18,7 +18,7 @@ function weaponPhaseStartMech(mech) {
 }
 
 function canFireFromWeaponPhaseStart(mech) {
-  return Boolean(mech && !weaponPhaseStartMech(mech)?.destroyed);
+  return Boolean(mech && !mech.shutdown && !weaponPhaseStartMech(mech)?.destroyed);
 }
 
 function compatibleAmmoBins(attacker, weaponEntry) {

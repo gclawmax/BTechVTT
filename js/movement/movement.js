@@ -8,6 +8,11 @@ function titleCaseMode(mode) {
   return MOVE_MODE_LABELS[mode] || (mode ? titleCase(mode) : '—');
 }
 
+function heatMovementPenalty(mech) {
+  const heat = mech.roundStartingHeat ?? mech.heat ?? 0;
+  return heat >= 25 ? 4 : heat >= 20 ? 3 : heat >= 15 ? 2 : heat >= 10 ? 1 : 0;
+}
+
 async function attemptStand(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
   if (!mech || !mech.prone || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
@@ -38,7 +43,7 @@ async function attemptStand(instanceId) {
 function activationUnitsLeft(seat, phase = currentGameState.phase) {
   const flag = phase === 'movement' ? 'hasMoved' : phase === 'weapon_attack' ? 'hasFired' : 'hasPhysicalAttacked';
   return mechInstances.filter(mech => {
-    if (mech.owner !== seat || mech[flag]) return false;
+    if (mech.owner !== seat || mech[flag] || mech.shutdown) return false;
     if (phase === 'weapon_attack') {
       return mech.weaponPhaseStart?.round === currentGameState.round && !mech.weaponPhaseStart?.mech?.destroyed;
     }
@@ -154,7 +159,7 @@ async function startMovementMode(instanceId, mode) {
     return;
   }
 
-  const mpMax = (unit.movement && unit.movement[mode]) || 0;
+  const mpMax = Math.max(0, ((unit.movement && unit.movement[mode]) || 0) - heatMovementPenalty(mech));
   if (mpMax <= 0) return;
 
   moveState = {
@@ -310,7 +315,7 @@ function renderMovementPanel() {
 
   const mech = mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!mech) {
-    const unmoved = mechInstances.filter(m => m.owner === mySeatNumber && !m.hasMoved);
+    const unmoved = mechInstances.filter(m => m.owner === mySeatNumber && !m.hasMoved && !m.shutdown);
     const allowance = Math.min(currentActivationAllowance('movement'), unmoved.length);
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement Phase</div>
@@ -324,6 +329,11 @@ function renderMovementPanel() {
 
   const unit = BT_UNITS[mech.unitId];
   const isMine = mech.owner === mySeatNumber;
+
+  if (mech.shutdown) {
+    panel.innerHTML = `<div class="panel-eyebrow">Movement — Shut Down</div><div style="font-size:11px;color:#a32832;line-height:1.5;">This BattleMech is shut down and has no normal activation this turn.</div>`;
+    return;
+  }
 
   if (mech.hasMoved) {
     panel.innerHTML = `
@@ -369,9 +379,10 @@ function renderMovementPanel() {
   }
 
   const modeButtons = [`<button onclick="startMovementMode('${mech.instanceId}','stand')" style="${MOVE_BTN_STYLE}">Stand Still</button>`];
-  if (unit.movement.walk > 0) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','walk')" style="${MOVE_BTN_STYLE}">Walk (${unit.movement.walk} MP)</button>`);
-  if (unit.movement.run > 0) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','run')" style="${MOVE_BTN_STYLE}">Run (${unit.movement.run} MP)</button>`);
-  if (unit.movement.jump > 0) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','jump')" style="${MOVE_BTN_STYLE}">Jump (${unit.movement.jump} MP)</button>`);
+  const heatPenalty = heatMovementPenalty(mech);
+  if (unit.movement.walk > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','walk')" style="${MOVE_BTN_STYLE}">Walk (${unit.movement.walk - heatPenalty} MP)</button>`);
+  if (unit.movement.run > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','run')" style="${MOVE_BTN_STYLE}">Run (${unit.movement.run - heatPenalty} MP)</button>`);
+  if (unit.movement.jump > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','jump')" style="${MOVE_BTN_STYLE}">Jump (${unit.movement.jump - heatPenalty} MP)</button>`);
 
   panel.innerHTML = `
     <div class="panel-eyebrow">Movement</div>

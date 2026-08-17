@@ -38,6 +38,9 @@ function renderRoster() {
     if (inst.prone && !inst.destroyed) {
       moveBadge += `<span style="font-size:9px;color:#a32832;letter-spacing:.06em;margin-left:6px;">PRONE</span>`;
     }
+    if (inst.shutdown && !inst.destroyed) {
+      moveBadge += `<span style="font-size:9px;color:#a32832;letter-spacing:.06em;margin-left:6px;">SHUT DOWN</span>`;
+    }
 
     row.innerHTML = `
       <div class="roster-swatch" style="background:${unit.color}"></div>
@@ -101,7 +104,7 @@ function renderDetail() {
       <div class="k">Walk / Run / Jump</div><div class="v">${unit.movement.walk} / ${unit.movement.run} / ${unit.movement.jump}</div>
       <div class="k">Heat Sinks</div><div class="v">${unit.heat_sinks} (${unit.heat_sink_type})</div>
       <div class="k">Heat</div><div class="v">${inst.heat || 0}${inst.movementHeat || inst.weaponHeat ? ` · move +${inst.movementHeat || 0}, weapons +${inst.weaponHeat || 0}` : ''}</div>
-      <div class="k">Damage State</div><div class="v">${inst.destroyed ? 'DESTROYED' : `${inst.prone ? 'PRONE · ' : ''}${Object.values(inst.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0)} critical slot${Object.values(inst.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0) === 1 ? '' : 's'} damaged`}</div>
+      <div class="k">Damage State</div><div class="v">${inst.destroyed ? 'DESTROYED' : `${inst.prone ? 'PRONE · ' : ''}${inst.shutdown ? 'SHUT DOWN · ' : ''}${Object.values(inst.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0)} critical slot${Object.values(inst.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0) === 1 ? '' : 's'} damaged`}</div>
       ${inst.hasMoved ? `<div class="k">This Turn</div><div class="v">${titleCaseMode(inst.movementMode)} · ${inst.hexesMoved} hex${inst.hexesMoved===1?'':'es'}</div>` : ''}
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>

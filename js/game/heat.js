@@ -1,7 +1,6 @@
 // ── HEAT MANAGEMENT PHASE ─────────────────────────────────
-// Each player confirms heat dissipation for all their 'Mechs. Threshold
-// effects, shutdowns, ammunition explosions, and pilot checks remain a later
-// rules milestone; this phase makes the per-round heat ledger durable first.
+// Human matches resolve the complete heat ledger on Supabase. Local AI games
+// retain the lightweight client path for test play.
 
 function heatLedger(mech) {
   ensureMechCombatState(mech);
@@ -38,6 +37,26 @@ async function resolveHeatForSeat(seat) {
 
 async function confirmHeatManagement() {
   if (currentGameState.phase !== 'heat' || !isMyActiveTurn()) return;
+  if (!vsAiMode) {
+    const { data, error } = await db.rpc('resolve_heat_management', { p_game_id: currentGameId });
+    if (error) { logEvent(`Server rejected Heat Management: ${error.message}`, 'error'); flashMoveWarning(error.message); return; }
+    for (const outcome of data?.results || []) {
+      const mech = mechInstances.find(candidate => candidate.instanceId === outcome.instance_id);
+      const label = mechLabel(mech);
+      logEvent(`${label} heat: ${outcome.before}; dissipated ${Math.min(outcome.before, outcome.sinks)}/${outcome.sinks}, ending ${outcome.after}.`, 'phase');
+      if (outcome.shutdown_target) {
+        const roll = outcome.shutdown_roll;
+        logEvent(`${label} ${outcome.shutdown ? 'shut down' : 'avoided shutdown'}${roll ? ` — need ${outcome.shutdown_target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}` : ' automatically at 30+ heat'}.`, 'roll');
+      }
+      if (outcome.ammo_target && outcome.ammo_roll) {
+        const roll = outcome.ammo_roll;
+        const explosion = outcome.ammo_explosion;
+        logEvent(`${label} ${explosion ? `${explosion.type} ammunition exploded in ${hitLocationLabel(explosion.location)} for ${explosion.damage} internal damage` : 'avoided an ammunition explosion'} — safety need ${outcome.ammo_target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
+      }
+    }
+    await loadGameState();
+    return;
+  }
   const messages = await resolveHeatForSeat(mySeatNumber);
   renderHeatPanel();
   renderRoster();
@@ -70,7 +89,7 @@ function renderHeatPanel() {
     return `<div style="padding:7px 0;border-top:1px solid var(--panel-line);font-size:10px;line-height:1.55;">
       <div style="color:var(--paper);">${mechLabel(mech)}${mech.hasManagedHeat ? ' · resolved' : ''}</div>
       <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
-      <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : `will dissipate ${ledger.dissipated}, ending ${ledger.after}`}</div>
+      <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : `will dissipate ${ledger.dissipated}, ending ${ledger.after}`}${mech.shutdown ? ' · SHUT DOWN' : ''}</div>
     </div>`;
   }).join('');
   panel.innerHTML = `

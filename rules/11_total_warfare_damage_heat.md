@@ -46,6 +46,7 @@ startingHeat, movementHeat, weaponHeat, engineHeat,
 environmentalHeat, heatDissipated, endingHeat, triggeredEffects
 ```
 
-Add basic movement and weapon heat first. Shutdown, ammunition explosions,
-pilot effects, and critical interactions should follow only with their
-corresponding Total Warfare checks and user-visible roll logs.
+`SQL/27_authoritative_heat_effects.sql` resolves dissipation, heat-scale
+movement and gunnery modifiers, shutdown checks, and heat ammunition-explosion
+checks on Supabase, recording each outcome in the shared log. Pilot damage and
+consciousness checks remain a later slice.
