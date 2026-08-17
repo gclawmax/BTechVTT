@@ -182,7 +182,7 @@ function draw() {
     const unit = BT_UNITS[inst.unitId];
     const angle = HEX_DIRS[inst.facing || 0].angle;
     const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
-    drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId);
+    drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone);
   }
 }
 
@@ -239,7 +239,7 @@ function drawHex(cx, cy, size, fill, stroke) {
   ctx.stroke();
 }
 
-function drawMechToken(x, y, r, color, facing, torsoFacing, selected) {
+function drawMechToken(x, y, r, color, facing, torsoFacing, selected, prone = false) {
   // Hex token
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -284,6 +284,18 @@ function drawMechToken(x, y, r, color, facing, torsoFacing, selected) {
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.restore();
+  }
+
+  // A fallen 'Mech remains on the same hex but is unmistakable at a glance.
+  if (prone) {
+    ctx.beginPath();
+    ctx.moveTo(x - r * .45, y - r * .45);
+    ctx.lineTo(x + r * .45, y + r * .45);
+    ctx.moveTo(x + r * .45, y - r * .45);
+    ctx.lineTo(x - r * .45, y + r * .45);
+    ctx.strokeStyle = '#ffddd8';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
   }
 }
 

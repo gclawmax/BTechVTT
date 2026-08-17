@@ -26,9 +26,12 @@ use, and special consequences before applying damage.
 `SQL/23_authoritative_physical_attacks.sql` implements the first trustworthy
 standard-biped slice: one- or two-arm punches and a chosen-leg kick, actuator
 and weapon-use restrictions, attack modifiers, the dedicated 1D6 punch/kick
-location tables, simultaneous damage, transfer and critical results. Required
-kick Piloting Skill Rolls are recorded in the result; resolving those rolls,
-falls and fall damage is the next physical-combat slice.
+location tables, simultaneous damage, transfer and critical results.
+
+`SQL/25_authoritative_physical_piloting.sql` completes its immediate
+consequences: kick, missed-kick, and 20+ physical-damage triggers are combined
+per BattleMech; Supabase rolls the Piloting Skill Roll; and a failed roll
+persists a prone state plus grouped fall damage and critical results.
 
 ## Heat
 

@@ -206,9 +206,19 @@ function authoritativePhysicalResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
   const action = result.attack_type === 'kick' ? 'kicked' : `punched with ${physicalLimbLabel(result.limb)}`;
-  const balance = result.piloting_check_required ? ` ${mechLabel(mechInstances.find(mech => mech.instanceId === result.piloting_check_unit))} must make a Piloting Skill Roll.` : '';
-  if (!result.hit) return `${mechLabel(attacker)} ${action} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.${balance}`;
-  return `${mechLabel(attacker)} ${action} ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${formatAuthoritativeCriticals(result.critical_checks)}${balance}`;
+  if (!result.hit) return `${mechLabel(attacker)} ${action} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
+  return `${mechLabel(attacker)} ${action} ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${formatAuthoritativeCriticals(result.critical_checks)}`;
+}
+
+function authoritativePilotingResultMessage(check) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === check.instance_id);
+  const label = mechLabel(mech);
+  const roll = check.to_hit || {};
+  const reasons = (check.reasons || []).join(' and ');
+  const gyro = roll.gyro_modifier ? ` (including +${roll.gyro_modifier} gyro damage)` : '';
+  if (check.passed) return `${label} passed its Piloting Skill Roll for ${reasons} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`;
+  const groups = (check.fall_groups || []).map(group => `${hitLocationLabel(group.location)} ${group.damage}`).join(', ');
+  return `${label} failed its Piloting Skill Roll for ${reasons} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`;
 }
 
 async function loadResolvedPhysicalEvents() {
@@ -225,6 +235,7 @@ async function loadResolvedPhysicalEvents() {
     const results = event.resolution?.results || [];
     if (!results.length) entries.push({ id:`physical-${event.id}-pass`,ts:resolvedAt+event.sequence,time:new Date(resolvedAt).toTimeString().slice(0,8),round:event.round,phase:event.phase,cat:'attack',msg:`${mechLabel(attacker)} declared no physical attack.` });
     results.forEach((result,index) => entries.push({ id:`physical-${event.id}-${index}`,ts:resolvedAt+event.sequence*100+index,time:new Date(resolvedAt).toTimeString().slice(0,8),round:event.round,phase:event.phase,cat:'attack',msg:authoritativePhysicalResultMessage(attacker,target,result) }));
+    (event.resolution?.piloting_checks || []).forEach((check,index) => entries.push({ id:`physical-psr-${event.id}-${index}`,ts:resolvedAt+event.sequence*100+results.length+index+1,time:new Date(resolvedAt).toTimeString().slice(0,8),round:event.round,phase:event.phase,cat:'roll',msg:authoritativePilotingResultMessage(check) }));
   }
   mergeRemoteLog(entries);
 }
