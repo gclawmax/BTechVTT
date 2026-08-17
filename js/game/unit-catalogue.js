@@ -160,6 +160,8 @@ async function loadUnitCatalogue(catalogueVersion) {
       chassis: definition.chassis,
       variant: definition.variant,
       tonnage: definition.mass,
+      techBase: definition.tech_base || 'Inner Sphere',
+      era: definition.era || null,
       color: catalogueUnitColor(row.unit_id, index),
       movement: definition.movement,
       heat_sinks: definition.heat_sinks,

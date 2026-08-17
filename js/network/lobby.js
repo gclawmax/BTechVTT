@@ -11,6 +11,37 @@ async function copyLobbyGameCode() {
   }
 }
 
+// These are view preferences only: they never change the shared match roster.
+const lobbyRosterFilters = { tech: 'both', weights: new Set(['light', 'medium', 'heavy', 'assault']) };
+
+function weightClassForUnit(unit) {
+  const tons = Number(unit?.tonnage || 0);
+  if (tons <= 35) return 'light';
+  if (tons <= 55) return 'medium';
+  if (tons <= 75) return 'heavy';
+  return 'assault';
+}
+
+function techBaseForUnit(unit) {
+  return String(unit?.techBase || 'Inner Sphere').toLowerCase().includes('clan') ? 'clan' : 'is';
+}
+
+function setLobbyRosterTechFilter(tech) {
+  lobbyRosterFilters.tech = ['is', 'clan', 'both'].includes(tech) ? tech : 'both';
+  loadLobbyUI();
+}
+
+function toggleLobbyRosterWeightFilter(weight) {
+  if (!['light', 'medium', 'heavy', 'assault'].includes(weight)) return;
+  if (lobbyRosterFilters.weights.has(weight)) {
+    // Keep one category selected, so the roster never becomes mysteriously blank.
+    if (lobbyRosterFilters.weights.size > 1) lobbyRosterFilters.weights.delete(weight);
+  } else {
+    lobbyRosterFilters.weights.add(weight);
+  }
+  loadLobbyUI();
+}
+
 async function loadLobby() {
   if (!currentGameId) return;
   lobbyClosureInProgress = false;
@@ -247,11 +278,25 @@ function renderLobbyMatchSetup(gameState, players) {
   rosterSection.hidden = false;
   const roster = gameState.rosters?.[String(mySeatNumber)] || [];
   const total = rosterTonnage(roster);
-  rosterEl.innerHTML = `<div class="roster-summary">${total} / ${limit} tons · choose at least one tested unit</div><div class="roster-options">${supportedUnitEntries().map(([id, unit]) => {
+  const filtered = supportedUnitEntries().filter(([, unit]) => {
+    const tech = techBaseForUnit(unit);
+    return (lobbyRosterFilters.tech === 'both' || lobbyRosterFilters.tech === tech) &&
+      lobbyRosterFilters.weights.has(weightClassForUnit(unit));
+  });
+  const weightOrder = ['light', 'medium', 'heavy', 'assault'];
+  const visibleByWeight = weightOrder.map(weight => [weight, filtered.filter(([, unit]) => weightClassForUnit(unit) === weight)]);
+  const techButton = (value, label) => `<button class="roster-filter ${lobbyRosterFilters.tech === value ? 'active' : ''}" onclick="setLobbyRosterTechFilter('${value}')">${label}</button>`;
+  const weightButton = (weight, label) => `<button class="roster-filter ${lobbyRosterFilters.weights.has(weight) ? 'active' : ''}" onclick="toggleLobbyRosterWeightFilter('${weight}')">${label}</button>`;
+  const card = ([id, unit]) => {
     const selected = roster.includes(id);
     const disabled = !selected && total + unit.tonnage > limit;
-    return `<button class="roster-option ${selected ? 'selected' : ''}" onclick="toggleRosterUnit('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons${selected ? ' · selected' : ''}</span></button>`;
-  }).join('')}</div>`;
+    const techLabel = techBaseForUnit(unit) === 'clan' ? 'Clan' : 'Inner Sphere';
+    return `<button class="roster-option ${selected ? 'selected' : ''}" onclick="toggleRosterUnit('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${selected ? ' · selected' : ''}</span></button>`;
+  };
+  rosterEl.innerHTML = `<div class="roster-summary">${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
+    <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
+    <div class="roster-filter-bar"><span>Weight</span>${weightButton('light', 'Light')}${weightButton('medium', 'Medium')}${weightButton('heavy', 'Heavy')}${weightButton('assault', 'Assault')}</div>
+    <div class="roster-scroll">${visibleByWeight.map(([weight, entries]) => entries.length ? `<section class="roster-weight-group"><div class="roster-weight-heading">${weight} ${weight === 'assault' ? '— 80–100 tons' : weight === 'heavy' ? '— 60–75 tons' : weight === 'medium' ? '— 40–55 tons' : '— 20–35 tons'}</div><div class="roster-options">${entries.map(card).join('')}</div></section>` : '').join('') || '<div class="roster-empty">No supported BattleMechs match these filters.</div>'}</div>`;
 }
 
 async function toggleRosterUnit(unitId) {
