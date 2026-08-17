@@ -73,3 +73,7 @@ twists server-authoritative and advances the alternating Reaction activation.
 
 `SQL/33_authoritative_match_end.sql` makes victory and draw detection
 server-authoritative, including the simultaneous-fire safeguard.
+
+`SQL/34_authoritative_weapon_piloting.sql` adds a server-side Piloting Skill
+Roll and fall outcome for a standing BattleMech taking 20 or more weapon or
+missile damage during the simultaneous Weapon Attack phase.

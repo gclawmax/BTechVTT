@@ -382,6 +382,11 @@ async function loadWeaponCombatEvents() {
       time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round,
       phase: event.phase, cat: 'attack', msg: authoritativeWeaponResultMessage(attacker, target, result)
     }));
+    (event.resolution?.piloting_checks || []).forEach((check, index) => entries.push({
+      id: `weapon-psr-${event.id}-${index}`, ts: resolvedAt + event.sequence * 100 + results.length + index + 1,
+      time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round,
+      phase: event.phase, cat: 'roll', msg: authoritativePilotingResultMessage(check)
+    }));
   }
   mergeRemoteLog(entries);
 }
