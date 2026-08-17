@@ -54,3 +54,7 @@ consciousness checks remain a later slice.
 `SQL/28_authoritative_startup.sql` lets a shut-down BattleMech use its
 Movement activation for a server-rolled restart attempt, rather than blocking
 the alternating activation order.
+
+`SQL/29_authoritative_pilot_injuries.sql` adds head-hit and damaged-life-support
+heat injuries, consciousness checks, End Phase recovery checks, pilot death,
+and activation blocking for unconscious pilots.

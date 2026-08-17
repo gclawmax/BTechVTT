@@ -53,6 +53,11 @@ async function confirmHeatManagement() {
         const explosion = outcome.ammo_explosion;
         logEvent(`${label} ${explosion ? `${explosion.type} ammunition exploded in ${hitLocationLabel(explosion.location)} for ${explosion.damage} internal damage` : 'avoided an ammunition explosion'} — safety need ${outcome.ammo_target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
       }
+      for (const check of outcome.pilot_checks || []) logEvent(`${label}${formatAuthoritativePilotCheck(check)}`, 'roll');
+      if (outcome.pilot_recovery) {
+        const recovery = outcome.pilot_recovery;
+        logEvent(`${label} ${recovery.recovered ? 'regained consciousness' : 'remained unconscious'} — need ${recovery.target}, rolled ${recovery.die_a} + ${recovery.die_b} = ${recovery.total}.`, 'roll');
+      }
     }
     await loadGameState();
     return;

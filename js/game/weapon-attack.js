@@ -18,7 +18,7 @@ function weaponPhaseStartMech(mech) {
 }
 
 function canFireFromWeaponPhaseStart(mech) {
-  return Boolean(mech && !mech.shutdown && !weaponPhaseStartMech(mech)?.destroyed);
+  return Boolean(mech && !mech.shutdown && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious') && !weaponPhaseStartMech(mech)?.destroyed);
 }
 
 function compatibleAmmoBins(attacker, weaponEntry) {
@@ -301,6 +301,12 @@ function formatAuthoritativeCriticals(checks) {
   ).join('');
 }
 
+function formatAuthoritativePilotCheck(check) {
+  if (!check) return '';
+  if (check.consciousness === 'dead') return ` Pilot suffered hit ${check.hits}/6 and was killed.`;
+  return ` Pilot hit ${check.hits}/6 (${check.reason}) — consciousness need ${check.target}, rolled ${check.die_a} + ${check.die_b} = ${check.total}: ${check.consciousness}.`;
+}
+
 function authoritativeWeaponResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
@@ -308,12 +314,12 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   if (result.cluster_roll) {
     const cluster = result.cluster_roll;
     const groups = (result.groups || []).map(group =>
-      `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}`
+      `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}${formatAuthoritativePilotCheck(group.pilot_check)}`
     ).join('; ');
     return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit. Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}: ${result.missiles_hit} missile${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.`;
   }
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
-  return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${criticals}`;
+  return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${criticals}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function weaponDeclarationSummary(attacker, mountIds) {

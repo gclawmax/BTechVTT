@@ -24,7 +24,7 @@ function physicalComponentState(mech, location, label) {
 }
 
 function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandidates(type)[0]) {
-  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.shutdown || target.shutdown || attacker.owner === target.owner) {
+  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.shutdown || target.shutdown || (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious') || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target.' };
   }
   if (axialDistance(attacker.col, attacker.row, target.col, target.row) !== 1) {
@@ -67,7 +67,7 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
 
 function selectPhysicalAttacker(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked || mech.shutdown) return;
+  if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked || mech.shutdown || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious')) return;
   physicalAttackState = { attackerId: instanceId, targetId: null, attackType: null, limbs: [] };
   selectedInstanceId = instanceId;
   logEvent(`${mechLabel(mech)} selected for physical attack declaration.`, 'system');
@@ -207,7 +207,7 @@ function authoritativePhysicalResultMessage(attacker, target, result) {
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
   const action = result.attack_type === 'kick' ? 'kicked' : `punched with ${physicalLimbLabel(result.limb)}`;
   if (!result.hit) return `${mechLabel(attacker)} ${action} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
-  return `${mechLabel(attacker)} ${action} ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${formatAuthoritativeCriticals(result.critical_checks)}`;
+  return `${mechLabel(attacker)} ${action} ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${formatAuthoritativeCriticals(result.critical_checks)}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function authoritativePilotingResultMessage(check) {

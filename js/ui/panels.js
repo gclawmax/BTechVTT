@@ -41,6 +41,9 @@ function renderRoster() {
     if (inst.shutdown && !inst.destroyed) {
       moveBadge += `<span style="font-size:9px;color:#a32832;letter-spacing:.06em;margin-left:6px;">SHUT DOWN</span>`;
     }
+    if (inst.pilot?.consciousness && inst.pilot.consciousness !== 'conscious') {
+      moveBadge += `<span style="font-size:9px;color:#a32832;letter-spacing:.06em;margin-left:6px;">PILOT ${inst.pilot.consciousness.toUpperCase()}</span>`;
+    }
 
     row.innerHTML = `
       <div class="roster-swatch" style="background:${unit.color}"></div>

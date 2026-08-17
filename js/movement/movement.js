@@ -15,7 +15,7 @@ function heatMovementPenalty(mech) {
 
 async function attemptStartup(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
-  if (!mech || !mech.shutdown || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  if (!mech || !mech.shutdown || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
   const { data, error } = await db.rpc('attempt_startup_battlemech', { p_game_id: currentGameId, p_instance_id: instanceId });
   if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the startup attempt: ${error.message}`, 'error'); return; }
   const roll = data?.to_hit || {};
@@ -25,7 +25,7 @@ async function attemptStartup(instanceId) {
 
 async function attemptStand(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
-  if (!mech || !mech.prone || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  if (!mech || !mech.prone || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
   if (vsAiMode) {
     const roll = roll2d6Detailed();
     const target = 5;
@@ -53,7 +53,7 @@ async function attemptStand(instanceId) {
 function activationUnitsLeft(seat, phase = currentGameState.phase) {
   const flag = phase === 'movement' ? 'hasMoved' : phase === 'weapon_attack' ? 'hasFired' : 'hasPhysicalAttacked';
   return mechInstances.filter(mech => {
-    if (mech.owner !== seat || mech[flag] || (mech.shutdown && phase !== 'movement')) return false;
+    if (mech.owner !== seat || mech[flag] || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || (mech.shutdown && phase !== 'movement')) return false;
     if (phase === 'weapon_attack') {
       return mech.weaponPhaseStart?.round === currentGameState.round && !mech.weaponPhaseStart?.mech?.destroyed;
     }
@@ -141,7 +141,7 @@ function flashMoveWarning(msg) {
 // Begin a movement action for a 'Mech: 'stand' resolves instantly, others open an interactive move.
 async function startMovementMode(instanceId, mode) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  if (!mech || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
   if ((mech.structure.ll || 0) <= 0 || (mech.structure.rl || 0) <= 0) {
     flashMoveWarning("A destroyed leg prevents this 'Mech from moving.");
     return;
@@ -325,7 +325,7 @@ function renderMovementPanel() {
 
   const mech = mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!mech) {
-    const unmoved = mechInstances.filter(m => m.owner === mySeatNumber && !m.hasMoved);
+    const unmoved = mechInstances.filter(m => m.owner === mySeatNumber && !m.hasMoved && (!m.pilot?.consciousness || m.pilot.consciousness === 'conscious'));
     const allowance = Math.min(currentActivationAllowance('movement'), unmoved.length);
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement Phase</div>
@@ -339,6 +339,11 @@ function renderMovementPanel() {
 
   const unit = BT_UNITS[mech.unitId];
   const isMine = mech.owner === mySeatNumber;
+
+  if (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') {
+    panel.innerHTML = `<div class="panel-eyebrow">Movement — Pilot ${mech.pilot.consciousness}</div><div style="font-size:11px;color:#a32832;line-height:1.5;">This BattleMech cannot act while its pilot is ${mech.pilot.consciousness}.</div>`;
+    return;
+  }
 
   if (mech.shutdown) {
     panel.innerHTML = `<div class="panel-eyebrow">Movement — Shut Down</div><div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">This BattleMech cannot move until it restarts. A startup attempt consumes its Movement activation.</div><button onclick="attemptStartup('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt Startup</button>`;
