@@ -322,6 +322,18 @@ async function submitAuthoritativeMovement(mech, mode, path) {
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
   await loadGameState();
   logEvent(`${summary}${mode === 'stand' ? '' : ` (${data?.hexes_moved || 0} hex${data?.hexes_moved === 1 ? '' : 'es'}, ${data?.mp_used || 0}/${data?.mp_max || 0} MP)`}.`, 'move');
+  if (data?.terrain_check) {
+    const check = data.terrain_check;
+    const movedMech = mechInstances.find(candidate => candidate.instanceId === check.instance_id) || mech;
+    const roll = check.to_hit || {};
+    const gyro = roll.gyro_modifier ? ` (including +${roll.gyro_modifier} gyro damage)` : '';
+    if (check.passed) {
+      logEvent(`${mechLabel(movedMech)} passed its Piloting Skill Roll for running through rough ground — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
+    } else {
+      const groups = (check.fall_groups || []).map(group => `${hitLocationLabel(group.location)} ${group.damage}`).join(', ');
+      logEvent(`${mechLabel(movedMech)} failed its Piloting Skill Roll for running through rough ground — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`, 'roll');
+    }
+  }
 }
 
 // Abandon the in-progress move and snap the 'Mech back to where it started this action.
