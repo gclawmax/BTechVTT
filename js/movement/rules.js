@@ -158,7 +158,11 @@ function draw() {
       drawHex(x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY, HEX_SIZE - 0.5, '#e8e8e2', '#c9c9c2');
       const terrain = terrainAt(col, row);
       if (terrain !== 'clear') {
-        ctx.fillStyle = terrain === 'heavy_woods' ? 'rgba(34,105,45,.28)' : 'rgba(71,140,77,.20)';
+        ctx.fillStyle = terrain === 'heavy_woods' ? 'rgba(34,105,45,.28)'
+          : terrain === 'light_woods' ? 'rgba(71,140,77,.20)'
+            : terrain === 'shallow_water' ? 'rgba(55,125,190,.24)'
+              : terrain === 'rough' ? 'rgba(130,95,60,.20)'
+                : terrain === 'pavement' ? 'rgba(100,100,108,.18)' : 'rgba(125,50,50,.26)';
         ctx.beginPath();
         ctx.arc(x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY, terrain === 'heavy_woods' ? 12 : 9, 0, Math.PI * 2);
         ctx.fill();
@@ -169,6 +173,12 @@ function draw() {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(hexCode(col, row), x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY);
+      const elevation = elevationAt(col, row);
+      if (elevation) {
+        ctx.fillStyle = '#8a7050';
+        ctx.font = '8px "IBM Plex Mono", monospace';
+        ctx.fillText(`+${elevation}`, x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY + 10);
+      }
     }
   }
 
@@ -206,7 +216,7 @@ function drawMovementHighlights() {
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
         if (col === moveState.origCol && row === moveState.origRow) continue;
-        if (axialDistance(moveState.origCol, moveState.origRow, col, row) <= moveState.mpMax && !isHexOccupied(col, row, mech.instanceId)) {
+        if (!terrainMovementBlocked(col, row) && axialDistance(moveState.origCol, moveState.origRow, col, row) <= moveState.mpMax && !isHexOccupied(col, row, mech.instanceId)) {
           highlightHex(col, row, 'rgba(90,140,220,0.35)');
         }
       }
@@ -217,6 +227,7 @@ function drawMovementHighlights() {
       const n = hexNeighbor(mech.col, mech.row, d);
       if (n.col < 0 || n.col >= GRID_COLS || n.row < 0 || n.row >= GRID_ROWS) continue;
       if (isHexOccupied(n.col, n.row, mech.instanceId)) continue;
+      if (terrainMovementBlocked(n.col, n.row) || Math.abs(elevationAt(mech.col, mech.row) - elevationAt(n.col, n.row)) > 1) continue;
       const isRear = d === ((mech.facing + 3) % 6);
       if (isRear && moveState.mode !== 'walk') continue; // running 'Mechs can't move backward
       const cost = (d === mech.facing) ? 1 + movementTerrainCost(n.col, n.row) : (isRear ? 1 : facingTurnCost(mech.facing, d) + 1) + movementTerrainCost(n.col, n.row);

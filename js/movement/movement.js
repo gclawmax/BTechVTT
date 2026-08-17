@@ -5,7 +5,7 @@ const MOVE_BTN_STYLE = 'padding:9px 10px;border:1px solid var(--phosphor);backgr
 const MOVEMENT_HEAT = { stand: 0, walk: 1, run: 2, jump: 3 };
 
 function movementTerrainCost(col, row) {
-  return terrainAt(col, row) === 'heavy_woods' ? 2 : terrainAt(col, row) === 'light_woods' ? 1 : 0;
+  return ({ light_woods: 1, heavy_woods: 2, rough: 1, shallow_water: 1 })[terrainAt(col, row)] || 0;
 }
 
 function titleCaseMode(mode) {
@@ -208,6 +208,7 @@ function attemptMoveStep(col, row) {
 
   if (moveState.mode === 'jump') {
     // Jumping ignores terrain, intervening 'Mechs, and facing en route (Quick-Start Rules, p.3).
+    if (terrainMovementBlocked(col, row)) { flashMoveWarning('That hex cannot be used as a jump landing.'); return; }
     const dist = axialDistance(moveState.origCol, moveState.origRow, col, row);
     if (dist > moveState.mpMax) { flashMoveWarning('Not enough Jump MP for that hex.'); return; }
     const dir = directionBetween(moveState.origCol, moveState.origRow, col, row);
@@ -222,6 +223,8 @@ function attemptMoveStep(col, row) {
     // Walk/Run: one hex per click, forward/rear along current facing, or a facing change + step.
     const dir = directionBetween(mech.col, mech.row, col, row);
     if (dir === -1) { flashMoveWarning('Click a hex adjacent to your ‘Mech.'); return; }
+    if (terrainMovementBlocked(col, row)) { flashMoveWarning('That terrain is impassable.'); return; }
+    if (Math.abs(elevationAt(mech.col, mech.row) - elevationAt(col, row)) > 1) { flashMoveWarning('A BattleMech can climb or descend only one elevation level at a time.'); return; }
     const isRear = dir === ((mech.facing + 3) % 6);
     if (isRear && moveState.mode !== 'walk') { flashMoveWarning("Can't move backward while running."); return; }
     const cost = (dir === mech.facing) ? 1 + movementTerrainCost(col, row) : (isRear ? 1 : facingTurnCost(mech.facing, dir) + 1) + movementTerrainCost(col, row);

@@ -77,3 +77,7 @@ server-authoritative, including the simultaneous-fire safeguard.
 `SQL/34_authoritative_weapon_piloting.sql` adds a server-side Piloting Skill
 Roll and fall outcome for a standing BattleMech taking 20 or more weapon or
 missile damage during the simultaneous Weapon Attack phase.
+
+`SQL/35_terrain_and_elevation.sql` adds the Ridge and Ford built-in map and
+server-validated rough ground, shallow water, impassable hexes, and one-level
+elevation changes for authoritative movement.
