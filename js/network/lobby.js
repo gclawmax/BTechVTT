@@ -436,10 +436,20 @@ function buildRosterInstances(rosters) {
   };
   return [1, 2].flatMap(seat => (rosters?.[String(seat)] || []).map((unitId, index) => {
     const position = deployment[seat][index];
+    const unit = getSupportedUnit(unitId);
     return {
       instanceId: `${unitId}-p${seat}-${index + 1}`,
       unitId, owner: seat, col: position.col, row: position.row,
       facing: position.facing, torsoFacing: position.facing,
+      // The server is authoritative for damage and movement. Save the full
+      // starting record here rather than relying on the browser-only display
+      // hydrator, which would otherwise make absent legs look destroyed.
+      armor: { ...(unit?.armor || {}) },
+      structure: { ...(unit?.structure || {}) },
+      ammoBins: (unit?.ammoBins || []).map(bin => ({ ...bin, maxShots: bin.maxShots ?? bin.shots })),
+      heat: 0, roundStartingHeat: 0, weaponHeat: 0, movementHeat: 0,
+      pilot: { hits: 0, consciousness: 'conscious' },
+      criticalSlotDamage: {}, weaponJams: [],
       ...(activeCatalogueVersion ? { catalogueVersion: activeCatalogueVersion } : {})
     };
   }));
