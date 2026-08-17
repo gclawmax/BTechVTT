@@ -99,18 +99,21 @@ BEGIN
  fn:=to_regprocedure('public.btech_process_weapon_declaration(text,integer,jsonb,text,text,text[],jsonb,boolean)');
  IF fn IS NULL THEN RAISE EXCEPTION 'Weapon declaration resolver is missing';END IF;
  SELECT pg_get_functiondef(fn) INTO source;
- IF position('btech_set_ammo_load_type' IN source)>0 THEN RETURN;END IF;
+ -- Keep an explicit marker in the patched resolver: the helper function name
+ -- itself is not part of the resolver body, so it cannot safely identify an
+ -- already-applied migration.
+ IF position('lb_x_ammo_setup_v1' IN source)>0 THEN RETURN;END IF;
  patched:=replace(source,
   E'  damage_per_missile:=coalesce((weapon->>''damagePerMissile'')::int,CASE WHEN selected_weapon_key LIKE ''lrm%'' THEN 1 WHEN selected_weapon_key LIKE ''srm%'' THEN 2 END);',
   E'  damage_per_missile:=coalesce((weapon->>''damagePerMissile'')::int,CASE WHEN selected_weapon_key LIKE ''lrm%'' THEN 1 WHEN selected_weapon_key LIKE ''srm%'' THEN 2 END);\n  IF selected_weapon_key=''lb10x'' AND coalesce(p_ammo_bins->''__fire_modes''->>selected_mount_id,''slug'')=''cluster'' THEN cluster_size:=10;damage_per_missile:=1;END IF;');
  patched:=replace(patched,
-  E'  IF selected_ammo_type IS NOT NULL AND NOT EXISTS (SELECT 1 FROM btech_catalogue_ammo_bins bin WHERE bin.catalogue_version=p_catalogue_version AND bin.unit_id=attacker_start->>''unitId'' AND bin.bin_id=ammo_bin_id AND bin.ammo_type=selected_ammo_type) THEN RAISE EXCEPTION ''Selected ammunition bin is not compatible with %'',weapon_name;END IF;',
-  E'  IF selected_ammo_type IS NOT NULL AND NOT EXISTS (SELECT 1 FROM btech_catalogue_ammo_bins bin WHERE bin.catalogue_version=p_catalogue_version AND bin.unit_id=attacker_start->>''unitId'' AND bin.bin_id=ammo_bin_id AND bin.ammo_type=selected_ammo_type) THEN RAISE EXCEPTION ''Selected ammunition bin is not compatible with %'',weapon_name;END IF;\n  IF selected_weapon_key=''lb10x'' AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(attacker_start->''ammoBins'',''[]''::jsonb)) bin WHERE bin->>''id''=ammo_bin_id AND bin->>''loadType''=coalesce(p_ammo_bins->''__fire_modes''->>selected_mount_id,''slug'')) THEN RAISE EXCEPTION ''Selected LB-X bin was not loaded for that ammunition type during Round 1 setup'';END IF;');
+  E'  IF p_resolve THEN attacker:=btech_consume_simultaneous_ammo(attacker,attacker_start,selected_ammo_type,ammo_bin_id);',
+  E'  /* lb_x_ammo_setup_v1 */\n  IF selected_weapon_key=''lb10x'' AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(coalesce(attacker_start->''ammoBins'',''[]''::jsonb)) bin WHERE bin->>''id''=ammo_bin_id AND bin->>''loadType''=coalesce(p_ammo_bins->''__fire_modes''->>selected_mount_id,''slug'')) THEN RAISE EXCEPTION ''Selected LB-X bin was not loaded for that ammunition type during Round 1 setup'';END IF;\n  IF p_resolve THEN attacker:=btech_consume_simultaneous_ammo(attacker,attacker_start,selected_ammo_type,ammo_bin_id);');
  patched:=replace(patched,
   E'''missiles_hit'',missiles_hit,''groups'',groups',
   E'''missiles_hit'',missiles_hit,''cluster_kind'',CASE WHEN selected_weapon_key=''lb10x'' THEN ''lb_x'' ELSE ''missile'' END,''groups'',groups');
- IF patched=source OR position('btech_set_ammo_load_type' IN patched)=0 OR position('cluster_kind' IN patched)=0 OR position('Round 1 setup' IN patched)=0 THEN
-  RAISE EXCEPTION 'Weapon resolver did not contain the expected LB-X markers';
- END IF;
+ IF patched=source THEN RAISE EXCEPTION 'Weapon resolver did not contain a patchable LB-X marker';END IF;
+ IF position('cluster_kind' IN patched)=0 THEN RAISE EXCEPTION 'Weapon resolver cluster-result marker was not found';END IF;
+ IF position('lb_x_ammo_setup_v1' IN patched)=0 THEN RAISE EXCEPTION 'Weapon resolver ammunition-validation marker was not found';END IF;
  EXECUTE patched;
 END $$;
