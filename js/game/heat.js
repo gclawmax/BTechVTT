@@ -6,7 +6,7 @@ function heatLedger(mech) {
   ensureMechCombatState(mech);
   const engineHeat = engineCriticalHeat(mech);
   const before = (mech.heat || 0) + engineHeat;
-  const sinks = Math.max(0, BT_UNITS[mech.unitId].heat_sinks - destroyedHeatSinkCapacity(mech));
+  const sinks = Math.max(0, (BT_UNITS[mech.unitId].heat_sink_capacity || BT_UNITS[mech.unitId].heat_sinks) - destroyedHeatSinkCapacity(mech));
   const dissipated = Math.min(before, sinks);
   return {
     starting: mech.roundStartingHeat || 0,

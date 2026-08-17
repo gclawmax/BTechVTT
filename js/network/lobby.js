@@ -191,7 +191,10 @@ async function handleLobbyClosed() {
 }
 
 function supportedUnitEntries() {
-  return Object.entries(BT_UNIT_CATALOGUE).filter(([id]) => isSupportedUnit(id));
+  return Object.entries(BT_UNIT_CATALOGUE)
+    .filter(([id]) => isSupportedUnit(id))
+    .sort(([, left], [, right]) => left.tonnage - right.tonnage ||
+      left.chassis.localeCompare(right.chassis) || left.variant.localeCompare(right.variant));
 }
 
 function rosterTonnage(roster) {

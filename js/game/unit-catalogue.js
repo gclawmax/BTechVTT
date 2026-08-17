@@ -164,6 +164,7 @@ async function loadUnitCatalogue(catalogueVersion) {
       movement: definition.movement,
       heat_sinks: definition.heat_sinks,
       heat_sink_type: definition.heat_sink_type,
+      heat_sink_capacity: definition.heat_sink_capacity || definition.heat_sinks,
       armor: definition.armor,
       structure: definition.structure,
       weapons: mounts.map(mount => ({

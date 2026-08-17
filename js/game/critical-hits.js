@@ -176,7 +176,7 @@ function destroyedHeatSinkCapacity(mech) {
   const layout = BT_CRITICAL_LAYOUTS[mech.unitId] || {};
   return Object.entries(mech.criticalSlotDamage || {}).reduce((total, [location, indices]) => total + (indices || []).reduce((locationTotal, index) => {
     const slot = criticalSlotName(layout[location]?.[index]);
-    return locationTotal + (slot === 'Double Heat Sink' ? 2 : slot === 'Heat Sink' ? 1 : 0);
+    return locationTotal + (/Double Heat Sink$/i.test(slot) ? 2 : slot === 'Heat Sink' ? 1 : 0);
   }, 0), 0);
 }
 

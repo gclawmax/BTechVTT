@@ -1,10 +1,10 @@
 # MegaMek data attribution
 
-The supported unit records for Marauder MAD-3R, Enforcer ENF-4R, and
-Centurion CN9-A were reviewed against the
+The supported roster is a curated transformation of selected Inner Sphere
+3030-era and Clan Invasion-era unit records from the
 [MegaMek Data Repository](https://github.com/MegaMek/mm-data).
 
-MegaMek Data © 2025 by The MegaMek Team is licensed under
+MegaMek Data © 2025-2026 by The MegaMek Team is licensed under
 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
 BT-VTT adapts those unit records into its own browser-game schema and currently

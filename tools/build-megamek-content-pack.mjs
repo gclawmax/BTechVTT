@@ -30,15 +30,29 @@ const WEAPONS = {
   'AC/20': { key: 'ac20', damage: 20, heat: 7, range: [3, 6, 9], ammoType: 'ac20' },
   'AC/10': { key: 'ac10', damage: 10, heat: 3, range: [5, 10, 15], ammoType: 'ac10' },
   'AC/5': { key: 'ac5', damage: 5, heat: 1, range: [6, 12, 18], ammoType: 'ac5' },
+  'AC/2': { key: 'ac2', damage: 2, heat: 1, range: [8, 16, 24], ammoType: 'ac2' },
+  'Ultra AC/5': { key: 'uac5', damage: 5, heat: 1, range: [6, 12, 18], ammoType: 'uac5' },
+  'LB 10-X AC': { key: 'lb10x', damage: 10, heat: 2, range: [6, 12, 18], ammoType: 'lb10x' },
   'Machine Gun': { key: 'machine_gun', damage: 2, heat: 0, range: [1, 2, 3], ammoType: 'machine_gun' },
+  Flamer: { key: 'flamer', damage: 2, heat: 3, range: [1, 2, 3] },
   'LRM 20': { key: 'lrm20', damage: 20, heat: 6, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm20', clusterSize: 20, damagePerMissile: 1 },
   'LRM 10': { key: 'lrm10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm10', clusterSize: 10, damagePerMissile: 1 },
-  'SRM 6': { key: 'srm6', damage: 12, heat: 4, range: [3, 6, 9], ammoType: 'srm6', clusterSize: 6, damagePerMissile: 2 }
+  'LRM 15': { key: 'lrm15', damage: 15, heat: 5, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm15', clusterSize: 15, damagePerMissile: 1 },
+  'LRM 5': { key: 'lrm5', damage: 5, heat: 2, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm5', clusterSize: 5, damagePerMissile: 1 },
+  'SRM 6': { key: 'srm6', damage: 12, heat: 4, range: [3, 6, 9], ammoType: 'srm6', clusterSize: 6, damagePerMissile: 2 },
+  'SRM 4': { key: 'srm4', damage: 8, heat: 3, range: [3, 6, 9], ammoType: 'srm4', clusterSize: 4, damagePerMissile: 2 },
+  'SRM 2': { key: 'srm2', damage: 4, heat: 2, range: [3, 6, 9], ammoType: 'srm2', clusterSize: 2, damagePerMissile: 2 },
+  'ER Medium Laser': { key: 'er_med_laser', damage: 5, heat: 5, range: [5, 10, 15] },
+  'ER Large Laser': { key: 'er_large_laser', damage: 10, heat: 12, range: [7, 14, 19] },
+  'ER PPC': { key: 'er_ppc', damage: 15, heat: 15, range: [7, 14, 23] },
+  'Medium Pulse Laser': { key: 'med_pulse_laser', damage: 6, heat: 4, range: [2, 4, 6] }
 };
 const AMMO = [
-  [/Ammo AC\/20/i, 'ac20', 5], [/Ammo AC\/10/i, 'ac10', 10], [/Ammo AC\/5/i, 'ac5', 20],
-  [/Ammo LRM-20/i, 'lrm20', 6], [/Ammo LRM-10/i, 'lrm10', 12], [/Ammo SRM-6/i, 'srm6', 15],
-  [/Ammo MG/i, 'machine_gun', 200]
+  [/Ammo AC\/20/i, 'ac20', 5], [/Ammo AC\/10/i, 'ac10', 10], [/Ammo AC\/5/i, 'ac5', 20], [/Ammo AC\/2/i, 'ac2', 45],
+  [/Ultra AC\/5 Ammo/i, 'uac5', 20], [/LB 10-X AC Ammo/i, 'lb10x', 10],
+  [/Ammo LRM-20/i, 'lrm20', 6], [/Ammo LRM-15/i, 'lrm15', 8], [/Ammo LRM-10/i, 'lrm10', 12], [/Ammo LRM-5/i, 'lrm5', 24],
+  [/Ammo SRM-6/i, 'srm6', 15], [/Ammo SRM-4/i, 'srm4', 25], [/Ammo SRM-2/i, 'srm2', 50],
+  [/Ammo MG/i, 'machine_gun', 200], [/Machine Gun Ammo/i, 'machine_gun', 200]
 ];
 const BIPED_STRUCTURE = {
   20:[6,5,3,4],25:[8,6,4,6],30:[10,7,5,7],35:[11,8,6,8],40:[12,10,6,10],45:[14,11,7,11],
@@ -112,7 +126,7 @@ function ammoFrom(criticals) {
   return bins;
 }
 function structureFor(mass, config) {
-  if (!/^Biped$/i.test(config || '') || !BIPED_STRUCTURE[mass]) return null;
+  if (!/^Biped(?: OmniMek)?$/i.test(config || '') || !BIPED_STRUCTURE[mass]) return null;
   const [ct,side,arm,leg] = BIPED_STRUCTURE[mass];
   return { head:3,ct,lt:side,rt:side,la:arm,ra:arm,ll:leg,rl:leg };
 }
@@ -124,17 +138,21 @@ function parseMtf(text, entry) {
   const heatMatch = headers.get('heat sinks')?.match(/^(\d+)\s+(.+)$/);
   const criticals = criticalsFrom(lines);
   const mounts = weaponsFrom(lines);
+  const ammoBins = ammoFrom(criticals);
   const definition = {
     id: entry.id,
-    chassis: headers.get('chassis'), variant: headers.get('model'), mass,
+    chassis: entry.display_chassis || headers.get('chassis'), variant: entry.display_variant || headers.get('model'), mass,
     config: headers.get('config'), tech_base: headers.get('techbase'), era: integer(headers.get('era')),
     movement: { walk, run: walk == null ? null : Math.ceil(walk * 1.5), jump: integer(headers.get('jump mp')) || 0 },
     heat_sinks: heatMatch ? integer(heatMatch[1]) : null,
     heat_sink_type: heatMatch?.[2] || null,
+    heat_sink_capacity: heatMatch ? integer(heatMatch[1]) * (/Double/i.test(heatMatch[2]) ? 2 : 1) : null,
     armor: armorFrom(lines), structure: structureFor(mass, headers.get('config')),
-    supported_by_vtt: mounts.every(mount => mount.weapon_key && mount.definition) && Boolean(structureFor(mass, headers.get('config')))
+    supported_by_vtt: mounts.every(mount => mount.weapon_key && mount.definition &&
+      (!mount.definition.ammoType || ammoBins.some(bin => bin.ammo_type === mount.definition.ammoType))) &&
+      Boolean(structureFor(mass, headers.get('config')))
   };
-  return { id:entry.id, source_uuid:headers.get('uuid') || null, source_file:entry.source, definition, mounts, criticals, ammo_bins:ammoFrom(criticals) };
+  return { id:entry.id, source_uuid:headers.get('uuid') || null, source_file:entry.source, definition, mounts, criticals, ammo_bins:ammoBins };
 }
 
 function contentPack(registry) {
@@ -173,8 +191,9 @@ async function main() {
   await writeFile(sqlPath, contentPack(registry));
   const slots = units.reduce((total,unit) => total + Object.values(unit.criticals).flat().filter(Boolean).length,0);
   const unsupported = units.flatMap(unit => unit.mounts.filter(mount => !mount.weapon_key).map(mount => `${unit.id}: ${mount.raw_name}`));
+  const unsupportedUnits = units.filter(unit => !unit.definition.supported_by_vtt).map(unit => unit.id);
   console.log(`Generated ${units.length} units, ${units.reduce((n,u)=>n+u.mounts.length,0)} mounts, ${slots} occupied critical slots and ${units.reduce((n,u)=>n+u.ammo_bins.length,0)} ammo bins.`);
-  if (unsupported.length) throw new Error(`Unsupported equipment in supported allowlist:\n${unsupported.join('\n')}`);
+  if (unsupported.length || unsupportedUnits.length) throw new Error(`Unsupported content in supported allowlist:\n${[...unsupported,...unsupportedUnits].join('\n')}`);
 }
 
 main().catch(error => { console.error(`Content-pack generation failed: ${error.message}`); process.exitCode=1; });
