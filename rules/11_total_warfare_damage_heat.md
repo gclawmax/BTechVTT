@@ -62,3 +62,8 @@ and activation blocking for unconscious pilots.
 `SQL/30_prone_weapon_fire.sql` requires a prone BattleMech to choose a
 supporting arm before firing, prevents that arm's weapons firing, and applies
 the prone attacker/target to-hit modifiers on Supabase.
+
+`SQL/31_authoritative_movement.sql` makes human BattleMech movement server
+authoritative: the proposed route, map bounds, occupied hexes, movement points,
+woods entry cost, facing, heat, and alternating activation are validated and
+saved atomically.

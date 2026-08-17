@@ -49,7 +49,8 @@ let moveState = {
   mode: null,       // 'walk' | 'run' | 'jump'
   mpMax: 0,
   mpUsed: 0,
-  hexesMoved: 0
+  hexesMoved: 0,
+  path: []
 };
 
 const SQRT3 = 1.73205080757;
@@ -200,11 +201,12 @@ function drawMovementHighlights() {
   };
 
   if (moveState.mode === 'jump') {
-    // Jumping ignores terrain/facing: any hex within remaining Jump MP is reachable, if unoccupied.
+    // A jump is one direct landing. Keep all candidates measured from the
+    // starting hex even after the player previews a different landing spot.
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
-        if (col === mech.col && row === mech.row) continue;
-        if (axialDistance(mech.col, mech.row, col, row) <= mpLeft && !isHexOccupied(col, row, mech.instanceId)) {
+        if (col === moveState.origCol && row === moveState.origRow) continue;
+        if (axialDistance(moveState.origCol, moveState.origRow, col, row) <= moveState.mpMax && !isHexOccupied(col, row, mech.instanceId)) {
           highlightHex(col, row, 'rgba(90,140,220,0.35)');
         }
       }
@@ -217,7 +219,7 @@ function drawMovementHighlights() {
       if (isHexOccupied(n.col, n.row, mech.instanceId)) continue;
       const isRear = d === ((mech.facing + 3) % 6);
       if (isRear && moveState.mode !== 'walk') continue; // running 'Mechs can't move backward
-      const cost = (d === mech.facing) ? 1 : (isRear ? 1 : facingTurnCost(mech.facing, d) + 1);
+      const cost = (d === mech.facing) ? 1 + movementTerrainCost(n.col, n.row) : (isRear ? 1 : facingTurnCost(mech.facing, d) + 1) + movementTerrainCost(n.col, n.row);
       if (cost <= mpLeft) highlightHex(n.col, n.row, 'rgba(90,190,110,0.35)');
     }
   }

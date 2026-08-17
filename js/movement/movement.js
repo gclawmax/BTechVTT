@@ -4,6 +4,10 @@ const MOVE_MODE_LABELS = { stand: 'Standing Still', walk: 'Walked', run: 'Ran', 
 const MOVE_BTN_STYLE = 'padding:9px 10px;border:1px solid var(--phosphor);background:var(--phosphor);color:#fff;font-family:var(--display);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;text-align:left;';
 const MOVEMENT_HEAT = { stand: 0, walk: 1, run: 2, jump: 3 };
 
+function movementTerrainCost(col, row) {
+  return terrainAt(col, row) === 'heavy_woods' ? 2 : terrainAt(col, row) === 'light_woods' ? 1 : 0;
+}
+
 function titleCaseMode(mode) {
   return MOVE_MODE_LABELS[mode] || (mode ? titleCase(mode) : '—');
 }
@@ -153,6 +157,10 @@ async function startMovementMode(instanceId, mode) {
   const unit = BT_UNITS[mech.unitId];
 
   if (mode === 'stand') {
+    if (!vsAiMode) {
+      await submitAuthoritativeMovement(mech, mode, []);
+      return;
+    }
     mech.movementMode = 'stand';
     mech.mpUsed = 0;
     mech.hexesMoved = 0;
@@ -182,7 +190,8 @@ async function startMovementMode(instanceId, mode) {
     origCol: mech.col,
     origRow: mech.row,
     origFacing: mech.facing,
-    origTorsoFacing: mech.torsoFacing
+    origTorsoFacing: mech.torsoFacing,
+    path: []
   };
   renderMovementPanel();
   draw();
@@ -199,22 +208,23 @@ function attemptMoveStep(col, row) {
 
   if (moveState.mode === 'jump') {
     // Jumping ignores terrain, intervening 'Mechs, and facing en route (Quick-Start Rules, p.3).
-    const dist = axialDistance(mech.col, mech.row, col, row);
-    if (dist > mpLeft) { flashMoveWarning('Not enough Jump MP for that hex.'); return; }
-    const dir = directionBetween(mech.col, mech.row, col, row);
+    const dist = axialDistance(moveState.origCol, moveState.origRow, col, row);
+    if (dist > moveState.mpMax) { flashMoveWarning('Not enough Jump MP for that hex.'); return; }
+    const dir = directionBetween(moveState.origCol, moveState.origRow, col, row);
     mech.col = col;
     mech.row = row;
     if (dir !== -1) mech.facing = dir; // simple default facing on landing; direct hex clicks let the player choose it
     mech.torsoFacing = mech.facing;
-    moveState.mpUsed += dist;
-    moveState.hexesMoved += dist;
+    moveState.mpUsed = dist;
+    moveState.hexesMoved = dist;
+    moveState.path = [{ action: 'jump', col, row }];
   } else {
     // Walk/Run: one hex per click, forward/rear along current facing, or a facing change + step.
     const dir = directionBetween(mech.col, mech.row, col, row);
     if (dir === -1) { flashMoveWarning('Click a hex adjacent to your ‘Mech.'); return; }
     const isRear = dir === ((mech.facing + 3) % 6);
     if (isRear && moveState.mode !== 'walk') { flashMoveWarning("Can't move backward while running."); return; }
-    const cost = (dir === mech.facing) ? 1 : (isRear ? 1 : facingTurnCost(mech.facing, dir) + 1);
+    const cost = (dir === mech.facing) ? 1 + movementTerrainCost(col, row) : (isRear ? 1 : facingTurnCost(mech.facing, dir) + 1) + movementTerrainCost(col, row);
     if (cost > mpLeft) { flashMoveWarning('Not enough MP for that move.'); return; }
     mech.col = col;
     mech.row = row;
@@ -222,6 +232,7 @@ function attemptMoveStep(col, row) {
     mech.torsoFacing = mech.facing;
     moveState.mpUsed += cost;
     moveState.hexesMoved += 1;
+    moveState.path.push({ action: 'step', col, row });
   }
 
   renderMovementPanel();
@@ -248,6 +259,7 @@ function turnMovementFacing(instanceId, direction) {
   mech.facing = (mech.facing + delta + 6) % 6;
   mech.torsoFacing = mech.facing;
   moveState.mpUsed += 1;
+  moveState.path.push({ action: 'turn', direction });
 
   renderMovementPanel();
   renderReactionPanel();
@@ -260,6 +272,10 @@ function turnMovementFacing(instanceId, direction) {
 async function confirmMove() {
   const mech = mechInstances.find(m => m.instanceId === moveState.instanceId);
   if (mech) {
+    if (!vsAiMode) {
+      await submitAuthoritativeMovement(mech, moveState.mode, moveState.path || []);
+      return;
+    }
     mech.movementMode = moveState.mode;
     mech.mpUsed = moveState.mpUsed;
     mech.hexesMoved = moveState.hexesMoved;
@@ -285,6 +301,24 @@ async function confirmMove() {
   renderDetail();
   draw();
   updateAdvanceButtonState();
+}
+
+async function submitAuthoritativeMovement(mech, mode, path) {
+  const summary = `${mechLabel(mech)} ${mode === 'jump' ? 'jumped' : mode === 'run' ? 'ran' : mode === 'walk' ? 'walked' : 'stood still'}${mode === 'stand' ? '' : ` to ${hexCode(mech.col, mech.row)}`}`;
+  const { data, error } = await db.rpc('submit_battlemech_movement', {
+    p_game_id: currentGameId,
+    p_instance_id: mech.instanceId,
+    p_mode: mode,
+    p_path: path
+  });
+  if (error) {
+    flashMoveWarning(error.message);
+    logEvent(`Server rejected the movement: ${error.message}`, 'error');
+    return;
+  }
+  moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
+  await loadGameState();
+  logEvent(`${summary}${mode === 'stand' ? '' : ` (${data?.hexes_moved || 0} hex${data?.hexes_moved === 1 ? '' : 'es'}, ${data?.mp_used || 0}/${data?.mp_max || 0} MP)`}.`, 'move');
 }
 
 // Abandon the in-progress move and snap the 'Mech back to where it started this action.
