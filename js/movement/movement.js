@@ -13,6 +13,16 @@ function heatMovementPenalty(mech) {
   return heat >= 25 ? 4 : heat >= 20 ? 3 : heat >= 15 ? 2 : heat >= 10 ? 1 : 0;
 }
 
+async function attemptStartup(instanceId) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
+  if (!mech || !mech.shutdown || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  const { data, error } = await db.rpc('attempt_startup_battlemech', { p_game_id: currentGameId, p_instance_id: instanceId });
+  if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the startup attempt: ${error.message}`, 'error'); return; }
+  const roll = data?.to_hit || {};
+  logEvent(`${mechLabel(mech)} ${data?.passed ? 'restarted' : 'failed to restart'} — need ${roll.target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
+  await loadGameState();
+}
+
 async function attemptStand(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
   if (!mech || !mech.prone || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
@@ -43,7 +53,7 @@ async function attemptStand(instanceId) {
 function activationUnitsLeft(seat, phase = currentGameState.phase) {
   const flag = phase === 'movement' ? 'hasMoved' : phase === 'weapon_attack' ? 'hasFired' : 'hasPhysicalAttacked';
   return mechInstances.filter(mech => {
-    if (mech.owner !== seat || mech[flag] || mech.shutdown) return false;
+    if (mech.owner !== seat || mech[flag] || (mech.shutdown && phase !== 'movement')) return false;
     if (phase === 'weapon_attack') {
       return mech.weaponPhaseStart?.round === currentGameState.round && !mech.weaponPhaseStart?.mech?.destroyed;
     }
@@ -315,7 +325,7 @@ function renderMovementPanel() {
 
   const mech = mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!mech) {
-    const unmoved = mechInstances.filter(m => m.owner === mySeatNumber && !m.hasMoved && !m.shutdown);
+    const unmoved = mechInstances.filter(m => m.owner === mySeatNumber && !m.hasMoved);
     const allowance = Math.min(currentActivationAllowance('movement'), unmoved.length);
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement Phase</div>
@@ -331,7 +341,7 @@ function renderMovementPanel() {
   const isMine = mech.owner === mySeatNumber;
 
   if (mech.shutdown) {
-    panel.innerHTML = `<div class="panel-eyebrow">Movement — Shut Down</div><div style="font-size:11px;color:#a32832;line-height:1.5;">This BattleMech is shut down and has no normal activation this turn.</div>`;
+    panel.innerHTML = `<div class="panel-eyebrow">Movement — Shut Down</div><div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">This BattleMech cannot move until it restarts. A startup attempt consumes its Movement activation.</div><button onclick="attemptStartup('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt Startup</button>`;
     return;
   }
 

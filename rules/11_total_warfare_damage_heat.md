@@ -50,3 +50,7 @@ environmentalHeat, heatDissipated, endingHeat, triggeredEffects
 movement and gunnery modifiers, shutdown checks, and heat ammunition-explosion
 checks on Supabase, recording each outcome in the shared log. Pilot damage and
 consciousness checks remain a later slice.
+
+`SQL/28_authoritative_startup.sql` lets a shut-down BattleMech use its
+Movement activation for a server-rolled restart attempt, rather than blocking
+the alternating activation order.
