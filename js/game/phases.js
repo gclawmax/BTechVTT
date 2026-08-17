@@ -130,7 +130,7 @@ async function loadGameState() {
     renderRoster();
     renderDetail();
   }
-  await loadResolvedWeaponEvents();
+  await loadWeaponCombatEvents();
   await loadResolvedPhysicalEvents();
 
   const initBtn = document.getElementById('btn-roll-initiative');

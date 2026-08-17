@@ -462,7 +462,7 @@ function subscribeGameStateSync() {
           renderRoster();
           renderDetail();
         }
-        await loadResolvedWeaponEvents();
+        await loadWeaponCombatEvents();
         await loadResolvedPhysicalEvents();
 
         updateGameHeader();
