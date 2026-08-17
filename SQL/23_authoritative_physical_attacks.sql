@@ -130,7 +130,7 @@ CREATE OR REPLACE FUNCTION public.submit_simultaneous_physical_declaration(
  p_game_id uuid,p_attacker_instance_id text,p_target_instance_id text DEFAULT NULL,p_attack_type text DEFAULT 'pass',p_limbs text[] DEFAULT ARRAY[]::text[]
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE g btech_games%ROWTYPE;player btech_players%ROWTYPE;st jsonb;before_units jsonb;units jsonb;attacker jsonb;
- checked jsonb;event_id uuid;sequence_no int;activation jsonb;phase_complete boolean;next_player uuid;combat_event btech_combat_events%ROWTYPE;resolution jsonb;first_player uuid;
+ checked jsonb;event_id uuid;sequence_no int;activation jsonb;phase_complete boolean;next_player uuid;combat_event btech_combat_events%ROWTYPE;resolution_payload jsonb;first_player uuid;
 BEGIN
  SELECT * INTO g FROM btech_games WHERE id=p_game_id FOR UPDATE;
  SELECT * INTO player FROM btech_players WHERE game_id=p_game_id AND user_id=auth.uid() AND role='player';
@@ -153,8 +153,8 @@ BEGIN
  activation:=btech_advance_unit_activation(st,before_units,g.current_round,'physical_attack',player.id,player.seat_number,'hasPhysicalAttacked');st:=activation->'state';phase_complete:=coalesce((activation->>'phase_complete')::boolean,false);
  IF NOT phase_complete THEN next_player:=(activation->>'active_player_id')::uuid;st:=jsonb_set(st,'{active_player_player_id}',to_jsonb(next_player),true);UPDATE btech_games SET active_player_id=next_player,state=st WHERE id=p_game_id;RETURN jsonb_build_object('status','waiting_for_activation','event_id',event_id,'remaining_in_activation',coalesce((activation->>'remaining')::int,0));END IF;
  FOR combat_event IN SELECT * FROM btech_combat_events event WHERE event.game_id=p_game_id AND event.round=g.current_round AND event.phase='physical_attack' AND event.status='declared' ORDER BY event.sequence FOR UPDATE LOOP
-  checked:=btech_process_physical_declaration(p_game_id,g.catalogue_version,g.current_round,st,combat_event.attacker_instance_id,combat_event.target_instance_id,combat_event.declaration->>'attack_type',ARRAY(SELECT jsonb_array_elements_text(combat_event.declaration->'limbs')),true);st:=checked->'state';resolution:=jsonb_build_object('results',checked->'results','state_version','authoritative-physical-01','catalogue_version',g.catalogue_version);
-  UPDATE btech_combat_events SET status='resolved',resolution=resolution,resolved_at=now() WHERE id=combat_event.id;
+  checked:=btech_process_physical_declaration(p_game_id,g.catalogue_version,g.current_round,st,combat_event.attacker_instance_id,combat_event.target_instance_id,combat_event.declaration->>'attack_type',ARRAY(SELECT jsonb_array_elements_text(combat_event.declaration->'limbs')),true);st:=checked->'state';resolution_payload:=jsonb_build_object('results',checked->'results','state_version','authoritative-physical-01','catalogue_version',g.catalogue_version);
+  UPDATE btech_combat_events SET status='resolved',resolution=resolution_payload,resolved_at=now() WHERE id=combat_event.id;
  END LOOP;
  SELECT jsonb_agg(jsonb_set(value-'physicalPhaseStart','{hasManagedHeat}','false'::jsonb,true)) INTO units FROM jsonb_array_elements(st->'mech_instances') value;st:=jsonb_set(st-'phase_activation','{mech_instances}',units,true);
  SELECT (st->'initiative_order'->0->>'player_id')::uuid INTO first_player;st:=jsonb_set(st,'{active_player_player_id}',to_jsonb(first_player),true);

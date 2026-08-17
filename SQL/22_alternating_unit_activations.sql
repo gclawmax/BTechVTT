@@ -138,7 +138,7 @@ CREATE OR REPLACE FUNCTION public.submit_simultaneous_weapon_declaration(
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE g btech_games%ROWTYPE;player btech_players%ROWTYPE;st jsonb;attacker jsonb;attacker_start jsonb;units jsonb;before_units jsonb;
  checked jsonb;event_id uuid;sequence_no int;next_player uuid;combat_event btech_combat_events%ROWTYPE;
- resolution jsonb;first_player uuid;activation jsonb;phase_complete boolean;
+ resolution_payload jsonb;first_player uuid;activation jsonb;phase_complete boolean;
 BEGIN
  SELECT * INTO g FROM btech_games WHERE id=p_game_id FOR UPDATE;
  SELECT * INTO player FROM btech_players WHERE game_id=p_game_id AND user_id=auth.uid() AND role='player';
@@ -175,8 +175,8 @@ BEGIN
  FOR combat_event IN SELECT * FROM btech_combat_events event WHERE event.game_id=p_game_id AND event.round=g.current_round AND event.phase='weapon_attack' AND event.status='declared' ORDER BY event.sequence FOR UPDATE LOOP
   checked:=btech_process_weapon_declaration(g.catalogue_version,g.current_round,st,combat_event.attacker_instance_id,combat_event.target_instance_id,
    ARRAY(SELECT jsonb_array_elements_text(combat_event.declaration->'weapon_mounts')),coalesce(combat_event.declaration->'ammo_bins','{}'::jsonb),true);
-  st:=checked->'state';resolution:=jsonb_build_object('results',checked->'results','state_version','alternating-activations-01','catalogue_version',g.catalogue_version);
-  UPDATE btech_combat_events SET status='resolved',resolution=resolution,resolved_at=now() WHERE id=combat_event.id;
+  st:=checked->'state';resolution_payload:=jsonb_build_object('results',checked->'results','state_version','alternating-activations-01','catalogue_version',g.catalogue_version);
+  UPDATE btech_combat_events SET status='resolved',resolution=resolution_payload,resolved_at=now() WHERE id=combat_event.id;
  END LOOP;
 
  units:=st->'mech_instances';
