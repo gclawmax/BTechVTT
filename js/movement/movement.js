@@ -8,6 +8,33 @@ function titleCaseMode(mode) {
   return MOVE_MODE_LABELS[mode] || (mode ? titleCase(mode) : '—');
 }
 
+async function attemptStand(instanceId) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
+  if (!mech || !mech.prone || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  if (vsAiMode) {
+    const roll = roll2d6Detailed();
+    const target = 5;
+    const passed = roll.total >= target;
+    mech.prone = !passed;
+    mech.hasMoved = true;
+    mech.movementMode = 'stand';
+    mech.mpUsed = 2;
+    mech.hexesMoved = 0;
+    renderMovementPanel(); renderRoster(); renderDetail(); draw();
+    logEvent(`${mechLabel(mech)} ${passed ? 'stood up' : 'failed to stand'} — need ${target}, rolled ${format2d6(roll)}.`, 'roll');
+    await syncMechInstances();
+    return;
+  }
+  const { data, error } = await db.rpc('attempt_stand_battlemech', {
+    p_game_id: currentGameId, p_instance_id: instanceId
+  });
+  if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the stand attempt: ${error.message}`, 'error'); return; }
+  const roll = data?.to_hit || {};
+  const gyro = roll.gyro_modifier ? ` (including +${roll.gyro_modifier} gyro damage)` : '';
+  logEvent(`${mechLabel(mech)} ${data?.passed ? 'stood up' : 'failed to stand'} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
+  await loadGameState();
+}
+
 function activationUnitsLeft(seat, phase = currentGameState.phase) {
   const flag = phase === 'movement' ? 'hasMoved' : phase === 'weapon_attack' ? 'hasFired' : 'hasPhysicalAttacked';
   return mechInstances.filter(mech => {
@@ -311,6 +338,14 @@ function renderMovementPanel() {
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement</div>
       <div style="font-size:11px;color:var(--phosphor-dim);">Not your 'Mech — waiting on Player ${mech.owner}.</div>`;
+    return;
+  }
+
+  if (mech.prone) {
+    panel.innerHTML = `
+      <div class="panel-eyebrow">Movement — Prone</div>
+      <div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">This BattleMech is prone. A stand attempt costs 2 MP and requires a Piloting Skill Roll.</div>
+      <button onclick="attemptStand('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt to Stand — 2 MP</button>`;
     return;
   }
 

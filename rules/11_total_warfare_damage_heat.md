@@ -33,6 +33,10 @@ consequences: kick, missed-kick, and 20+ physical-damage triggers are combined
 per BattleMech; Supabase rolls the Piloting Skill Roll; and a failed roll
 persists a prone state plus grouped fall damage and critical results.
 
+`SQL/26_authoritative_standing.sql` makes the resulting prone state playable:
+a prone BattleMech spends its Movement activation attempting to stand, with a
+server-rolled Piloting Skill Roll and a saved success or failure outcome.
+
 ## Heat
 
 Heat should be a per-unit round ledger, not a single opaque number:
