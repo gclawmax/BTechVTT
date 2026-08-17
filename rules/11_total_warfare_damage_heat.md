@@ -67,3 +67,6 @@ the prone attacker/target to-hit modifiers on Supabase.
 authoritative: the proposed route, map bounds, occupied hexes, movement points,
 woods entry cost, facing, heat, and alternating activation are validated and
 saved atomically.
+
+`SQL/32_authoritative_torso_twist.sql` makes confirmed Reaction Phase torso
+twists server-authoritative and advances the alternating Reaction activation.

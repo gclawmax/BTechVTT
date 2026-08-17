@@ -11,6 +11,22 @@ async function completeReaction(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction') return;
   const twisted = (mech.torsoFacing == null ? mech.facing : mech.torsoFacing) !== mech.facing;
+  if (!vsAiMode) {
+    const torsoFacing = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
+    const { error } = await db.rpc('submit_torso_twist_reaction', {
+      p_game_id: currentGameId,
+      p_instance_id: mech.instanceId,
+      p_torso_facing: torsoFacing
+    });
+    if (error) {
+      flashMoveWarning(error.message);
+      logEvent(`Server rejected the Reaction: ${error.message}`, 'error');
+      return;
+    }
+    await loadGameState();
+    logEvent(`${mechLabel(mech)} ${twisted ? 'confirmed torso twist and completed' : 'completed'} its Reaction.`, 'phase');
+    return;
+  }
   mech.hasReacted = true;
   renderReactionPanel();
   updateAdvanceButtonState();
@@ -55,7 +71,7 @@ function renderReactionPanel() {
   const mech = mechInstances.find(m => m.instanceId === selectedInstanceId);
   const activeSeat = getActivePlayerSeat();
   const activePlayerOwnsTurn = activeSeat === mySeatNumber && isMyActiveTurn();
-  const pending = mechInstances.filter(m => m.owner === activeSeat && !m.destroyed && !m.hasReacted);
+  const pending = mechInstances.filter(m => m.owner === activeSeat && !m.destroyed && !m.hasReacted && !m.shutdown && (!m.pilot?.consciousness || m.pilot.consciousness === 'conscious'));
 
   if (!mech || mech.owner !== activeSeat) {
     panel.innerHTML = `
