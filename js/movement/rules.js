@@ -157,34 +157,31 @@ function draw() {
   const h = canvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
 
-  // Draw grid
+  // Draw a readable, original tabletop-style battlefield. Terrain remains
+  // data-driven; these are canvas decorations rather than copied map art.
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
       const { x, y } = hexToPixel(col, row);
-      drawHex(x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY, HEX_SIZE - 0.5, '#e8e8e2', '#c9c9c2');
+      const px = x + gridOffsetX + mapPanX;
+      const py = y + gridOffsetY + mapPanY;
       const terrain = terrainAt(col, row);
-      if (terrain !== 'clear') {
-        ctx.fillStyle = terrain === 'heavy_woods' ? 'rgba(34,105,45,.28)'
-          : terrain === 'light_woods' ? 'rgba(71,140,77,.20)'
-            : terrain === 'shallow_water' ? 'rgba(55,125,190,.24)'
-              : terrain === 'rough' ? 'rgba(130,95,60,.20)'
-                : terrain === 'pavement' ? 'rgba(100,100,108,.18)' : 'rgba(125,50,50,.26)';
-        ctx.beginPath();
-        ctx.arc(x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY, terrain === 'heavy_woods' ? 12 : 9, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      const elevation = elevationAt(col, row);
+      drawMapHex(px, py, col, row, terrain, elevation);
       // Hex code label
-      ctx.fillStyle = '#b0b0a8';
-      ctx.font = '7px "IBM Plex Mono", monospace';
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,255,255,.65)';
+      ctx.shadowBlur = 2;
+      ctx.fillStyle = '#4d4c42';
+      ctx.font = '700 7px "IBM Plex Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(hexCode(col, row), x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY);
-      const elevation = elevationAt(col, row);
+      ctx.fillText(hexCode(col, row), px, py + 17);
       if (elevation) {
-        ctx.fillStyle = '#8a7050';
-        ctx.font = '8px "IBM Plex Mono", monospace';
-        ctx.fillText(`+${elevation}`, x + gridOffsetX + mapPanX, y + gridOffsetY + mapPanY + 10);
+        ctx.fillStyle = '#6d5135';
+        ctx.font = '700 7px "IBM Plex Mono", monospace';
+        ctx.fillText(`LEVEL ${elevation}`, px, py - 17);
       }
+      ctx.restore();
     }
   }
 
@@ -201,6 +198,95 @@ function draw() {
     const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
     drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone);
   }
+}
+
+const MAP_VISUAL_PALETTES = Object.freeze({
+  grassland: { light: '#afbc76', dark: '#879b57', speck: 'rgba(57,77,36,.16)' },
+  woodland: { light: '#91a76d', dark: '#647c4f', speck: 'rgba(37,62,35,.20)' },
+  steppe: { light: '#c5ae75', dark: '#9d8654', speck: 'rgba(92,66,36,.15)' },
+  highland: { light: '#aa9d70', dark: '#7f7451', speck: 'rgba(67,59,40,.20)' }
+});
+
+function stableMapNoise(col, row, salt = 0) {
+  const value = Math.sin((col + 1) * 12.9898 + (row + 1) * 78.233 + salt * 37.719) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+function traceHex(cx, cy, size) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i + 30);
+    const x = cx + size * Math.cos(angle);
+    const y = cy + size * Math.sin(angle);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+}
+
+function drawMapHex(cx, cy, col, row, terrain, elevation) {
+  const map = getMapDefinition(activeMapId);
+  const palette = MAP_VISUAL_PALETTES[map.visual] || MAP_VISUAL_PALETTES.grassland;
+  const shimmer = stableMapNoise(col, row, 1);
+  const gradient = ctx.createLinearGradient(cx - HEX_SIZE, cy - HEX_SIZE, cx + HEX_SIZE, cy + HEX_SIZE);
+  gradient.addColorStop(0, palette.light);
+  gradient.addColorStop(1, palette.dark);
+  drawHex(cx, cy, HEX_SIZE - .5, gradient, 'rgba(31,37,25,.60)');
+
+  // Fine, deterministic ground texture keeps the board organic without
+  // flickering when it redraws during movement or panning.
+  ctx.save();
+  traceHex(cx, cy, HEX_SIZE - 2);
+  ctx.clip();
+  ctx.fillStyle = palette.speck;
+  for (let i = 0; i < 7; i++) {
+    const px = cx + (stableMapNoise(col, row, i + 2) - .5) * HEX_SIZE * 1.5;
+    const py = cy + (stableMapNoise(col, row, i + 14) - .5) * HEX_SIZE * 1.35;
+    ctx.fillRect(px, py, 1 + shimmer * 1.5, 1 + shimmer * 1.5);
+  }
+  ctx.restore();
+
+  if (elevation) {
+    drawHex(cx, cy, HEX_SIZE - 5, 'rgba(255,255,255,0)', 'rgba(97,71,38,.72)');
+    drawHex(cx, cy, HEX_SIZE - 8, 'rgba(255,255,255,0)', 'rgba(255,245,206,.38)');
+  }
+  if (terrain !== 'clear') drawTerrainFeature(cx, cy, col, row, terrain);
+}
+
+function drawTerrainFeature(cx, cy, col, row, terrain) {
+  ctx.save();
+  if (terrain === 'light_woods' || terrain === 'heavy_woods') {
+    const count = terrain === 'heavy_woods' ? 5 : 3;
+    for (let i = 0; i < count; i++) {
+      const px = cx + (stableMapNoise(col, row, i + 30) - .5) * 26;
+      const py = cy + (stableMapNoise(col, row, i + 40) - .5) * 20;
+      const radius = terrain === 'heavy_woods' ? 6 : 5;
+      ctx.beginPath(); ctx.arc(px, py, radius, 0, Math.PI * 2);
+      ctx.fillStyle = terrain === 'heavy_woods' ? '#315d36' : '#4d7d42'; ctx.fill();
+      ctx.beginPath(); ctx.arc(px - 1.5, py - 2, radius * .56, 0, Math.PI * 2);
+      ctx.fillStyle = terrain === 'heavy_woods' ? '#56884a' : '#74a75d'; ctx.fill();
+      ctx.fillStyle = '#493b25'; ctx.fillRect(px - .8, py + radius * .35, 1.6, radius * .75);
+    }
+  } else if (terrain === 'shallow_water') {
+    ctx.strokeStyle = 'rgba(211,241,244,.82)'; ctx.lineWidth = 1.15;
+    for (let i = -1; i <= 1; i++) {
+      const y = cy + i * 7;
+      ctx.beginPath(); ctx.arc(cx - 9, y, 6, 0.15 * Math.PI, .85 * Math.PI); ctx.arc(cx + 3, y, 6, 1.15 * Math.PI, 1.85 * Math.PI); ctx.stroke();
+    }
+  } else if (terrain === 'rough' || terrain === 'impassable') {
+    const count = terrain === 'impassable' ? 5 : 3;
+    ctx.fillStyle = terrain === 'impassable' ? '#55463b' : '#78634b';
+    for (let i = 0; i < count; i++) {
+      const px = cx + (stableMapNoise(col, row, i + 55) - .5) * 26;
+      const py = cy + (stableMapNoise(col, row, i + 65) - .5) * 20;
+      ctx.beginPath(); ctx.moveTo(px - 5, py + 4); ctx.lineTo(px - 1, py - 5); ctx.lineTo(px + 5, py - 2); ctx.lineTo(px + 4, py + 5); ctx.closePath(); ctx.fill();
+    }
+  } else if (terrain === 'pavement') {
+    ctx.strokeStyle = 'rgba(71,74,72,.58)'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(cx - 30, cy + 8); ctx.lineTo(cx + 30, cy - 8); ctx.stroke();
+    ctx.strokeStyle = 'rgba(212,204,176,.58)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - 30, cy + 8); ctx.lineTo(cx + 30, cy - 8); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawMovementHighlights() {
@@ -243,14 +329,7 @@ function drawMovementHighlights() {
 }
 
 function drawHex(cx, cy, size, fill, stroke) {
-  ctx.beginPath();
-  for (let i = 0; i < 6; i++) {
-    const angle = Math.PI / 180 * (60 * i + 30);
-    const x = cx + size * Math.cos(angle);
-    const y = cy + size * Math.sin(angle);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  }
-  ctx.closePath();
+  traceHex(cx, cy, size);
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.strokeStyle = stroke;
