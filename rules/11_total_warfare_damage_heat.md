@@ -70,3 +70,6 @@ saved atomically.
 
 `SQL/32_authoritative_torso_twist.sql` makes confirmed Reaction Phase torso
 twists server-authoritative and advances the alternating Reaction activation.
+
+`SQL/33_authoritative_match_end.sql` makes victory and draw detection
+server-authoritative, including the simultaneous-fire safeguard.

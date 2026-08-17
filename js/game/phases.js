@@ -472,6 +472,21 @@ function determineMatchResult() {
 // spectators receive the same definitive outcome.
 async function checkForMatchEnd() {
   if (currentGameState.match_result) return currentGameState.match_result;
+  if (!vsAiMode) {
+    const { data, error } = await db.rpc('resolve_btech_match_end', { p_game_id: currentGameId });
+    if (error) {
+      logEvent(`Unable to resolve match result: ${error.message}`, 'error');
+      return null;
+    }
+    if (data?.status !== 'resolved') return null;
+    const result = data.result;
+    currentGameState.match_result = result;
+    currentGameState.phase = 'end';
+    currentGameState.active_player_id = null;
+    logEvent(result.winner_seat == null ? 'Match complete — all forces destroyed. Draw.' : `Match complete — Player ${result.winner_seat} wins.`, 'phase');
+    await loadGameState();
+    return result;
+  }
   // Weapon attacks are simultaneous. A force destroyed by an earlier saved
   // result must still make every attack it was eligible for at phase start.
   if (currentGameState.phase === 'weapon_attack' && typeof canFireFromWeaponPhaseStart === 'function' &&
