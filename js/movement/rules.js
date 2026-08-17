@@ -45,7 +45,14 @@ function isHexOccupied(col, row, excludeInstanceId) {
 function resetMapPan() {
   mapPanX = 0;
   mapPanY = 0;
+  mapZoom = 1;
+  renderMapZoomReadout();
   draw();
+}
+
+function renderMapZoomReadout() {
+  const readout = document.getElementById('map-zoom-readout');
+  if (readout) readout.textContent = `${Math.round(mapZoom * 100)}%`;
 }
 
 // Tracks an in-progress movement action for a single 'Mech, selected via the Movement Panel.
@@ -156,6 +163,10 @@ function draw() {
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.scale(mapZoom, mapZoom);
+  ctx.translate(-w / 2, -h / 2);
 
   // Draw a readable, original tabletop-style battlefield. Terrain remains
   // data-driven; these are canvas decorations rather than copied map art.
@@ -198,6 +209,8 @@ function draw() {
     const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
     drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone);
   }
+  ctx.restore();
+  renderMapZoomReadout();
 }
 
 const MAP_VISUAL_PALETTES = Object.freeze({
@@ -412,8 +425,8 @@ canvas.addEventListener('pointerdown', event => {
 
 canvas.addEventListener('pointermove', event => {
   if (!mapPanDrag || event.pointerId !== mapPanDrag.pointerId) return;
-  mapPanX = mapPanDrag.panX + event.clientX - mapPanDrag.startX;
-  mapPanY = mapPanDrag.panY + event.clientY - mapPanDrag.startY;
+  mapPanX = mapPanDrag.panX + (event.clientX - mapPanDrag.startX) / mapZoom;
+  mapPanY = mapPanDrag.panY + (event.clientY - mapPanDrag.startY) / mapZoom;
   draw();
 });
 
@@ -427,10 +440,36 @@ canvas.addEventListener('pointerup', finishMapPan);
 canvas.addEventListener('pointercancel', finishMapPan);
 canvas.addEventListener('contextmenu', event => event.preventDefault());
 
+// Zoom stays centred under the pointer, so players can inspect a particular
+// hex without losing their place. It is visual-only and never touches match state.
+canvas.addEventListener('wheel', event => {
+  event.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const pointerX = event.clientX - rect.left;
+  const pointerY = event.clientY - rect.top;
+  const oldZoom = mapZoom;
+  const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+  mapZoom = Math.max(.65, Math.min(2.5, mapZoom * factor));
+  if (mapZoom === oldZoom) return;
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+  mapPanX += (pointerX - centerX) * (1 / mapZoom - 1 / oldZoom);
+  mapPanY += (pointerY - centerY) * (1 / mapZoom - 1 / oldZoom);
+  draw();
+}, { passive: false });
+
+function canvasPointToMap(event) {
+  const rect = canvas.getBoundingClientRect();
+  const screenX = event.clientX - rect.left;
+  const screenY = event.clientY - rect.top;
+  const boardX = (screenX - rect.width / 2) / mapZoom + rect.width / 2;
+  const boardY = (screenY - rect.height / 2) / mapZoom + rect.height / 2;
+  return { x: boardX - gridOffsetX - mapPanX, y: boardY - gridOffsetY - mapPanY };
+}
+
 // Mouse hover
 canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const px = e.clientX - rect.left - gridOffsetX - mapPanX, py = e.clientY - rect.top - gridOffsetY - mapPanY;
+  const { x: px, y: py } = canvasPointToMap(e);
   const hex = pixelToHex(px, py);
   if (hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS) {
     const axial = offsetToAxial(hex.col, hex.row);
@@ -440,8 +479,7 @@ canvas.addEventListener('mousemove', (e) => {
 });
 
 canvas.addEventListener('click', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const px = e.clientX - rect.left - gridOffsetX - mapPanX, py = e.clientY - rect.top - gridOffsetY - mapPanY;
+  const { x: px, y: py } = canvasPointToMap(e);
   let hit = null;
   for (const inst of mechInstances) {
     const { x, y } = hexToPixel(inst.col, inst.row);

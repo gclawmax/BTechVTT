@@ -673,7 +673,8 @@ html, body {
   pointer-events: none;
 }
 
-#map-controls { position:absolute; top:10px; right:12px; z-index:2; }
+#map-controls { position:absolute; top:10px; right:12px; z-index:2; display:flex; align-items:center; gap:5px; }
+#map-zoom-readout { min-width:34px; color:var(--phosphor-dim); font:9px var(--mono); text-align:right; }
 #map-controls button, .copy-game-code {
   padding: 4px 8px;
   background: rgba(255,255,255,.92);

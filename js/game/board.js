@@ -50,6 +50,7 @@ let gridOffsetX, gridOffsetY;
 // View-only displacement of the board, controlled by right/middle-button drag.
 // It is intentionally local to this browser and never written to game state.
 let mapPanX = 0, mapPanY = 0;
+let mapZoom = 1;
 
 // Short human-readable label for a mech instance, e.g. "Atlas AS7-D (P1)".
 function mechLabel(mech) {
