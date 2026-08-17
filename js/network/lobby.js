@@ -1,4 +1,16 @@
 // ── LOBBY MANAGEMENT ─────────────────────────────────────
+async function copyLobbyGameCode() {
+  const code = document.getElementById('lobby-code')?.textContent?.trim();
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    document.getElementById('lobby-status').textContent = `Game code ${code} copied — send it to Player 2.`;
+  } catch (error) {
+    // Clipboard permissions can be unavailable on some local/static hosts.
+    window.prompt('Copy this game code:', code);
+  }
+}
+
 async function loadLobby() {
   if (!currentGameId) return;
   lobbyClosureInProgress = false;

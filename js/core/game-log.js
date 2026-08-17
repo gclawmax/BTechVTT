@@ -6,6 +6,8 @@ const GAME_LOG_MAX = 200;
 // Unique per browser tab so ids never collide with another player's client.
 const LOG_CLIENT_ID = Math.random().toString(36).slice(2, 8);
 let _logSeq = 0;
+let gameLogFilter = 'all';
+let gameToastTimer = null;
 
 // Game state is a single JSON document. Serialize read-modify-write updates so
 // a confirmed move, reaction, or log entry cannot overwrite another update
@@ -42,6 +44,10 @@ function logEvent(message, category) {
   gameLog.push(entry);
   if (gameLog.length > GAME_LOG_MAX) gameLog = gameLog.slice(-GAME_LOG_MAX);
   renderGameLog();
+
+  // A brief, local acknowledgement makes successful actions feel responsive
+  // without duplicating the durable, shared game log.
+  if (['move', 'attack'].includes(category)) showGameToast(message);
 
   // Debug console mirror — same info, easier to grep/copy when troubleshooting.
   const tag = `[BT-LOG][R${entry.round ?? '?'}/${entry.phase ?? '?'}][${category}]`;
@@ -85,11 +91,30 @@ function renderGameLog() {
   const el = document.getElementById('game-log');
   if (!el) return;
   const wasNearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 12;
-  el.innerHTML = gameLog.map(e =>
+  const visibleEntries = gameLog.filter(e => gameLogFilter === 'all' || e.cat === gameLogFilter);
+  el.innerHTML = visibleEntries.map(e =>
     `<div class="log-entry cat-${e.cat} ${logTeamClass(e)}"><span class="log-tag">[${e.time}] R${e.round ?? '?'}/${(e.phase || '?').slice(0,4)}</span><span class="log-message">${escapeLogHtml(e.msg)}</span></div>`
-  ).join('');
+  ).join('') || '<div class="log-entry cat-system">No matching log entries.</div>';
   // Autoscroll to the newest entry unless the user has scrolled up to read history.
   if (wasNearBottom || gameLog.length <= 1) el.scrollTop = el.scrollHeight;
+}
+
+function setGameLogFilter(filter) {
+  gameLogFilter = ['all', 'move', 'attack', 'roll'].includes(filter) ? filter : 'all';
+  document.querySelectorAll('[data-log-filter]').forEach(button => {
+    button.classList.toggle('active-filter', button.dataset.logFilter === gameLogFilter);
+  });
+  renderGameLog();
+}
+
+function showGameToast(message, type = 'success') {
+  const toast = document.getElementById('game-toast');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.toggle('error', type === 'error');
+  toast.classList.add('show');
+  clearTimeout(gameToastTimer);
+  gameToastTimer = setTimeout(() => toast.classList.remove('show'), 4200);
 }
 
 // Most combat and action messages carry their acting side in the standard

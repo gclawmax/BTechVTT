@@ -594,6 +594,32 @@ html, body {
 #header .status.is-my-turn.team-p1 { --turn-colour: #a32832; background: #fff0f1; }
 #header .status.is-my-turn.team-p2 { --turn-colour: #1f629f; background: #eef6ff; }
 
+#header .status.is-my-turn {
+  font-size: 12px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--turn-colour) 16%, transparent);
+}
+
+#game-toast {
+  position: fixed;
+  z-index: 5000;
+  left: 50%;
+  bottom: 24px;
+  max-width: min(620px, calc(100vw - 36px));
+  transform: translate(-50%, 12px);
+  opacity: 0;
+  pointer-events: none;
+  padding: 10px 14px;
+  background: #1d2920;
+  color: #f4fff5;
+  border: 1px solid #62a474;
+  border-radius: 3px;
+  box-shadow: 0 5px 18px rgba(0,0,0,.22);
+  font: 11px/1.4 var(--mono);
+  transition: opacity .18s ease, transform .18s ease;
+}
+#game-toast.show { opacity: 1; transform: translate(-50%, 0); }
+#game-toast.error { background: #3a1c20; border-color: #bd535d; }
+
 /* ── Map canvas area ── */
 #map-wrap {
   grid-area: 2 / 2 / 3 / 3;
@@ -621,6 +647,20 @@ html, body {
   letter-spacing: 0.08em;
   pointer-events: none;
 }
+
+#map-controls { position:absolute; top:10px; right:12px; z-index:2; }
+#map-controls button, .copy-game-code {
+  padding: 4px 8px;
+  background: rgba(255,255,255,.92);
+  border: 1px solid var(--panel-line);
+  color: var(--phosphor);
+  border-radius: 2px;
+  font: 9px var(--mono);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+#map-controls button:hover, .copy-game-code:hover { border-color: var(--amber); color: var(--amber); }
 
 #coord-readout {
   position: absolute;
@@ -745,6 +785,9 @@ body.resizing-side-panel, body.resizing-side-panel * {
   color: var(--phosphor);
 }
 
+.game-log-actions { display:flex; align-items:center; gap:4px; }
+#game-log-header .btn-clear-log.active-filter { color:var(--amber); border-color:var(--amber); background:#fff7e8; }
+
 #game-log {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -809,6 +852,17 @@ body.resizing-side-panel, body.resizing-side-panel * {
   border-color: var(--phosphor-dim);
   background: #e8e8e2;
 }
+.roster-item.destroyed { opacity:.52; text-decoration:line-through; }
+.roster-item.is-active-unit { border-left:4px solid var(--amber); padding-left:3px; }
+.roster-item.is-active-unit.mine { background:#fff8e8; }
+.roster-badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:3px; }
+.roster-badge { padding:1px 4px; border:1px solid currentColor; border-radius:2px; font:8px var(--mono); letter-spacing:.04em; }
+.roster-badge.heat-warm { color:#a66a00; }
+.roster-badge.heat-hot { color:#b22f38; font-weight:bold; }
+.roster-badge.damage { color:#b22f38; }
+
+.lobby-code-row { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px; }
+.lobby-code-row .lobby-code { margin-bottom:0; }
 
 .roster-swatch {
   width: 10px;

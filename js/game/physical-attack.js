@@ -111,13 +111,16 @@ async function confirmAuthoritativePhysicalAttack(attacker, target, type) {
   const attackType = type || 'pass';
   const limbs = attackType === 'pass' ? [] : physicalAttackState.limbs;
   if (attackType !== 'pass' && !limbs.length) { flashMoveWarning(`Choose ${attackType === 'kick' ? 'a leg' : 'an arm'}.`); return; }
+  const submitButton = document.getElementById('physical-submit');
+  if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Submitting Declaration…'; }
+  showGameToast(`${mechLabel(attacker)} physical attack declaration submitted. Waiting for the server.`, 'success');
   logEvent(`${mechLabel(attacker)} Physical Attack declaration submitted to the server.`, 'attack');
   const { data, error } = await db.rpc('submit_simultaneous_physical_declaration', {
     p_game_id: currentGameId, p_attacker_instance_id: attacker.instanceId,
     p_target_instance_id: attackType === 'pass' ? null : target?.instanceId || null,
     p_attack_type: attackType, p_limbs: limbs
   });
-  if (error) { logEvent(`Server rejected the Physical Attack declaration: ${error.message}`, 'error'); flashMoveWarning(error.message); return; }
+  if (error) { if (submitButton) { submitButton.disabled = false; submitButton.textContent = 'Confirm Physical Attack Declaration'; } logEvent(`Server rejected the Physical Attack declaration: ${error.message}`, 'error'); flashMoveWarning(error.message); showGameToast(`Physical declaration was rejected: ${error.message}`, 'error'); return; }
   physicalAttackState = { attackerId: null, targetId: null, attackType: null, limbs: [] };
   selectedInstanceId = null;
   await loadGameState();
@@ -208,7 +211,7 @@ function renderPhysicalAttackPanel() {
     <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · punches and hatchets use the matching side arc; kicks use the three forward hexes.</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => `<button onclick="selectPhysicalTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${mechLabel(enemy)}</button>`).join('')}</div>
     ${target ? `<div style="display:flex;gap:6px;">${options}</div>${limbOptions ? `<div style="display:flex;gap:6px;margin-top:6px;">${limbOptions}</div>` : ''}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select an enemy to see available attacks.</div>'}
-    <button onclick="confirmPhysicalAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${physicalAttackState.attackType ? 'Confirm Physical Attack Declaration' : 'No Physical Attack / Complete'}</button>`;
+    <button id="physical-submit" onclick="confirmPhysicalAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${physicalAttackState.attackType ? 'Confirm Physical Attack Declaration' : 'No Physical Attack / Complete'}</button>`;
 }
 
 function authoritativePhysicalResultMessage(attacker, target, result) {

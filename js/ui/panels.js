@@ -5,7 +5,9 @@ function renderRoster() {
   mechInstances.forEach(inst => {
     const unit = BT_UNITS[inst.unitId];
     const row = document.createElement('div');
-    row.className = 'roster-item' + (inst.instanceId === selectedInstanceId ? ' selected' : '');
+    const isActiveUnit = getActivePlayerSeat() === inst.owner && !inst.destroyed;
+    row.className = 'roster-item' + (inst.instanceId === selectedInstanceId ? ' selected' : '') +
+      (inst.destroyed ? ' destroyed' : '') + (isActiveUnit ? ' is-active-unit' : '') + (isActiveUnit && inst.owner === mySeatNumber ? ' mine' : '');
 
     let moveBadge = '';
     if (currentGameState.phase === 'movement') {
@@ -44,10 +46,17 @@ function renderRoster() {
     if (inst.pilot?.consciousness && inst.pilot.consciousness !== 'conscious') {
       moveBadge += `<span style="font-size:9px;color:#a32832;letter-spacing:.06em;margin-left:6px;">PILOT ${inst.pilot.consciousness.toUpperCase()}</span>`;
     }
+    const damaged = Object.keys(unit.armor || {}).some(location => Number(inst.armor?.[location]) < Number(unit.armor?.[location])) ||
+      Object.keys(unit.structure || {}).some(location => Number(inst.structure?.[location]) < Number(unit.structure?.[location]));
+    const conditionBadges = [
+      inst.destroyed ? '<span class="roster-badge damage">DESTROYED</span>' : '',
+      !inst.destroyed && damaged ? '<span class="roster-badge damage">DAMAGED</span>' : '',
+      !inst.destroyed && Number(inst.heat || 0) >= 14 ? `<span class="roster-badge ${Number(inst.heat) >= 20 ? 'heat-hot' : 'heat-warm'}">HEAT ${inst.heat}</span>` : ''
+    ].join('');
 
     row.innerHTML = `
       <div class="roster-swatch" style="background:${unit.color}"></div>
-      <div class="roster-name">${unit.chassis} <span style="color:var(--phosphor-dim)">${unit.variant}</span>${moveBadge}</div>
+      <div class="roster-name">${unit.chassis} <span style="color:var(--phosphor-dim)">${unit.variant}</span>${moveBadge}<div class="roster-badges">${conditionBadges}</div></div>
       <div class="roster-sub">P${inst.owner} · ${unit.tonnage}t · ${hexCode(inst.col, inst.row)}</div>
     `;
     row.addEventListener('click', () => selectInstance(inst.instanceId));

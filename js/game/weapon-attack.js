@@ -469,6 +469,9 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
   // event has fired. Persist the derived choice so UI state and RPC payload
   // always describe the same ammunition bin.
   weaponAttackState.ammoBinsByMount = ammoDeclaration.choices;
+  const submitButton = document.getElementById('weapon-submit');
+  if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Submitting Declaration…'; }
+  showGameToast(`${mechLabel(attacker)} weapon declaration submitted. Waiting for the server.`, 'success');
   const { data, error } = await db.rpc('submit_simultaneous_weapon_declaration', {
     p_game_id: currentGameId,
     p_attacker_instance_id: attacker.instanceId,
@@ -480,8 +483,10 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
     p_ammo_bins: { ...ammoDeclaration.choices, __fire_modes: ammoDeclaration.fireModes }
   });
   if (error) {
+    if (submitButton) { submitButton.disabled = false; submitButton.textContent = 'Confirm Weapon Attacks'; }
     logEvent(`Server rejected the weapon declaration: ${error.message}`, 'error');
     flashMoveWarning(error.message);
+    showGameToast(`Weapon declaration was rejected: ${error.message}`, 'error');
     return;
   }
   weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {} };
@@ -624,5 +629,5 @@ function renderWeaponAttackPanel() {
     <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:4px;">TARGET</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => `<button onclick="selectWeaponTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${mechLabel(enemy)}</button>`).join('')}</div>
     ${target ? `<div style="font-size:10px;color:var(--amber);margin-bottom:4px;">TARGET: ${mechLabel(target)}</div>${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}
-    <button onclick="confirmWeaponAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${weaponAttackState.weaponKeys.length ? 'Confirm Weapon Attacks' : 'No Fire / Complete Attacks'}</button>`;
+    <button id="weapon-submit" onclick="confirmWeaponAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${weaponAttackState.weaponKeys.length ? 'Confirm Weapon Attacks' : 'No Fire / Complete Attacks'}</button>`;
 }

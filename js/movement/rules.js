@@ -42,6 +42,12 @@ function isHexOccupied(col, row, excludeInstanceId) {
   return mechInstances.some(m => m.instanceId !== excludeInstanceId && m.col === col && m.row === row);
 }
 
+function resetMapPan() {
+  mapPanX = 0;
+  mapPanY = 0;
+  draw();
+}
+
 // Tracks an in-progress movement action for a single 'Mech, selected via the Movement Panel.
 let moveState = {
   active: false,
