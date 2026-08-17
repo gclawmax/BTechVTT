@@ -3,7 +3,7 @@
 // standard weapons in BT_WEAPONS.  Critical-hit slot damage and primary
 // component effects are resolved from the BattleMech record sheet.
 
-let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
+let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {} };
 
 // A weapon type is not a unique mount: e.g. a Marauder carries PPCs in both
 // arms.  Selection must identify the specific catalogue entry, not just its
@@ -21,12 +21,20 @@ function canFireFromWeaponPhaseStart(mech) {
   return Boolean(mech && !mech.shutdown && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious') && !weaponPhaseStartMech(mech)?.destroyed);
 }
 
-function compatibleAmmoBins(attacker, weaponEntry) {
+function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
   const ammoType = BT_WEAPONS[weaponEntry.key]?.ammoType;
   if (!ammoType) return [];
   return (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
-    bin.type === ammoType && bin.shots > 0 && !bin.destroyed
+    bin.type === ammoType && bin.shots >= shotsRequired && !bin.destroyed
   );
+}
+
+function weaponFireMode(mountId, weaponEntry) {
+  return weaponEntry?.key === 'uac5' ? (weaponAttackState.fireModesByMount[mountId] || 'single') : 'single';
+}
+
+function weaponShotsForMode(mountId, weaponEntry) {
+  return weaponFireMode(mountId, weaponEntry) === 'rapid' ? 2 : 1;
 }
 
 function weaponDirectionTo(attacker, target) {
@@ -155,6 +163,8 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   if (!weapon || eligibleAttacker.destroyed || eligibleTarget.destroyed || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
   }
+  const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
+  if ((eligibleAttacker.weaponJams || []).includes(mountId)) return { valid: false, reason: `${weapon.name} is jammed.` };
   const supportArm = attacker.proneSupportArm;
   const weaponLocation = typeof criticalLocationKey === 'function'
     ? criticalLocationKey(weaponEntry.location)
@@ -198,13 +208,14 @@ async function setProneWeaponSupportArm(instanceId, arm) {
   await loadGameState();
   weaponAttackState.weaponKeys = [];
   weaponAttackState.ammoBinsByMount = {};
+  weaponAttackState.fireModesByMount = {};
   renderWeaponAttackPanel();
 }
 
 function selectWeaponAttacker(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!canFireFromWeaponPhaseStart(mech) || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || mech.hasFired) return;
-  weaponAttackState = { attackerId: instanceId, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
+  weaponAttackState = { attackerId: instanceId, targetId: null, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {} };
   selectedInstanceId = instanceId;
   logEvent(`${mechLabel(mech)} selected for weapon attack declaration.`, 'system');
   renderRoster();
@@ -219,6 +230,7 @@ function selectWeaponTarget(instanceId) {
   weaponAttackState.targetId = instanceId;
   weaponAttackState.weaponKeys = [];
   weaponAttackState.ammoBinsByMount = {};
+  weaponAttackState.fireModesByMount = {};
   renderWeaponAttackPanel();
 }
 
@@ -229,6 +241,7 @@ function toggleWeaponForAttack(mountId) {
   if (selected.includes(mountId)) {
     weaponAttackState.weaponKeys = selected.filter(id => id !== mountId);
     delete weaponAttackState.ammoBinsByMount[mountId];
+    delete weaponAttackState.fireModesByMount[mountId];
   } else {
     weaponAttackState.weaponKeys = [...selected, mountId];
     const bins = entry ? compatibleAmmoBins(attacker, entry) : [];
@@ -237,10 +250,24 @@ function toggleWeaponForAttack(mountId) {
   renderWeaponAttackPanel();
 }
 
+function selectWeaponFireMode(mountId, mode) {
+  const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
+  const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
+  if (!entry || entry.key !== 'uac5' || !['single', 'rapid'].includes(mode)) return;
+  const bins = compatibleAmmoBins(attacker, entry, mode === 'rapid' ? 2 : 1);
+  if (!bins.length) {
+    flashMoveWarning('Rapid fire requires two rounds in one selected Ultra AC ammunition bin.');
+    return;
+  }
+  weaponAttackState.fireModesByMount[mountId] = mode;
+  if (!bins.some(bin => bin.id === weaponAttackState.ammoBinsByMount[mountId])) weaponAttackState.ammoBinsByMount[mountId] = bins[0].id;
+  renderWeaponAttackPanel();
+}
+
 function selectAmmoBinForMount(mountId, binId) {
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
-  if (!entry || !compatibleAmmoBins(attacker, entry).some(bin => bin.id === binId)) return;
+  if (!entry || !compatibleAmmoBins(attacker, entry, weaponShotsForMode(mountId, entry)).some(bin => bin.id === binId)) return;
   weaponAttackState.ammoBinsByMount[mountId] = binId;
 }
 
@@ -250,13 +277,18 @@ function resolveDeclaredAmmoBins(attacker, selectedWeapons) {
     const weapon = BT_WEAPONS[entry.key];
     if (!weapon?.ammoType) continue;
     const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
-    const bins = compatibleAmmoBins(attacker, entry);
+    const shotsRequired = weaponShotsForMode(mountId, entry);
+    const bins = compatibleAmmoBins(attacker, entry, shotsRequired);
     const selectedId = weaponAttackState.ammoBinsByMount[mountId];
     const selected = bins.find(bin => bin.id === selectedId) || bins[0];
     if (!selected) return { error: `Choose an ammunition bin for ${weapon.name}.` };
     choices[mountId] = selected.id;
   }
-  return { choices };
+  const fireModes = Object.fromEntries(selectedWeapons.filter(entry => entry.key === 'uac5').map(entry => {
+    const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
+    return [mountId, weaponFireMode(mountId, entry)];
+  }));
+  return { choices, fireModes };
 }
 
 function roll2d6() {
@@ -344,7 +376,8 @@ function formatAuthoritativePilotCheck(check) {
 function authoritativeWeaponResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
-  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
+  const rapid = result.fire_mode === 'rapid' ? ' (rapid fire)' : '';
+  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${rapid} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.${result.jammed ? ' Ultra AC jammed.' : ''}`;
   if (result.cluster_roll) {
     const cluster = result.cluster_roll;
     const groups = (result.groups || []).map(group =>
@@ -354,15 +387,15 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   }
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
   const flamerHeat = result.heat_inflicted ? ` ${mechLabel(target)} gains ${result.heat_inflicted} heat.` : '';
-  return `${mechLabel(attacker)} fired ${result.weapon} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+  return `${mechLabel(attacker)} fired ${result.weapon}${rapid} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
-function weaponDeclarationSummary(attacker, mountIds) {
+function weaponDeclarationSummary(attacker, mountIds, fireModes = {}) {
   const weapons = BT_UNITS[attacker?.unitId]?.weapons || [];
   const counts = new Map();
   for (const mountId of mountIds || []) {
     const entry = weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
-    const name = BT_WEAPONS[entry?.key]?.name || entry?.key || mountId;
+    const name = `${BT_WEAPONS[entry?.key]?.name || entry?.key || mountId}${fireModes[mountId] === 'rapid' ? ' (rapid fire)' : ''}`;
     counts.set(name, (counts.get(name) || 0) + 1);
   }
   const labels = [...counts].map(([name, count]) => count === 1 ? name : `${count} ${name}${name.endsWith('s') ? '' : 's'}`);
@@ -389,7 +422,7 @@ async function loadWeaponCombatEvents() {
       time: new Date(declaredAt).toTimeString().slice(0, 8), round: event.round,
       phase: event.phase, cat: 'attack',
       msg: mounts.length
-        ? `${mechLabel(attacker)} declared ${weaponDeclarationSummary(attacker, mounts)} at ${mechLabel(target)}.`
+        ? `${mechLabel(attacker)} declared ${weaponDeclarationSummary(attacker, mounts, event.declaration?.ammo_bins?.__fire_modes)} at ${mechLabel(target)}.`
         : `${mechLabel(attacker)} declared no weapon fire.`
     });
     if (event.status !== 'resolved' || !['simultaneous-declarations-01', 'alternating-activations-01'].includes(event.resolution?.state_version)) continue;
@@ -428,14 +461,14 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
       const catalogueIndex = BT_UNITS[attacker.unitId].weapons.indexOf(entry);
       return weaponMountId(entry, catalogueIndex >= 0 ? catalogueIndex : index);
     }),
-    p_ammo_bins: ammoDeclaration.choices
+    p_ammo_bins: { ...ammoDeclaration.choices, __fire_modes: ammoDeclaration.fireModes }
   });
   if (error) {
     logEvent(`Server rejected the weapon declaration: ${error.message}`, 'error');
     flashMoveWarning(error.message);
     return;
   }
-  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
+  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {} };
   await loadGameState();
   renderWeaponAttackPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
   if (data?.status === 'resolved') await checkForMatchEnd();
@@ -468,13 +501,21 @@ async function confirmWeaponAttack() {
       messages.push(`${mechLabel(attacker)} could not fire ${weaponEntry.key}: ${attack.reason}`);
       continue;
     }
-    addedHeat += attack.weapon.heat * weaponEntry.count;
-    for (let shot = 1; shot <= weaponEntry.count; shot++) {
+    const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
+    const shots = weaponEntry.count * weaponShotsForMode(mountId, weaponEntry);
+    const rapid = weaponFireMode(mountId, weaponEntry) === 'rapid';
+    addedHeat += attack.weapon.heat * shots;
+    for (let shot = 1; shot <= shots; shot++) {
       const roll = roll2d6Detailed();
-      const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);
-      const shotLabel = weaponEntry.count > 1 ? ` #${shot}` : '';
+      const jammed = rapid && roll.total === 2;
+      const hit = !jammed && (attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber));
+      const shotLabel = shots > 1 ? ` #${shot}` : '';
       if (!hit) {
-        messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.`);
+        messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${rapid ? ' (rapid fire)' : ''}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.${jammed ? ' Ultra AC jammed.' : ''}`);
+        if (jammed) {
+          attacker.weaponJams = [...new Set([...(attacker.weaponJams || []), mountId])];
+          break;
+        }
         continue;
       }
       const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
@@ -483,14 +524,14 @@ async function confirmWeaponAttack() {
         target.externalHeat = (target.externalHeat || 0) + flamerHeat;
         target.heat = (target.heat || 0) + flamerHeat;
       }
-      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.criticalEvents.length ? ` ${damage.criticalEvents.join(' ')}` : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`);
+      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${rapid ? ' (rapid fire)' : ''}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.criticalEvents.length ? ` ${damage.criticalEvents.join(' ')}` : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`);
     }
   }
 
   attacker.weaponHeat = (attacker.weaponHeat || 0) + addedHeat;
   attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat + (attacker.externalHeat || 0);
   attacker.hasFired = true;
-  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {} };
+  weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {} };
   renderWeaponAttackPanel();
   renderRoster();
   renderDetail();
@@ -536,13 +577,16 @@ function renderWeaponAttackPanel() {
     const checked = weaponAttackState.weaponKeys.includes(mountId);
     const evaluation = target ? evaluateWeaponAttack(attacker, target, entry) : null;
     const weapon = BT_WEAPONS[entry.key];
-    const bins = compatibleAmmoBins(attacker, entry);
+    const shotsRequired = weaponShotsForMode(mountId, entry);
+    const bins = compatibleAmmoBins(attacker, entry, shotsRequired);
     const outOfAmmo = Boolean(weapon?.ammoType) && bins.length === 0;
     const disabled = outOfAmmo || (target && !evaluation.valid);
     const countLabel = entry.count > 1 ? ` ×${entry.count}` : '';
     const heat = weapon ? weapon.heat * entry.count : '?';
     const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${bin.location} · ${bin.shots}/${bin.maxShots} shots</option>`).join('')}</select></label>` : '';
-    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${heat} heat · ${entry.location}${outOfAmmo ? ' · no ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}</div>`;
+    const rapid = weapon?.key === 'uac5';
+    const modePicker = checked && rapid ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : '';
+    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${rapid && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location}${outOfAmmo ? ' · no ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${modePicker}${binPicker}</div>`;
   }).join('');
 
   panel.innerHTML = `

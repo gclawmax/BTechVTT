@@ -19,6 +19,7 @@ function ensureMechCombatState(mech) {
   if (!mech.structure) mech.structure = { ...unit.structure };
   if (mech.heat == null) mech.heat = 0;
   if (mech.weaponHeat == null) mech.weaponHeat = 0;
+  if (!Array.isArray(mech.weaponJams)) mech.weaponJams = [];
   if (mech.externalHeat == null) mech.externalHeat = 0;
   if (mech.movementHeat == null) mech.movementHeat = 0;
   if (mech.roundStartingHeat == null) mech.roundStartingHeat = mech.heat;
