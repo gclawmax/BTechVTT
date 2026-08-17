@@ -93,6 +93,7 @@ function resetMovementForRound() {
     m.roundStartingHeat = m.heat || 0;
     m.movementHeat = 0;
     m.weaponHeat = 0;
+    m.externalHeat = 0;
     m.heatDissipated = 0;
     m.hasManagedHeat = false;
   });
@@ -166,7 +167,7 @@ async function startMovementMode(instanceId, mode) {
     mech.hexesMoved = 0;
     mech.hasMoved = true;
     mech.movementHeat = MOVEMENT_HEAT.stand;
-    mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0);
+    mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
     renderMovementPanel();
     renderRoster();
     renderDetail();
@@ -284,7 +285,7 @@ async function confirmMove() {
     mech.hexesMoved = moveState.hexesMoved;
     mech.hasMoved = true;
     mech.movementHeat = MOVEMENT_HEAT[moveState.mode] || 0;
-    mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0);
+    mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
     const moveSummary = `${mechLabel(mech)} ${moveState.mode === 'jump' ? 'jumped' : moveState.mode === 'run' ? 'ran' : 'walked'} to ${hexCode(mech.col, mech.row)} (${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'}, ${moveState.mpUsed}/${moveState.mpMax} MP).`;
     moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
     renderMovementPanel();

@@ -343,7 +343,7 @@ async function executeAIMove(action) {
   mech.mpUsed = (mech.mpUsed || 0) + 1;
   mech.hasMoved = true;
   mech.movementHeat = MOVEMENT_HEAT.walk;
-  mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0);
+  mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
 
   // Update UI
   draw();
@@ -367,13 +367,18 @@ async function executeAIAttack(action) {
   if (!attack.valid) return;
 
   attacker.weaponHeat = (attacker.weaponHeat || 0) + attack.weapon.heat;
-  attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat;
+  attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat + (attacker.externalHeat || 0);
   const roll = roll2d6Detailed();
   const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);
   let message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: miss.`;
   if (hit) {
     const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
-    message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
+    const flamerHeat = weaponEntry.key === 'flamer' ? 2 : 0;
+    if (flamerHeat) {
+      target.externalHeat = (target.externalHeat || 0) + flamerHeat;
+      target.heat = (target.heat || 0) + flamerHeat;
+    }
+    message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
   }
   await syncMechInstances();
   await checkForMatchEnd();

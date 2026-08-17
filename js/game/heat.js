@@ -11,7 +11,7 @@ function heatLedger(mech) {
   return {
     starting: mech.roundStartingHeat || 0,
     movement: mech.movementHeat || 0,
-    weapons: mech.weaponHeat || 0,
+    weapons: (mech.weaponHeat || 0) + (mech.externalHeat || 0),
     engineHeat,
     before,
     sinks,
@@ -28,6 +28,7 @@ async function resolveHeatForSeat(seat) {
     const ledger = heatLedger(mech);
     mech.heatDissipated = ledger.dissipated;
     mech.heat = ledger.after;
+    mech.externalHeat = 0;
     mech.hasManagedHeat = true;
     messages.push(`${mechLabel(mech)} heat: start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before}; dissipated ${ledger.dissipated}/${ledger.sinks}, ending ${ledger.after}.`);
   }
