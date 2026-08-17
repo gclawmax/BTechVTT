@@ -152,6 +152,8 @@ function updateGameHeader() {
   const statusEl = document.getElementById('status-readout');
   if (!statusEl) return;
 
+  statusEl.classList.remove('is-my-turn', 'team-p1', 'team-p2');
+
   if (currentGameState.match_result) {
     const result = currentGameState.match_result;
     statusEl.textContent = result.winner_seat == null
@@ -169,7 +171,21 @@ function updateGameHeader() {
     const activeLabel = activePlayer?.is_ai
       ? 'AI'
       : `Player ${activePlayer?.seat_number || '?'}`;
-    statusEl.textContent += ` — ${activeLabel}'s Turn`;
+    if (isMyActiveTurn()) {
+      statusEl.textContent += ' — YOUR TURN';
+      statusEl.classList.add('is-my-turn', `team-p${mySeatNumber}`);
+    } else {
+      statusEl.textContent += ` — ${activeLabel}'s Turn`;
+    }
+  } else if (currentGameState.phase === 'initiative') {
+    const iHaveRolled = currentGameState.initiative_pending.some(roll =>
+      (typeof roll === 'string' ? roll : roll.player_id) === myInitiativePlayerId
+    );
+    const canRoll = vsAiMode ? isHost : mySeatNumber != null && !iHaveRolled;
+    if (canRoll && currentGameState.initiative_round !== currentGameState.round) {
+      statusEl.textContent += ' — YOUR ROLL';
+      statusEl.classList.add('is-my-turn', `team-p${mySeatNumber || 1}`);
+    }
   }
 
   const autoControl = document.getElementById('auto-ai-phase-control');

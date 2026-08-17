@@ -86,10 +86,20 @@ function renderGameLog() {
   if (!el) return;
   const wasNearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 12;
   el.innerHTML = gameLog.map(e =>
-    `<div class="log-entry cat-${e.cat}"><span class="log-tag">[${e.time}] R${e.round ?? '?'}/${(e.phase || '?').slice(0,4)}</span>${escapeLogHtml(e.msg)}</div>`
+    `<div class="log-entry cat-${e.cat} ${logTeamClass(e)}"><span class="log-tag">[${e.time}] R${e.round ?? '?'}/${(e.phase || '?').slice(0,4)}</span><span class="log-message">${escapeLogHtml(e.msg)}</span></div>`
   ).join('');
   // Autoscroll to the newest entry unless the user has scrolled up to read history.
   if (wasNearBottom || gameLog.length <= 1) el.scrollTop = el.scrollHeight;
+}
+
+// Most combat and action messages carry their acting side in the standard
+// P1/P2 label. Derive only presentation metadata here: the saved text stays
+// unchanged and remains readable in exports or the browser console.
+function logTeamClass(entry) {
+  const message = String(entry?.msg || '');
+  if (/\(P1\)|\bPlayer 1\b|\bP1=/.test(message)) return 'team-p1';
+  if (/\(P2\)|\(AI\)|\bPlayer 2\b|\bP2=/.test(message)) return 'team-p2';
+  return 'team-neutral';
 }
 
 function escapeLogHtml(str) {

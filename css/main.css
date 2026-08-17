@@ -573,7 +573,26 @@ html, body {
   font-size: 11px;
   color: var(--amber);
   letter-spacing: 0.08em;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  transition: color .15s, background .15s, border-color .15s;
 }
+
+/* The active player should spot their turn without scanning the roster. */
+#header .status.is-my-turn {
+  --turn-colour: #196c3a;
+  color: var(--turn-colour);
+  background: #edf8f0;
+  border-color: currentColor;
+  font-weight: 800;
+  text-decoration: underline 2px;
+  text-underline-offset: 3px;
+  letter-spacing: .11em;
+}
+
+#header .status.is-my-turn.team-p1 { --turn-colour: #a32832; background: #fff0f1; }
+#header .status.is-my-turn.team-p2 { --turn-colour: #1f629f; background: #eef6ff; }
 
 /* ── Map canvas area ── */
 #map-wrap {
@@ -740,7 +759,10 @@ body.resizing-side-panel, body.resizing-side-panel * {
 }
 
 .log-entry {
+  --team-colour: var(--phosphor-dim);
   padding: 1px 0;
+  padding-left: 6px;
+  border-left: 3px solid transparent;
   border-bottom: 1px dotted rgba(0,0,0,0.06);
   white-space: pre-wrap;
   word-break: break-word;
@@ -754,6 +776,11 @@ body.resizing-side-panel, body.resizing-side-panel * {
   color: var(--phosphor-dim);
   margin-right: 5px;
 }
+
+.log-entry.team-p1 { --team-colour: #b22f38; border-left-color: var(--team-colour); background: linear-gradient(90deg, rgba(178,47,56,.09), transparent 58%); }
+.log-entry.team-p2 { --team-colour: #226bad; border-left-color: var(--team-colour); background: linear-gradient(90deg, rgba(34,107,173,.09), transparent 58%); }
+.log-entry.team-p1 .log-message, .log-entry.team-p2 .log-message { color: var(--team-colour); font-weight: 650; }
+.log-entry.team-p1 .log-tag, .log-entry.team-p2 .log-tag { color: color-mix(in srgb, var(--team-colour) 65%, #555); }
 
 .log-entry.cat-roll { color: #2a6a2a; }
 .log-entry.cat-move { color: #2a4a8a; }
