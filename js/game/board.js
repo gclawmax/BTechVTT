@@ -24,6 +24,11 @@ function ensureMechCombatState(mech) {
   if (mech.hasFired == null) mech.hasFired = false;
   if (mech.hasPhysicalAttacked == null) mech.hasPhysicalAttacked = false;
   if (mech.hasManagedHeat == null) mech.hasManagedHeat = false;
+  if (!mech.pilot || typeof mech.pilot !== 'object') {
+    mech.pilot = { hits: 0, consciousness: 'conscious' };
+  }
+  if (mech.pilot.hits == null) mech.pilot.hits = 0;
+  if (!mech.pilot.consciousness) mech.pilot.consciousness = 'conscious';
   if (!Array.isArray(mech.ammoBins)) {
     mech.ammoBins = (unit.ammoBins || []).map(bin => ({ ...bin, maxShots: bin.shots }));
   }
