@@ -83,6 +83,24 @@ function armorCell(loc, label, armor, armorMax, structure, structureMax) {
   return `<div class="armor-cell" style="background:${background}" title="Armour ${armor ?? '—'} / ${armorMax ?? '—'} · Internal structure ${structure ?? '—'} / ${structureMax ?? '—'}"><span class="loc">${label}</span><span class="val"><span style="color:${armorColour}">A ${armor ?? '—'} / ${armorMax ?? '—'}</span><br><span style="color:${structureColour}">I ${structure ?? '—'} / ${structureMax ?? '—'}</span></span></div>`;
 }
 
+function roundOneAmmoControl(inst, bin) {
+  const isInitiative = currentGameState.round === 1 && currentGameState.phase === 'initiative';
+  const isUnloadedLbX = bin.type === 'lb10x' && !bin.loadType;
+  if (!isInitiative || !isUnloadedLbX) return '';
+  if (inst.owner !== mySeatNumber) {
+    return `<div style="grid-column:1 / -1;color:var(--phosphor-dim);font-size:9px;margin:2px 0 6px;">Player ${inst.owner} must choose this LB-X ammunition before Initiative.</div>`;
+  }
+  const key = `${inst.instanceId}:${bin.id}`;
+  const selected = roundOneAmmoChoices[key] || 'slug';
+  return `<div style="grid-column:1 / -1;margin:3px 0 8px;padding:8px;border:1px solid var(--amber);background:rgba(181,107,0,.08);">
+    <div style="color:var(--amber);font-size:10px;margin-bottom:6px;">ROUND 1 LB-X AMMUNITION — required before Initiative</div>
+    <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;">Load type
+      <select onchange="setRoundOneAmmoChoice('${key}',this.value)" style="font:10px var(--mono);padding:3px;"><option value="slug" ${selected === 'slug' ? 'selected' : ''}>Slug</option><option value="cluster" ${selected === 'cluster' ? 'selected' : ''}>Cluster</option></select>
+    </label>
+    <button onclick="submitRoundOneAmmoLoadout()" style="width:100%;margin-top:7px;padding:6px 8px;border:1px solid var(--amber);background:transparent;color:var(--amber);font:10px var(--display);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;">Confirm ammunition loadout</button>
+  </div>`;
+}
+
 function renderDetail() {
   const body = document.getElementById('detail-body');
   const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
@@ -127,7 +145,7 @@ function renderDetail() {
     <div class="stat-grid">
       ${unit.weapons.map(w => `<div class="k">${w.key.replace('_',' ')}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
     </div>
-    ${(inst.ammoBins || []).length ? `<div class="panel-eyebrow" style="margin-top:14px;">Ammunition</div><div class="stat-grid">${inst.ammoBins.map(bin => `<div class="k">${bin.type.replace('_',' ')}${bin.loadType ? ` · ${bin.loadType}` : ''} · ${bin.location}</div><div class="v">${bin.shots} / ${bin.maxShots} shots</div>`).join('')}</div>` : ''}
+    ${(inst.ammoBins || []).length ? `<div class="panel-eyebrow" style="margin-top:14px;">Ammunition</div><div class="stat-grid">${inst.ammoBins.map(bin => `<div class="k">${bin.type.replace('_',' ')}${bin.loadType ? ` · ${bin.loadType}` : ''} · ${bin.location}</div><div class="v">${bin.shots} / ${bin.maxShots} shots</div>${roundOneAmmoControl(inst, bin)}`).join('')}</div>` : ''}
     <div class="panel-eyebrow" style="margin-top:14px;">Armour / Internal Structure</div>
     <div style="font-size:9px;color:var(--phosphor-dim);margin:-8px 0 6px;">A = current / maximum armour · I = current / maximum internal structure</div>
     <div class="armor-diagram">

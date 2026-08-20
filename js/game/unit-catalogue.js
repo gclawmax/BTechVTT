@@ -119,27 +119,42 @@ function catalogueUnitColor(unitId, index) {
   return BT_UNIT_CATALOGUE[unitId]?.color || ['#c4302b', '#d4800a', '#2a8a2a', '#6450a6', '#397b97', '#4b8051'][index % 6];
 }
 
+// PostgREST caps a single response at 1,000 rows by default. A full MegaMek
+// catalogue has more critical-slot records than that, so fetch every page
+// before constructing the client-side record sheets.
+async function fetchCatalogueRows(table, columns, catalogueVersion) {
+  const pageSize = 1000;
+  const rows = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await db.from(table)
+      .select(columns)
+      .eq('catalogue_version', catalogueVersion)
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return rows;
+  }
+}
+
 async function loadUnitCatalogue(catalogueVersion) {
   if (!catalogueVersion || activeCatalogueVersion === catalogueVersion) return catalogueVersion;
   const [unitsResult, mountsResult, slotsResult, ammoResult] = await Promise.all([
-    db.from('btech_catalogue_units').select('unit_id,definition').eq('catalogue_version', catalogueVersion),
-    db.from('btech_catalogue_mounts').select('unit_id,mount_id,weapon_key,raw_name,location,definition').eq('catalogue_version', catalogueVersion),
-    db.from('btech_catalogue_critical_slots').select('unit_id,location,slot_index,label').eq('catalogue_version', catalogueVersion),
-    db.from('btech_catalogue_ammo_bins').select('unit_id,bin_id,ammo_type,raw_name,location,shots').eq('catalogue_version', catalogueVersion)
+    fetchCatalogueRows('btech_catalogue_units', 'unit_id,definition', catalogueVersion),
+    fetchCatalogueRows('btech_catalogue_mounts', 'unit_id,mount_id,weapon_key,raw_name,location,definition', catalogueVersion),
+    fetchCatalogueRows('btech_catalogue_critical_slots', 'unit_id,location,slot_index,label', catalogueVersion),
+    fetchCatalogueRows('btech_catalogue_ammo_bins', 'unit_id,bin_id,ammo_type,raw_name,location,shots', catalogueVersion)
   ]);
-  const failed = [unitsResult, mountsResult, slotsResult, ammoResult].find(result => result.error);
-  if (failed) throw failed.error;
-  if (!unitsResult.data?.length) throw new Error(`Catalogue ${catalogueVersion} contains no supported units.`);
+  if (!unitsResult.length) throw new Error(`Catalogue ${catalogueVersion} contains no supported units.`);
 
   const groupByUnit = rows => (rows || []).reduce((groups, row) => {
     (groups[row.unit_id] ||= []).push(row);
     return groups;
   }, {});
-  const mountsByUnit = groupByUnit(mountsResult.data);
-  const slotsByUnit = groupByUnit(slotsResult.data);
-  const ammoByUnit = groupByUnit(ammoResult.data);
+  const mountsByUnit = groupByUnit(mountsResult);
+  const slotsByUnit = groupByUnit(slotsResult);
+  const ammoByUnit = groupByUnit(ammoResult);
   databaseSupportedUnitIds.clear();
-  unitsResult.data.forEach((row, index) => {
+  unitsResult.forEach((row, index) => {
     const definition = row.definition || {};
     if (definition.supported_by_vtt !== true) return;
     const mounts = mountsByUnit[row.unit_id] || [];

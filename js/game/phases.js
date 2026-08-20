@@ -15,6 +15,7 @@ let autoAdvanceRetryTimer = null;
 let scheduledAiTurnKey = null;
 let myInitiativePlayerId = null;
 const roundOneAmmoChoices = {};
+const roundOneAmmoPrompted = new Set();
 
 let currentGameState = {
   round: 1,
@@ -293,15 +294,13 @@ function renderInitiativeDisplay() {
     : [];
   const ownUnloadedLbBins = allUnloadedLbBins.filter(({ mech }) => mech.owner === mySeatNumber);
   if (ownUnloadedLbBins.length) {
-    initDisplay.innerHTML = `<div style="color:var(--amber);font-size:10px;margin-bottom:4px;">ROUND 1 AMMUNITION LOADOUT — declare each LB-X bin before initiative.</div>${ownUnloadedLbBins.map(({ mech, bin }) => {
-      const key = `${mech.instanceId}:${bin.id}`;
-      const selected = roundOneAmmoChoices[key] || 'slug';
-      return `<label style="display:flex;justify-content:center;gap:6px;align-items:center;margin:3px 0;color:var(--paper);">${mechLabel(mech)} · ${bin.location}<select onchange="setRoundOneAmmoChoice('${key}',this.value)" style="font:10px var(--mono);padding:3px;"><option value="slug" ${selected === 'slug' ? 'selected' : ''}>Slug</option><option value="cluster" ${selected === 'cluster' ? 'selected' : ''}>Cluster</option></select></label>`;
-    }).join('')}<button onclick="submitRoundOneAmmoLoadout()" style="margin-top:4px;padding:5px 10px;font:10px var(--mono);cursor:pointer;">Confirm LB-X Ammunition</button>`;
+    initDisplay.textContent = 'LB-X ammunition selection required — select your LB-X-equipped BattleMech to configure its ammunition.';
+    logRoundOneAmmoPrompt(ownUnloadedLbBins, true);
     return;
   }
   if (allUnloadedLbBins.length) {
     initDisplay.textContent = 'Waiting for the other player to declare Round 1 LB-X ammunition.';
+    logRoundOneAmmoPrompt(allUnloadedLbBins, false);
     return;
   }
   if (currentGameState.initiative_order.length === 0) {
@@ -324,8 +323,23 @@ function renderInitiativeDisplay() {
   initDisplay.textContent = `Initiative: ${firstLabel} goes first | ${orderText}`;
 }
 
+function logRoundOneAmmoPrompt(unloadedBins, isOwner) {
+  const key = `${currentGameId || 'local'}:${currentGameState.round}:${mySeatNumber || 'spectator'}:${isOwner ? 'owner' : 'waiting'}`;
+  if (roundOneAmmoPrompted.has(key)) return;
+  roundOneAmmoPrompted.add(key);
+  if (isOwner) {
+    const units = [...new Set(unloadedBins.map(({ mech }) => mechLabel(mech)))].join(', ');
+    logEvent(`Action required: choose Slug or Cluster ammunition in the Ammunition section for ${units}, then confirm the loadout before Initiative.`, 'system');
+  } else {
+    logEvent('Initiative is waiting for the other player to declare their LB-X ammunition loadout.', 'system');
+  }
+}
+
 function setRoundOneAmmoChoice(key, loadType) {
-  if (['slug', 'cluster'].includes(loadType)) roundOneAmmoChoices[key] = loadType;
+  if (['slug', 'cluster'].includes(loadType)) {
+    roundOneAmmoChoices[key] = loadType;
+    renderDetail();
+  }
 }
 
 async function submitRoundOneAmmoLoadout() {
