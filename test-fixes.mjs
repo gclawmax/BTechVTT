@@ -145,6 +145,18 @@ check('#3 default gunnery = 4', tnDefault === 4, `tn=${tnDefault} (expect 4)`);
 check('#3 gunnery 6 feeds formula', tnG6 === tnDefault + 2, `default=${tnDefault} g6=${tnG6}`);
 check('#3 breakdown shows gunnery', sandbox.evaluateWeaponAttack(aG6, t3, wpn).breakdown.includes('Gunnery 6'));
 
+// ── #3b LB-X Cluster ammunition starts in its declared mode ───────────────
+const lbxMount = { key: 'lb10x', location: 'Left Arm', mountId: 'lb10x:la:0' };
+sandbox.BT_UNITS.testmech.weapons = [lbxMount];
+sandbox.BT_WEAPONS.lb10x = { name: 'LB 10-X AC', damage: 10, heat: 2, range: [6, 12, 18], ammoType: 'lb10x' };
+const lbxMech = { ...mkMech(4), ammoBins: [{ id: 'la:7', type: 'lb10x', loadType: 'cluster', shots: 10 }], weaponPhaseStart: { round: 1, mech: { ammoBins: [{ id: 'la:7', type: 'lb10x', loadType: 'cluster', shots: 10 }] } } };
+sandbox.mechInstances = [lbxMech];
+sandbox.currentGameState.phase = 'weapon_attack';
+vm.runInContext("weaponAttackState={attackerId:'a',targetId:null,weaponKeys:[],ammoBinsByMount:{},fireModesByMount:{}}", sandbox);
+check('#3b Cluster-loaded LB-X is selectable', sandbox.compatibleAmmoBins(lbxMech, lbxMount).length === 1);
+sandbox.toggleWeaponForAttack('lb10x:la:0');
+check('#3b Cluster is selected from the declared ammo bin', vm.runInContext("weaponAttackState.fireModesByMount['lb10x:la:0']", sandbox) === 'cluster');
+
 // ── #4 Jump landing free facing ────────────────────────────────────────────
 sandbox.mechInstances = [{ instanceId: 'j1', unitId: 'testmech', owner: 1, col: 2, row: 2, facing: 0, torsoFacing: 0,
   structure: { ...STRUCT }, armor: {}, jumpMP: 5, hexesMoved: 0, mpUsed: 0, hasMoved: false, hasFired: false, shutdown: false, destroyed: false,

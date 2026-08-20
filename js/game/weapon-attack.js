@@ -25,10 +25,13 @@ function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
   const ammoType = BT_WEAPONS[weaponEntry.key]?.ammoType;
   if (!ammoType) return [];
   const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
-  const mode = weaponFireMode(mountId, weaponEntry);
+  // Before an LB-X is selected, do not assume slug ammunition. A bin declared
+  // as Cluster must make the weapon selectable so its declared mode can become
+  // the initial firing mode.
+  const selectedMode = weaponAttackState.fireModesByMount[mountId];
   return (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
     bin.type === ammoType && bin.shots >= shotsRequired && !bin.destroyed &&
-    (weaponEntry.key !== 'lb10x' || !bin.loadType || bin.loadType === mode)
+    (weaponEntry.key !== 'lb10x' || !selectedMode || !bin.loadType || bin.loadType === selectedMode)
   );
 }
 
@@ -254,7 +257,12 @@ function toggleWeaponForAttack(mountId) {
   } else {
     weaponAttackState.weaponKeys = [...selected, mountId];
     const bins = entry ? compatibleAmmoBins(attacker, entry) : [];
-    if (bins.length) weaponAttackState.ammoBinsByMount[mountId] = bins[0].id;
+    if (bins.length) {
+      weaponAttackState.ammoBinsByMount[mountId] = bins[0].id;
+      // Start on the ammunition type chosen during Round 1. This avoids a
+      // Cluster-only bin being rejected by the old implicit Slug default.
+      if (entry?.key === 'lb10x') weaponAttackState.fireModesByMount[mountId] = bins[0].loadType || 'slug';
+    }
   }
   renderWeaponAttackPanel();
 }
