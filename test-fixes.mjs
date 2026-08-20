@@ -206,6 +206,8 @@ check('#5 migration patches the jump assignment directly', migration.includes("'
 const clusterMigration = fs.readFileSync(`${ROOT}/SQL/47_lb_x_cluster_target_number.sql`, 'utf8');
 check('#5 Cluster migration patches the authoritative target number', clusterMigration.includes('lb_x_cluster_tn_v1') && clusterMigration.includes("THEN tn:=tn-1"));
 check('#5 Cluster migration records target-number breakdowns', clusterMigration.includes("''breakdown'',jsonb_build_object"));
+const lbxSnapshotMigration = fs.readFileSync(`${ROOT}/SQL/48_fix_lb_x_snapshot_validation.sql`, 'utf8');
+check('#5 LB-X snapshot migration validates persisted bins', lbxSnapshotMigration.includes("'attacker_start->''ammoBins''','attacker->''ammoBins''"));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

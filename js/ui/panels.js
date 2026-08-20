@@ -117,6 +117,7 @@ function renderDetail() {
     return;
   }
   const unit = BT_UNITS[inst.unitId];
+  const clanWeaponSuffix = /^clan$/i.test(unit.techBase || '') ? ' (C)' : '';
   const axial = offsetToAxial(inst.col, inst.row);
   const pilot = inst.pilot || { hits: 0, consciousness: 'conscious' };
   const pilotState = String(pilot.consciousness || 'conscious').toUpperCase();
@@ -143,7 +144,7 @@ function renderDetail() {
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>
     <div class="stat-grid">
-      ${unit.weapons.map(w => `<div class="k">${w.key.replace('_',' ')}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
+      ${unit.weapons.map(w => `<div class="k">${w.weapon?.name || w.key.replaceAll('_',' ')}${clanWeaponSuffix}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
     </div>
     ${(inst.ammoBins || []).length ? `<div class="panel-eyebrow" style="margin-top:14px;">Ammunition</div><div class="stat-grid">${inst.ammoBins.map(bin => `<div class="k">${bin.type.replace('_',' ')}${bin.loadType ? ` · ${bin.loadType}` : ''} · ${bin.location}</div><div class="v">${bin.shots} / ${bin.maxShots} shots</div>${roundOneAmmoControl(inst, bin)}`).join('')}</div>` : ''}
     <div class="panel-eyebrow" style="margin-top:14px;">Armour / Internal Structure</div>
