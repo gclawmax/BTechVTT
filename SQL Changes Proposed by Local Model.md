@@ -37,9 +37,10 @@ through to `la` (Left Arm). Corrected in the front branch of the hit-location lo
 
 ### Fix #2 — Mirrored left/right side tables
 A single generic `'side'` table was used for both flanks. The right flank and left flank use
-**mirror-image** tables (Left Arm ↔ Right Arm, Left Torso ↔ Right Torso). The direction resolver now
-returns a distinct `side-right` / `side-left`, and a mirrored left-flank table was added. The
-right-flank table is unchanged (it is the original); the left-flank table is its mirror.
+**mirror-image** tables (Left Arm ↔ Right Arm, Left Torso ↔ Right Torso, **Left Leg ↔ Right Leg**).
+The direction resolver now returns a distinct `side-right` / `side-left`, and a mirrored left-flank
+table was added. The right-flank table is unchanged (it is the original); the left-flank table is its
+full mirror — including the legs (roll 5 → `ll`, roll 10 → `rl`).
 
 Direction mapping (offset-grid direction index from attacker to target):
 - `0` → `front`

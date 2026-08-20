@@ -329,7 +329,7 @@ function hitLocationForRoll(roll, angle = 'front') {
   // Mirrored side tables: attacking the target's right flank favors RA/RT,
   // attacking the left flank favors LA/LT (Total Warfare side hit-location tables).
   if (angle === 'side-right') return ({ 2:'ct',3:'ra',4:'ra',5:'rl',6:'rt',7:'rt',8:'ct',9:'lt',10:'ll',11:'la',12:'head' })[roll];
-  if (angle === 'side-left') return ({ 2:'ct',3:'la',4:'la',5:'rl',6:'lt',7:'lt',8:'ct',9:'rt',10:'ll',11:'ra',12:'head' })[roll];
+  if (angle === 'side-left') return ({ 2:'ct',3:'la',4:'la',5:'ll',6:'lt',7:'lt',8:'ct',9:'rt',10:'rl',11:'ra',12:'head' })[roll];
   if (roll === 2) return 'ct';
   if (roll === 3 || roll === 4) return 'ra';
   if (roll === 5) return 'rl';
