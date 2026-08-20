@@ -210,14 +210,15 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const critical = sensorCritical + weaponComponentToHitModifier(eligibleAttacker, weaponEntry);
   const heat = weaponHeatToHitModifier(eligibleAttacker);
   const gunnery = eligibleAttacker.pilot?.gunnery ?? 4;
+  const clusterModifier = weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster' ? -1 : 0;
   return {
     valid: true,
     weapon,
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0),
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier,
     attackAngle: attackDirection(attacker, target),
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}`
   };
 }
 
@@ -418,19 +419,32 @@ function formatAuthoritativePilotCheck(check) {
 function authoritativeWeaponResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
+  const targetNumberExplanation = formatAuthoritativeTargetNumber(roll);
   const modeSuffix = result.fire_mode === 'rapid' ? ' (rapid fire)' : result.fire_mode === 'cluster' ? ' (cluster ammunition)' : '';
-  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.${result.jammed ? ' Ultra AC jammed.' : ''}`;
+  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: miss.${result.jammed ? ' Ultra AC jammed.' : ''}`;
   if (result.cluster_roll) {
     const cluster = result.cluster_roll;
     const groups = (result.groups || []).map(group =>
       `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}${formatAuthoritativePilotCheck(group.pilot_check)}`
     ).join('; ');
     const pellets = result.cluster_kind === 'lb_x' ? 'pellet' : 'missile';
-    return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit. Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.`;
+    return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.`;
   }
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
   const flamerHeat = result.heat_inflicted ? ` ${mechLabel(target)} gains ${result.heat_inflicted} heat.` : '';
-  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+}
+
+function formatAuthoritativeTargetNumber(roll) {
+  const b = roll?.breakdown;
+  if (!b || typeof b.gunnery !== 'number') return '';
+  const labels = [['attacker_movement', 'attacker movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'woods'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'target prone'], ['lb_x_cluster', 'LB-X cluster']];
+  const terms = [`Gunnery ${b.gunnery}`];
+  for (const [key, label] of labels) {
+    const value = Number(b[key] || 0);
+    if (value) terms.push(`${value < 0 ? '−' : '+'} ${label} ${Math.abs(value)}`);
+  }
+  return ` (${terms.join(' ')})`;
 }
 
 function weaponDeclarationSummary(attacker, mountIds, fireModes = {}) {

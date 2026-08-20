@@ -150,7 +150,7 @@ check('#3 breakdown shows gunnery', sandbox.evaluateWeaponAttack(aG6, t3, wpn).b
 const lbxMount = { key: 'lb10x', location: 'Left Arm', mountId: 'lb10x:la:0' };
 sandbox.BT_UNITS.testmech.weapons = [lbxMount];
 sandbox.BT_WEAPONS.lb10x = { name: 'LB 10-X AC', damage: 10, heat: 2, range: [6, 12, 18], ammoType: 'lb10x' };
-const lbxMech = { ...mkMech(4), ammoBins: [{ id: 'la:7', type: 'lb10x', loadType: 'cluster', shots: 10 }], weaponPhaseStart: { round: 1, mech: { ammoBins: [{ id: 'la:7', type: 'lb10x', loadType: 'cluster', shots: 10 }] } } };
+const lbxMech = { ...mkMech(4), ammoBins: [{ id: 'la:7', type: 'lb10x', loadType: 'cluster', shots: 10 }], weaponPhaseStart: { round: 1, mech: { structure: { ...STRUCT }, ammoBins: [{ id: 'la:7', type: 'lb10x', loadType: 'cluster', shots: 10 }] } } };
 sandbox.mechInstances = [lbxMech];
 sandbox.currentGameState.phase = 'weapon_attack';
 vm.runInContext("weaponAttackState={attackerId:'a',targetId:null,weaponKeys:[],ammoBinsByMount:{},fireModesByMount:{}}", sandbox);
@@ -161,9 +161,12 @@ const slugBin = { id: 'la:8', type: 'lb10x', loadType: 'slug', shots: 10 };
 lbxMech.ammoBins.push(slugBin); lbxMech.weaponPhaseStart.mech.ammoBins.push(slugBin);
 sandbox.selectAmmoBinForMount('lb10x:la:0', 'la:8');
 check('#3b selecting an LB-X bin selects its declared munition', vm.runInContext("weaponAttackState.fireModesByMount['lb10x:la:0']", sandbox) === 'slug');
+sandbox.selectAmmoBinForMount('lb10x:la:0', 'la:7');
+check('#3b LB-X Cluster applies -1 to the displayed target number', sandbox.evaluateWeaponAttack(lbxMech, t3, lbxMount).targetNumber === 3);
 check('#3b ammo picker labels declared munition', sandbox.ammoBinLabel({ location: 'Left Arm', loadType: 'cluster', shots: 10, maxShots: 10 }) === 'Left Arm · Cluster · 10/10 shots');
 check('#3b per-mount profile overrides shared weapon key', sandbox.weaponProfile({ key: 'erl', weapon: { name: 'Clan ER Large Laser', damage: 10 } }).damage === 10);
 check('#3b explicit combat-log team takes precedence over target label', sandbox.logTeamClass({ team: 2, msg: 'Dire Wolf (P2) fired at Summoner (P1).' }) === 'team-p2');
+check('#3b authoritative target breakdown is readable', sandbox.formatAuthoritativeTargetNumber({ breakdown: { gunnery: 4, attacker_movement: 3, lb_x_cluster: -1 } }) === ' (Gunnery 4 + attacker movement 3 − LB-X cluster 1)');
 
 // ── #4 Jump landing free facing ────────────────────────────────────────────
 sandbox.mechInstances = [{ instanceId: 'j1', unitId: 'testmech', owner: 1, col: 2, row: 2, facing: 0, torsoFacing: 0,
@@ -200,6 +203,9 @@ check('#5 migration validates jump facing', migration.includes("Jump landing fac
 check('#5 migration tolerates live resolver formatting', (migration.match(/regexp_replace\(patched|regexp_replace\(source/g) || []).length >= 3);
 check('#5 migration preserves extra live to-hit modifiers', migration.includes("'base_tn[[:space:]]*:=[[:space:]]*4'"));
 check('#5 migration patches the jump assignment directly', migration.includes("'current_facing[[:space:]]*:=[[:space:]]*btech_direction_to"));
+const clusterMigration = fs.readFileSync(`${ROOT}/SQL/47_lb_x_cluster_target_number.sql`, 'utf8');
+check('#5 Cluster migration patches the authoritative target number', clusterMigration.includes('lb_x_cluster_tn_v1') && clusterMigration.includes("THEN tn:=tn-1"));
+check('#5 Cluster migration records target-number breakdowns', clusterMigration.includes("''breakdown'',jsonb_build_object"));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);
