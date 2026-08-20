@@ -156,6 +156,7 @@ vm.runInContext("weaponAttackState={attackerId:'a',targetId:null,weaponKeys:[],a
 check('#3b Cluster-loaded LB-X is selectable', sandbox.compatibleAmmoBins(lbxMech, lbxMount).length === 1);
 sandbox.toggleWeaponForAttack('lb10x:la:0');
 check('#3b Cluster is selected from the declared ammo bin', vm.runInContext("weaponAttackState.fireModesByMount['lb10x:la:0']", sandbox) === 'cluster');
+check('#3b ammo picker labels declared munition', sandbox.ammoBinLabel({ location: 'Left Arm', loadType: 'cluster', shots: 10, maxShots: 10 }) === 'Left Arm · Cluster · 10/10 shots');
 
 // ── #4 Jump landing free facing ────────────────────────────────────────────
 sandbox.mechInstances = [{ instanceId: 'j1', unitId: 'testmech', owner: 1, col: 2, row: 2, facing: 0, torsoFacing: 0,

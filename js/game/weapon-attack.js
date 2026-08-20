@@ -45,6 +45,11 @@ function weaponShotsForMode(mountId, weaponEntry) {
   return weaponFireMode(mountId, weaponEntry) === 'rapid' ? 2 : 1;
 }
 
+function ammoBinLabel(bin) {
+  const loadout = bin.loadType ? ` · ${bin.loadType[0].toUpperCase()}${bin.loadType.slice(1)}` : '';
+  return `${bin.location}${loadout} · ${bin.shots}/${bin.maxShots} shots`;
+}
+
 function weaponDirectionTo(attacker, target) {
   let bestDirection = 0;
   let bestDistance = Infinity;
@@ -631,7 +636,7 @@ function renderWeaponAttackPanel() {
     const disabled = outOfAmmo || (target && !evaluation.valid);
     const countLabel = entry.count > 1 ? ` ×${entry.count}` : '';
     const heat = weapon ? weapon.heat * entry.count : '?';
-    const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${bin.location} · ${bin.shots}/${bin.maxShots} shots</option>`).join('')}</select></label>` : '';
+    const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${ammoBinLabel(bin)}</option>`).join('')}</select></label>` : '';
     const ultra = weapon?.key === 'uac5';
     const lbx = weapon?.key === 'lb10x';
     const modePicker = checked && ultra ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : checked && lbx ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','slug')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'slug' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'slug' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SLUG · 10 DAMAGE</button><button onclick="selectWeaponFireMode('${mountId}','cluster')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'cluster' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'cluster' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">CLUSTER · 10 PELLETS</button></div>` : '';
