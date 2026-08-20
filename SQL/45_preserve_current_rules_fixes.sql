@@ -37,8 +37,8 @@ BEGIN
  patched:=source;
  IF position('attacker_start->''pilot''->>''gunnery''' IN patched)=0 THEN
   patched:=regexp_replace(patched,
-   'base_tn[[:space:]]*:=[[:space:]]*4[[:space:]]*\+[[:space:]]*move_mod[[:space:]]*\+[[:space:]]*target_mod[[:space:]]*\+[[:space:]]*woods[[:space:]]*\+[[:space:]]*sensor_mod[[:space:]]*\+[[:space:]]*heat_mod[[:space:]]*;',
-   'base_tn:=coalesce((attacker_start->''pilot''->>''gunnery'')::int,4)+move_mod+target_mod+woods+sensor_mod+heat_mod;');
+   'base_tn[[:space:]]*:=[[:space:]]*4',
+   'base_tn:=coalesce((attacker_start->''pilot''->>''gunnery'')::int,4)');
  END IF;
  IF position('side-right' IN patched)=0 OR position('side-left' IN patched)=0 THEN
   patched:=regexp_replace(patched,
