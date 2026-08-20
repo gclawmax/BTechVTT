@@ -170,6 +170,14 @@ const jumpAction = rpc?.args.p_path?.find(p => p.action === 'jump');
 check('#4 chosen facing sent to server', jumpAction?.facing === 1, `facing=${jumpAction?.facing}`);
 check('#4 moveState cleared after confirm', sandbox.moveState.active === false);
 
+// ── #5 Release migration guardrails ───────────────────────────────────────
+const migration = fs.readFileSync(`${ROOT}/SQL/45_preserve_current_rules_fixes.sql`, 'utf8');
+check('#5 migration patches the live weapon resolver', migration.includes("to_regprocedure('public.btech_process_weapon_declaration"));
+check('#5 migration preserves later weapon extensions', migration.includes('btech_elevation_blocks_los') && migration.includes('btech_expand_ultra_ac_mounts') && migration.includes('lb_x_ammo_setup_v1'));
+check('#5 migration patches the live movement resolver', migration.includes("to_regprocedure('public.submit_battlemech_movement"));
+check('#5 migration preserves later movement extensions', migration.includes('btech_elevation') && migration.includes('btech_resolve_rough_ground_piloting_check'));
+check('#5 migration validates jump facing', migration.includes("Jump landing facing must be between 0 and 5"));
+
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} passed`);

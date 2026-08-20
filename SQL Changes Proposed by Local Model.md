@@ -2,7 +2,7 @@
 
 **Project:** BTechVTT (`gclawmax/BTechVTT`)
 **Date:** 2026-08-19
-**Status:** PROPOSED — local file edits only. **Nothing has been applied to Supabase.**
+**Status:** SUPERSEDED FOR DEPLOYMENT — local file edits only. **Nothing has been applied to Supabase.**
 **Author:** Local model (Hermes Agent). For review before any migration is run.
 
 ---
@@ -140,7 +140,19 @@ END IF;
 
 ---
 
-## 5. Commands to run in Supabase
+## 5. Deployment note
+
+Do **not** run the historical files listed below on a current database. They
+replace resolver definitions that later migrations extended, and would remove
+terrain/elevation, rough-ground, prone-fire, Ultra AC, and LB-X support.
+
+For a database that has been migrated through `SQL/44_fix_weapon_mount_identifier.sql`,
+run only `SQL/45_preserve_current_rules_fixes.sql`. It patches the currently
+installed resolvers in place and aborts if their expected later extensions are
+missing. The historic command list is retained below solely as provenance for
+the Local Model review.
+
+## 6. Historic commands (do not run on a current database)
 
 These are the exact commands believed necessary to make the fixes work on the server. Run them
 **in this order** (15 before 18/19/20/21 is not strictly required because each file is self-contained,
@@ -171,7 +183,7 @@ Because every change is `CREATE OR REPLACE FUNCTION`, re-running is idempotent a
 
 ---
 
-## 6. Verification performed locally
+## 7. Verification performed locally
 
 - **Syntax:** `node --check` passes on all modified JS files.
 - **Headless tests:** `test-fixes.mjs` loads the real source files (browser globals stubbed) and
@@ -185,9 +197,9 @@ Because every change is `CREATE OR REPLACE FUNCTION`, re-running is idempotent a
 
 ---
 
-## 7. Open items / cautions before applying
+## 8. Open items / cautions before applying
 
-1. **Not yet applied to Supabase** — this is a proposal. Review the diffs in §4 before running §5.
+1. **Not yet applied to Supabase** — use `SQL/45_preserve_current_rules_fixes.sql` after reviewing it; do not apply the historic files in §6 to a current database.
 2. **Pilot `gunnery` field** — the server reads `attacker->'pilot'->>'gunnery'`. Confirm the pilot
    JSON in your roster/match state actually carries a numeric `gunnery` key; otherwise every
    attacker silently defaults to 4 (safe, but the fix is a no-op until the stat is populated).
