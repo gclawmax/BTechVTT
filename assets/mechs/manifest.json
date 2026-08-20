@@ -1,0 +1,2388 @@
+{
+  "schema_version": 1,
+  "source": "MegaMek official release unit artwork",
+  "source_repository": "https://github.com/MegaMek/megamek",
+  "source_release": "0.51.00.1",
+  "license": "CC-BY-NC-4.0",
+  "license_url": "https://creativecommons.org/licenses/by-nc/4.0/",
+  "attribution": "MegaMek artwork by The MegaMek Team and individual contributors",
+  "units": {
+    "commando-com1b": {
+      "file": "commando-com1b.png",
+      "source_file": "meks/Commando_1B.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        4536,
+        84,
+        72
+      ]
+    },
+    "commando-com1d": {
+      "file": "commando-com1d.png",
+      "source_file": "meks/Commando_1D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        4536,
+        84,
+        72
+      ]
+    },
+    "commando-com2d": {
+      "file": "commando-com2d.png",
+      "source_file": "meks/Commando.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        4536,
+        84,
+        72
+      ]
+    },
+    "commando-com3a": {
+      "file": "commando-com3a.png",
+      "source_file": "meks/Commando_3A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        4536,
+        84,
+        72
+      ]
+    },
+    "firestarter-fs9a": {
+      "file": "firestarter-fs9a.png",
+      "source_file": "meks/Firestarter_A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        7632,
+        84,
+        72
+      ]
+    },
+    "firestarter-fs9h": {
+      "file": "firestarter-fs9h.png",
+      "source_file": "meks/Firestarter.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        7560,
+        84,
+        72
+      ]
+    },
+    "firestarter-fs9k": {
+      "file": "firestarter-fs9k.png",
+      "source_file": "meks/Firestarter_K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        7704,
+        84,
+        72
+      ]
+    },
+    "firestarter-fs9s": {
+      "file": "firestarter-fs9s.png",
+      "source_file": "meks/Firestarter_S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        7704,
+        84,
+        72
+      ]
+    },
+    "firestarter-fs9s1": {
+      "file": "firestarter-fs9s1.png",
+      "source_file": "meks/Firestarter_S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        7704,
+        84,
+        72
+      ]
+    },
+    "flea-fle15": {
+      "file": "flea-fle15.png",
+      "source_file": "meks/Flea_15.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        7848,
+        84,
+        72
+      ]
+    },
+    "flea-fle17": {
+      "file": "flea-fle17.png",
+      "source_file": "meks/Flea.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        7848,
+        84,
+        72
+      ]
+    },
+    "javelin-jvn10n": {
+      "file": "javelin-jvn10n.png",
+      "source_file": "meks/Javelin.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        11304,
+        84,
+        72
+      ]
+    },
+    "javelin-jvn10p": {
+      "file": "javelin-jvn10p.png",
+      "source_file": "meks/Javelin.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        11304,
+        84,
+        72
+      ]
+    },
+    "jenner-jr7d": {
+      "file": "jenner-jr7d.png",
+      "source_file": "meks/Jenner.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        11376,
+        84,
+        72
+      ]
+    },
+    "jenner-jr7f": {
+      "file": "jenner-jr7f.png",
+      "source_file": "meks/Jenner_F.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        11376,
+        84,
+        72
+      ]
+    },
+    "jenner-jr7k": {
+      "file": "jenner-jr7k.png",
+      "source_file": "meks/Jenner.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        11376,
+        84,
+        72
+      ]
+    },
+    "locust-lct1e": {
+      "file": "locust-lct1e.png",
+      "source_file": "meks/Locust_1E.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        12672,
+        84,
+        72
+      ]
+    },
+    "locust-lct1m": {
+      "file": "locust-lct1m.png",
+      "source_file": "meks/Locust_1M.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        12672,
+        84,
+        72
+      ]
+    },
+    "locust-lct1v": {
+      "file": "locust-lct1v.png",
+      "source_file": "meks/Locust.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        12672,
+        84,
+        72
+      ]
+    },
+    "locust-lct3s": {
+      "file": "locust-lct3s.png",
+      "source_file": "meks/Locust_1S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        12672,
+        84,
+        72
+      ]
+    },
+    "locust-lct3v": {
+      "file": "locust-lct3v.png",
+      "source_file": "meks/Locust_3V.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        12744,
+        84,
+        72
+      ]
+    },
+    "panther-pnt8z": {
+      "file": "panther-pnt8z.png",
+      "source_file": "meks/Panther_8Z.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        16200,
+        84,
+        72
+      ]
+    },
+    "panther-pnt9r": {
+      "file": "panther-pnt9r.png",
+      "source_file": "meks/Panther.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        16200,
+        84,
+        72
+      ]
+    },
+    "raven-rvn1x": {
+      "file": "raven-rvn1x.png",
+      "source_file": "meks/Raven_1X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        18144,
+        84,
+        72
+      ]
+    },
+    "raven-rvn2x": {
+      "file": "raven-rvn2x.png",
+      "source_file": "meks/Raven_2X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        18144,
+        84,
+        72
+      ]
+    },
+    "raven-rvn3l": {
+      "file": "raven-rvn3l.png",
+      "source_file": "meks/Raven.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        18144,
+        84,
+        72
+      ]
+    },
+    "raven-rvn4x": {
+      "file": "raven-rvn4x.png",
+      "source_file": "meks/Raven_4X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        18144,
+        84,
+        72
+      ]
+    },
+    "spider-sdr5d": {
+      "file": "spider-sdr5d.png",
+      "source_file": "meks/Spider_5D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        20376,
+        84,
+        72
+      ]
+    },
+    "spider-sdr5k": {
+      "file": "spider-sdr5k.png",
+      "source_file": "meks/Spider_5K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        20376,
+        84,
+        72
+      ]
+    },
+    "spider-sdr5v": {
+      "file": "spider-sdr5v.png",
+      "source_file": "meks/Spider.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        20376,
+        84,
+        72
+      ]
+    },
+    "urbanmech-umr60": {
+      "file": "urbanmech-umr60.png",
+      "source_file": "meks/Urbanmech.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        22824,
+        84,
+        72
+      ]
+    },
+    "urbanmech-umr60l": {
+      "file": "urbanmech-umr60l.png",
+      "source_file": "meks/Urbanmech_60L.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        22824,
+        84,
+        72
+      ]
+    },
+    "wolfhound-wlf1": {
+      "file": "wolfhound-wlf1.png",
+      "source_file": "meks/Wolfhound.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        24696,
+        84,
+        72
+      ]
+    },
+    "wolfhound-wlf1a": {
+      "file": "wolfhound-wlf1a.png",
+      "source_file": "meks/Wolfhound_1A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        24696,
+        84,
+        72
+      ]
+    },
+    "wolfhound-wlf1b": {
+      "file": "wolfhound-wlf1b.png",
+      "source_file": "meks/Wolfhound_1A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        24696,
+        84,
+        72
+      ]
+    },
+    "assassin-asn101": {
+      "file": "assassin-asn101.png",
+      "source_file": "meks/Assassin_101.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        864,
+        84,
+        72
+      ]
+    },
+    "assassin-asn21": {
+      "file": "assassin-asn21.png",
+      "source_file": "meks/Assassin.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        864,
+        84,
+        72
+      ]
+    },
+    "blackjack-bj1": {
+      "file": "blackjack-bj1.png",
+      "source_file": "meks/Blackjack.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        2376,
+        84,
+        72
+      ]
+    },
+    "blackjack-bj1dc": {
+      "file": "blackjack-bj1dc.png",
+      "source_file": "meks/Blackjack_1DC.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        2520,
+        84,
+        72
+      ]
+    },
+    "blackjack-bj1x": {
+      "file": "blackjack-bj1x.png",
+      "source_file": "meks/Blackjack_1X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        2520,
+        84,
+        72
+      ]
+    },
+    "blackjack-bj3": {
+      "file": "blackjack-bj3.png",
+      "source_file": "meks/Blackjack_3.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        2520,
+        84,
+        72
+      ]
+    },
+    "centurion-cn9a": {
+      "file": "centurion-cn9a.png",
+      "source_file": "meks/Centurion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        3960,
+        84,
+        72
+      ]
+    },
+    "centurion-cn9ah": {
+      "file": "centurion-cn9ah.png",
+      "source_file": "meks/Centurion_AH.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        3960,
+        84,
+        72
+      ]
+    },
+    "centurion-cn9al": {
+      "file": "centurion-cn9al.png",
+      "source_file": "meks/Centurion_AL.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        3960,
+        84,
+        72
+      ]
+    },
+    "centurion-cn9d": {
+      "file": "centurion-cn9d.png",
+      "source_file": "meks/Centurion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        3960,
+        84,
+        72
+      ]
+    },
+    "cicada-cda2a": {
+      "file": "cicada-cda2a.png",
+      "source_file": "meks/Cicada.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        4392,
+        84,
+        72
+      ]
+    },
+    "cicada-cda2b": {
+      "file": "cicada-cda2b.png",
+      "source_file": "meks/Cicada.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        4392,
+        84,
+        72
+      ]
+    },
+    "cicada-cda3c": {
+      "file": "cicada-cda3c.png",
+      "source_file": "meks/Cicada_3C.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        4392,
+        84,
+        72
+      ]
+    },
+    "cicada-cda3m": {
+      "file": "cicada-cda3m.png",
+      "source_file": "meks/Cicada_3M.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        4392,
+        84,
+        72
+      ]
+    },
+    "crab-crb20": {
+      "file": "crab-crb20.png",
+      "source_file": "meks/Crab.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        4896,
+        84,
+        72
+      ]
+    },
+    "crab-crb27": {
+      "file": "crab-crb27.png",
+      "source_file": "meks/Crab.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        4896,
+        84,
+        72
+      ]
+    },
+    "crab-crb27b": {
+      "file": "crab-crb27b.png",
+      "source_file": "meks/Crab.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        4896,
+        84,
+        72
+      ]
+    },
+    "crab-crb27sl": {
+      "file": "crab-crb27sl.png",
+      "source_file": "meks/Crab.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        4896,
+        84,
+        72
+      ]
+    },
+    "dervish-dv6m": {
+      "file": "dervish-dv6m.png",
+      "source_file": "meks/Dervish.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        6048,
+        84,
+        72
+      ]
+    },
+    "dervish-dv7d": {
+      "file": "dervish-dv7d.png",
+      "source_file": "meks/Dervish.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        6048,
+        84,
+        72
+      ]
+    },
+    "enforcer-enf4r": {
+      "file": "enforcer-enf4r.png",
+      "source_file": "meks/Enforcer.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        6768,
+        84,
+        72
+      ]
+    },
+    "griffin-grf1n": {
+      "file": "griffin-grf1n.png",
+      "source_file": "meks/Griffin.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        8784,
+        84,
+        72
+      ]
+    },
+    "griffin-grf1s": {
+      "file": "griffin-grf1s.png",
+      "source_file": "meks/Griffin_1S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        8856,
+        84,
+        72
+      ]
+    },
+    "griffin-grf2n": {
+      "file": "griffin-grf2n.png",
+      "source_file": "meks/Griffin_2N.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        8856,
+        84,
+        72
+      ]
+    },
+    "griffin-grf3m": {
+      "file": "griffin-grf3m.png",
+      "source_file": "meks/Griffin_3M.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        8928,
+        84,
+        72
+      ]
+    },
+    "hunchback-hbk4g": {
+      "file": "hunchback-hbk4g.png",
+      "source_file": "meks/Hunchback.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        10584,
+        84,
+        72
+      ]
+    },
+    "hunchback-hbk4h": {
+      "file": "hunchback-hbk4h.png",
+      "source_file": "meks/Hunchback_4H.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        10584,
+        84,
+        72
+      ]
+    },
+    "hunchback-hbk4j": {
+      "file": "hunchback-hbk4j.png",
+      "source_file": "meks/Hunchback_4J.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        10584,
+        84,
+        72
+      ]
+    },
+    "hunchback-hbk4p": {
+      "file": "hunchback-hbk4p.png",
+      "source_file": "meks/Hunchback_4P.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        10656,
+        84,
+        72
+      ]
+    },
+    "hunchback-hbk4sp": {
+      "file": "hunchback-hbk4sp.png",
+      "source_file": "meks/Hunchback_4SP.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        10656,
+        84,
+        72
+      ]
+    },
+    "kintaro-kto18": {
+      "file": "kintaro-kto18.png",
+      "source_file": "meks/Kintaro_18.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        11880,
+        84,
+        72
+      ]
+    },
+    "kintaro-kto19": {
+      "file": "kintaro-kto19.png",
+      "source_file": "meks/Kintaro.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        11880,
+        84,
+        72
+      ]
+    },
+    "kintaro-kto20": {
+      "file": "kintaro-kto20.png",
+      "source_file": "meks/Kintaro_20.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        11880,
+        84,
+        72
+      ]
+    },
+    "phoenix-hawk-pxh1": {
+      "file": "phoenix-hawk-pxh1.png",
+      "source_file": "meks/PhoenixHawk.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        16920,
+        84,
+        72
+      ]
+    },
+    "phoenix-hawk-pxh1b": {
+      "file": "phoenix-hawk-pxh1b.png",
+      "source_file": "meks/PhoenixHawk.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        16920,
+        84,
+        72
+      ]
+    },
+    "phoenix-hawk-pxh1k": {
+      "file": "phoenix-hawk-pxh1k.png",
+      "source_file": "meks/PhoenixHawk_1K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        16992,
+        84,
+        72
+      ]
+    },
+    "phoenix-hawk-pxh2": {
+      "file": "phoenix-hawk-pxh2.png",
+      "source_file": "meks/PhoenixHawk_1D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        16920,
+        84,
+        72
+      ]
+    },
+    "phoenix-hawk-pxh3s": {
+      "file": "phoenix-hawk-pxh3s.png",
+      "source_file": "meks/PhoenixHawk_3S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        17064,
+        84,
+        72
+      ]
+    },
+    "shadow-hawk-shd2d": {
+      "file": "shadow-hawk-shd2d.png",
+      "source_file": "meks/Shadowhawk_2D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        19728,
+        84,
+        72
+      ]
+    },
+    "shadow-hawk-shd2d2": {
+      "file": "shadow-hawk-shd2d2.png",
+      "source_file": "meks/Shadowhawk_2D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        19728,
+        84,
+        72
+      ]
+    },
+    "shadow-hawk-shd2h": {
+      "file": "shadow-hawk-shd2h.png",
+      "source_file": "meks/Shadowhawk.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        19656,
+        84,
+        72
+      ]
+    },
+    "shadow-hawk-shd2k": {
+      "file": "shadow-hawk-shd2k.png",
+      "source_file": "meks/Shadowhawk_2K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        19800,
+        84,
+        72
+      ]
+    },
+    "shadow-hawk-shd5m": {
+      "file": "shadow-hawk-shd5m.png",
+      "source_file": "meks/Shadowhawk_5M.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        19800,
+        84,
+        72
+      ]
+    },
+    "trebuchet-tbt3c": {
+      "file": "trebuchet-tbt3c.png",
+      "source_file": "meks/Trebuchet_3C.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        22464,
+        84,
+        72
+      ]
+    },
+    "trebuchet-tbt5j": {
+      "file": "trebuchet-tbt5j.png",
+      "source_file": "meks/Trebuchet_5J.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        22464,
+        84,
+        72
+      ]
+    },
+    "trebuchet-tbt5n": {
+      "file": "trebuchet-tbt5n.png",
+      "source_file": "meks/Trebuchet.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        22464,
+        84,
+        72
+      ]
+    },
+    "trebuchet-tbt7k": {
+      "file": "trebuchet-tbt7k.png",
+      "source_file": "meks/Trebuchet_7K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        22464,
+        84,
+        72
+      ]
+    },
+    "trebuchet-tbt7m": {
+      "file": "trebuchet-tbt7m.png",
+      "source_file": "meks/Trebuchet_7M.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        22464,
+        84,
+        72
+      ]
+    },
+    "vindicator-vnd1r": {
+      "file": "vindicator-vnd1r.png",
+      "source_file": "meks/Vindicator.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        23328,
+        84,
+        72
+      ]
+    },
+    "vindicator-vnd1x": {
+      "file": "vindicator-vnd1x.png",
+      "source_file": "meks/Vindicator_1X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        23328,
+        84,
+        72
+      ]
+    },
+    "vulcan-vl2t": {
+      "file": "vulcan-vl2t.png",
+      "source_file": "meks/Vulcan.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        23544,
+        84,
+        72
+      ]
+    },
+    "vulcan-vl5t": {
+      "file": "vulcan-vl5t.png",
+      "source_file": "meks/Vulcan_5T.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        23544,
+        84,
+        72
+      ]
+    },
+    "wolverine-wvr6k": {
+      "file": "wolverine-wvr6k.png",
+      "source_file": "meks/Wolverine_6K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        24840,
+        84,
+        72
+      ]
+    },
+    "wolverine-wvr6r": {
+      "file": "wolverine-wvr6r.png",
+      "source_file": "meks/Wolverine.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        24840,
+        84,
+        72
+      ]
+    },
+    "archer-arc2r": {
+      "file": "archer-arc2r.png",
+      "source_file": "meks/Archer.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        504,
+        84,
+        72
+      ]
+    },
+    "black-knight-bl6-knt": {
+      "file": "black-knight-bl6-knt.png",
+      "source_file": "meks/BlackKnight.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        2592,
+        84,
+        72
+      ]
+    },
+    "black-knight-bl6b-knt": {
+      "file": "black-knight-bl6b-knt.png",
+      "source_file": "meks/BlackKnight.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        2592,
+        84,
+        72
+      ]
+    },
+    "black-knight-bl7-knt": {
+      "file": "black-knight-bl7-knt.png",
+      "source_file": "meks/BlackKnight.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        2592,
+        84,
+        72
+      ]
+    },
+    "black-knight-bl7-knt-l": {
+      "file": "black-knight-bl7-knt-l.png",
+      "source_file": "meks/BlackKnight_7L.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        2592,
+        84,
+        72
+      ]
+    },
+    "cataphract-ctf0x": {
+      "file": "cataphract-ctf0x.png",
+      "source_file": "meks/Cataphract_0X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        3528,
+        84,
+        72
+      ]
+    },
+    "cataphract-ctf1x": {
+      "file": "cataphract-ctf1x.png",
+      "source_file": "meks/Cataphract.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        3528,
+        84,
+        72
+      ]
+    },
+    "cataphract-ctf2x": {
+      "file": "cataphract-ctf2x.png",
+      "source_file": "meks/Cataphract_2X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        3528,
+        84,
+        72
+      ]
+    },
+    "cataphract-ctf4x": {
+      "file": "cataphract-ctf4x.png",
+      "source_file": "meks/Cataphract_4X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        3528,
+        84,
+        72
+      ]
+    },
+    "catapult-cplta1": {
+      "file": "catapult-cplta1.png",
+      "source_file": "meks/Catapult_A1.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        3600,
+        84,
+        72
+      ]
+    },
+    "catapult-cpltc1": {
+      "file": "catapult-cpltc1.png",
+      "source_file": "meks/Catapult.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        3600,
+        84,
+        72
+      ]
+    },
+    "catapult-cpltc4": {
+      "file": "catapult-cpltc4.png",
+      "source_file": "meks/Catapult_C4.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        3672,
+        84,
+        72
+      ]
+    },
+    "catapult-cpltk2": {
+      "file": "catapult-cpltk2.png",
+      "source_file": "meks/Catapult_K2.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        3744,
+        84,
+        72
+      ]
+    },
+    "champion-chp1n": {
+      "file": "champion-chp1n.png",
+      "source_file": "meks/Champion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        4248,
+        84,
+        72
+      ]
+    },
+    "champion-chp1n2": {
+      "file": "champion-chp1n2.png",
+      "source_file": "meks/Champion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        4248,
+        84,
+        72
+      ]
+    },
+    "champion-chp1nb": {
+      "file": "champion-chp1nb.png",
+      "source_file": "meks/Champion_1Nb.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        4248,
+        84,
+        72
+      ]
+    },
+    "champion-chp2n": {
+      "file": "champion-chp2n.png",
+      "source_file": "meks/Champion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        4248,
+        84,
+        72
+      ]
+    },
+    "dragon-drg1c": {
+      "file": "dragon-drg1c.png",
+      "source_file": "meks/Dragon_1C.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        6480,
+        84,
+        72
+      ]
+    },
+    "dragon-drg1n": {
+      "file": "dragon-drg1n.png",
+      "source_file": "meks/Dragon.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        6336,
+        84,
+        72
+      ]
+    },
+    "dragon-drg5n": {
+      "file": "dragon-drg5n.png",
+      "source_file": "meks/Dragon_5N.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        6480,
+        84,
+        72
+      ]
+    },
+    "grasshopper-ghr5h": {
+      "file": "grasshopper-ghr5h.png",
+      "source_file": "meks/Grasshopper.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        8568,
+        84,
+        72
+      ]
+    },
+    "grasshopper-ghr5j": {
+      "file": "grasshopper-ghr5j.png",
+      "source_file": "meks/Grasshopper_5J.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        8568,
+        84,
+        72
+      ]
+    },
+    "grasshopper-ghr5n": {
+      "file": "grasshopper-ghr5n.png",
+      "source_file": "meks/Grasshopper_5N.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        8640,
+        84,
+        72
+      ]
+    },
+    "jagermech-jm6a": {
+      "file": "jagermech-jm6a.png",
+      "source_file": "meks/Jagermech_6A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        11232,
+        84,
+        72
+      ]
+    },
+    "jagermech-jm6dd": {
+      "file": "jagermech-jm6dd.png",
+      "source_file": "meks/Jagermech.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        11232,
+        84,
+        72
+      ]
+    },
+    "jagermech-jm6s": {
+      "file": "jagermech-jm6s.png",
+      "source_file": "meks/Jagermech.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        11232,
+        84,
+        72
+      ]
+    },
+    "marauder-mad3r": {
+      "file": "marauder-mad3r.png",
+      "source_file": "meks/Marauder.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        13752,
+        84,
+        72
+      ]
+    },
+    "marauder-mad5d": {
+      "file": "marauder-mad5d.png",
+      "source_file": "meks/Marauder_3D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        13968,
+        84,
+        72
+      ]
+    },
+    "orion-on1k": {
+      "file": "orion-on1k.png",
+      "source_file": "meks/Orion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        15552,
+        84,
+        72
+      ]
+    },
+    "orion-on1m": {
+      "file": "orion-on1m.png",
+      "source_file": "meks/Orion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        15552,
+        84,
+        72
+      ]
+    },
+    "orion-on1v": {
+      "file": "orion-on1v.png",
+      "source_file": "meks/Orion_1V.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        15624,
+        84,
+        72
+      ]
+    },
+    "orion-on1va": {
+      "file": "orion-on1va.png",
+      "source_file": "meks/Orion_1VA.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        15624,
+        84,
+        72
+      ]
+    },
+    "quickdraw-qkd4g": {
+      "file": "quickdraw-qkd4g.png",
+      "source_file": "meks/Quickdraw.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        17784,
+        84,
+        72
+      ]
+    },
+    "quickdraw-qkd4h": {
+      "file": "quickdraw-qkd4h.png",
+      "source_file": "meks/Quickdraw_4H.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        17784,
+        84,
+        72
+      ]
+    },
+    "quickdraw-qkd5k": {
+      "file": "quickdraw-qkd5k.png",
+      "source_file": "meks/Quickdraw_5A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        17784,
+        84,
+        72
+      ]
+    },
+    "rifleman-rfl3c": {
+      "file": "rifleman-rfl3c.png",
+      "source_file": "meks/Rifleman_3C.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        18504,
+        84,
+        72
+      ]
+    },
+    "rifleman-rfl3n": {
+      "file": "rifleman-rfl3n.png",
+      "source_file": "meks/Rifleman.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        18360,
+        84,
+        72
+      ]
+    },
+    "thunderbolt-tdr5s": {
+      "file": "thunderbolt-tdr5s.png",
+      "source_file": "meks/Thunderbolt.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        21888,
+        84,
+        72
+      ]
+    },
+    "thunderbolt-tdr5ss": {
+      "file": "thunderbolt-tdr5ss.png",
+      "source_file": "meks/Thunderbolt_5SS.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        22032,
+        84,
+        72
+      ]
+    },
+    "thunderbolt-tdr9se": {
+      "file": "thunderbolt-tdr9se.png",
+      "source_file": "meks/Thunderbolt_5SE.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        21960,
+        84,
+        72
+      ]
+    },
+    "warhammer-whm6d": {
+      "file": "warhammer-whm6d.png",
+      "source_file": "meks/Warhammer_6D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        23904,
+        84,
+        72
+      ]
+    },
+    "warhammer-whm6r": {
+      "file": "warhammer-whm6r.png",
+      "source_file": "meks/Warhammer.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        23832,
+        84,
+        72
+      ]
+    },
+    "annihilator-anh1a": {
+      "file": "annihilator-anh1a.png",
+      "source_file": "meks/Annihilator.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        144,
+        84,
+        72
+      ]
+    },
+    "annihilator-anh1e": {
+      "file": "annihilator-anh1e.png",
+      "source_file": "meks/Annihilator_1E.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        216,
+        84,
+        72
+      ]
+    },
+    "annihilator-anh1x": {
+      "file": "annihilator-anh1x.png",
+      "source_file": "meks/Annihilator_1X.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        216,
+        84,
+        72
+      ]
+    },
+    "annihilator-anh2a": {
+      "file": "annihilator-anh2a.png",
+      "source_file": "meks/Annihilator.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        144,
+        84,
+        72
+      ]
+    },
+    "atlas-as7d": {
+      "file": "atlas-as7d.png",
+      "source_file": "meks/Atlas.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        936,
+        84,
+        72
+      ]
+    },
+    "atlas-as7k": {
+      "file": "atlas-as7k.png",
+      "source_file": "meks/Atlas_7K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        936,
+        84,
+        72
+      ]
+    },
+    "atlas-as7rs": {
+      "file": "atlas-as7rs.png",
+      "source_file": "meks/Atlas_RS.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        1080,
+        84,
+        72
+      ]
+    },
+    "awesome-aws8q": {
+      "file": "awesome-aws8q.png",
+      "source_file": "meks/Awesome.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        1224,
+        84,
+        72
+      ]
+    },
+    "awesome-aws8r": {
+      "file": "awesome-aws8r.png",
+      "source_file": "meks/Awesome_8R.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        1296,
+        84,
+        72
+      ]
+    },
+    "awesome-aws8t": {
+      "file": "awesome-aws8t.png",
+      "source_file": "meks/Awesome_8T.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        1296,
+        84,
+        72
+      ]
+    },
+    "awesome-aws8v": {
+      "file": "awesome-aws8v.png",
+      "source_file": "meks/Awesome_8V.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        1296,
+        84,
+        72
+      ]
+    },
+    "awesome-aws9m": {
+      "file": "awesome-aws9m.png",
+      "source_file": "meks/Awesome.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        1224,
+        84,
+        72
+      ]
+    },
+    "banshee-bnc3e": {
+      "file": "banshee-bnc3e.png",
+      "source_file": "meks/Banshee.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        1512,
+        84,
+        72
+      ]
+    },
+    "banshee-bnc3m": {
+      "file": "banshee-bnc3m.png",
+      "source_file": "meks/Banshee_3M.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        1512,
+        84,
+        72
+      ]
+    },
+    "banshee-bnc3s": {
+      "file": "banshee-bnc3s.png",
+      "source_file": "meks/Banshee_3S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        1512,
+        84,
+        72
+      ]
+    },
+    "battlemaster-blr1d": {
+      "file": "battlemaster-blr1d.png",
+      "source_file": "meks/BattleMaster_1D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        1872,
+        84,
+        72
+      ]
+    },
+    "battlemaster-blr1g": {
+      "file": "battlemaster-blr1g.png",
+      "source_file": "meks/BattleMaster.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        1800,
+        84,
+        72
+      ]
+    },
+    "battlemaster-blr1s": {
+      "file": "battlemaster-blr1s.png",
+      "source_file": "meks/BattleMaster_1S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        1872,
+        84,
+        72
+      ]
+    },
+    "battlemaster-blr3m": {
+      "file": "battlemaster-blr3m.png",
+      "source_file": "meks/BattleMaster.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        1800,
+        84,
+        72
+      ]
+    },
+    "charger-cgr1a1": {
+      "file": "charger-cgr1a1.png",
+      "source_file": "meks/Charger.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        4248,
+        84,
+        72
+      ]
+    },
+    "charger-cgr1a5": {
+      "file": "charger-cgr1a5.png",
+      "source_file": "meks/Charger_1A5.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        4320,
+        84,
+        72
+      ]
+    },
+    "charger-cgr3k": {
+      "file": "charger-cgr3k.png",
+      "source_file": "meks/Charger_3K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        4320,
+        84,
+        72
+      ]
+    },
+    "cyclops-cp10-q": {
+      "file": "cyclops-cp10-q.png",
+      "source_file": "meks/Cyclops_10Q.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        5400,
+        84,
+        72
+      ]
+    },
+    "cyclops-cp10-z": {
+      "file": "cyclops-cp10-z.png",
+      "source_file": "meks/Cyclops.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        5400,
+        84,
+        72
+      ]
+    },
+    "cyclops-cp11-a": {
+      "file": "cyclops-cp11-a.png",
+      "source_file": "meks/Cyclops_11A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        5400,
+        84,
+        72
+      ]
+    },
+    "hatamoto-chi-htm26t": {
+      "file": "hatamoto-chi-htm26t.png",
+      "source_file": "meks/Hatamoto_Chi.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        9576,
+        84,
+        72
+      ]
+    },
+    "hatamoto-chi-htm27t": {
+      "file": "hatamoto-chi-htm27t.png",
+      "source_file": "meks/Hatamoto_Chi.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        9576,
+        84,
+        72
+      ]
+    },
+    "highlander-hgn732": {
+      "file": "highlander-hgn732.png",
+      "source_file": "meks/Highlander.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        10296,
+        84,
+        72
+      ]
+    },
+    "highlander-hgn732b": {
+      "file": "highlander-hgn732b.png",
+      "source_file": "meks/Highlander.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        10296,
+        84,
+        72
+      ]
+    },
+    "highlander-hgn733": {
+      "file": "highlander-hgn733.png",
+      "source_file": "meks/Highlander_733.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        10368,
+        84,
+        72
+      ]
+    },
+    "highlander-hgn733c": {
+      "file": "highlander-hgn733c.png",
+      "source_file": "meks/Highlander_733C.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        10368,
+        84,
+        72
+      ]
+    },
+    "highlander-hgn733p": {
+      "file": "highlander-hgn733p.png",
+      "source_file": "meks/Highlander_733.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        10368,
+        84,
+        72
+      ]
+    },
+    "king-crab-kgc000b": {
+      "file": "king-crab-kgc000b.png",
+      "source_file": "meks/KingCrab.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        11664,
+        84,
+        72
+      ]
+    },
+    "marauder-ii-mad4a": {
+      "file": "marauder-ii-mad4a.png",
+      "source_file": "meks/MarauderII.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        13824,
+        84,
+        72
+      ]
+    },
+    "marauder-ii-mad5a": {
+      "file": "marauder-ii-mad5a.png",
+      "source_file": "meks/MarauderII_5A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        13896,
+        84,
+        72
+      ]
+    },
+    "mauler-mal1r": {
+      "file": "mauler-mal1r.png",
+      "source_file": "meks/Mauler.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        14328,
+        84,
+        72
+      ]
+    },
+    "nightstar-nsr9j": {
+      "file": "nightstar-nsr9j.png",
+      "source_file": "meks/Nightstar.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        15048,
+        84,
+        72
+      ]
+    },
+    "stalker-stk3f": {
+      "file": "stalker-stk3f.png",
+      "source_file": "meks/Stalker.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        20448,
+        84,
+        72
+      ]
+    },
+    "stalker-stk3fb": {
+      "file": "stalker-stk3fb.png",
+      "source_file": "meks/Stalker.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        20448,
+        84,
+        72
+      ]
+    },
+    "stalker-stk3h": {
+      "file": "stalker-stk3h.png",
+      "source_file": "meks/Stalker_3H.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        20520,
+        84,
+        72
+      ]
+    },
+    "stalker-stk4n": {
+      "file": "stalker-stk4n.png",
+      "source_file": "meks/Stalker_4N.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        20520,
+        84,
+        72
+      ]
+    },
+    "victor-vtr9a1": {
+      "file": "victor-vtr9a1.png",
+      "source_file": "meks/Victor.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        23184,
+        84,
+        72
+      ]
+    },
+    "victor-vtr9b": {
+      "file": "victor-vtr9b.png",
+      "source_file": "meks/Victor.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        23184,
+        84,
+        72
+      ]
+    },
+    "victor-vtr9k": {
+      "file": "victor-vtr9k.png",
+      "source_file": "meks/Victor_9K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        23256,
+        84,
+        72
+      ]
+    },
+    "victor-vtr9s": {
+      "file": "victor-vtr9s.png",
+      "source_file": "meks/Victor_9S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        23256,
+        84,
+        72
+      ]
+    },
+    "zeus-zeu5s": {
+      "file": "zeus-zeu5s.png",
+      "source_file": "meks/Zeus.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        25344,
+        84,
+        72
+      ]
+    },
+    "zeus-zeu6s": {
+      "file": "zeus-zeu6s.png",
+      "source_file": "meks/Zeus.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        25344,
+        84,
+        72
+      ]
+    },
+    "zeus-zeu6t": {
+      "file": "zeus-zeu6t.png",
+      "source_file": "meks/Zeus_6T.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        25416,
+        84,
+        72
+      ]
+    },
+    "zeus-zeu9s": {
+      "file": "zeus-zeu9s.png",
+      "source_file": "meks/Zeus_6T.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        25416,
+        84,
+        72
+      ]
+    },
+    "timber-wolf-prime": {
+      "file": "timber-wolf-prime.png",
+      "source_file": "meks/MadCat.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        13320,
+        84,
+        72
+      ]
+    },
+    "dire-wolf-prime": {
+      "file": "dire-wolf-prime.png",
+      "source_file": "meks/Daishi.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        5616,
+        84,
+        72
+      ]
+    },
+    "summoner-prime": {
+      "file": "summoner-prime.png",
+      "source_file": "meks/Thor.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        21600,
+        84,
+        72
+      ]
+    },
+    "stormcrow-prime": {
+      "file": "stormcrow-prime.png",
+      "source_file": "meks/Ryoken.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        18720,
+        84,
+        72
+      ]
+    },
+    "adder-prime": {
+      "file": "adder-prime.png",
+      "source_file": "meks/Puma.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        17640,
+        84,
+        72
+      ]
+    },
+    "atlas-as7-d": {
+      "file": "atlas-as7-d.png",
+      "source_file": "meks/Atlas.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        936,
+        84,
+        72
+      ]
+    },
+    "hunchback-hbk-4g": {
+      "file": "hunchback-hbk-4g.png",
+      "source_file": "meks/Hunchback.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        10584,
+        84,
+        72
+      ]
+    },
+    "locust-lct-1v": {
+      "file": "locust-lct-1v.png",
+      "source_file": "meks/Locust.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        12672,
+        84,
+        72
+      ]
+    },
+    "marauder-mad-3r": {
+      "file": "marauder-mad-3r.png",
+      "source_file": "meks/Marauder.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        13752,
+        84,
+        72
+      ]
+    },
+    "enforcer-enf-4r": {
+      "file": "enforcer-enf-4r.png",
+      "source_file": "meks/Enforcer.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        6768,
+        84,
+        72
+      ]
+    },
+    "centurion-cn9-a": {
+      "file": "centurion-cn9-a.png",
+      "source_file": "meks/Centurion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        3960,
+        84,
+        72
+      ]
+    },
+    "commando-com-2d": {
+      "file": "commando-com-2d.png",
+      "source_file": "meks/Commando.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        4536,
+        84,
+        72
+      ]
+    },
+    "firestarter-fs9-h": {
+      "file": "firestarter-fs9-h.png",
+      "source_file": "meks/Firestarter.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        7560,
+        84,
+        72
+      ]
+    },
+    "jenner-jr7-d": {
+      "file": "jenner-jr7-d.png",
+      "source_file": "meks/Jenner.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        11376,
+        84,
+        72
+      ]
+    },
+    "panther-pnt-9r": {
+      "file": "panther-pnt-9r.png",
+      "source_file": "meks/Panther.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        16200,
+        84,
+        72
+      ]
+    },
+    "urbanmech-um-r60": {
+      "file": "urbanmech-um-r60.png",
+      "source_file": "meks/Urbanmech.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        22824,
+        84,
+        72
+      ]
+    },
+    "valkyrie-vlk-qa": {
+      "file": "valkyrie-vlk-qa.png",
+      "source_file": "meks/Valkyrie.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        23040,
+        84,
+        72
+      ]
+    },
+    "blackjack-bj-1": {
+      "file": "blackjack-bj-1.png",
+      "source_file": "meks/Blackjack.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        2376,
+        84,
+        72
+      ]
+    },
+    "dervish-dv-6m": {
+      "file": "dervish-dv-6m.png",
+      "source_file": "meks/Dervish.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        6048,
+        84,
+        72
+      ]
+    },
+    "griffin-grf-1n": {
+      "file": "griffin-grf-1n.png",
+      "source_file": "meks/Griffin.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        8784,
+        84,
+        72
+      ]
+    },
+    "hatchetman-hct-3f": {
+      "file": "hatchetman-hct-3f.png",
+      "source_file": "meks/Hatchetman.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        9648,
+        84,
+        72
+      ]
+    },
+    "phoenix-hawk-pxh-1": {
+      "file": "phoenix-hawk-pxh-1.png",
+      "source_file": "meks/PhoenixHawk.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        16920,
+        84,
+        72
+      ]
+    },
+    "shadow-hawk-shd-2h": {
+      "file": "shadow-hawk-shd-2h.png",
+      "source_file": "meks/Shadowhawk.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        19656,
+        84,
+        72
+      ]
+    },
+    "wolverine-wvr-6r": {
+      "file": "wolverine-wvr-6r.png",
+      "source_file": "meks/Wolverine.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        24840,
+        84,
+        72
+      ]
+    },
+    "archer-arc-2r": {
+      "file": "archer-arc-2r.png",
+      "source_file": "meks/Archer.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        504,
+        84,
+        72
+      ]
+    },
+    "catapult-cplt-c1": {
+      "file": "catapult-cplt-c1.png",
+      "source_file": "meks/Catapult.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        3600,
+        84,
+        72
+      ]
+    },
+    "crusader-crd-3r": {
+      "file": "crusader-crd-3r.png",
+      "source_file": "meks/Crusader.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        5256,
+        84,
+        72
+      ]
+    },
+    "dragon-drg-1n": {
+      "file": "dragon-drg-1n.png",
+      "source_file": "meks/Dragon.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        6336,
+        84,
+        72
+      ]
+    },
+    "rifleman-rfl-3n": {
+      "file": "rifleman-rfl-3n.png",
+      "source_file": "meks/Rifleman.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        18360,
+        84,
+        72
+      ]
+    },
+    "thunderbolt-tdr-5s": {
+      "file": "thunderbolt-tdr-5s.png",
+      "source_file": "meks/Thunderbolt.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        21888,
+        84,
+        72
+      ]
+    },
+    "warhammer-whm-6r": {
+      "file": "warhammer-whm-6r.png",
+      "source_file": "meks/Warhammer.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        23832,
+        84,
+        72
+      ]
+    },
+    "awesome-aws-8q": {
+      "file": "awesome-aws-8q.png",
+      "source_file": "meks/Awesome.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        1224,
+        84,
+        72
+      ]
+    },
+    "battlemaster-blr-1g": {
+      "file": "battlemaster-blr-1g.png",
+      "source_file": "meks/BattleMaster.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        1800,
+        84,
+        72
+      ]
+    },
+    "banshee-bnc-3e": {
+      "file": "banshee-bnc-3e.png",
+      "source_file": "meks/Banshee.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        1512,
+        84,
+        72
+      ]
+    },
+    "stalker-stk-3f": {
+      "file": "stalker-stk-3f.png",
+      "source_file": "meks/Stalker.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        20448,
+        84,
+        72
+      ]
+    },
+    "victor-vtr-9b": {
+      "file": "victor-vtr-9b.png",
+      "source_file": "meks/Victor.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        23184,
+        84,
+        72
+      ]
+    }
+  },
+  "unresolved": []
+}

@@ -215,7 +215,7 @@ function draw() {
     const unit = BT_UNITS[inst.unitId];
     const angle = HEX_DIRS[inst.facing || 0].angle;
     const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
-    drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone);
+    drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone, inst.unitId);
   }
   ctx.restore();
   renderMapZoomReadout();
@@ -358,7 +358,7 @@ function drawHex(cx, cy, size, fill, stroke) {
   ctx.stroke();
 }
 
-function drawMechToken(x, y, r, color, facing, torsoFacing, selected, prone = false) {
+function drawMechToken(x, y, r, color, facing, torsoFacing, selected, prone = false, unitId = null) {
   // Hex token
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
@@ -370,6 +370,15 @@ function drawMechToken(x, y, r, color, facing, torsoFacing, selected, prone = fa
   ctx.closePath();
   ctx.fillStyle = color;
   ctx.fill();
+  const artwork = typeof mechArtworkImage === 'function' ? mechArtworkImage(unitId) : null;
+  if (artwork?.dataset.ready === 'true') {
+    ctx.save();
+    ctx.clip();
+    ctx.translate(x, y);
+    ctx.rotate(facing * Math.PI / 180);
+    ctx.drawImage(artwork, -r, -r, r * 2, r * 2);
+    ctx.restore();
+  }
   ctx.strokeStyle = selected ? '#fff' : '#1a1a1a';
   ctx.lineWidth = selected ? 2.5 : 1.5;
   ctx.stroke();

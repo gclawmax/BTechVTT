@@ -9,7 +9,14 @@ import { dirname, join, relative } from 'node:path';
 const DEFAULT_LIST = 'tools/Claude/Latest Claude Notes/mw5_mech_list.txt';
 const DEFAULT_SOURCE = 'local-data/megamek-mm-data';
 const DEFAULT_OUTPUT = 'local-data/mw5-skirmish-import-candidates.json';
-const DEFAULT_VERSION = 'megamek-2026-08-mw5-expanded-weapons-01';
+const DEFAULT_VERSION = 'megamek-2026-08-mw5-expanded-weapons-03';
+const CORE_CLAN_UNITS = [
+  { id: 'timber-wolf-prime', requested: 'Mad Cat (Timber Wolf) Prime', source: 'data/mekfiles/meks/3050U/Mad Cat (Timber Wolf) Prime.mtf', display_chassis: 'Timber Wolf / Mad Cat' },
+  { id: 'dire-wolf-prime', requested: 'Daishi (Dire Wolf) Prime', source: 'data/mekfiles/meks/3050U/Daishi (Dire Wolf) Prime.mtf', display_chassis: 'Dire Wolf / Daishi' },
+  { id: 'summoner-prime', requested: 'Thor (Summoner) Prime', source: 'data/mekfiles/meks/3050U/Thor (Summoner) Prime.mtf', display_chassis: 'Summoner / Thor' },
+  { id: 'stormcrow-prime', requested: 'Ryoken (Stormcrow) Prime', source: 'data/mekfiles/meks/3050U/Ryoken (Stormcrow) Prime.mtf', display_chassis: 'Stormcrow / Ryoken' },
+  { id: 'adder-prime', requested: 'Puma (Adder) Prime', source: 'data/mekfiles/meks/3050U/Puma (Adder) Prime.mtf', display_chassis: 'Adder / Puma' }
+];
 
 function option(name, fallback) {
   const index = process.argv.indexOf(name);
@@ -59,11 +66,12 @@ async function main() {
     if (candidates.length === 1) matches.push({ id: slug(name), requested: name, source: relative(source, candidates[0]) });
     else unresolved.push({ requested: name, reason: candidates.length ? 'ambiguous' : 'not_found', candidates: candidates.map(file => relative(source, file)) });
   }
+  for (const clanUnit of CORE_CLAN_UNITS) if (!matches.some(unit => unit.id === clanUnit.id)) matches.push(clanUnit);
   const report = {
     catalogue_version: catalogueVersion,
     source_list: listPath,
     source_root: source,
-    requested_count: names.length,
+    requested_count: names.length + CORE_CLAN_UNITS.length,
     matched_count: matches.length,
     unresolved_count: unresolved.length,
     units: matches,
@@ -71,7 +79,7 @@ async function main() {
   };
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`Resolved ${matches.length}/${names.length} MW5 requests into ${output}. ${unresolved.length} need a manual name match.`);
+  console.log(`Resolved ${matches.length - CORE_CLAN_UNITS.length}/${names.length} MW5 requests and added ${CORE_CLAN_UNITS.length} core Clan units into ${output}. ${unresolved.length} need a manual name match.`);
   if (unresolved.length) console.log(unresolved.map(entry => `${entry.requested}: ${entry.reason}`).join('\n'));
 }
 

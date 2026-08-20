@@ -35,24 +35,36 @@ const WEAPONS = {
   'LB 10-X AC': { key: 'lb10x', damage: 10, heat: 2, range: [6, 12, 18], ammoType: 'lb10x' },
   'Machine Gun': { key: 'machine_gun', damage: 2, heat: 0, range: [1, 2, 3], ammoType: 'machine_gun' },
   Flamer: { key: 'flamer', damage: 2, heat: 3, range: [1, 2, 3] },
-  'LRM 20': { key: 'lrm20', damage: 20, heat: 6, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm20', clusterSize: 20, damagePerMissile: 1 },
-  'LRM 10': { key: 'lrm10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm10', clusterSize: 10, damagePerMissile: 1 },
-  'LRM 15': { key: 'lrm15', damage: 15, heat: 5, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm15', clusterSize: 15, damagePerMissile: 1 },
-  'LRM 5': { key: 'lrm5', damage: 5, heat: 2, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm5', clusterSize: 5, damagePerMissile: 1 },
-  'SRM 6': { key: 'srm6', damage: 12, heat: 4, range: [3, 6, 9], ammoType: 'srm6', clusterSize: 6, damagePerMissile: 2 },
-  'SRM 4': { key: 'srm4', damage: 8, heat: 3, range: [3, 6, 9], ammoType: 'srm4', clusterSize: 4, damagePerMissile: 2 },
-  'SRM 2': { key: 'srm2', damage: 4, heat: 2, range: [3, 6, 9], ammoType: 'srm2', clusterSize: 2, damagePerMissile: 2 },
-  'ER Medium Laser': { key: 'er_med_laser', damage: 5, heat: 5, range: [5, 10, 15] },
-  'ER Large Laser': { key: 'er_large_laser', damage: 10, heat: 12, range: [7, 14, 19] },
-  'ER PPC': { key: 'er_ppc', damage: 15, heat: 15, range: [7, 14, 23] },
+  'LRM 20': { key: 'lrm20', damage: 20, heat: 6, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm20', clusterSize: 20, damagePerMissile: 1, missileWeapon: true },
+  'LRM 10': { key: 'lrm10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm10', clusterSize: 10, damagePerMissile: 1, missileWeapon: true },
+  'LRM 15': { key: 'lrm15', damage: 15, heat: 5, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm15', clusterSize: 15, damagePerMissile: 1, missileWeapon: true },
+  'LRM 5': { key: 'lrm5', damage: 5, heat: 2, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm5', clusterSize: 5, damagePerMissile: 1, missileWeapon: true },
+  'SRM 6': { key: 'srm6', damage: 12, heat: 4, range: [3, 6, 9], ammoType: 'srm6', clusterSize: 6, damagePerMissile: 2, missileWeapon: true },
+  'SRM 4': { key: 'srm4', damage: 8, heat: 3, range: [3, 6, 9], ammoType: 'srm4', clusterSize: 4, damagePerMissile: 2, missileWeapon: true },
+  'SRM 2': { key: 'srm2', damage: 4, heat: 2, range: [3, 6, 9], ammoType: 'srm2', clusterSize: 2, damagePerMissile: 2, missileWeapon: true },
+  'ER Medium Laser': { key: 'er_med_laser', damage: 5, heat: 5, range: [4, 8, 12] },
+  'ER Large Laser': { key: 'er_large_laser', damage: 8, heat: 12, range: [7, 14, 19] },
+  'ER PPC': { key: 'er_ppc', damage: 10, heat: 15, range: [7, 14, 23] },
   'Medium Pulse Laser': { key: 'med_pulse_laser', damage: 6, heat: 4, range: [2, 4, 6], toHitModifier: -2 },
   'Small Pulse Laser': { key: 'small_pulse_laser', damage: 3, heat: 2, range: [1, 2, 3], toHitModifier: -2 },
   'Large Pulse Laser': { key: 'large_pulse_laser', damage: 9, heat: 10, range: [3, 7, 10], toHitModifier: -2 },
   'Gauss Rifle': { key: 'gauss_rifle', damage: 15, heat: 1, range: [7, 15, 22], minimumRange: 2, ammoType: 'gauss' },
-  'Streak SRM 2': { key: 'streak_srm2', damage: 4, heat: 2, range: [3, 6, 9], ammoType: 'streak_srm2', clusterSize: 2, damagePerMissile: 2, streak: true },
+  'Streak SRM 2': { key: 'streak_srm2', damage: 4, heat: 2, range: [3, 6, 9], ammoType: 'streak_srm2', clusterSize: 2, damagePerMissile: 2, streak: true, missileWeapon: true },
   'Anti-Missile System': { key: 'ams', damage: 0, heat: 1, range: [1, 1, 1], ammoType: 'ams', supportOnly: true },
-  Narc: { key: 'narc', damage: 0, heat: 0, range: [3, 6, 9], ammoType: 'narc', supportOnly: true },
-  TAG: { key: 'tag', damage: 0, heat: 0, range: [5, 10, 15], supportOnly: true }
+  Narc: { key: 'narc', damage: 0, heat: 0, range: [3, 6, 9], ammoType: 'narc' },
+  TAG: { key: 'tag', damage: 0, heat: 0, range: [5, 10, 15] }
+};
+const CLAN_WEAPON_OVERRIDES = {
+  'ER Medium Laser': { damage: 7, range: [5, 10, 15] },
+  'ER Large Laser': { damage: 10, range: [8, 15, 25] },
+  'ER PPC': { damage: 15 },
+  'Medium Pulse Laser': { damage: 7, range: [4, 8, 12] },
+  'Small Pulse Laser': { range: [2, 4, 6] },
+  'Large Pulse Laser': { damage: 10, range: [6, 14, 20] },
+  'Ultra AC/5': { range: [7, 14, 21] },
+  'LRM 20': { minimumRange: 0 }, 'LRM 15': { minimumRange: 0 },
+  'LRM 10': { minimumRange: 0 }, 'LRM 5': { minimumRange: 0 },
+  'Streak SRM 2': { range: [4, 8, 12] }
 };
 const AMMO = [
   [/Ammo AC\/20/i, 'ac20', 5], [/Ammo AC\/10/i, 'ac10', 10], [/Ammo AC\/5/i, 'ac5', 20], [/Ammo AC\/2/i, 'ac2', 45],
@@ -107,7 +119,7 @@ function criticalsFrom(lines) {
   }
   return criticals;
 }
-function weaponsFrom(lines) {
+function weaponsFrom(lines, techBase) {
   const start = lines.findIndex(line => /^Weapons:\d+$/i.test(line));
   if (start < 0) return [];
   const count = integer(lines[start].split(':')[1]) || 0;
@@ -115,7 +127,10 @@ function weaponsFrom(lines) {
     const comma = line.lastIndexOf(',');
     const rawName = line.slice(0, comma).trim();
     const locationName = line.slice(comma + 1).trim();
-    const weapon = WEAPONS[rawName] || null;
+    const baseWeapon = WEAPONS[rawName] || null;
+    const weapon = baseWeapon && /clan/i.test(techBase || '')
+      ? { ...baseWeapon, ...(CLAN_WEAPON_OVERRIDES[rawName] || {}), techBase: 'Clan' }
+      : baseWeapon && { ...baseWeapon, techBase: 'Inner Sphere' };
     return {
       mount_id: `${weapon?.key || rawName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}:${LOCATION_NAMES[locationName] || locationName}:${index}`,
       weapon_key: weapon?.key || null,
@@ -125,11 +140,11 @@ function weaponsFrom(lines) {
     };
   });
 }
-function ammoFrom(criticals) {
+function ammoFrom(criticals, techBase) {
   const bins = [];
   for (const [location, slots] of Object.entries(criticals)) slots.forEach((label, slotIndex) => {
     const definition = AMMO.find(([pattern]) => pattern.test(label || ''));
-    if (definition) bins.push({ bin_id:`${location}:${slotIndex}`, ammo_type:definition[1], raw_name:label, location, shots:definition[2] });
+    if (definition) bins.push({ bin_id:`${location}:${slotIndex}`, ammo_type:definition[1], raw_name:label, location, shots:definition[1] === 'ams' && /clan/i.test(techBase || '') ? 24 : definition[2] });
   });
   return bins;
 }
@@ -144,13 +159,14 @@ function parseMtf(text, entry) {
   const mass = integer(headers.get('mass'));
   const walk = integer(headers.get('walk mp'));
   const heatMatch = headers.get('heat sinks')?.match(/^(\d+)\s+(.+)$/);
+  const techBase = headers.get('techbase');
   const criticals = criticalsFrom(lines);
-  const mounts = weaponsFrom(lines);
-  const ammoBins = ammoFrom(criticals);
+  const mounts = weaponsFrom(lines, techBase);
+  const ammoBins = ammoFrom(criticals, techBase);
   const definition = {
     id: entry.id,
     chassis: entry.display_chassis || headers.get('chassis'), variant: entry.display_variant || headers.get('model'), mass,
-    config: headers.get('config'), tech_base: headers.get('techbase'), era: integer(headers.get('era')),
+    config: headers.get('config'), tech_base: techBase, era: integer(headers.get('era')),
     movement: { walk, run: walk == null ? null : Math.ceil(walk * 1.5), jump: integer(headers.get('jump mp')) || 0 },
     heat_sinks: heatMatch ? integer(heatMatch[1]) : null,
     heat_sink_type: heatMatch?.[2] || null,

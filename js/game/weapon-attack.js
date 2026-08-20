@@ -422,24 +422,30 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
   const targetNumberExplanation = formatAuthoritativeTargetNumber(roll);
   const modeSuffix = result.fire_mode === 'rapid' ? ' (rapid fire)' : result.fire_mode === 'cluster' ? ' (cluster ammunition)' : '';
-  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: miss.${result.jammed ? ' Ultra AC jammed.' : ''}`;
-  if (result.cluster_roll) {
+  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: miss.${result.streak_no_lock ? ' Streak did not lock; no ammunition or heat expended.' : ''}${result.jammed ? ' Ultra AC jammed.' : ''}`;
+  if (result.tagged) return `${mechLabel(attacker)} designated ${mechLabel(target)} with TAG — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: lock confirmed.`;
+  if (result.narc_attached) return `${mechLabel(attacker)} attached a Narc beacon to ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: beacon attached.`;
+  if (result.cluster_roll || result.streak_lock) {
     const cluster = result.cluster_roll;
-    const groups = (result.groups || []).map(group =>
-      `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}${formatAuthoritativePilotCheck(group.pilot_check)}`
-    ).join('; ');
+    const groups = (result.groups || []).map(group => {
+      const gauss = group.gauss_explosion ? `; Gauss rifle exploded for ${group.gauss_explosion.damage} internal damage in ${hitLocationLabel(group.gauss_explosion.location)}` : '';
+      return `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}${gauss}${formatAuthoritativePilotCheck(group.pilot_check)}`;
+    }).join('; ');
     const pellets = result.cluster_kind === 'lb_x' ? 'pellet' : 'missile';
-    return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.`;
+    const clusterText = result.streak_lock ? 'Streak lock confirmed' : `Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}${cluster.modified_total && cluster.modified_total !== cluster.total ? `, modified to ${cluster.modified_total}` : ''}`;
+    const defence = result.ams ? ' AMS engaged.' : result.narc_guided ? ' Narc guidance applied.' : '';
+    return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. ${clusterText}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.${defence}`;
   }
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
+  const gaussExplosion = result.gauss_explosion ? ` Gauss rifle exploded for ${result.gauss_explosion.damage} internal damage in ${hitLocationLabel(result.gauss_explosion.location)}.` : '';
   const flamerHeat = result.heat_inflicted ? ` ${mechLabel(target)} gains ${result.heat_inflicted} heat.` : '';
-  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${gaussExplosion}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function formatAuthoritativeTargetNumber(roll) {
   const b = roll?.breakdown;
   if (!b || typeof b.gunnery !== 'number') return '';
-  const labels = [['attacker_movement', 'attacker movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'woods'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'target prone'], ['lb_x_cluster', 'LB-X cluster']];
+  const labels = [['attacker_movement', 'attacker movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'woods'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'target prone'], ['lb_x_cluster', 'LB-X cluster'], ['weapon_accuracy', 'weapon accuracy']];
   const terms = [`Gunnery ${b.gunnery}`];
   for (const [key, label] of labels) {
     const value = Number(b[key] || 0);

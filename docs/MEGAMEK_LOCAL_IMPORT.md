@@ -74,6 +74,41 @@ optional `--skip-unsupported` flag remains available for future lists: it
 generates only supported records while naming any held-back variants, rather
 than assigning substitute weapon values.
 
+## Import the official unit artwork
+
+MegaMek's data repository contains unit records, not the deployed unit
+sprites. Download an official MegaMek release and extract its
+`data/images/units` directory locally. The release supplies `mekset.txt` and
+`imgFileAtlasMap.yml`; together they map units to either individual files or
+coordinates within the release's sprite atlases.
+
+Run the importer with those release paths:
+
+```text
+node tools/import-megamek-sprites.mjs \
+  --source local-data/megamek-release/data/images/units \
+  --mekset local-data/megamek-release/data/images/units/mekset.txt \
+  --atlas-map local-data/megamek-release/data/images/imgFileAtlasMap.yml \
+  --release 0.51.00.1 \
+  --additional-catalogue config/supported-megamek-units.json
+```
+
+Atlas extraction uses the optional `sharp` package. Exact and chassis mappings
+come from MegaMek's own files; unresolved or ambiguous units are reported in
+the generated manifest and are never guessed. Deliberate exceptions belong in
+`config/megamek-sprite-overrides.json`. The committed web manifest records the
+source file, atlas crop, attribution, and licence for every imported sprite.
+
+## Supabase deployment order
+
+For the expanded roster, run `SQL/50_extended_weapon_profiles.sql` and then
+`SQL/51_canonical_special_equipment_resolver.sql`. SQL/50 is an intentionally
+safe compatibility waypoint; SQL/51 installs the complete maintained weapon,
+critical-slot, and heat resolvers without inspecting or rewriting an older
+function. Finally run the generated `local-data/mw5-skirmish-content-pack.sql`.
+New matches pin the new catalogue version; existing matches retain the version
+with which they began.
+
 ## Attribution and licence
 
 Source: [MegaMek Data Repository](https://github.com/MegaMek/mm-data)
@@ -85,3 +120,7 @@ Keeping this cache out of Git avoids copying a large external dataset into
 BT-VTT, but it does not remove the licence obligations. If a transformed
 catalogue is later delivered to players, it must carry appropriate attribution,
 the CC BY-NC-SA 4.0 terms, and an indication of the changes made.
+
+Unit sprites are imported from an official MegaMek release and retain their
+separate CC BY-NC 4.0 attribution recorded in `docs/MEGAMEK_ATTRIBUTION.md` and
+`assets/mechs/manifest.json`.
