@@ -29,13 +29,11 @@ function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
   const ammoType = weaponProfile(weaponEntry)?.ammoType;
   if (!ammoType) return [];
   const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
-  // Before an LB-X is selected, do not assume slug ammunition. A bin declared
-  // as Cluster must make the weapon selectable so its declared mode can become
-  // the initial firing mode.
-  const selectedMode = weaponAttackState.fireModesByMount[mountId];
+  // An LB-X bin's Round 1 loadout determines its ammunition type. Selecting
+  // the bin is therefore the firing-mode choice; never hide another valid
+  // LB-X bin merely because the currently selected bin has a different load.
   return (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
-    bin.type === ammoType && bin.shots >= shotsRequired && !bin.destroyed &&
-    (weaponEntry.key !== 'lb10x' || !selectedMode || !bin.loadType || bin.loadType === selectedMode)
+    bin.type === ammoType && bin.shots >= shotsRequired && !bin.destroyed
   );
 }
 
@@ -279,7 +277,7 @@ function toggleWeaponForAttack(mountId) {
 function selectWeaponFireMode(mountId, mode) {
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
-  const validModes = entry?.key?.startsWith('uac') ? ['single', 'rapid'] : entry?.key === 'lb10x' ? ['slug', 'cluster'] : [];
+  const validModes = entry?.key?.startsWith('uac') ? ['single', 'rapid'] : [];
   if (!entry || !validModes.includes(mode)) return;
   const bins = (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
     bin.type === weaponProfile(entry)?.ammoType && bin.shots >= (mode === 'rapid' ? 2 : 1) && !bin.destroyed &&
@@ -299,6 +297,11 @@ function selectAmmoBinForMount(mountId, binId) {
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
   if (!entry || !compatibleAmmoBins(attacker, entry, weaponShotsForMode(mountId, entry)).some(bin => bin.id === binId)) return;
   weaponAttackState.ammoBinsByMount[mountId] = binId;
+  if (entry.key === 'lb10x') {
+    const bin = (weaponPhaseStartMech(attacker).ammoBins || []).find(candidate => candidate.id === binId);
+    weaponAttackState.fireModesByMount[mountId] = bin?.loadType || 'slug';
+  }
+  renderWeaponAttackPanel();
 }
 
 function resolveDeclaredAmmoBins(attacker, selectedWeapons) {
@@ -642,8 +645,7 @@ function renderWeaponAttackPanel() {
     const heat = weapon ? weapon.heat * entry.count : '?';
     const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${ammoBinLabel(bin)}</option>`).join('')}</select></label>` : '';
     const ultra = weapon?.key?.startsWith('uac');
-    const lbx = weapon?.key === 'lb10x';
-    const modePicker = checked && ultra ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : checked && lbx ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','slug')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'slug' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'slug' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SLUG · 10 DAMAGE</button><button onclick="selectWeaponFireMode('${mountId}','cluster')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'cluster' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'cluster' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">CLUSTER · 10 PELLETS</button></div>` : '';
+    const modePicker = checked && ultra ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : '';
     return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}</div>`;
   }).join('');
 

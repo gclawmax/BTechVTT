@@ -157,6 +157,10 @@ vm.runInContext("weaponAttackState={attackerId:'a',targetId:null,weaponKeys:[],a
 check('#3b Cluster-loaded LB-X is selectable', sandbox.compatibleAmmoBins(lbxMech, lbxMount).length === 1);
 sandbox.toggleWeaponForAttack('lb10x:la:0');
 check('#3b Cluster is selected from the declared ammo bin', vm.runInContext("weaponAttackState.fireModesByMount['lb10x:la:0']", sandbox) === 'cluster');
+const slugBin = { id: 'la:8', type: 'lb10x', loadType: 'slug', shots: 10 };
+lbxMech.ammoBins.push(slugBin); lbxMech.weaponPhaseStart.mech.ammoBins.push(slugBin);
+sandbox.selectAmmoBinForMount('lb10x:la:0', 'la:8');
+check('#3b selecting an LB-X bin selects its declared munition', vm.runInContext("weaponAttackState.fireModesByMount['lb10x:la:0']", sandbox) === 'slug');
 check('#3b ammo picker labels declared munition', sandbox.ammoBinLabel({ location: 'Left Arm', loadType: 'cluster', shots: 10, maxShots: 10 }) === 'Left Arm · Cluster · 10/10 shots');
 check('#3b per-mount profile overrides shared weapon key', sandbox.weaponProfile({ key: 'erl', weapon: { name: 'Clan ER Large Laser', damage: 10 } }).damage === 10);
 check('#3b explicit combat-log team takes precedence over target label', sandbox.logTeamClass({ team: 2, msg: 'Dire Wolf (P2) fired at Summoner (P1).' }) === 'team-p2');
