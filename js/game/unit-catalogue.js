@@ -187,7 +187,11 @@ async function loadUnitCatalogue(catalogueVersion) {
       weapons: mounts.map(mount => ({
         key: mount.weapon_key, count: 1,
         location: BT_LOCATION_NAMES[mount.location] || mount.location,
-        mountId: mount.mount_id
+        mountId: mount.mount_id,
+        // Weapon keys are shared by Clan and Inner Sphere variants. Retain
+        // this mount's catalogue profile rather than inheriting another
+        // unit's profile based on catalogue load order.
+        weapon: { key: mount.weapon_key, name: mount.raw_name, ...(mount.definition || {}) }
       })),
       ammoBins: (ammoByUnit[row.unit_id] || []).map(bin => ({
         id: bin.bin_id, type: bin.ammo_type,

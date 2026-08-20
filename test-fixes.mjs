@@ -91,6 +91,7 @@ function load(rel) {
   vm.runInContext(code, sandbox, { filename: rel });
 }
 load('js/movement/rules.js');
+load('js/core/game-log.js');
 load('js/game/weapon-attack.js');
 load('js/movement/movement.js');
 // moveState is a top-level `let` in rules.js → lives in the context's lexical
@@ -157,6 +158,8 @@ check('#3b Cluster-loaded LB-X is selectable', sandbox.compatibleAmmoBins(lbxMec
 sandbox.toggleWeaponForAttack('lb10x:la:0');
 check('#3b Cluster is selected from the declared ammo bin', vm.runInContext("weaponAttackState.fireModesByMount['lb10x:la:0']", sandbox) === 'cluster');
 check('#3b ammo picker labels declared munition', sandbox.ammoBinLabel({ location: 'Left Arm', loadType: 'cluster', shots: 10, maxShots: 10 }) === 'Left Arm · Cluster · 10/10 shots');
+check('#3b per-mount profile overrides shared weapon key', sandbox.weaponProfile({ key: 'erl', weapon: { name: 'Clan ER Large Laser', damage: 10 } }).damage === 10);
+check('#3b explicit combat-log team takes precedence over target label', sandbox.logTeamClass({ team: 2, msg: 'Dire Wolf (P2) fired at Summoner (P1).' }) === 'team-p2');
 
 // ── #4 Jump landing free facing ────────────────────────────────────────────
 sandbox.mechInstances = [{ instanceId: 'j1', unitId: 'testmech', owner: 1, col: 2, row: 2, facing: 0, torsoFacing: 0,

@@ -30,7 +30,7 @@ function _logTimeLabel() {
 // Push an entry into the on-screen log immediately, then (fire-and-forget)
 // persist it into the shared game state so other players/browsers see it too.
 // category: 'system' | 'phase' | 'roll' | 'move' | 'attack' | 'error' | 'info'
-function logEvent(message, category) {
+function logEvent(message, category, team = null) {
   category = category || 'info';
   const entry = {
     id: `${LOG_CLIENT_ID}-${++_logSeq}`,
@@ -39,7 +39,8 @@ function logEvent(message, category) {
     round: currentGameState ? currentGameState.round : null,
     phase: currentGameState ? currentGameState.phase : null,
     cat: category,
-    msg: message
+    msg: message,
+    ...(team === 1 || team === 2 ? { team } : {})
   };
   gameLog.push(entry);
   if (gameLog.length > GAME_LOG_MAX) gameLog = gameLog.slice(-GAME_LOG_MAX);
@@ -121,6 +122,8 @@ function showGameToast(message, type = 'success') {
 // P1/P2 label. Derive only presentation metadata here: the saved text stays
 // unchanged and remains readable in exports or the browser console.
 function logTeamClass(entry) {
+  if (entry?.team === 1) return 'team-p1';
+  if (entry?.team === 2) return 'team-p2';
   const message = String(entry?.msg || '');
   if (/\(P1\)|\bPlayer 1\b|\bP1=/.test(message)) return 'team-p1';
   if (/\(P2\)|\(AI\)|\bPlayer 2\b|\bP2=/.test(message)) return 'team-p2';

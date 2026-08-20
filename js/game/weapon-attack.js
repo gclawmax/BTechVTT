@@ -5,6 +5,10 @@
 
 let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {} };
 
+function weaponProfile(entry) {
+  return entry?.weapon || BT_WEAPONS[entry?.key];
+}
+
 // A weapon type is not a unique mount: e.g. a Marauder carries PPCs in both
 // arms.  Selection must identify the specific catalogue entry, not just its
 // weapon key, so the player can fire either arm independently.
@@ -22,7 +26,7 @@ function canFireFromWeaponPhaseStart(mech) {
 }
 
 function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
-  const ammoType = BT_WEAPONS[weaponEntry.key]?.ammoType;
+  const ammoType = weaponProfile(weaponEntry)?.ammoType;
   if (!ammoType) return [];
   const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
   // Before an LB-X is selected, do not assume slug ammunition. A bin declared
@@ -36,7 +40,7 @@ function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
 }
 
 function weaponFireMode(mountId, weaponEntry) {
-  if (weaponEntry?.key === 'uac5') return weaponAttackState.fireModesByMount[mountId] || 'single';
+  if (weaponEntry?.key?.startsWith('uac')) return weaponAttackState.fireModesByMount[mountId] || 'single';
   if (weaponEntry?.key === 'lb10x') return weaponAttackState.fireModesByMount[mountId] || 'slug';
   return 'single';
 }
@@ -175,7 +179,7 @@ function elevationBlocksLineOfSight(attacker, target) {
 function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const eligibleAttacker = weaponPhaseStartMech(attacker);
   const eligibleTarget = weaponPhaseStartMech(target);
-  const weapon = BT_WEAPONS[weaponEntry.key];
+  const weapon = weaponProfile(weaponEntry);
   if (!weapon || eligibleAttacker.destroyed || eligibleTarget.destroyed || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
   }
@@ -275,10 +279,10 @@ function toggleWeaponForAttack(mountId) {
 function selectWeaponFireMode(mountId, mode) {
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
-  const validModes = entry?.key === 'uac5' ? ['single', 'rapid'] : entry?.key === 'lb10x' ? ['slug', 'cluster'] : [];
+  const validModes = entry?.key?.startsWith('uac') ? ['single', 'rapid'] : entry?.key === 'lb10x' ? ['slug', 'cluster'] : [];
   if (!entry || !validModes.includes(mode)) return;
   const bins = (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
-    bin.type === BT_WEAPONS[entry.key]?.ammoType && bin.shots >= (mode === 'rapid' ? 2 : 1) && !bin.destroyed &&
+    bin.type === weaponProfile(entry)?.ammoType && bin.shots >= (mode === 'rapid' ? 2 : 1) && !bin.destroyed &&
     (entry.key !== 'lb10x' || !bin.loadType || bin.loadType === mode)
   );
   if (!bins.length) {
@@ -300,7 +304,7 @@ function selectAmmoBinForMount(mountId, binId) {
 function resolveDeclaredAmmoBins(attacker, selectedWeapons) {
   const choices = {};
   for (const entry of selectedWeapons) {
-    const weapon = BT_WEAPONS[entry.key];
+    const weapon = weaponProfile(entry);
     if (!weapon?.ammoType) continue;
     const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
     const shotsRequired = weaponShotsForMode(mountId, entry);
@@ -310,7 +314,7 @@ function resolveDeclaredAmmoBins(attacker, selectedWeapons) {
     if (!selected) return { error: `Choose an ammunition bin for ${weapon.name}.` };
     choices[mountId] = selected.id;
   }
-  const fireModes = Object.fromEntries(selectedWeapons.filter(entry => ['uac5', 'lb10x'].includes(entry.key)).map(entry => {
+  const fireModes = Object.fromEntries(selectedWeapons.filter(entry => entry.key?.startsWith('uac') || entry.key === 'lb10x').map(entry => {
     const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
     return [mountId, weaponFireMode(mountId, entry)];
   }));
@@ -432,7 +436,7 @@ function weaponDeclarationSummary(attacker, mountIds, fireModes = {}) {
   for (const mountId of mountIds || []) {
     const entry = weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
     const modeSuffix = fireModes[mountId] === 'rapid' ? ' (rapid fire)' : fireModes[mountId] === 'cluster' ? ' (cluster ammunition)' : '';
-    const name = `${BT_WEAPONS[entry?.key]?.name || entry?.key || mountId}${modeSuffix}`;
+    const name = `${weaponProfile(entry)?.name || entry?.key || mountId}${modeSuffix}`;
     counts.set(name, (counts.get(name) || 0) + 1);
   }
   const labels = [...counts].map(([name, count]) => count === 1 ? name : `${count} ${name}${name.endsWith('s') ? '' : 's'}`);
@@ -457,7 +461,7 @@ async function loadWeaponCombatEvents() {
     entries.push({
       id: `combat-declaration-${event.id}`, ts: declaredAt + event.sequence,
       time: new Date(declaredAt).toTimeString().slice(0, 8), round: event.round,
-      phase: event.phase, cat: 'attack',
+      phase: event.phase, cat: 'attack', team: attacker.owner,
       msg: mounts.length
         ? `${mechLabel(attacker)} declared ${weaponDeclarationSummary(attacker, mounts, event.declaration?.ammo_bins?.__fire_modes)} at ${mechLabel(target)}.`
         : `${mechLabel(attacker)} declared no weapon fire.`
@@ -469,7 +473,7 @@ async function loadWeaponCombatEvents() {
     results.forEach((result, index) => entries.push({
       id: `combat-${event.id}-${index}`, ts: resolvedAt + event.sequence * 100 + index,
       time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round,
-      phase: event.phase, cat: 'attack', msg: authoritativeWeaponResultMessage(attacker, target, result)
+      phase: event.phase, cat: 'attack', team: attacker.owner, msg: authoritativeWeaponResultMessage(attacker, target, result)
     }));
     (event.resolution?.piloting_checks || []).forEach((check, index) => entries.push({
       id: `weapon-psr-${event.id}-${index}`, ts: resolvedAt + event.sequence * 100 + results.length + index + 1,
@@ -593,11 +597,11 @@ async function confirmWeaponAttack() {
   // Give immediate feedback before the shared-state write has completed.
   // The detailed resolution is logged after the save so it remains in order
   // for the other player as well.
-  logEvent(`${mechLabel(attacker)} weapon attack submitted — saving outcome.`, 'attack');
+  logEvent(`${mechLabel(attacker)} weapon attack submitted — saving outcome.`, 'attack', attacker.owner);
   await syncMechInstances();
   await checkForMatchEnd();
-  if (messages.length) messages.forEach(message => logEvent(message, 'attack'));
-  else logEvent(`${mechLabel(attacker)} declared no weapon attacks.`, 'attack');
+  if (messages.length) messages.forEach(message => logEvent(message, 'attack', attacker.owner));
+  else logEvent(`${mechLabel(attacker)} declared no weapon attacks.`, 'attack', attacker.owner);
 }
 
 function renderWeaponAttackPanel() {
@@ -629,7 +633,7 @@ function renderWeaponAttackPanel() {
     const mountId = weaponMountId(entry, index);
     const checked = weaponAttackState.weaponKeys.includes(mountId);
     const evaluation = target ? evaluateWeaponAttack(attacker, target, entry) : null;
-    const weapon = BT_WEAPONS[entry.key];
+    const weapon = weaponProfile(entry);
     const shotsRequired = weaponShotsForMode(mountId, entry);
     const bins = compatibleAmmoBins(attacker, entry, shotsRequired);
     const outOfAmmo = Boolean(weapon?.ammoType) && bins.length === 0;
@@ -637,10 +641,10 @@ function renderWeaponAttackPanel() {
     const countLabel = entry.count > 1 ? ` ×${entry.count}` : '';
     const heat = weapon ? weapon.heat * entry.count : '?';
     const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${ammoBinLabel(bin)}</option>`).join('')}</select></label>` : '';
-    const ultra = weapon?.key === 'uac5';
+    const ultra = weapon?.key?.startsWith('uac');
     const lbx = weapon?.key === 'lb10x';
     const modePicker = checked && ultra ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : checked && lbx ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','slug')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'slug' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'slug' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SLUG · 10 DAMAGE</button><button onclick="selectWeaponFireMode('${mountId}','cluster')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'cluster' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'cluster' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">CLUSTER · 10 PELLETS</button></div>` : '';
-    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${modePicker}${binPicker}</div>`;
+    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}</div>`;
   }).join('');
 
   panel.innerHTML = `
