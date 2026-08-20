@@ -66,13 +66,13 @@ It writes the ignored `local-data/mw5-skirmish-import-candidates.json` report.
 That file is directly usable as the content-pack configuration:
 
 ```text
-node tools/build-megamek-content-pack.mjs --config local-data/mw5-skirmish-import-candidates.json --skip-unsupported --registry-output local-data/mw5-skirmish-registry.json --sql-output local-data/mw5-skirmish-content-pack.sql
+node tools/build-megamek-content-pack.mjs --config local-data/mw5-skirmish-import-candidates.json --registry-output local-data/mw5-skirmish-registry.json --sql-output local-data/mw5-skirmish-content-pack.sql
 ```
 
-Without `--skip-unsupported`, the content-pack build stops and names every
-unit whose weapons or ammunition are not yet implemented by the VTT. With it,
-the compatible portion is generated while those variants are named and held
-back for rules development; no unit receives substitute weapon values.
+The full list currently validates with the expanded weapon profiles. The
+optional `--skip-unsupported` flag remains available for future lists: it
+generates only supported records while naming any held-back variants, rather
+than assigning substitute weapon values.
 
 ## Attribution and licence
 

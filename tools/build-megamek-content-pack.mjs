@@ -45,11 +45,19 @@ const WEAPONS = {
   'ER Medium Laser': { key: 'er_med_laser', damage: 5, heat: 5, range: [5, 10, 15] },
   'ER Large Laser': { key: 'er_large_laser', damage: 10, heat: 12, range: [7, 14, 19] },
   'ER PPC': { key: 'er_ppc', damage: 15, heat: 15, range: [7, 14, 23] },
-  'Medium Pulse Laser': { key: 'med_pulse_laser', damage: 6, heat: 4, range: [2, 4, 6] }
+  'Medium Pulse Laser': { key: 'med_pulse_laser', damage: 6, heat: 4, range: [2, 4, 6], toHitModifier: -2 },
+  'Small Pulse Laser': { key: 'small_pulse_laser', damage: 3, heat: 2, range: [1, 2, 3], toHitModifier: -2 },
+  'Large Pulse Laser': { key: 'large_pulse_laser', damage: 9, heat: 10, range: [3, 7, 10], toHitModifier: -2 },
+  'Gauss Rifle': { key: 'gauss_rifle', damage: 15, heat: 1, range: [7, 15, 22], minimumRange: 2, ammoType: 'gauss' },
+  'Streak SRM 2': { key: 'streak_srm2', damage: 4, heat: 2, range: [3, 6, 9], ammoType: 'streak_srm2', clusterSize: 2, damagePerMissile: 2, streak: true },
+  'Anti-Missile System': { key: 'ams', damage: 0, heat: 1, range: [1, 1, 1], ammoType: 'ams', supportOnly: true },
+  Narc: { key: 'narc', damage: 0, heat: 0, range: [3, 6, 9], ammoType: 'narc', supportOnly: true },
+  TAG: { key: 'tag', damage: 0, heat: 0, range: [5, 10, 15], supportOnly: true }
 };
 const AMMO = [
   [/Ammo AC\/20/i, 'ac20', 5], [/Ammo AC\/10/i, 'ac10', 10], [/Ammo AC\/5/i, 'ac5', 20], [/Ammo AC\/2/i, 'ac2', 45],
   [/Ultra AC\/5 Ammo/i, 'uac5', 20], [/LB 10-X AC Ammo/i, 'lb10x', 10],
+  [/Gauss Ammo/i, 'gauss', 8], [/Streak SRM 2 Ammo/i, 'streak_srm2', 50], [/Narc Pods/i, 'narc', 6], [/AMS Ammo/i, 'ams', 12],
   [/Ammo LRM-20/i, 'lrm20', 6], [/Ammo LRM-15/i, 'lrm15', 8], [/Ammo LRM-10/i, 'lrm10', 12], [/Ammo LRM-5/i, 'lrm5', 24],
   [/Ammo SRM-6/i, 'srm6', 15], [/Ammo SRM-4/i, 'srm4', 25], [/Ammo SRM-2/i, 'srm2', 50],
   [/Ammo MG/i, 'machine_gun', 200], [/Machine Gun Ammo/i, 'machine_gun', 200]

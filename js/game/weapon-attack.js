@@ -211,14 +211,15 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const heat = weaponHeatToHitModifier(eligibleAttacker);
   const gunnery = eligibleAttacker.pilot?.gunnery ?? 4;
   const clusterModifier = weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster' ? -1 : 0;
+  const accuracyModifier = Number(weapon.toHitModifier || 0);
   return {
     valid: true,
     weapon,
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier,
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + accuracyModifier,
     attackAngle: attackDirection(attacker, target),
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
   };
 }
 
@@ -651,6 +652,7 @@ function renderWeaponAttackPanel() {
     const checked = weaponAttackState.weaponKeys.includes(mountId);
     const evaluation = target ? evaluateWeaponAttack(attacker, target, entry) : null;
     const weapon = weaponProfile(entry);
+    if (weapon?.supportOnly) return '';
     const shotsRequired = weaponShotsForMode(mountId, entry);
     const bins = compatibleAmmoBins(attacker, entry, shotsRequired);
     const outOfAmmo = Boolean(weapon?.ammoType) && bins.length === 0;

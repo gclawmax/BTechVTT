@@ -168,6 +168,9 @@ async function loadUnitCatalogue(catalogueVersion) {
           ...(weapon.ammoType ? { ammoType: weapon.ammoType } : {}),
           ...(weapon.clusterSize ? { clusterSize: weapon.clusterSize } : {}),
           ...(weapon.damagePerMissile ? { damagePerMissile: weapon.damagePerMissile } : {})
+          , ...(weapon.toHitModifier ? { toHitModifier: weapon.toHitModifier } : {})
+          , ...(weapon.streak ? { streak: true } : {})
+          , ...(weapon.supportOnly ? { supportOnly: true } : {})
         };
       }
     }
@@ -197,6 +200,7 @@ async function loadUnitCatalogue(catalogueVersion) {
         id: bin.bin_id, type: bin.ammo_type,
         location: BT_LOCATION_NAMES[bin.location] || bin.location,
         shots: bin.shots
+        , narcCapable: /narc-capable/i.test(bin.raw_name || '')
       }))
     };
     const layout = {};

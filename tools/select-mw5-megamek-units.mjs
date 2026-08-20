@@ -9,7 +9,7 @@ import { dirname, join, relative } from 'node:path';
 const DEFAULT_LIST = 'tools/Claude/Latest Claude Notes/mw5_mech_list.txt';
 const DEFAULT_SOURCE = 'local-data/megamek-mm-data';
 const DEFAULT_OUTPUT = 'local-data/mw5-skirmish-import-candidates.json';
-const DEFAULT_VERSION = 'megamek-2026-08-mw5-compatible-01';
+const DEFAULT_VERSION = 'megamek-2026-08-mw5-expanded-weapons-01';
 
 function option(name, fallback) {
   const index = process.argv.indexOf(name);
