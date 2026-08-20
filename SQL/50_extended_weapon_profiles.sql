@@ -9,15 +9,14 @@ BEGIN
  IF fn IS NULL THEN RAISE EXCEPTION 'Weapon declaration resolver is missing';END IF;
  SELECT pg_get_functiondef(fn) INTO source;
  IF position('weapon_profile_accuracy_v1' IN source)>0 THEN RETURN;END IF;
- IF position('lb_x_cluster_tn_v1' IN source)=0 THEN RAISE EXCEPTION 'Weapon declaration resolver is not at the expected LB-X revision';END IF;
  patched:=replace(source,
   'location_roll jsonb;cluster_da int;cluster_db int;missiles_hit int;missiles_remaining int;group_damage int;groups jsonb;',
   'location_roll jsonb;cluster_da int;cluster_db int;missiles_hit int;missiles_remaining int;group_damage int;groups jsonb;weapon_accuracy_mod int;');
  patched:=replace(patched,
   'weapon_damage:=(weapon->>''damage'')::int;weapon_heat:=(weapon->>''heat'')::int;short_range:=(weapon->''range''->>0)::int;',
   'weapon_damage:=(weapon->>''damage'')::int;weapon_heat:=(weapon->>''heat'')::int;weapon_accuracy_mod:=coalesce((weapon->>''toHitModifier'')::int,0);short_range:=(weapon->''range''->>0)::int;');
- patched:=replace(patched,
-  'tn:=base_tn+range_mod+component_mod;',
+ patched:=regexp_replace(patched,
+  'tn[[:space:]]*:=[[:space:]]*base_tn[[:space:]]*\+[[:space:]]*range_mod[[:space:]]*\+[[:space:]]*component_mod[[:space:]]*;',
   'tn:=base_tn+range_mod+component_mod+weapon_accuracy_mod; /* weapon_profile_accuracy_v1 */');
  IF patched=source OR position('weapon_profile_accuracy_v1' IN patched)=0 THEN RAISE EXCEPTION 'Weapon resolver did not contain expected profile markers';END IF;
  EXECUTE patched;
