@@ -65,7 +65,7 @@ BEGIN
   IF (mech->>'owner')::int=player.seat_number THEN
    FOR bin IN SELECT value FROM jsonb_array_elements(coalesce(mech->'ammoBins','[]'::jsonb)) value LOOP
     IF bin->>'type'='lb10x' THEN
-     expected:=expected+1;bin_key:=mech->>'instanceId'||':'||bin->>'id';load_type:=p_loadouts->>bin_key;
+     expected:=expected+1;bin_key:=(mech->>'instanceId')||':'||(bin->>'id');load_type:=p_loadouts->>bin_key;
      IF load_type NOT IN ('slug','cluster') THEN RAISE EXCEPTION 'Choose slug or cluster ammunition for every LB-X bin';END IF;
      updated:=btech_set_ammo_load_type(updated,bin->>'id',load_type);provided:=provided+1;
     END IF;
