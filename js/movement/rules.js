@@ -46,13 +46,20 @@ function resetMapPan() {
   mapPanX = 0;
   mapPanY = 0;
   mapZoom = 1;
+  mapRotation = 0;
+  renderMapZoomReadout();
+  draw();
+}
+
+function rotateMapView() {
+  mapRotation = (mapRotation + 90) % 360;
   renderMapZoomReadout();
   draw();
 }
 
 function renderMapZoomReadout() {
   const readout = document.getElementById('map-zoom-readout');
-  if (readout) readout.textContent = `${Math.round(mapZoom * 100)}%`;
+  if (readout) readout.textContent = `${Math.round(mapZoom * 100)}% · ${mapRotation}°`;
 }
 
 // Tracks an in-progress movement action for a single 'Mech, selected via the Movement Panel.
@@ -165,6 +172,7 @@ function draw() {
   ctx.clearRect(0, 0, w, h);
   ctx.save();
   ctx.translate(w / 2, h / 2);
+  ctx.rotate(mapRotation * Math.PI / 180);
   ctx.scale(mapZoom, mapZoom);
   ctx.translate(-w / 2, -h / 2);
 
@@ -425,8 +433,11 @@ canvas.addEventListener('pointerdown', event => {
 
 canvas.addEventListener('pointermove', event => {
   if (!mapPanDrag || event.pointerId !== mapPanDrag.pointerId) return;
-  mapPanX = mapPanDrag.panX + (event.clientX - mapPanDrag.startX) / mapZoom;
-  mapPanY = mapPanDrag.panY + (event.clientY - mapPanDrag.startY) / mapZoom;
+  const dx = (event.clientX - mapPanDrag.startX) / mapZoom;
+  const dy = (event.clientY - mapPanDrag.startY) / mapZoom;
+  const radians = -mapRotation * Math.PI / 180;
+  mapPanX = mapPanDrag.panX + dx * Math.cos(radians) - dy * Math.sin(radians);
+  mapPanY = mapPanDrag.panY + dx * Math.sin(radians) + dy * Math.cos(radians);
   draw();
 });
 
@@ -453,8 +464,12 @@ canvas.addEventListener('wheel', event => {
   if (mapZoom === oldZoom) return;
   const centerX = rect.width / 2;
   const centerY = rect.height / 2;
-  mapPanX += (pointerX - centerX) * (1 / mapZoom - 1 / oldZoom);
-  mapPanY += (pointerY - centerY) * (1 / mapZoom - 1 / oldZoom);
+  const zoomDelta = 1 / mapZoom - 1 / oldZoom;
+  const dx = (pointerX - centerX) * zoomDelta;
+  const dy = (pointerY - centerY) * zoomDelta;
+  const radians = -mapRotation * Math.PI / 180;
+  mapPanX += dx * Math.cos(radians) - dy * Math.sin(radians);
+  mapPanY += dx * Math.sin(radians) + dy * Math.cos(radians);
   draw();
 }, { passive: false });
 
@@ -462,8 +477,13 @@ function canvasPointToMap(event) {
   const rect = canvas.getBoundingClientRect();
   const screenX = event.clientX - rect.left;
   const screenY = event.clientY - rect.top;
-  const boardX = (screenX - rect.width / 2) / mapZoom + rect.width / 2;
-  const boardY = (screenY - rect.height / 2) / mapZoom + rect.height / 2;
+  let x = screenX - rect.width / 2;
+  let y = screenY - rect.height / 2;
+  const radians = -mapRotation * Math.PI / 180;
+  const rotatedX = x * Math.cos(radians) - y * Math.sin(radians);
+  const rotatedY = x * Math.sin(radians) + y * Math.cos(radians);
+  const boardX = rotatedX / mapZoom + rect.width / 2;
+  const boardY = rotatedY / mapZoom + rect.height / 2;
   return { x: boardX - gridOffsetX - mapPanX, y: boardY - gridOffsetY - mapPanY };
 }
 

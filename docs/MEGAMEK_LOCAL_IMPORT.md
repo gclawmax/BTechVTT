@@ -53,6 +53,27 @@ retain the definitions with which they started.
 Unknown equipment makes supported-pack generation fail visibly instead of
 silently producing an incorrect playable BattleMech.
 
+## MW5 skirmish shortlist
+
+The supplied MW5 chassis/variant list can be resolved against the local
+MegaMek checkout without guessing source files:
+
+```text
+node tools/select-mw5-megamek-units.mjs
+```
+
+It writes the ignored `local-data/mw5-skirmish-import-candidates.json` report.
+That file is directly usable as the content-pack configuration:
+
+```text
+node tools/build-megamek-content-pack.mjs --config local-data/mw5-skirmish-import-candidates.json --skip-unsupported --registry-output local-data/mw5-skirmish-registry.json --sql-output local-data/mw5-skirmish-content-pack.sql
+```
+
+Without `--skip-unsupported`, the content-pack build stops and names every
+unit whose weapons or ammunition are not yet implemented by the VTT. With it,
+the compatible portion is generated while those variants are named and held
+back for rules development; no unit receives substitute weapon values.
+
 ## Attribution and licence
 
 Source: [MegaMek Data Repository](https://github.com/MegaMek/mm-data)

@@ -359,6 +359,14 @@ html, body {
 .roster-option:disabled { opacity:.45; cursor:not-allowed; }
 .roster-option .roster-option-name { display:block; font-weight:bold; margin-bottom:5px; }
 .roster-option .roster-option-tonnage { color:var(--phosphor-dim); }
+.skirmish-avatar { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px; border:1px solid var(--amber); background:#fff7e8; color:#6b4813; font:10px var(--mono); }
+.skirmish-avatar strong { font-family:var(--display); letter-spacing:.07em; text-transform:uppercase; }
+.hangar-list { display:flex; flex-direction:column; gap:5px; max-height:190px; overflow-y:auto; margin:6px 0 10px; }
+.hangar-entry { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:7px; border:1px solid var(--panel-line); background:#fff; font:10px var(--mono); }
+.hangar-entry.deployed { border-color:var(--amber); background:#fff7e8; }
+.hangar-entry span { display:block; margin-top:3px; color:var(--phosphor-dim); font-size:9px; }
+.hangar-entry button { margin-left:4px; padding:4px 6px; border:1px solid var(--panel-line); background:#fff; color:var(--phosphor); font:9px var(--mono); cursor:pointer; }
+.hangar-entry.deployed button:first-child { border-color:var(--amber); color:#8b5200; }
 
 #lobby-box h2 {
   font-family: var(--display);

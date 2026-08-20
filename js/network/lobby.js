@@ -13,6 +13,15 @@ async function copyLobbyGameCode() {
 
 // These are view preferences only: they never change the shared match roster.
 const lobbyRosterFilters = { tech: 'both', weights: new Set(['light', 'medium', 'heavy', 'assault']) };
+let skirmishAvatarEnsureInFlight = false;
+
+function skirmishAvatarForSeat(gameState, seat) {
+  return gameState?.skirmish_avatars?.[String(seat)] || null;
+}
+
+function skirmishHangarId() {
+  return globalThis.crypto?.randomUUID?.() || `hangar-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 function weightClassForUnit(unit) {
   const tons = Number(unit?.tonnage || 0);
@@ -116,6 +125,16 @@ async function loadLobbyUI() {
   }
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
+
+  // Every human player receives a temporary Avatar when opening a skirmish
+  // lobby. It belongs to this match only; campaign persistence comes later.
+  if (!vsAiMode && mySeatNumber && !skirmishAvatarForSeat(gameState, mySeatNumber) && !skirmishAvatarEnsureInFlight) {
+    skirmishAvatarEnsureInFlight = true;
+    const { error } = await db.rpc('ensure_skirmish_avatar', { p_game_id: currentGameId });
+    skirmishAvatarEnsureInFlight = false;
+    if (!error) return loadLobbyUI();
+    console.warn('Unable to create Skirmish Avatar:', error);
+  }
 
   // Get players
   const { data: players } = await db
@@ -260,6 +279,59 @@ function rosterSummaryForSeat(gameState, seatNumber) {
     : 'Roster: not selected';
 }
 
+async function saveSkirmishHangar(hangar, deployed) {
+  const { error } = await db.rpc('update_skirmish_hangar', {
+    p_game_id: currentGameId, p_hangar: hangar, p_deployed: deployed
+  });
+  if (error) {
+    console.error('Failed to save Skirmish Hangar:', error);
+    document.getElementById('lobby-status').textContent = `Skirmish Hangar could not be saved: ${error.message}`;
+    return false;
+  }
+  isReady = false;
+  await db.from('btech_players').update({ ready: false }).eq('game_id', currentGameId).eq('user_id', currentUser.id);
+  await loadLobbyUI();
+  return true;
+}
+
+async function addMechToSkirmishHangar(unitId) {
+  if (!currentGameId || !currentUser || vsAiMode || !isSupportedUnit(unitId)) return;
+  const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  if (error || !game) return;
+  const state = typeof game.state === 'string' ? JSON.parse(game.state) : (game.state || {});
+  const avatar = skirmishAvatarForSeat(state, mySeatNumber);
+  const hangar = [...(avatar?.hangar || [])];
+  if (hangar.length >= 12) { document.getElementById('lobby-status').textContent = 'A Skirmish Hangar can hold up to 12 BattleMechs.'; return; }
+  hangar.push({ id: skirmishHangarId(), unit_id: unitId });
+  await saveSkirmishHangar(hangar, [...(avatar?.deployed || [])]);
+}
+
+async function removeSkirmishHangarMech(entryId) {
+  if (!currentGameId || !currentUser || vsAiMode) return;
+  const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  if (error || !game) return;
+  const state = typeof game.state === 'string' ? JSON.parse(game.state) : (game.state || {});
+  const avatar = skirmishAvatarForSeat(state, mySeatNumber);
+  const hangar = (avatar?.hangar || []).filter(entry => entry.id !== entryId);
+  const deployed = (avatar?.deployed || []).filter(id => id !== entryId);
+  await saveSkirmishHangar(hangar, deployed);
+}
+
+async function toggleSkirmishDeployment(entryId) {
+  if (!currentGameId || !currentUser || vsAiMode) return;
+  const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  if (error || !game) return;
+  const state = typeof game.state === 'string' ? JSON.parse(game.state) : (game.state || {});
+  const avatar = skirmishAvatarForSeat(state, mySeatNumber);
+  const hangar = [...(avatar?.hangar || [])];
+  const deployed = [...(avatar?.deployed || [])];
+  const index = deployed.indexOf(entryId);
+  if (index >= 0) deployed.splice(index, 1);
+  else if (deployed.length < 6) deployed.push(entryId);
+  else { document.getElementById('lobby-status').textContent = 'A skirmish roster can deploy up to six BattleMechs.'; return; }
+  await saveSkirmishHangar(hangar, deployed);
+}
+
 function renderLobbyMatchSetup(gameState, players) {
   const settingsEl = document.getElementById('lobby-match-settings');
   const rosterSection = document.getElementById('lobby-roster-section');
@@ -276,6 +348,9 @@ function renderLobbyMatchSetup(gameState, players) {
   const limit = Number(gameState.dropship_tonnage || 0);
   settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${map.name}</strong><br>${map.description}<br>Force limit: <strong>${limit} tons per player</strong></div>`;
   rosterSection.hidden = false;
+  const avatar = skirmishAvatarForSeat(gameState, mySeatNumber);
+  const hangar = avatar?.hangar || [];
+  const deployed = avatar?.deployed || [];
   const roster = gameState.rosters?.[String(mySeatNumber)] || [];
   const total = rosterTonnage(roster);
   const filtered = supportedUnitEntries().filter(([, unit]) => {
@@ -288,12 +363,17 @@ function renderLobbyMatchSetup(gameState, players) {
   const techButton = (value, label) => `<button class="roster-filter ${lobbyRosterFilters.tech === value ? 'active' : ''}" onclick="setLobbyRosterTechFilter('${value}')">${label}</button>`;
   const weightButton = (weight, label) => `<button class="roster-filter ${lobbyRosterFilters.weights.has(weight) ? 'active' : ''}" onclick="toggleLobbyRosterWeightFilter('${weight}')">${label}</button>`;
   const card = ([id, unit]) => {
-    const selected = roster.includes(id);
-    const disabled = !selected && total + unit.tonnage > limit;
+    const inHangar = hangar.filter(entry => entry.unit_id === id).length;
+    const disabled = hangar.length >= 12;
     const techLabel = techBaseForUnit(unit) === 'clan' ? 'Clan' : 'Inner Sphere';
-    return `<button class="roster-option ${selected ? 'selected' : ''}" onclick="toggleRosterUnit('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${selected ? ' · selected' : ''}</span></button>`;
+    return `<button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button>`;
   };
-  rosterEl.innerHTML = `<div class="roster-summary">${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
+  const hangarCards = hangar.map(entry => {
+    const unit = getSupportedUnit(entry.unit_id);
+    const isDeployed = deployed.includes(entry.id);
+    return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}"><div><strong>${unit ? `${unit.chassis} ${unit.variant}` : entry.unit_id}</strong><span>${unit?.tonnage || '?'} tons${isDeployed ? ' · DEPLOYED' : ''}</span></div><div><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Withdraw' : 'Deploy'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div></div>`;
+  }).join('') || '<div class="roster-empty">Add BattleMechs below to build your Hangar.</div>';
+  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Gunnery ${avatar?.gunnery ?? 4} · Piloting ${avatar?.piloting ?? 5} · Match-only Avatar</span></div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
     <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
     <div class="roster-filter-bar"><span>Weight</span>${weightButton('light', 'Light')}${weightButton('medium', 'Medium')}${weightButton('heavy', 'Heavy')}${weightButton('assault', 'Assault')}</div>
     <div class="roster-scroll">${visibleByWeight.map(([weight, entries]) => entries.length ? `<section class="roster-weight-group"><div class="roster-weight-heading">${weight} ${weight === 'assault' ? '— 80–100 tons' : weight === 'heavy' ? '— 60–75 tons' : weight === 'medium' ? '— 40–55 tons' : '— 20–35 tons'}</div><div class="roster-options">${entries.map(card).join('')}</div></section>` : '').join('') || '<div class="roster-empty">No supported BattleMechs match these filters.</div>'}</div>`;
@@ -401,7 +481,7 @@ async function handleStartGame() {
       document.getElementById('lobby-status').textContent = 'Each player needs a legal roster within the dropship limit.';
       return;
     }
-    gameState.mech_instances = buildRosterInstances(gameState.rosters);
+    gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars);
   }
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
@@ -421,7 +501,7 @@ async function handleStartGame() {
   startGameScreen();
 }
 
-function buildRosterInstances(rosters) {
+function buildRosterInstances(rosters, skirmishAvatars = {}) {
   const deployment = {
     1: [
       { col: 4, row: 4, facing: 0 }, { col: 3, row: 5, facing: 0 },
@@ -448,7 +528,7 @@ function buildRosterInstances(rosters) {
       structure: { ...(unit?.structure || {}) },
       ammoBins: (unit?.ammoBins || []).map(bin => ({ ...bin, maxShots: bin.maxShots ?? bin.shots })),
       heat: 0, roundStartingHeat: 0, weaponHeat: 0, movementHeat: 0,
-      pilot: { hits: 0, consciousness: 'conscious' },
+      pilot: { hits: 0, consciousness: 'conscious', gunnery: skirmishAvatars?.[String(seat)]?.gunnery ?? 4, piloting: skirmishAvatars?.[String(seat)]?.piloting ?? 5 },
       criticalSlotDamage: {}, weaponJams: [],
       ...(activeCatalogueVersion ? { catalogueVersion: activeCatalogueVersion } : {})
     };

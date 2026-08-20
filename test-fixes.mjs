@@ -66,7 +66,7 @@ const sandbox = {
   mechLabel: (m) => (m && m.unitId ? m.unitId : 'mech'),
   // canvas + 2d context (rules.js assigns these as implicit globals; draw() guards on them)
   canvas: fakeEl(),
-  mapZoom: 1, mapPanX: 0, mapPanY: 0, gridOffsetX: 0, gridOffsetY: 0,
+  mapZoom: 1, mapPanX: 0, mapPanY: 0, mapRotation: 0, gridOffsetX: 0, gridOffsetY: 0,
   GRID_ROWS: 12, GRID_COLS: 16, HEX_SIZE: 28,
   // Proxy: any ctx method call is a no-op that returns a gradient/text stub
   // (so chained calls like createLinearGradient().addColorStop() work); property

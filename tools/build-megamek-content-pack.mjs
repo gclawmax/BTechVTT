@@ -179,21 +179,26 @@ async function main() {
   const registryPath = option('--registry-output', DEFAULT_REGISTRY);
   const sqlPath = option('--sql-output', DEFAULT_SQL);
   const config = JSON.parse(await readFile(configPath, 'utf8'));
-  const units = [];
-  for (const entry of config.units) units.push(parseMtf(await readFile(join(source, entry.source), 'utf8'), entry));
+  const compatibleOnly = process.argv.includes('--skip-unsupported');
+  const candidates = [];
+  for (const entry of config.units) candidates.push(parseMtf(await readFile(join(source, entry.source), 'utf8'), entry));
+  const unsupported = candidates.flatMap(unit => unit.mounts.filter(mount => !mount.weapon_key).map(mount => `${unit.id}: ${mount.raw_name}`));
+  const unsupportedUnits = candidates.filter(unit => !unit.definition.supported_by_vtt).map(unit => unit.id);
+  if ((unsupported.length || unsupportedUnits.length) && !compatibleOnly) {
+    throw new Error(`Unsupported content in supported allowlist:\n${[...unsupported, ...unsupportedUnits].join('\n')}`);
+  }
+  const units = compatibleOnly ? candidates.filter(unit => unit.definition.supported_by_vtt) : candidates;
   const sourceRevision = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding:'utf8' }).trim();
   const stable = { catalogue_version:config.catalogue_version, source_revision:sourceRevision, units };
   const contentSha256 = createHash('sha256').update(JSON.stringify(stable)).digest('hex');
   const registry = { ...stable, content_sha256:contentSha256, generated_at:new Date().toISOString(), attribution:ATTRIBUTION, source_repository:SOURCE_REPOSITORY };
+  const slots = units.reduce((total,unit) => total + Object.values(unit.criticals).flat().filter(Boolean).length,0);
+  console.log(`Generated ${units.length} units, ${units.reduce((n,u)=>n+u.mounts.length,0)} mounts, ${slots} occupied critical slots and ${units.reduce((n,u)=>n+u.ammo_bins.length,0)} ammo bins.`);
+  if (compatibleOnly && unsupportedUnits.length) console.log(`Skipped ${unsupportedUnits.length} units with unimplemented equipment: ${unsupportedUnits.join(', ')}.`);
   await mkdir(dirname(registryPath), { recursive:true });
   await mkdir(dirname(sqlPath), { recursive:true });
   await writeFile(registryPath, `${JSON.stringify(registry,null,2)}\n`);
   await writeFile(sqlPath, contentPack(registry));
-  const slots = units.reduce((total,unit) => total + Object.values(unit.criticals).flat().filter(Boolean).length,0);
-  const unsupported = units.flatMap(unit => unit.mounts.filter(mount => !mount.weapon_key).map(mount => `${unit.id}: ${mount.raw_name}`));
-  const unsupportedUnits = units.filter(unit => !unit.definition.supported_by_vtt).map(unit => unit.id);
-  console.log(`Generated ${units.length} units, ${units.reduce((n,u)=>n+u.mounts.length,0)} mounts, ${slots} occupied critical slots and ${units.reduce((n,u)=>n+u.ammo_bins.length,0)} ammo bins.`);
-  if (unsupported.length || unsupportedUnits.length) throw new Error(`Unsupported content in supported allowlist:\n${[...unsupported,...unsupportedUnits].join('\n')}`);
 }
 
 main().catch(error => { console.error(`Content-pack generation failed: ${error.message}`); process.exitCode=1; });

@@ -41,6 +41,9 @@ local-data/megamek-mm-data/
 local-data/megamek-catalogue.json
 local-data/btech-supported-registry.json
 local-data/btech-supported-content-pack.sql
+local-data/mw5-skirmish-import-candidates.json
+local-data/mw5-skirmish-registry.json
+local-data/mw5-skirmish-content-pack.sql
 
 # Retired local AI-assisted MegaMek exploration notes
 tools/Claude/
