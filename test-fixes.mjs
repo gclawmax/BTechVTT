@@ -177,6 +177,7 @@ check('#5 migration preserves later weapon extensions', migration.includes('btec
 check('#5 migration patches the live movement resolver', migration.includes("to_regprocedure('public.submit_battlemech_movement"));
 check('#5 migration preserves later movement extensions', migration.includes('btech_elevation') && migration.includes('btech_resolve_rough_ground_piloting_check'));
 check('#5 migration validates jump facing', migration.includes("Jump landing facing must be between 0 and 5"));
+check('#5 migration tolerates live resolver formatting', (migration.match(/regexp_replace\(patched|regexp_replace\(source/g) || []).length >= 3);
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

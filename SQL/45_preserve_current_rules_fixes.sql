@@ -36,13 +36,13 @@ BEGIN
  END IF;
  patched:=source;
  IF position('attacker_start->''pilot''->>''gunnery''' IN patched)=0 THEN
-  patched:=replace(patched,
-   'base_tn:=4+move_mod+target_mod+woods+sensor_mod+heat_mod;',
+  patched:=regexp_replace(patched,
+   'base_tn[[:space:]]*:=[[:space:]]*4[[:space:]]*\+[[:space:]]*move_mod[[:space:]]*\+[[:space:]]*target_mod[[:space:]]*\+[[:space:]]*woods[[:space:]]*\+[[:space:]]*sensor_mod[[:space:]]*\+[[:space:]]*heat_mod[[:space:]]*;',
    'base_tn:=coalesce((attacker_start->''pilot''->>''gunnery'')::int,4)+move_mod+target_mod+woods+sensor_mod+heat_mod;');
  END IF;
  IF position('side-right' IN patched)=0 OR position('side-left' IN patched)=0 THEN
-  patched:=replace(patched,
-   'angle:=CASE WHEN target_diff=0 THEN ''front'' WHEN target_diff IN (1,5) THEN ''side'' ELSE ''rear'' END;',
+  patched:=regexp_replace(patched,
+   'angle[[:space:]]*:=[[:space:]]*CASE[[:space:]]+WHEN[[:space:]]+target_diff[[:space:]]*=[[:space:]]*0[[:space:]]+THEN[[:space:]]+''front''[[:space:]]+WHEN[[:space:]]+target_diff[[:space:]]+IN[[:space:]]*[(][[:space:]]*1[[:space:]]*,[[:space:]]*5[[:space:]]*[)][[:space:]]+THEN[[:space:]]+''side''[[:space:]]+ELSE[[:space:]]+''rear''[[:space:]]+END[[:space:]]*;',
    'angle:=CASE WHEN target_diff=0 THEN ''front'' WHEN target_diff=1 THEN ''side-right'' WHEN target_diff=5 THEN ''side-left'' ELSE ''rear'' END;');
  END IF;
  IF position('attacker_start->''pilot''->>''gunnery''' IN patched)=0
@@ -66,8 +66,8 @@ BEGIN
   RAISE EXCEPTION 'Movement resolver is not at the expected terrain and rough-ground revision';
  END IF;
  IF position('jump landing facing' IN source)>0 THEN RETURN;END IF;
- patched:=replace(source,
-  E'   ELSE\n    current_facing:=btech_direction_to(current_col,current_row,next_col,next_row);\n   END IF;',
+ patched:=regexp_replace(source,
+  'ELSE[[:space:]]+current_facing[[:space:]]*:=[[:space:]]*btech_direction_to[(]current_col[[:space:]]*,[[:space:]]*current_row[[:space:]]*,[[:space:]]*next_col[[:space:]]*,[[:space:]]*next_row[)][[:space:]]*;[[:space:]]+END IF;',
   E'   ELSE\n    -- jump landing facing: a jumping BattleMech may choose any legal facing.\n    IF action ? ''facing'' THEN\n     IF action->>''facing'' !~ ''^[0-5]$'' THEN RAISE EXCEPTION ''Jump landing facing must be between 0 and 5'';END IF;\n     current_facing:=(action->>''facing'')::int;\n    ELSE\n     current_facing:=btech_direction_to(current_col,current_row,next_col,next_row);\n    END IF;\n   END IF;');
  IF patched=source OR position('jump landing facing' IN patched)=0 THEN
   RAISE EXCEPTION 'Movement resolver did not contain the expected jump-facing marker';
