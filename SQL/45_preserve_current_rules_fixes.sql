@@ -67,8 +67,8 @@ BEGIN
  END IF;
  IF position('jump landing facing' IN source)>0 THEN RETURN;END IF;
  patched:=regexp_replace(source,
-  'ELSE[[:space:]]+current_facing[[:space:]]*:=[[:space:]]*btech_direction_to[(]current_col[[:space:]]*,[[:space:]]*current_row[[:space:]]*,[[:space:]]*next_col[[:space:]]*,[[:space:]]*next_row[)][[:space:]]*;[[:space:]]+END IF;',
-  E'   ELSE\n    -- jump landing facing: a jumping BattleMech may choose any legal facing.\n    IF action ? ''facing'' THEN\n     IF action->>''facing'' !~ ''^[0-5]$'' THEN RAISE EXCEPTION ''Jump landing facing must be between 0 and 5'';END IF;\n     current_facing:=(action->>''facing'')::int;\n    ELSE\n     current_facing:=btech_direction_to(current_col,current_row,next_col,next_row);\n    END IF;\n   END IF;');
+  'current_facing[[:space:]]*:=[[:space:]]*btech_direction_to[(]current_col[[:space:]]*,[[:space:]]*current_row[[:space:]]*,[[:space:]]*next_col[[:space:]]*,[[:space:]]*next_row[)][[:space:]]*;',
+  E'-- jump landing facing: a jumping BattleMech may choose any legal facing.\n   IF action ? ''facing'' THEN\n    IF action->>''facing'' !~ ''^[0-5]$'' THEN RAISE EXCEPTION ''Jump landing facing must be between 0 and 5'';END IF;\n    current_facing:=(action->>''facing'')::int;\n   ELSE\n    current_facing:=btech_direction_to(current_col,current_row,next_col,next_row);\n   END IF;');
  IF patched=source OR position('jump landing facing' IN patched)=0 THEN
   RAISE EXCEPTION 'Movement resolver did not contain the expected jump-facing marker';
  END IF;

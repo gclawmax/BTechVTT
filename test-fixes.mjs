@@ -179,6 +179,7 @@ check('#5 migration preserves later movement extensions', migration.includes('bt
 check('#5 migration validates jump facing', migration.includes("Jump landing facing must be between 0 and 5"));
 check('#5 migration tolerates live resolver formatting', (migration.match(/regexp_replace\(patched|regexp_replace\(source/g) || []).length >= 3);
 check('#5 migration preserves extra live to-hit modifiers', migration.includes("'base_tn[[:space:]]*:=[[:space:]]*4'"));
+check('#5 migration patches the jump assignment directly', migration.includes("'current_facing[[:space:]]*:=[[:space:]]*btech_direction_to"));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);
