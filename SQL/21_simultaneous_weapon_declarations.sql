@@ -38,7 +38,7 @@ BEGIN
  IF woods>=3 THEN RAISE EXCEPTION 'Line of sight is blocked by intervening woods';END IF;
  sensor_mod:=CASE btech_critical_label_count(attacker_start,'Sensors') WHEN 1 THEN 2 ELSE 0 END;
  heat_mod:=CASE WHEN coalesce((attacker_start->>'roundStartingHeat')::int,0)+coalesce((attacker_start->>'movementHeat')::int,0)>=24 THEN 4 WHEN coalesce((attacker_start->>'roundStartingHeat')::int,0)+coalesce((attacker_start->>'movementHeat')::int,0)>=17 THEN 3 WHEN coalesce((attacker_start->>'roundStartingHeat')::int,0)+coalesce((attacker_start->>'movementHeat')::int,0)>=13 THEN 2 WHEN coalesce((attacker_start->>'roundStartingHeat')::int,0)+coalesce((attacker_start->>'movementHeat')::int,0)>=8 THEN 1 ELSE 0 END;
- base_tn:=4+move_mod+target_mod+woods+sensor_mod+heat_mod;validation_attacker:=attacker_start;
+ base_tn:=coalesce((attacker_start->'pilot'->>'gunnery')::int,4)+move_mod+target_mod+woods+sensor_mod+heat_mod;validation_attacker:=attacker_start;
 
  FOREACH selected_mount_id IN ARRAY p_weapon_mounts LOOP
   SELECT mount.location,mount.weapon_key,mount.definition,mount.raw_name INTO mount_location,selected_weapon_key,weapon,weapon_name
@@ -63,7 +63,7 @@ BEGIN
   firing_facing:=CASE WHEN mount_location IN ('lt','rt','ct','head') THEN coalesce((attacker_start->>'torsoFacing')::int,(attacker_start->>'facing')::int) ELSE (attacker_start->>'facing')::int END;
   firing_direction:=btech_direction_to((attacker_start->>'col')::int,(attacker_start->>'row')::int,(target_start->>'col')::int,(target_start->>'row')::int);facing_diff:=(firing_direction-firing_facing+6)%6;
   IF facing_diff NOT IN (0,1,5) THEN RAISE EXCEPTION '% target is outside its firing arc',weapon_name;END IF;
-  target_direction:=btech_direction_to((target_start->>'col')::int,(target_start->>'row')::int,(attacker_start->>'col')::int,(attacker_start->>'row')::int);target_diff:=(target_direction-(target_start->>'facing')::int+6)%6;angle:=CASE WHEN target_diff=0 THEN 'front' WHEN target_diff IN (1,5) THEN 'side' ELSE 'rear' END;
+  target_direction:=btech_direction_to((target_start->>'col')::int,(target_start->>'row')::int,(attacker_start->>'col')::int,(attacker_start->>'row')::int);target_diff:=(target_direction-(target_start->>'facing')::int+6)%6;angle:=CASE WHEN target_diff=0 THEN 'front' WHEN target_diff=1 THEN 'side-right' WHEN target_diff=5 THEN 'side-left' ELSE 'rear' END;
   IF dist>long_range THEN RAISE EXCEPTION '% is beyond long range',weapon_name;END IF;
   range_mod:=CASE WHEN dist<=short_range THEN 0 WHEN dist<=medium_range THEN 2 ELSE 4 END;IF minimum_range>0 AND dist<=minimum_range THEN range_mod:=range_mod+(minimum_range-dist+1);END IF;
   tn:=base_tn+range_mod+component_mod;

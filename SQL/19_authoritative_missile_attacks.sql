@@ -18,9 +18,10 @@ DECLARE da int:=floor(random()*6+1);db int:=floor(random()*6+1);roll_total int;l
 BEGIN
  roll_total:=da+db;
  location_id:=CASE p_angle
-  WHEN 'side' THEN CASE roll_total WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'rt' WHEN 8 THEN 'ct' WHEN 9 THEN 'lt' WHEN 10 THEN 'll' WHEN 11 THEN 'la' ELSE 'head' END
+  WHEN 'side-right' THEN CASE roll_total WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'rt' WHEN 8 THEN 'ct' WHEN 9 THEN 'lt' WHEN 10 THEN 'll' WHEN 11 THEN 'la' ELSE 'head' END
+  WHEN 'side-left' THEN CASE roll_total WHEN 2 THEN 'ct' WHEN 3 THEN 'la' WHEN 4 THEN 'la' WHEN 5 THEN 'rl' WHEN 6 THEN 'lt' WHEN 7 THEN 'lt' WHEN 8 THEN 'ct' WHEN 9 THEN 'rt' WHEN 10 THEN 'll' WHEN 11 THEN 'ra' ELSE 'head' END
   WHEN 'rear' THEN CASE roll_total WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'ct' WHEN 8 THEN 'lt' WHEN 9 THEN 'll' WHEN 10 THEN 'la' WHEN 11 THEN 'la' ELSE 'head' END
-  ELSE CASE roll_total WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'ct' WHEN 8 THEN 'lt' WHEN 9 THEN 'll' WHEN 10 THEN 'la' WHEN 11 THEN 'la' ELSE 'head' END END;
+  ELSE CASE roll_total WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'ct' WHEN 8 THEN 'lt' WHEN 9 THEN 'll' WHEN 10 THEN 'la' WHEN 11 THEN 'la' WHEN 12 THEN 'head' ELSE 'la' END END;
  RETURN jsonb_build_object('die_a',da,'die_b',db,'total',roll_total,'location',location_id);
 END $$;
 
@@ -73,7 +74,7 @@ BEGIN
  IF woods>=3 THEN RAISE EXCEPTION 'Line of sight is blocked by intervening woods';END IF;
  sensor_mod:=CASE btech_critical_label_count(attacker,'Sensors') WHEN 1 THEN 2 ELSE 0 END;
  heat_mod:=CASE WHEN coalesce((attacker->>'roundStartingHeat')::int,0)+coalesce((attacker->>'movementHeat')::int,0)>=24 THEN 4 WHEN coalesce((attacker->>'roundStartingHeat')::int,0)+coalesce((attacker->>'movementHeat')::int,0)>=17 THEN 3 WHEN coalesce((attacker->>'roundStartingHeat')::int,0)+coalesce((attacker->>'movementHeat')::int,0)>=13 THEN 2 WHEN coalesce((attacker->>'roundStartingHeat')::int,0)+coalesce((attacker->>'movementHeat')::int,0)>=8 THEN 1 ELSE 0 END;
- base_tn:=4+move_mod+target_mod+woods+sensor_mod+heat_mod;
+ base_tn:=coalesce((attacker->'pilot'->>'gunnery')::int,4)+move_mod+target_mod+woods+sensor_mod+heat_mod;
  SELECT coalesce(max(sequence),0)+1 INTO sequence_no FROM btech_combat_events WHERE game_id=p_game_id AND round=g.current_round AND phase='weapon_attack';
  INSERT INTO btech_combat_events(game_id,round,phase,sequence,player_id,attacker_instance_id,target_instance_id,declaration)
  VALUES(p_game_id,g.current_round,'weapon_attack',sequence_no,player.id,p_attacker_instance_id,p_target_instance_id,jsonb_build_object('weapon_mounts',p_weapon_mounts,'ammo_bins',p_ammo_bins,'catalogue_version',g.catalogue_version)) RETURNING id INTO event_id;
@@ -100,7 +101,7 @@ BEGIN
   firing_facing:=CASE WHEN mount_location IN ('lt','rt','ct','head') THEN coalesce((attacker->>'torsoFacing')::int,(attacker->>'facing')::int) ELSE (attacker->>'facing')::int END;
   firing_direction:=btech_direction_to((attacker->>'col')::int,(attacker->>'row')::int,(target->>'col')::int,(target->>'row')::int);facing_diff:=(firing_direction-firing_facing+6)%6;
   IF facing_diff NOT IN (0,1,5) THEN RAISE EXCEPTION '% target is outside its firing arc',weapon_name;END IF;
-  target_direction:=btech_direction_to((target->>'col')::int,(target->>'row')::int,(attacker->>'col')::int,(attacker->>'row')::int);target_diff:=(target_direction-(target->>'facing')::int+6)%6;angle:=CASE WHEN target_diff=0 THEN 'front' WHEN target_diff IN (1,5) THEN 'side' ELSE 'rear' END;
+  target_direction:=btech_direction_to((target->>'col')::int,(target->>'row')::int,(attacker->>'col')::int,(attacker->>'row')::int);target_diff:=(target_direction-(target->>'facing')::int+6)%6;angle:=CASE WHEN target_diff=0 THEN 'front' WHEN target_diff=1 THEN 'side-right' WHEN target_diff=5 THEN 'side-left' ELSE 'rear' END;
   IF dist>long_range THEN RAISE EXCEPTION '% is beyond long range',weapon_name;END IF;
   range_mod:=CASE WHEN dist<=short_range THEN 0 WHEN dist<=medium_range THEN 2 ELSE 4 END;IF minimum_range>0 AND dist<=minimum_range THEN range_mod:=range_mod+(minimum_range-dist+1);END IF;
   tn:=base_tn+range_mod+component_mod;da:=floor(random()*6+1);db:=floor(random()*6+1);

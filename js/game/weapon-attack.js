@@ -120,7 +120,10 @@ function weaponLocationDestroyed(attacker, weaponEntry) {
 
 function attackDirection(attacker, target) {
   const diff = (weaponDirectionTo(target, attacker) - target.facing + 6) % 6;
-  return diff === 0 ? 'front' : (diff === 1 || diff === 5) ? 'side' : 'rear';
+  if (diff === 0) return 'front';
+  if (diff === 1) return 'side-right';
+  if (diff === 5) return 'side-left';
+  return 'rear';
 }
 
 function axialRound(q, r) {
@@ -196,14 +199,15 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const sensorCritical = typeof criticalToHitModifier === 'function' ? criticalToHitModifier(eligibleAttacker) : 0;
   const critical = sensorCritical + weaponComponentToHitModifier(eligibleAttacker, weaponEntry);
   const heat = weaponHeatToHitModifier(eligibleAttacker);
+  const gunnery = eligibleAttacker.pilot?.gunnery ?? 4;
   return {
     valid: true,
     weapon,
     distance,
     range,
-    targetNumber: 4 + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0),
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0),
     attackAngle: attackDirection(attacker, target),
-    breakdown: `Gunnery 4 + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}`
   };
 }
 
@@ -322,7 +326,10 @@ function clusterHitsForRoll(size, total) {
 
 function hitLocationForRoll(roll, angle = 'front') {
   if (angle === 'rear') return ({ 2:'ct',3:'ra',4:'ra',5:'rl',6:'rt',7:'ct',8:'lt',9:'ll',10:'la',11:'la',12:'head' })[roll];
-  if (angle === 'side') return ({ 2:'ct',3:'ra',4:'ra',5:'rl',6:'rt',7:'rt',8:'ct',9:'lt',10:'ll',11:'la',12:'head' })[roll];
+  // Mirrored side tables: attacking the target's right flank favors RA/RT,
+  // attacking the left flank favors LA/LT (Total Warfare side hit-location tables).
+  if (angle === 'side-right') return ({ 2:'ct',3:'ra',4:'ra',5:'rl',6:'rt',7:'rt',8:'ct',9:'lt',10:'ll',11:'la',12:'head' })[roll];
+  if (angle === 'side-left') return ({ 2:'ct',3:'la',4:'la',5:'rl',6:'lt',7:'lt',8:'ct',9:'rt',10:'ll',11:'ra',12:'head' })[roll];
   if (roll === 2) return 'ct';
   if (roll === 3 || roll === 4) return 'ra';
   if (roll === 5) return 'rl';
@@ -330,6 +337,7 @@ function hitLocationForRoll(roll, angle = 'front') {
   if (roll === 7) return 'ct';
   if (roll === 8) return 'lt';
   if (roll === 9) return 'll';
+  if (roll === 12) return 'head';
   return 'la';
 }
 

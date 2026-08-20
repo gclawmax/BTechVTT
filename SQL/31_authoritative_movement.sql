@@ -70,7 +70,15 @@ BEGIN
    IF next_col NOT BETWEEN 0 AND 15 OR next_row NOT BETWEEN 0 AND 11 THEN RAISE EXCEPTION 'Jump landing is outside the map';END IF;
    IF EXISTS (SELECT 1 FROM jsonb_array_elements(before_units) unit WHERE unit->>'instanceId'<>p_instance_id AND (unit->>'col')::int=next_col AND (unit->>'row')::int=next_row AND NOT coalesce((unit->>'destroyed')::boolean,false)) THEN RAISE EXCEPTION 'A BattleMech cannot land in an occupied hex';END IF;
    mp_used:=btech_hex_distance(current_col,current_row,next_col,next_row);hexes_moved:=mp_used;
-   current_facing:=btech_direction_to(current_col,current_row,next_col,next_row);current_col:=next_col;current_row:=next_row;
+   -- The 'Mech faces the direction of travel on landing (Quick-Start Rules p.3), but the
+   -- player may freely rotate to any facing at no MP cost before confirming. Honour an
+   -- explicit landing facing when supplied; otherwise default to the travel direction.
+   IF action->>'facing' IS NOT NULL THEN
+    current_facing:=((action->>'facing')::int)%6;
+   ELSE
+    current_facing:=btech_direction_to(current_col,current_row,next_col,next_row);
+   END IF;
+   current_col:=next_col;current_row:=next_row;
   ELSE RAISE EXCEPTION 'Invalid movement action';END IF;
   IF mp_used>mp_max THEN RAISE EXCEPTION 'Movement path exceeds the available % movement points',p_mode;END IF;
  END LOOP;

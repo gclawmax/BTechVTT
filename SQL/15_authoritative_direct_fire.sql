@@ -137,20 +137,21 @@ BEGIN
   firing_facing:=CASE WHEN mount.location ILIKE '%torso%' OR mount.location ILIKE '%head%' THEN coalesce((attacker->>'torsoFacing')::int,(attacker->>'facing')::int) ELSE (attacker->>'facing')::int END;
   firing_direction:=btech_direction_to((attacker->>'col')::int,(attacker->>'row')::int,(target->>'col')::int,(target->>'row')::int); facing_diff:=(firing_direction-firing_facing+6)%6;
   IF facing_diff NOT IN (0,1,5) THEN RAISE EXCEPTION '% target is outside its firing arc',weapon.name; END IF;
-  target_direction:=btech_direction_to((target->>'col')::int,(target->>'row')::int,(attacker->>'col')::int,(attacker->>'row')::int);target_diff:=(target_direction-(target->>'facing')::int+6)%6;angle:=CASE WHEN target_diff=0 THEN 'front' WHEN target_diff IN (1,5) THEN 'side' ELSE 'rear' END;
+  target_direction:=btech_direction_to((target->>'col')::int,(target->>'row')::int,(attacker->>'col')::int,(attacker->>'row')::int);target_diff:=(target_direction-(target->>'facing')::int+6)%6;angle:=CASE WHEN target_diff=0 THEN 'front' WHEN target_diff=1 THEN 'side-right' WHEN target_diff=5 THEN 'side-left' ELSE 'rear' END;
   IF dist>weapon.long_range THEN RAISE EXCEPTION '% is beyond long range',weapon.name; END IF;
   range_mod:=CASE WHEN dist<=weapon.short_range THEN 0 WHEN dist<=weapon.medium_range THEN 2 ELSE 4 END;
   IF weapon.minimum_range>0 AND dist<=weapon.minimum_range THEN range_mod:=range_mod+(weapon.minimum_range-dist+1); END IF;
-  tn:=4+move_mod+target_mod+range_mod+woods;
+  tn:=coalesce((attacker->'pilot'->>'gunnery')::int,4)+move_mod+target_mod+range_mod+woods;
   FOR shot IN 1..mount.shots LOOP
    attacker:=btech_consume_ammo(attacker,weapon.ammo_type);
    da:=floor(random()*6+1); db:=floor(random()*6+1);
    IF da+db>=tn AND tn<=12 THEN
     lr:=floor(random()*6+1)+floor(random()*6+1);
     loc:=CASE angle
-      WHEN 'side' THEN CASE lr WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'rt' WHEN 8 THEN 'ct' WHEN 9 THEN 'lt' WHEN 10 THEN 'll' WHEN 11 THEN 'la' ELSE 'head' END
+      WHEN 'side-right' THEN CASE lr WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'rt' WHEN 8 THEN 'ct' WHEN 9 THEN 'lt' WHEN 10 THEN 'll' WHEN 11 THEN 'la' ELSE 'head' END
+      WHEN 'side-left' THEN CASE lr WHEN 2 THEN 'ct' WHEN 3 THEN 'la' WHEN 4 THEN 'la' WHEN 5 THEN 'rl' WHEN 6 THEN 'lt' WHEN 7 THEN 'lt' WHEN 8 THEN 'ct' WHEN 9 THEN 'rt' WHEN 10 THEN 'll' WHEN 11 THEN 'ra' ELSE 'head' END
       WHEN 'rear' THEN CASE lr WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'ct' WHEN 8 THEN 'lt' WHEN 9 THEN 'll' WHEN 10 THEN 'la' WHEN 11 THEN 'la' ELSE 'head' END
-      ELSE CASE lr WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'ct' WHEN 8 THEN 'lt' WHEN 9 THEN 'll' WHEN 10 THEN 'la' WHEN 11 THEN 'la' ELSE 'head' END END;
+      ELSE CASE lr WHEN 2 THEN 'ct' WHEN 3 THEN 'ra' WHEN 4 THEN 'ra' WHEN 5 THEN 'rl' WHEN 6 THEN 'rt' WHEN 7 THEN 'ct' WHEN 8 THEN 'lt' WHEN 9 THEN 'll' WHEN 10 THEN 'la' WHEN 11 THEN 'la' WHEN 12 THEN 'head' ELSE 'la' END END;
     damage_result:=btech_apply_direct_damage(target,weapon.damage,loc,angle='rear'); target:=damage_result->'mech';
     results:=results||jsonb_build_array(jsonb_build_object('mount_id',v_mount_id,'weapon',weapon.name,'to_hit',jsonb_build_object('die_a',da,'die_b',db,'total',da+db,'target',tn),'hit',true,'angle',angle,'location',loc,'damage',weapon.damage,'critical_checks',damage_result->'critical_checks'));
    ELSE results:=results||jsonb_build_array(jsonb_build_object('mount_id',v_mount_id,'weapon',weapon.name,'to_hit',jsonb_build_object('die_a',da,'die_b',db,'total',da+db,'target',tn),'hit',false)); END IF;

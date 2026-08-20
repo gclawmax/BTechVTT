@@ -192,7 +192,8 @@ async function startMovementMode(instanceId, mode) {
     origRow: mech.row,
     origFacing: mech.facing,
     origTorsoFacing: mech.torsoFacing,
-    path: []
+    path: [],
+    jumpFacing: false
   };
   renderMovementPanel();
   draw();
@@ -215,11 +216,16 @@ function attemptMoveStep(col, row) {
     const dir = directionBetween(moveState.origCol, moveState.origRow, col, row);
     mech.col = col;
     mech.row = row;
-    if (dir !== -1) mech.facing = dir; // simple default facing on landing; direct hex clicks let the player choose it
+    // Per Quick-Start Rules p.3 the 'Mech faces the direction of travel on landing,
+    // but the player may then freely rotate to any facing at no MP cost. We land
+    // facing the travel direction, then enter a free-facing micro-state where the
+    // turn buttons rotate without deducting MP before the move is confirmed.
+    if (dir !== -1) mech.facing = dir;
     mech.torsoFacing = mech.facing;
     moveState.mpUsed = dist;
     moveState.hexesMoved = dist;
     moveState.path = [{ action: 'jump', col, row }];
+    moveState.jumpFacing = true;
   } else {
     // Walk/Run: one hex per click, forward/rear along current facing, or a facing change + step.
     const dir = directionBetween(mech.col, mech.row, col, row);
@@ -247,23 +253,30 @@ function attemptMoveStep(col, row) {
 }
 
 // Spend Movement Points to change facing without entering a new hex.
+// During the post-jump free-facing micro-state (moveState.jumpFacing) the rotation
+// is free — per Quick-Start Rules p.3 the landing facing may be chosen at no MP cost.
 function turnMovementFacing(instanceId, direction) {
   if (!moveState.active || currentGameState.phase !== 'movement') return;
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.instanceId !== moveState.instanceId || mech.owner !== mySeatNumber || !isMyActiveTurn()) return;
 
-  const mpLeft = moveState.mpMax - moveState.mpUsed;
-  if (mpLeft < 1) {
-    flashMoveWarning('No MP remaining for a facing change.');
-    return;
+  const freeFacing = Boolean(moveState.jumpFacing);
+  if (!freeFacing) {
+    const mpLeft = moveState.mpMax - moveState.mpUsed;
+    if (mpLeft < 1) {
+      flashMoveWarning('No MP remaining for a facing change.');
+      return;
+    }
   }
 
   // Direction indices increase counter-clockwise on the rendered board.
   const delta = direction === 'left' ? 1 : -1;
   mech.facing = (mech.facing + delta + 6) % 6;
   mech.torsoFacing = mech.facing;
-  moveState.mpUsed += 1;
-  moveState.path.push({ action: 'turn', direction });
+  if (!freeFacing) {
+    moveState.mpUsed += 1;
+    moveState.path.push({ action: 'turn', direction });
+  }
 
   renderMovementPanel();
   renderReactionPanel();
@@ -309,11 +322,16 @@ async function confirmMove() {
 
 async function submitAuthoritativeMovement(mech, mode, path) {
   const summary = `${mechLabel(mech)} ${mode === 'jump' ? 'jumped' : mode === 'run' ? 'ran' : mode === 'walk' ? 'walked' : 'stood still'}${mode === 'stand' ? '' : ` to ${hexCode(mech.col, mech.row)}`}`;
+  // For a jump, attach the player's chosen landing facing so the server honours it
+  // (the 'Mech faces travel direction by default, but the player may rotate freely).
+  const submitPath = (mode === 'jump' && Array.isArray(path) && path.length === 1 && path[0].action === 'jump')
+    ? [{ ...path[0], facing: mech.facing }]
+    : path;
   const { data, error } = await db.rpc('submit_battlemech_movement', {
     p_game_id: currentGameId,
     p_instance_id: mech.instanceId,
     p_mode: mode,
-    p_path: path
+    p_path: submitPath
   });
   if (error) {
     flashMoveWarning(error.message);
