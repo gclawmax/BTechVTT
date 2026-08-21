@@ -35,11 +35,12 @@ Supabase content pack with:
 node tools/build-megamek-content-pack.mjs
 ```
 
-This produces two Git-ignored files:
+This produces Git-ignored registry and SQL outputs:
 
 ```text
 local-data/btech-supported-registry.json
 local-data/btech-supported-content-pack.sql
+local-data/btech-supported-content-pack.sql.parts/
 ```
 
 Run `SQL/17_versioned_unit_catalogue.sql` once to create the generic schema.
@@ -108,6 +109,13 @@ critical-slot, and heat resolvers without inspecting or rewriting an older
 function. Finally run the generated `local-data/mw5-skirmish-content-pack.sql`.
 New matches pin the new catalogue version; existing matches retain the version
 with which they began.
+
+The single SQL file is intended for a direct database connection. Supabase's
+browser SQL Editor may reject it as too large. In that case, open
+`local-data/mw5-skirmish-content-pack.sql.parts/` and run each numbered `.sql`
+file in order, finishing with `_verify.sql`. Every data part is transactional
+and safe to rerun. The verification file reports the four table counts and
+fails clearly if any part was missed.
 
 ## Attribution and licence
 
