@@ -360,7 +360,12 @@ html, body {
 .roster-weight-heading { margin-bottom:6px; color:var(--amber); font:10px var(--display); letter-spacing:.1em; text-transform:uppercase; }
 .roster-empty { padding:18px 0; color:var(--phosphor-dim); font:11px var(--mono); text-align:center; }
 .roster-options { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
-.roster-option { min-height:72px; padding:7px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); text-align:left; font:10px var(--mono); cursor:pointer; }
+.roster-option-wrap { position:relative; min-width:0; }
+.roster-option { width:100%; height:100%; min-height:72px; padding:7px 31px 7px 7px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); text-align:left; font:10px var(--mono); cursor:pointer; }
+.roster-option-wrap.favourite .roster-option { border-color:#c98a19; }
+.roster-favourite-star { position:absolute; z-index:1; top:5px; right:5px; width:24px; height:24px; padding:0; border:1px solid transparent; border-radius:2px; background:rgba(255,255,255,.9); color:#8a887d; font:17px/22px sans-serif; cursor:pointer; }
+.roster-favourite-star:hover,.roster-favourite-star:focus-visible { border-color:var(--amber); outline:none; }
+.roster-favourite-star.active { color:#c47a00; background:#fff4d6; }
 .roster-option.selected { border-color:var(--amber); background:#fff6e5; }
 .roster-option:disabled { opacity:.45; cursor:not-allowed; }
 .roster-option .roster-option-name { display:block; font-weight:bold; margin-bottom:5px; }

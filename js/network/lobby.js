@@ -12,8 +12,62 @@ async function copyLobbyGameCode() {
 }
 
 // These are view preferences only: they never change the shared match roster.
-const lobbyRosterFilters = { tech: 'both', weights: new Set(['light', 'medium', 'heavy', 'assault']), search: '' };
+const lobbyRosterFilters = { tech: 'both', weights: new Set(['light', 'medium', 'heavy', 'assault']), search: '', favouritesOnly: false };
+const favouriteUnitIds = new Set();
+let favouritesLoadedForUserId = null;
 let skirmishAvatarEnsureInFlight = false;
+
+async function loadProfileUnitFavourites() {
+  if (!currentUser?.id || favouritesLoadedForUserId === currentUser.id) return;
+  const { data, error } = await db.from('profiles').select('btech_favourite_units').eq('id', currentUser.id).maybeSingle();
+  if (error) {
+    console.warn('Unable to load BattleMech favourites:', error);
+    return;
+  }
+  favouriteUnitIds.clear();
+  for (const unitId of data?.btech_favourite_units || []) favouriteUnitIds.add(unitId);
+  favouritesLoadedForUserId = currentUser.id;
+}
+
+function updateLobbyFavouriteCard(unitId, favourite) {
+  for (const card of document.querySelectorAll('.roster-option-wrap[data-unit-id]')) {
+    if (card.dataset.unitId !== unitId) continue;
+    card.dataset.favourite = favourite ? 'true' : 'false';
+    card.classList.toggle('favourite', favourite);
+    const star = card.querySelector('.roster-favourite-star');
+    if (star) {
+      star.textContent = favourite ? '★' : '☆';
+      star.classList.toggle('active', favourite);
+      star.setAttribute('aria-pressed', String(favourite));
+      star.title = favourite ? 'Remove this exact variant from favourites' : 'Add this exact variant to favourites';
+    }
+  }
+  filterLobbyRosterSearch(lobbyRosterFilters.search);
+}
+
+async function toggleLobbyUnitFavourite(event, unitId) {
+  event?.preventDefault();
+  event?.stopPropagation();
+  if (!currentUser?.id || !isSupportedUnit(unitId)) return;
+  const wasFavourite = favouriteUnitIds.has(unitId);
+  const favourite = !wasFavourite;
+  if (favourite) favouriteUnitIds.add(unitId); else favouriteUnitIds.delete(unitId);
+  updateLobbyFavouriteCard(unitId, favourite);
+  const { data, error } = await db.rpc('set_btech_unit_favourite', { p_unit_id: unitId, p_favourite: favourite });
+  if (error) {
+    if (wasFavourite) favouriteUnitIds.add(unitId); else favouriteUnitIds.delete(unitId);
+    updateLobbyFavouriteCard(unitId, wasFavourite);
+    document.getElementById('lobby-status').textContent = `Favourite could not be saved: ${error.message}`;
+    return;
+  }
+  favouriteUnitIds.clear();
+  for (const savedUnitId of data || []) favouriteUnitIds.add(savedUnitId);
+}
+
+function toggleLobbyFavouritesFilter() {
+  lobbyRosterFilters.favouritesOnly = !lobbyRosterFilters.favouritesOnly;
+  loadLobbyUI();
+}
 
 function lobbyRosterSearchKey(value) {
   return String(value || '').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -25,12 +79,14 @@ function filterLobbyRosterSearch(value) {
   if (!roster) return;
   const needle = lobbyRosterSearchKey(lobbyRosterFilters.search);
   let visibleCount = 0;
-  for (const option of roster.querySelectorAll('.roster-option[data-search]')) {
-    option.hidden = Boolean(needle) && !option.dataset.search.includes(needle);
+  for (const option of roster.querySelectorAll('.roster-option-wrap[data-search]')) {
+    const searchMismatch = Boolean(needle) && !option.dataset.search.includes(needle);
+    const favouriteMismatch = lobbyRosterFilters.favouritesOnly && option.dataset.favourite !== 'true';
+    option.hidden = searchMismatch || favouriteMismatch;
     if (!option.hidden) visibleCount += 1;
   }
   for (const group of roster.querySelectorAll('.roster-weight-group')) {
-    group.hidden = !group.querySelector('.roster-option[data-search]:not([hidden])');
+    group.hidden = !group.querySelector('.roster-option-wrap[data-search]:not([hidden])');
   }
   const empty = document.getElementById('lobby-roster-search-empty');
   if (empty) empty.hidden = visibleCount > 0;
@@ -153,6 +209,7 @@ async function loadLobbyUI() {
       return;
     }
   }
+  await loadProfileUnitFavourites();
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
 
@@ -397,7 +454,9 @@ function renderLobbyMatchSetup(gameState, players) {
     const disabled = hangar.length >= 12;
     const techLabel = techBaseForUnit(unit) === 'clan' ? 'Clan' : 'Inner Sphere';
     const searchKey = lobbyRosterSearchKey(`${unit.chassis} ${unit.variant} ${id} ${unit.tonnage} ${techLabel}`);
-    return `<button class="roster-option" data-search="${searchKey}" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button>`;
+    const favourite = favouriteUnitIds.has(id);
+    const favouriteTitle = favourite ? 'Remove this exact variant from favourites' : 'Add this exact variant to favourites';
+    return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button></div>`;
   };
   const hangarCards = hangar.map(entry => {
     const unit = getSupportedUnit(entry.unit_id);
@@ -406,6 +465,7 @@ function renderLobbyMatchSetup(gameState, players) {
   }).join('') || '<div class="roster-empty">Add BattleMechs below to build your Hangar.</div>';
   rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Gunnery ${avatar?.gunnery ?? 4} · Piloting ${avatar?.piloting ?? 5} · Match-only Avatar</span></div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
     <div class="roster-search"><label for="lobby-roster-search">Find a BattleMech</label><div><input id="lobby-roster-search" type="search" autocomplete="off" placeholder="Chassis, variant, tonnage or tech base" value="${lobbyRosterFilters.search.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}" oninput="filterLobbyRosterSearch(this.value)"><button id="lobby-roster-search-clear" type="button" onclick="clearLobbyRosterSearch()">Clear</button></div></div>
+    <div class="roster-filter-bar"><span>Quick find</span><button class="roster-filter ${lobbyRosterFilters.favouritesOnly ? 'active' : ''}" onclick="toggleLobbyFavouritesFilter()">★ Favourites</button></div>
     <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
     <div class="roster-filter-bar"><span>Weight</span>${weightButton('light', 'Light')}${weightButton('medium', 'Medium')}${weightButton('heavy', 'Heavy')}${weightButton('assault', 'Assault')}</div>
     <div class="roster-scroll">${visibleByWeight.map(([weight, entries]) => entries.length ? `<section class="roster-weight-group"><div class="roster-weight-heading">${weight} ${weight === 'assault' ? '— 80–100 tons' : weight === 'heavy' ? '— 60–75 tons' : weight === 'medium' ? '— 40–55 tons' : '— 20–35 tons'}</div><div class="roster-options">${entries.map(card).join('')}</div></section>` : '').join('')}<div id="lobby-roster-search-empty" class="roster-empty" hidden>No supported BattleMechs match the search and filters.</div></div>`;

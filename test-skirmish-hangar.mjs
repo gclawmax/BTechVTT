@@ -14,6 +14,14 @@ assert.match(lobby, /buildRosterInstances\(gameState\.rosters, gameState\.skirmi
 assert.match(lobby, /function filterLobbyRosterSearch/);
 assert.match(lobby, /data-search=/);
 assert.match(lobby, /Chassis, variant, tonnage or tech base/);
+assert.match(lobby, /loadProfileUnitFavourites/);
+assert.match(lobby, /set_btech_unit_favourite/);
+assert.match(lobby, /toggleLobbyUnitFavourite/);
+assert.match(lobby, /favouritesOnly/);
+const favouritesSql = readFileSync('SQL/52_profile_unit_favourites.sql', 'utf8');
+assert.match(favouritesSql, /btech_favourite_units text\[\]/);
+assert.match(favouritesSql, /set_btech_unit_favourite/);
+assert.match(favouritesSql, /profile\.id=auth\.uid\(\)/);
 const movement = readFileSync('js/movement/rules.js', 'utf8');
 assert.match(movement, /function rotateMapView/);
 assert.match(movement, /ctx\.rotate\(mapRotation/);
