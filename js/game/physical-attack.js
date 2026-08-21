@@ -64,11 +64,12 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
   const targetTerrain = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
   let damage = physicalAttackDamage(attacker, type);
   while (reductions-- > 0) damage = Math.floor(damage / 2);
+  const piloting = Number(attacker.pilot?.piloting ?? attacker.pilotingSkill ?? 5);
   return {
     valid: true,
     damage: Math.max(1, damage),
-    targetNumber: 5 + attackerMove + targetMove + targetTerrain + componentModifier + (type === 'kick' ? -2 : 0),
-    breakdown: `Piloting 5 + move ${attackerMove} + target ${targetMove} + terrain ${targetTerrain}${componentModifier ? ` + actuator ${componentModifier}` : ''}${type === 'kick' ? ' - kick 2' : ''}`
+    targetNumber: piloting + attackerMove + targetMove + targetTerrain + componentModifier + (type === 'kick' ? -2 : 0),
+    breakdown: `Piloting ${piloting} + move ${attackerMove} + target ${targetMove} + terrain ${targetTerrain}${componentModifier ? ` + actuator ${componentModifier}` : ''}${type === 'kick' ? ' - kick 2' : ''}`
   };
 }
 

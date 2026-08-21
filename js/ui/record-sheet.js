@@ -42,8 +42,8 @@ function showRecordSheet(instanceId) {
   modal.id = 'record-sheet-modal';
   modal.className = 'record-sheet-modal';
   modal.innerHTML = `<div class="record-sheet" role="dialog" aria-modal="true" aria-label="${unit.chassis} ${unit.variant} record sheet">
-    <header><div><div class="panel-eyebrow">BattleMech Record Sheet</div><h2>${unit.chassis} ${unit.variant}</h2><p>Player ${mech.owner} · ${unit.tonnage} tons · Heat ${mech.heat || 0} · Pilot ${pilotState} (${pilot.hits || 0} hit${pilot.hits === 1 ? '' : 's'})</p></div><button onclick="closeRecordSheet()">Close</button></header>
-    <div class="record-note">Pilot: ${pilotState} · ${pilot.hits || 0} hit${pilot.hits === 1 ? '' : 's'}. Critical slots are shown from the unit record. ${criticalCount ? `${criticalCount} critical slot${criticalCount === 1 ? '' : 's'} damaged.` : 'No critical slots damaged.'}</div>
+    <header><div><div class="panel-eyebrow">BattleMech Record Sheet</div><h2>${unit.chassis} ${unit.variant}</h2><p>Player ${mech.owner} · ${unit.tonnage} tons · Heat ${mech.heat || 0} · ${escapeHtml(pilot.name || 'MechWarrior')} · Gunnery ${pilot.gunnery ?? 4} · Piloting ${pilot.piloting ?? mech.pilotingSkill ?? 5}</p></div><button onclick="closeRecordSheet()">Close</button></header>
+    <div class="record-note">Pilot: ${escapeHtml(pilot.name || 'MechWarrior')} · ${pilotState} · ${pilot.hits || 0} hit${pilot.hits === 1 ? '' : 's'}. Critical slots are shown from the unit record. ${criticalCount ? `${criticalCount} critical slot${criticalCount === 1 ? '' : 's'} damaged.` : 'No critical slots damaged.'}</div>
     <div class="record-grid">${locations}</div>
   </div>`;
   document.body.appendChild(modal);

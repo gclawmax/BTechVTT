@@ -4,6 +4,10 @@ function titleCase(str) {
   return str.replace(/\b\w/g, c => c.toUpperCase());
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+}
+
 async function showMainMenu() {
   const username = currentUser?.user_metadata?.username ||
                    currentUser?.email?.replace('@FreeGames.com', '') ||

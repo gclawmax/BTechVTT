@@ -109,6 +109,19 @@ function skirmishHangarId() {
   return globalThis.crypto?.randomUUID?.() || `hangar-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function skirmishPilotForEntry(entry) {
+  return {
+    id: entry?.pilot?.id || `pilot-${entry?.id || skirmishHangarId()}`,
+    name: String(entry?.pilot?.name || 'MechWarrior').trim().slice(0, 48) || 'MechWarrior',
+    gunnery: Math.max(0, Math.min(8, Number(entry?.pilot?.gunnery ?? 4))),
+    piloting: Math.max(0, Math.min(8, Number(entry?.pilot?.piloting ?? 5)))
+  };
+}
+
+function skirmishSkillOptions(selected) {
+  return Array.from({ length: 9 }, (_, value) => `<option value="${value}" ${value === Number(selected) ? 'selected' : ''}>${value}</option>`).join('');
+}
+
 function weightClassForUnit(unit) {
   const tons = Number(unit?.tonnage || 0);
   if (tons <= 35) return 'light';
@@ -389,7 +402,35 @@ async function addMechToSkirmishHangar(unitId) {
   const avatar = skirmishAvatarForSeat(state, mySeatNumber);
   const hangar = [...(avatar?.hangar || [])];
   if (hangar.length >= 12) { document.getElementById('lobby-status').textContent = 'A Skirmish Hangar can hold up to 12 BattleMechs.'; return; }
-  hangar.push({ id: skirmishHangarId(), unit_id: unitId });
+  const entryId = skirmishHangarId();
+  hangar.push({ id: entryId, unit_id: unitId, pilot: { id: `pilot-${entryId}`, name: 'MechWarrior', gunnery: 4, piloting: 5 } });
+  await saveSkirmishHangar(hangar, [...(avatar?.deployed || [])]);
+}
+
+async function saveSkirmishPilot(entryId) {
+  if (!currentGameId || !currentUser || vsAiMode) return;
+  const nameInput = document.getElementById(`hangar-pilot-name-${entryId}`);
+  const gunneryInput = document.getElementById(`hangar-pilot-gunnery-${entryId}`);
+  const pilotingInput = document.getElementById(`hangar-pilot-piloting-${entryId}`);
+  const name = String(nameInput?.value || '').trim();
+  if (!name) {
+    document.getElementById('lobby-status').textContent = 'Give this MechWarrior a name before saving.';
+    nameInput?.focus();
+    return;
+  }
+  const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  if (error || !game) return;
+  const state = typeof game.state === 'string' ? JSON.parse(game.state) : (game.state || {});
+  const avatar = skirmishAvatarForSeat(state, mySeatNumber);
+  const hangar = (avatar?.hangar || []).map(entry => entry.id === entryId ? {
+    ...entry,
+    pilot: {
+      ...skirmishPilotForEntry(entry),
+      name: name.slice(0, 48),
+      gunnery: Number(gunneryInput?.value ?? 4),
+      piloting: Number(pilotingInput?.value ?? 5)
+    }
+  } : entry);
   await saveSkirmishHangar(hangar, [...(avatar?.deployed || [])]);
 }
 
@@ -461,9 +502,19 @@ function renderLobbyMatchSetup(gameState, players) {
   const hangarCards = hangar.map(entry => {
     const unit = getSupportedUnit(entry.unit_id);
     const isDeployed = deployed.includes(entry.id);
-    return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}"><div><strong>${unit ? `${unit.chassis} ${unit.variant}` : entry.unit_id}</strong><span>${unit?.tonnage || '?'} tons${isDeployed ? ' · DEPLOYED' : ''}</span></div><div><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Withdraw' : 'Deploy'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div></div>`;
+    const pilot = skirmishPilotForEntry(entry);
+    return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}">
+      <div class="hangar-mech"><strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${isDeployed ? ' · DEPLOYED' : ''}</span></div>
+      <div class="hangar-pilot-fields">
+        <label>Pilot<input id="hangar-pilot-name-${entry.id}" maxlength="48" value="${escapeHtml(pilot.name)}"></label>
+        <label>Gunnery<select id="hangar-pilot-gunnery-${entry.id}">${skirmishSkillOptions(pilot.gunnery)}</select></label>
+        <label>Piloting<select id="hangar-pilot-piloting-${entry.id}">${skirmishSkillOptions(pilot.piloting)}</select></label>
+        <button onclick="saveSkirmishPilot('${entry.id}')">Save Pilot</button>
+      </div>
+      <div class="hangar-actions"><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Withdraw' : 'Deploy'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div>
+    </div>`;
   }).join('') || '<div class="roster-empty">Add BattleMechs below to build your Hangar.</div>';
-  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Gunnery ${avatar?.gunnery ?? 4} · Piloting ${avatar?.piloting ?? 5} · Match-only Avatar</span></div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
+  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Match-only Avatar · each BattleMech has its own pilot</span></div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
     <div class="roster-search"><label for="lobby-roster-search">Find a BattleMech</label><div><input id="lobby-roster-search" type="search" autocomplete="off" placeholder="Chassis, variant, tonnage or tech base" value="${lobbyRosterFilters.search.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}" oninput="filterLobbyRosterSearch(this.value)"><button id="lobby-roster-search-clear" type="button" onclick="clearLobbyRosterSearch()">Clear</button></div></div>
     <div class="roster-filter-bar"><span>Quick find</span><button class="roster-filter ${lobbyRosterFilters.favouritesOnly ? 'active' : ''}" onclick="toggleLobbyFavouritesFilter()">★ Favourites</button></div>
     <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
@@ -610,6 +661,9 @@ function buildRosterInstances(rosters, skirmishAvatars = {}) {
   return [1, 2].flatMap(seat => (rosters?.[String(seat)] || []).map((unitId, index) => {
     const position = deployment[seat][index];
     const unit = getSupportedUnit(unitId);
+    const avatar = skirmishAvatars?.[String(seat)] || {};
+    const deployedEntries = (avatar.deployed || []).map(entryId => (avatar.hangar || []).find(entry => entry.id === entryId)).filter(Boolean);
+    const pilot = skirmishPilotForEntry(deployedEntries[index] || (avatar.hangar || []).find(entry => entry.unit_id === unitId));
     return {
       instanceId: `${unitId}-p${seat}-${index + 1}`,
       unitId, owner: seat, col: position.col, row: position.row,
@@ -621,7 +675,8 @@ function buildRosterInstances(rosters, skirmishAvatars = {}) {
       structure: { ...(unit?.structure || {}) },
       ammoBins: (unit?.ammoBins || []).map(bin => ({ ...bin, maxShots: bin.maxShots ?? bin.shots })),
       heat: 0, roundStartingHeat: 0, weaponHeat: 0, movementHeat: 0,
-      pilot: { hits: 0, consciousness: 'conscious', gunnery: skirmishAvatars?.[String(seat)]?.gunnery ?? 4, piloting: skirmishAvatars?.[String(seat)]?.piloting ?? 5 },
+      pilot: { ...pilot, hits: 0, consciousness: 'conscious' },
+      pilotingSkill: pilot.piloting,
       criticalSlotDamage: {}, weaponJams: [],
       ...(activeCatalogueVersion ? { catalogueVersion: activeCatalogueVersion } : {})
     };
