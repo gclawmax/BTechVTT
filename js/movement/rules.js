@@ -9,6 +9,10 @@ const HEX_DIRS = [
   { dq: -1, dr: 1, angle: 120 },  // 4: SW
   { dq: 0, dr: 1,  angle: 60 }    // 5: SE
 ];
+// MegaMek top-down sprites are authored pointing toward the top of the image.
+// Canvas direction 0 points east, so source art needs one +90° baseline turn;
+// HEX_DIRS then supplies the game's exact clockwise/counter-clockwise 60° steps.
+const MEGAMEK_SPRITE_FORWARD_OFFSET_DEGREES = 90;
 
 function hexNeighbor(col, row, dir) {
   const { q, r } = offsetToAxial(col, row);
@@ -375,7 +379,7 @@ function drawMechToken(x, y, r, color, facing, torsoFacing, selected, prone = fa
     ctx.save();
     ctx.clip();
     ctx.translate(x, y);
-    ctx.rotate(facing * Math.PI / 180);
+    ctx.rotate((facing + MEGAMEK_SPRITE_FORWARD_OFFSET_DEGREES) * Math.PI / 180);
     ctx.drawImage(artwork, -r, -r, r * 2, r * 2);
     ctx.restore();
   }

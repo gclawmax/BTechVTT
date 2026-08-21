@@ -344,6 +344,12 @@ html, body {
 .match-setting-summary { padding:9px 12px; border:1px solid var(--panel-line); border-radius:2px; font-size:11px; line-height:1.6; }
 .match-setting-summary strong { color:var(--amber); }
 .roster-summary { margin-bottom:8px; color:var(--phosphor-dim); font-size:11px; }
+.roster-search { margin:9px 0 7px; }
+.roster-search label { display:block; margin-bottom:4px; color:var(--phosphor-dim); font:9px var(--mono); letter-spacing:.06em; text-transform:uppercase; }
+.roster-search > div { display:flex; gap:5px; }
+.roster-search input { flex:1; min-width:0; padding:7px 9px; border:1px solid var(--panel-line); border-radius:2px; background:#fff; color:var(--phosphor); font:10px var(--mono); }
+.roster-search input:focus { outline:2px solid color-mix(in srgb, var(--amber) 35%, transparent); border-color:var(--amber); }
+.roster-search button { padding:6px 9px; border:1px solid var(--panel-line); border-radius:2px; background:#fff; color:var(--phosphor-dim); font:9px var(--mono); cursor:pointer; }
 .roster-filter-bar { display:flex; align-items:center; flex-wrap:wrap; gap:5px; margin:7px 0; font:9px var(--mono); color:var(--phosphor-dim); }
 .roster-filter-bar > span { min-width:54px; text-transform:uppercase; letter-spacing:.06em; }
 .roster-filter { padding:4px 7px; border:1px solid var(--panel-line); border-radius:2px; background:#fff; color:var(--phosphor-dim); font:9px var(--mono); cursor:pointer; }

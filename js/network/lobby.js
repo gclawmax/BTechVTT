@@ -12,8 +12,38 @@ async function copyLobbyGameCode() {
 }
 
 // These are view preferences only: they never change the shared match roster.
-const lobbyRosterFilters = { tech: 'both', weights: new Set(['light', 'medium', 'heavy', 'assault']) };
+const lobbyRosterFilters = { tech: 'both', weights: new Set(['light', 'medium', 'heavy', 'assault']), search: '' };
 let skirmishAvatarEnsureInFlight = false;
+
+function lobbyRosterSearchKey(value) {
+  return String(value || '').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function filterLobbyRosterSearch(value) {
+  lobbyRosterFilters.search = String(value || '');
+  const roster = document.getElementById('lobby-roster-builder');
+  if (!roster) return;
+  const needle = lobbyRosterSearchKey(lobbyRosterFilters.search);
+  let visibleCount = 0;
+  for (const option of roster.querySelectorAll('.roster-option[data-search]')) {
+    option.hidden = Boolean(needle) && !option.dataset.search.includes(needle);
+    if (!option.hidden) visibleCount += 1;
+  }
+  for (const group of roster.querySelectorAll('.roster-weight-group')) {
+    group.hidden = !group.querySelector('.roster-option[data-search]:not([hidden])');
+  }
+  const empty = document.getElementById('lobby-roster-search-empty');
+  if (empty) empty.hidden = visibleCount > 0;
+  const clear = document.getElementById('lobby-roster-search-clear');
+  if (clear) clear.hidden = !lobbyRosterFilters.search;
+}
+
+function clearLobbyRosterSearch() {
+  const input = document.getElementById('lobby-roster-search');
+  if (input) input.value = '';
+  filterLobbyRosterSearch('');
+  input?.focus();
+}
 
 function skirmishAvatarForSeat(gameState, seat) {
   return gameState?.skirmish_avatars?.[String(seat)] || null;
@@ -366,7 +396,8 @@ function renderLobbyMatchSetup(gameState, players) {
     const inHangar = hangar.filter(entry => entry.unit_id === id).length;
     const disabled = hangar.length >= 12;
     const techLabel = techBaseForUnit(unit) === 'clan' ? 'Clan' : 'Inner Sphere';
-    return `<button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button>`;
+    const searchKey = lobbyRosterSearchKey(`${unit.chassis} ${unit.variant} ${id} ${unit.tonnage} ${techLabel}`);
+    return `<button class="roster-option" data-search="${searchKey}" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button>`;
   };
   const hangarCards = hangar.map(entry => {
     const unit = getSupportedUnit(entry.unit_id);
@@ -374,9 +405,11 @@ function renderLobbyMatchSetup(gameState, players) {
     return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}"><div><strong>${unit ? `${unit.chassis} ${unit.variant}` : entry.unit_id}</strong><span>${unit?.tonnage || '?'} tons${isDeployed ? ' · DEPLOYED' : ''}</span></div><div><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Withdraw' : 'Deploy'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div></div>`;
   }).join('') || '<div class="roster-empty">Add BattleMechs below to build your Hangar.</div>';
   rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Gunnery ${avatar?.gunnery ?? 4} · Piloting ${avatar?.piloting ?? 5} · Match-only Avatar</span></div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
+    <div class="roster-search"><label for="lobby-roster-search">Find a BattleMech</label><div><input id="lobby-roster-search" type="search" autocomplete="off" placeholder="Chassis, variant, tonnage or tech base" value="${lobbyRosterFilters.search.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}" oninput="filterLobbyRosterSearch(this.value)"><button id="lobby-roster-search-clear" type="button" onclick="clearLobbyRosterSearch()">Clear</button></div></div>
     <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
     <div class="roster-filter-bar"><span>Weight</span>${weightButton('light', 'Light')}${weightButton('medium', 'Medium')}${weightButton('heavy', 'Heavy')}${weightButton('assault', 'Assault')}</div>
-    <div class="roster-scroll">${visibleByWeight.map(([weight, entries]) => entries.length ? `<section class="roster-weight-group"><div class="roster-weight-heading">${weight} ${weight === 'assault' ? '— 80–100 tons' : weight === 'heavy' ? '— 60–75 tons' : weight === 'medium' ? '— 40–55 tons' : '— 20–35 tons'}</div><div class="roster-options">${entries.map(card).join('')}</div></section>` : '').join('') || '<div class="roster-empty">No supported BattleMechs match these filters.</div>'}</div>`;
+    <div class="roster-scroll">${visibleByWeight.map(([weight, entries]) => entries.length ? `<section class="roster-weight-group"><div class="roster-weight-heading">${weight} ${weight === 'assault' ? '— 80–100 tons' : weight === 'heavy' ? '— 60–75 tons' : weight === 'medium' ? '— 40–55 tons' : '— 20–35 tons'}</div><div class="roster-options">${entries.map(card).join('')}</div></section>` : '').join('')}<div id="lobby-roster-search-empty" class="roster-empty" hidden>No supported BattleMechs match the search and filters.</div></div>`;
+  filterLobbyRosterSearch(lobbyRosterFilters.search);
 }
 
 async function toggleRosterUnit(unitId) {
