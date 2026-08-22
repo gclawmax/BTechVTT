@@ -154,7 +154,21 @@ players through each phase in order.
 - Note how the sim declares victory and ends the game.
 
 ### 4.11 Interface Tour
-A short, screenshot-annotated walkthrough of the actual UI:
+A short, screenshot-annotated walkthrough of the actual UI. Real captures
+already exist in `assets/screenshots/` (captured 2026-08-22 from the running
+app via `tools/capture-screenshots.mjs`):
+
+- `01_login.jpg` — sign-in screen.
+- `02_menu.jpg` — home screen (Create / Play vs AI / Join by code).
+- `03_lobby.jpg` — game lobby (code, players, ready states, Start).
+- `05_board.jpg` — hex board with unit sprites, roster, game log.
+- `06_detail.jpg` — selected 'Mech detail panel (stats, weapons, ammo).
+- `08_movement_stand.jpg` — movement phase with mode buttons.
+- `09_weapon_panel.jpg` — weapon attack declaration panel.
+- `10_weapon_selected.jpg` — weapons checked, target chosen, TN shown.
+- `11_combat_result.jpg` — post-attack state (heat, log entries).
+
+Annotate each with callouts for:
 - The board (hexes, unit tokens, facing indicators, selection).
 - The record sheet panel (armor diagram, stats, weapons).
 - The game log (what it records, hex codes, how to read an attack entry).
@@ -188,15 +202,16 @@ Authoritative sources, in priority order:
    `js/game/critical-hits.js`) — where rules and code disagree, the code
    wins and the page should say so.
 
-Known deviations to flag honestly (open issues as of 2026-08-21):
-- Front hit table rolls 10–12 (issue #1).
-- Side table left/right flank handling (issue #2).
-- Gunnery hardcoded to 4 in some paths (issue #3).
-- Jump-landing facing (issue #4).
+Known deviations to flag honestly (open issues as of 2026-08-22):
 - Clan weapons using IS stats (issue #5).
 
-The page should carry a small "known simplifications" box listing these, so
-players aren't surprised and the team owns the gaps transparently.
+(Issues #1–#4 — front hit table 10–12, side-table left/right flank handling,
+hardcoded gunnery, and jump-landing facing — were fixed in commit e7a8a33 and
+are no longer open, so they do not appear in the box.)
+
+The page should carry a small "known simplifications" box listing the open
+items above, so players aren't surprised and the team owns the gaps
+transparently.
 
 ## 7. Maintenance
 
