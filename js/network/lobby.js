@@ -474,7 +474,13 @@ function renderLobbyMatchSetup(gameState, players) {
 
   const map = getMapDefinition(gameState.map_id);
   const limit = Number(gameState.dropship_tonnage || 0);
-  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${map.name}</strong><br>${map.description}<br>Force limit: <strong>${limit} tons per player</strong></div>`;
+  const beginnerScenario = gameState.beginner_scenario;
+  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${beginnerScenario?.title || map.name}</strong><br>${beginnerScenario?.instructions || map.description}<br>Battlefield: <strong>${map.name}</strong><br>Force limit: <strong>${limit} tons per player</strong></div>`;
+  if (beginnerScenario) {
+    rosterSection.hidden = true;
+    rosterEl.innerHTML = '';
+    return;
+  }
   rosterSection.hidden = false;
   const avatar = skirmishAvatarForSeat(gameState, mySeatNumber);
   const hangar = avatar?.hangar || [];

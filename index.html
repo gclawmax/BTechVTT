@@ -57,7 +57,9 @@
     <h1>BT-VTT</h1>
     <div class="tagline">BattleTech Virtual Tabletop</div>
     <div class="username-display" id="menu-username"></div>
+    <button class="btn-large beginner" onclick="handleCreateBeginnerMatch()">Beginner Match <small>Wolverine vs Griffin</small></button>
     <button class="btn-large primary" onclick="handleCreateGame()">Create Game</button>
+    <a class="menu-guide-link" href="how-to-play.html">How to Play</a>
     <button class="btn-large" onclick="handleCreateVsAI()" style="border-color:#88aaff;color:#88aaff;">Play vs AI</button>
     <div class="join-row" style="max-width:280px;margin:0 auto;">
       <input type="text" id="join-code" placeholder="Game Code" maxlength="7">
@@ -117,6 +119,7 @@
       <button id="btn-start" class="primary" onclick="handleStartGame()" disabled>Start Game</button>
       <button id="btn-leave" class="secondary" onclick="handleLeaveLobby()">Leave</button>
     </div>
+    <a class="lobby-help-link" href="how-to-play.html" target="_blank" rel="noopener">Need a refresher? Open How to Play</a>
     <div id="lobby-status"></div>
   </div>
 </div>
@@ -126,6 +129,7 @@
   <div id="header">
     <div class="title">BT-VTT <small>Phase 1 — Hex Grid</small></div>
     <button class="btn-back" onclick="handleBackToDropship()">Back to Dropship</button>
+    <a class="header-help-link" href="how-to-play.html" target="_blank" rel="noopener">How to Play</a>
     <button id="btn-roll-initiative" class="primary" onclick="rollInitiative()" style="background:#2a4a2a;border-color:#3a6a3a;color:#7c9;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Roll Initiative (2D6)</button>
     <button id="btn-advance-phase" onclick="advancePhase()" disabled title="Roll Initiative before continuing to the Movement Phase." style="background:#2a2a4a;border:1px solid #3a3a6a;color:#99c;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:not-allowed;opacity:0.45;border-radius:2px;">Next Phase</button>
     <label id="auto-ai-phase-control" hidden title="Automatically pass the turn or phase after the AI has completed its choices." style="display:inline-flex;align-items:center;gap:5px;color:#9ab;font:10px var(--mono);cursor:pointer;white-space:nowrap;"><input id="auto-ai-phase-checkbox" type="checkbox" onchange="setAutoAdvanceAfterAi(this.checked)"> Auto-next after AI</label>

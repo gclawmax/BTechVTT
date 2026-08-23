@@ -86,19 +86,15 @@ For multiplayer/skirmish against the live Supabase project, run the supplied SQL
 migrations in `SQL/` in their intended order (see `AI_PLAYER_DATABASE.md` for the
 AI player schema requirements).
 
-## Known issues (open on GitHub)
+## Rule and data verification
 
-| # | Issue |
-|---|-------|
-| 1 | Front hit-location table incorrectly maps rolls 10–12 |
-| 2 | Side hit-location table doesn't distinguish left flank from right flank |
-| 3 | Gunnery skill is hardcoded to 4 in the to-hit formula |
-| 4 | Jump landings don't allow free choice of facing |
-| 5 | Clan-tech weapons silently receive Inner Sphere stats |
+The live catalogue release `megamek-2026-08-mw5-expanded-weapons-03` has been
+checked with a normal player session: Clan weapon mounts retain their own
+profiles. For example, Clan ER Medium Lasers use 7 damage and 5/10/15 range.
 
 ## Remaining work
 
-- Fix the five rule-accuracy issues above (most player-visible: #5, #4)
+- Establish and run the human-vs-human regression test before gameplay changes
 - Phase 7 polish: sound effects, map editor, campaign mode, production deployment
   beyond GitHub Pages
 - Documentation refresh (this file and `SKILL_ROADMAP2.md` replace the stale

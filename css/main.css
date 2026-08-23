@@ -224,6 +224,41 @@ html, body {
   color: #fff;
 }
 
+#menu-box .btn-large.beginner {
+  border-color: #88aaff;
+  color: #b9ceff;
+}
+
+#menu-box .btn-large.beginner:hover {
+  background: #88aaff;
+  border-color: #88aaff;
+  color: #18202f;
+}
+
+#menu-box .btn-large small {
+  display: block;
+  margin-top: 4px;
+  color: inherit;
+  font: 9px var(--mono);
+  letter-spacing: .04em;
+  text-transform: none;
+}
+
+#menu-box .menu-guide-link {
+  display: inline-block;
+  margin: -2px 0 14px;
+  color: #bbb;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+#menu-box .menu-guide-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
 #menu-box .btn-logout {
   display: inline-block;
   margin-top: 32px;
@@ -261,6 +296,16 @@ html, body {
   border-color: #888;
   color: #aaa;
 }
+
+.header-help-link {
+  color: #b9ceff;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.header-help-link:hover { color: #fff; text-decoration: underline; }
 
 #active-games-list {
   margin-top: 16px;
@@ -525,6 +570,14 @@ html, body {
 .lobby-actions button.primary:hover {
   background: #b36b00;
   border-color: #b36b00;
+}
+
+.lobby-help-link {
+  display: block;
+  margin-top: 12px;
+  color: var(--amber);
+  font-size: 10px;
+  text-align: center;
 }
 
 #lobby-status {

@@ -16,25 +16,20 @@
 | 6 — Supabase Backend | ✅ Done | Auth (username/password), DB schema (players/games/state incl. AI seats), API layer, split SQL migrations for the Supabase SQL Editor |
 | 7 — Polish & Deployment | 🔲 Not started | Sound effects, map editor, campaign mode, production deployment beyond GitHub Pages |
 
-## Known issues (open GitHub issues)
+## Rule and data verification
 
-| # | Issue | Area |
-|---|-------|------|
-| 1 | Front hit-location table incorrectly maps rolls 10–12 | Combat |
-| 2 | Side hit-location table doesn't distinguish left flank from right flank | Combat |
-| 3 | Gunnery skill is hardcoded to 4 in the to-hit formula | Combat |
-| 4 | Jump landings don't allow free choice of facing | Movement |
-| 5 | Clan-tech weapons silently receive Inner Sphere stats | Equipment resolver |
+Issues #1–#4 were fixed in commit `e7a8a33` with matching browser and SQL
+changes: hit-location tables, per-pilot gunnery, and jump landing facing.
+The live release `megamek-2026-08-mw5-expanded-weapons-03` was also checked
+with a normal player session: Clan weapon mounts retain their own profiles,
+including Clan ER Medium Lasers at 7 damage and 5/10/15 range.
 
 ## Suggested next steps (priority order)
 
-1. Fix issue #5 (Clan-tech weapon stats) — silently wrong data is the most
-   misleading bug for players.
-2. Fix issue #4 (jump landing facing) — affects every jump move.
-3. Fix issues #1–#3 (hit-location tables, gunnery skill) — rule accuracy.
-4. Phase 7 polish: sound effects → map editor → campaign mode → production
+1. Run the human-vs-human regression smoke test before gameplay changes.
+2. Phase 7 polish: sound effects → map editor → campaign mode → production
    deployment.
-5. Documentation: replace `README.md`'s stale roadmap with `README2.md` /
+3. Documentation: replace `README.md`'s stale roadmap with `README2.md` /
    this file when ready.
 
 ## Key conventions

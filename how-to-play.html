@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A practical guide to playing a BattleTech match in BT-VTT.">
+<title>How to Play · BT-VTT</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/main.css?v=20260823-how-to-play-01">
+<link rel="stylesheet" href="css/how-to-play.css?v=20260823-01">
+</head>
+<body class="guide-page">
+<header class="guide-header">
+  <a class="guide-brand" href="index.html">BT-VTT <span>BattleTech Virtual Tabletop</span></a>
+  <a class="guide-back" href="index.html">Back to game</a>
+</header>
+
+<main class="guide-layout">
+  <aside class="guide-nav" aria-label="Guide sections">
+    <div class="guide-nav-title">Field guide</div>
+    <a href="#start">Start a match</a>
+    <a href="#board">Read the board</a>
+    <a href="#turn">Turn sequence</a>
+    <a href="#movement">Move</a>
+    <a href="#combat">Attack</a>
+    <a href="#damage">Damage & heat</a>
+    <a href="#interface">Interface tour</a>
+  </aside>
+
+  <article class="guide-content">
+    <section class="guide-hero">
+      <p class="eyebrow">Quick-start field guide</p>
+      <h1>Play a BattleTech match with a friend.</h1>
+      <p class="lead">BT-VTT is a browser tabletop for two players. Create a match, send its code to your opponent, choose your BattleMechs, then alternate movement and fire through each turn.</p>
+      <div class="guide-actions">
+        <a class="guide-button primary" href="index.html">Open BT-VTT</a>
+        <a class="guide-button" href="#start">Read the 60-second start</a>
+      </div>
+    </section>
+
+    <section id="start">
+      <p class="eyebrow">01 · Human vs human</p>
+      <h2>Start a match in a minute</h2>
+      <ol class="steps">
+        <li><strong>Sign in or create an account.</strong> Your games are attached to your account, so you can return to a lobby or active match.</li>
+        <li><strong>Beginner Match or Create Game.</strong> Beginner Match sets up a Wolverine-versus-Griffin duel immediately. Create Game lets you choose a battlefield and the dropship tonnage allowed for each player.</li>
+        <li><strong>Share the game code.</strong> Copy it from the lobby and send it to your opponent. They choose <em>Join</em> on the main menu and enter the code.</li>
+        <li><strong>Build your rosters.</strong> Each player selects BattleMechs within the match tonnage. When both players are ready, the host starts the game.</li>
+      </ol>
+      <aside class="callout"><strong>Good first match:</strong> use the default 200-ton limit. It leaves room for a varied lance without making the opening game hard to manage.</aside>
+    </section>
+
+    <section id="board">
+      <p class="eyebrow">02 · The battlefield</p>
+      <h2>Read the hex map</h2>
+      <p>The map uses flat-top hexes. Each hex has a four-digit coordinate in the game log, such as <code>0304</code>. Click a unit token or roster entry to open its record sheet.</p>
+      <div class="rule-grid">
+        <div><h3>Clear ground</h3><p>Costs 1 movement point to enter.</p></div>
+        <div><h3>Light woods</h3><p>Costs 2 movement points and makes attacks harder.</p></div>
+        <div><h3>Heavy woods</h3><p>Costs 3 movement points and provides stronger cover.</p></div>
+        <div><h3>Line of sight</h3><p>Three or more woods points between units block a shot.</p></div>
+      </div>
+      <p>Use the map controls to zoom, pan, or rotate your own view. Those controls do not change the match for the other player.</p>
+    </section>
+
+    <section id="turn">
+      <p class="eyebrow">03 · Every turn</p>
+      <h2>Initiative, movement, then attacks</h2>
+      <div class="phase-flow" aria-label="Turn sequence">
+        <div><span>1</span><strong>Initiative</strong><small>Roll 2D6. Re-roll ties.</small></div>
+        <div><span>2</span><strong>Movement</strong><small>The side that lost initiative moves first.</small></div>
+        <div><span>3</span><strong>Reaction</strong><small>Resolve any eligible reactions.</small></div>
+        <div><span>4</span><strong>Weapon</strong><small>Declare and resolve fire.</small></div>
+        <div><span>5</span><strong>Physical</strong><small>Resolve adjacent attacks.</small></div>
+        <div><span>6</span><strong>Heat</strong><small>Dissipate heat and resolve effects.</small></div>
+        <div><span>7</span><strong>End</strong><small>Clean up and begin the next turn.</small></div>
+      </div>
+      <p>During alternating phases, wait for the highlighted player to act. The status readout and game log show whose activation is next.</p>
+    </section>
+
+    <section id="movement">
+      <p class="eyebrow">04 · Movement</p>
+      <h2>Choose a mode, then commit the route</h2>
+      <table>
+        <thead><tr><th>Mode</th><th>What it does</th><th>Attack modifier</th></tr></thead>
+        <tbody>
+          <tr><td>Stand</td><td>Remain in place.</td><td>+0</td></tr>
+          <tr><td>Walk</td><td>Use walking MP; may move backwards.</td><td>+1</td></tr>
+          <tr><td>Run</td><td>Use running MP; cannot move backwards.</td><td>+2</td></tr>
+          <tr><td>Jump</td><td>Use jumping MP; ignore terrain in transit and choose a landing facing.</td><td>+3</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>Turning costs 1 MP per hexside; turning around costs 3 MP.</li>
+        <li>You cannot end in an occupied hex. Ground movement also cannot pass through an enemy unit.</li>
+        <li>Once you choose a mode for a unit, it is locked for that activation. Check the movement preview before confirming.</li>
+      </ul>
+    </section>
+
+    <section id="combat">
+      <p class="eyebrow">05 · Weapon attacks</p>
+      <h2>Make every shot count</h2>
+      <p>After all units have moved, choose a target and weapons from the selected unit’s panel. A legal shot needs line of sight, range, and a valid firing arc. The interface shows the target number before you commit.</p>
+      <div class="formula"><span>Target number</span> Gunnery + your movement + target movement + terrain + range</div>
+      <p>Roll 2D6. Meet or beat the target number to hit. Short range adds no modifier, medium adds +2, and long adds +4. A target number above 12 automatically misses.</p>
+      <aside class="callout"><strong>Practical advice:</strong> walking instead of running, firing from short range, and using woods for cover are usually stronger than taking a low-probability long-range shot.</aside>
+    </section>
+
+    <section id="damage">
+      <p class="eyebrow">06 · Damage, heat, and winning</p>
+      <h2>What happens after a hit</h2>
+      <p>A successful attack rolls a hit location. Damage removes armour first, then internal structure; overflow transfers inward according to the unit’s damage diagram. Losing a head or centre torso destroys the BattleMech. A destroyed leg prevents further movement and facing changes, though the unit can still fire.</p>
+      <p>Weapons and movement can generate heat. In the Heat phase, each BattleMech dissipates heat according to its rating; remaining heat can impose penalties or other consequences. Keep an eye on the record sheet rather than treating every weapon as a free shot.</p>
+      <p>You win when the opposing force is destroyed. The game resolves victory after the appropriate phase so simultaneous fire is handled fairly.</p>
+    </section>
+
+    <section id="interface">
+      <p class="eyebrow">07 · Interface tour</p>
+      <h2>Where to find what you need</h2>
+      <div class="tour-grid">
+        <figure><img src="assets/screenshots/02_menu.jpg" alt="BT-VTT main menu showing Create Game, Play vs AI, and Join controls"><figcaption><strong>Main menu.</strong> Create a human match or join one with a shared code.</figcaption></figure>
+        <figure><img src="assets/screenshots/05_board.jpg" alt="BT-VTT match board with hex map, roster, and game log"><figcaption><strong>Match board.</strong> The map, roster, phase controls, and shared log stay in view.</figcaption></figure>
+        <figure><img src="assets/screenshots/06_detail.jpg" alt="Selected BattleMech record sheet in BT-VTT"><figcaption><strong>Record sheet.</strong> Selecting a unit reveals armour, structure, heat, weapons, and ammunition.</figcaption></figure>
+        <figure><img src="assets/screenshots/10_weapon_selected.jpg" alt="Weapon selection panel with target number shown"><figcaption><strong>Attack panel.</strong> Select weapons and a target; confirm the target number before declaring fire.</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="guide-footer">
+      <h2>Ready to deploy?</h2>
+      <p>Create a match, share the code, and start with a small force. The game log is your shared record whenever a rule or result needs checking.</p>
+      <a class="guide-button primary" href="index.html">Return to BT-VTT</a>
+    </section>
+  </article>
+</main>
+</body>
+</html>
