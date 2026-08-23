@@ -9,8 +9,32 @@ function handleCreateGame() {
     `<option value="${id}">${map.name}</option>`
   ).join('');
   mapSelect.value = DEFAULT_MAP_ID;
+  renderCreateMapPreview();
   document.getElementById('create-tonnage-select').value = '200';
   showScreen('match-setup-screen');
+}
+
+function renderCreateMapPreview() {
+  const mapSelect = document.getElementById('create-map-select');
+  const preview = document.getElementById('create-map-preview');
+  const map = getMapDefinition(mapSelect?.value);
+  if (!preview || !map) return;
+  const terrain = map.terrain || {};
+  const elevation = map.elevation || {};
+  const cells = [];
+  const counts = {};
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      const key = hexCode(col, row);
+      const type = terrain[key] || 'clear';
+      if (type !== 'clear') counts[type] = (counts[type] || 0) + 1;
+      const level = elevation[key] || 0;
+      cells.push(`<span class="map-preview-hex ${type}${level ? ' elevated' : ''}" title="${key}: ${type.replace('_', ' ')}${level ? ` · level ${level}` : ''}"></span>`);
+    }
+  }
+  const legend = Object.entries(counts).map(([type, count]) => `${count} ${type.replace('_', ' ')}`).join(' · ') || 'Open ground';
+  const levels = Object.values(elevation).filter(level => level > 0);
+  preview.innerHTML = `<h3>${map.name}</h3><p>${map.description}</p><div class="map-preview-grid" aria-label="16 by 12 terrain preview">${cells.join('')}</div><div class="map-preview-legend">${legend}${levels.length ? ` · ${levels.length} elevated hexes (up to level ${Math.max(...levels)})` : ''}</div>`;
 }
 
 function cancelCreateGameSetup() {
@@ -37,6 +61,30 @@ async function handleCreateBeginnerMatch() {
       id: 'wolverine-vs-griffin',
       title: 'Beginner Match — Wolverine vs Griffin',
       instructions: 'Your BattleMech is already selected. Share the code, ready up, then roll Initiative.'
+    }
+  });
+}
+
+async function handleCreateFlatlandsScenario() {
+  if (!currentUser) return;
+  await createHumanGame({
+    mapId: 'flatlands-open-terrain', dropshipTonnage: 100,
+    rosters: { '1': ['wolverine-wvr-6r'], '2': ['griffin-grf-1n'] },
+    beginnerScenario: {
+      id: 'flatlands-skirmish', title: 'Flatlands Skirmish — Wolverine vs Griffin',
+      instructions: 'A fast 1-on-1 battle across open lanes. Use the wood clusters to break line of sight and control the firing lanes.'
+    }
+  });
+}
+
+async function handleCreateDesertHillsScenario() {
+  if (!currentUser) return;
+  await createHumanGame({
+    mapId: 'desert-hills', dropshipTonnage: 100,
+    rosters: { '1': ['wolverine-wvr-6r', 'panther-pnt-9r'], '2': ['griffin-grf-1n', 'blackjack-bj-1'] },
+    beginnerScenario: {
+      id: 'desert-hills-clash', title: 'Desert Hills Clash — Two Lances',
+      instructions: 'Fight for the ridge line. Rough ground can trigger Piloting checks; elevation can block or open firing lanes.'
     }
   });
 }

@@ -58,6 +58,8 @@
     <div class="tagline">BattleTech Virtual Tabletop</div>
     <div class="username-display" id="menu-username"></div>
     <button class="btn-large beginner" onclick="handleCreateBeginnerMatch()">Beginner Match <small>Wolverine vs Griffin</small></button>
+    <button class="btn-large scenario" onclick="handleCreateFlatlandsScenario()">Flatlands Skirmish <small>Wolverine vs Griffin · open cover</small></button>
+    <button class="btn-large scenario" onclick="handleCreateDesertHillsScenario()">Desert Hills Clash <small>Two lances · ridges and rough ground</small></button>
     <button class="btn-large primary" onclick="handleCreateGame()">Create Game</button>
     <a class="menu-guide-link" href="how-to-play.html">How to Play</a>
     <button class="btn-large" onclick="handleCreateVsAI()" style="border-color:#88aaff;color:#88aaff;">Play vs AI</button>
@@ -76,7 +78,8 @@
     <h2>Create Match</h2>
     <p>Choose the battlefield and the tonnage each player may bring.</p>
     <label for="create-map-select">Built-in map</label>
-    <select id="create-map-select"></select>
+    <select id="create-map-select" onchange="renderCreateMapPreview()"></select>
+    <div id="create-map-preview" class="map-setup-preview" aria-live="polite"></div>
     <label for="create-tonnage-select">Dropship tonnage per player</label>
     <select id="create-tonnage-select">
       <option value="100">100 tons</option>
