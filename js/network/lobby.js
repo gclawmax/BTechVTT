@@ -16,6 +16,7 @@ const lobbyRosterFilters = { tech: 'both', weights: new Set(['light', 'medium', 
 const favouriteUnitIds = new Set();
 let favouritesLoadedForUserId = null;
 let skirmishAvatarEnsureInFlight = false;
+let lobbyDeploymentIndex = 0;
 
 async function loadProfileUnitFavourites() {
   if (!currentUser?.id || favouritesLoadedForUserId === currentUser.id) return;
@@ -296,6 +297,7 @@ async function loadLobbyUI() {
   }
 
   renderLobbyMatchSetup(gameState, players || []);
+  renderLobbyDeployment(gameState);
 
   // Render spectators
   const specEl = document.getElementById('lobby-spectators');
@@ -529,6 +531,47 @@ function renderLobbyMatchSetup(gameState, players) {
   filterLobbyRosterSearch(lobbyRosterFilters.search);
 }
 
+function deploymentZoneContains(seat, col, row) {
+  return row >= 0 && row < GRID_ROWS && (seat === 1 ? col >= 0 && col <= 4 : col >= 11 && col < GRID_COLS);
+}
+
+function renderLobbyDeployment(gameState) {
+  const section = document.getElementById('lobby-deployment-section');
+  const target = document.getElementById('lobby-deployment');
+  if (!section || !target) return;
+  if (vsAiMode || !mySeatNumber || !gameState.map_id) { section.hidden = true; return; }
+  section.hidden = false;
+  const roster = gameState.rosters?.[String(mySeatNumber)] || [];
+  const positions = gameState.deployment_positions?.[String(mySeatNumber)] || [];
+  if (lobbyDeploymentIndex >= roster.length) lobbyDeploymentIndex = 0;
+  const units = roster.map((id, index) => {
+    const unit = getSupportedUnit(id);
+    const placed = positions[index];
+    return `<button class="${index === lobbyDeploymentIndex ? 'selected' : ''}" onclick="selectLobbyDeploymentUnit(${index})">${unit?.chassis || id}${placed ? ` · ${hexCode(placed.col, placed.row)}` : ' · choose hex'}</button>`;
+  }).join('');
+  const occupied = new Map(Object.entries(gameState.deployment_positions || {}).flatMap(([seat, list]) => (list || []).map(p => [`${p.col},${p.row}`, Number(seat)])));
+  const cells = [];
+  for (let row = 0; row < GRID_ROWS; row++) for (let col = 0; col < GRID_COLS; col++) {
+    const owner = occupied.get(`${col},${row}`);
+    const mine = deploymentZoneContains(mySeatNumber, col, row);
+    cells.push(`<button class="deployment-hex ${mine ? 'zone' : 'enemy-zone'} ${owner ? 'occupied' : ''}" ${mine && !owner ? `onclick="placeLobbyDeployment(${col},${row})"` : ''} title="${hexCode(col,row)}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : ' · opponent deployment zone'}"></button>`);
+  }
+  target.innerHTML = `<div class="deployment-help">Choose each BattleMech, then click an empty green hex on your side. Amber hexes are already occupied. Both players must place every unit before readying up.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div><div class="deployment-grid">${cells.join('')}</div>`;
+}
+
+function selectLobbyDeploymentUnit(index) { lobbyDeploymentIndex = index; loadLobbyUI(); }
+
+async function placeLobbyDeployment(col, row) {
+  if (!deploymentZoneContains(mySeatNumber, col, row)) return;
+  const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const positions = [...(state.deployment_positions?.[String(mySeatNumber)] || [])];
+  positions[lobbyDeploymentIndex] = { col, row, facing: mySeatNumber === 1 ? 0 : 3 };
+  const { error } = await db.rpc('set_match_deployment', { p_game_id: currentGameId, p_positions: positions });
+  if (error) { document.getElementById('lobby-status').textContent = `Deployment rejected: ${error.message}`; return; }
+  await loadLobbyUI();
+}
+
 async function toggleRosterUnit(unitId) {
   if (!currentGameId || !currentUser || vsAiMode || !isSupportedUnit(unitId)) return;
   const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
@@ -577,6 +620,10 @@ async function handleReadyUp() {
     const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
     if (!vsAiMode && !isRosterLegal(state.rosters?.[String(player.seat_number)], state.dropship_tonnage)) {
       document.getElementById('lobby-status').textContent = 'Choose a legal roster before readying up.';
+      return;
+    }
+    if (!vsAiMode && (state.deployment_positions?.[String(player.seat_number)] || []).length !== (state.rosters?.[String(player.seat_number)] || []).length) {
+      document.getElementById('lobby-status').textContent = 'Place every BattleMech in your deployment zone before readying up.';
       return;
     }
   }
@@ -631,7 +678,7 @@ async function handleStartGame() {
       document.getElementById('lobby-status').textContent = 'Each player needs a legal roster within the dropship limit.';
       return;
     }
-    gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars);
+    gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars, gameState.deployment_positions);
   }
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
@@ -651,7 +698,7 @@ async function handleStartGame() {
   startGameScreen();
 }
 
-function buildRosterInstances(rosters, skirmishAvatars = {}) {
+function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions = {}) {
   const deployment = {
     1: [
       { col: 4, row: 4, facing: 0 }, { col: 3, row: 5, facing: 0 },
@@ -665,7 +712,7 @@ function buildRosterInstances(rosters, skirmishAvatars = {}) {
     ]
   };
   return [1, 2].flatMap(seat => (rosters?.[String(seat)] || []).map((unitId, index) => {
-    const position = deployment[seat][index];
+    const position = deploymentPositions?.[String(seat)]?.[index] || deployment[seat][index];
     const unit = getSupportedUnit(unitId);
     const avatar = skirmishAvatars?.[String(seat)] || {};
     const deployedEntries = (avatar.deployed || []).map(entryId => (avatar.hangar || []).find(entry => entry.id === entryId)).filter(Boolean);
