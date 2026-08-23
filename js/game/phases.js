@@ -152,21 +152,34 @@ async function loadGameState() {
 
 function updateGameHeader() {
   const statusEl = document.getElementById('status-readout');
+  const guidanceEl = document.getElementById('turn-guidance');
   if (!statusEl) return;
 
   statusEl.classList.remove('is-my-turn', 'team-p1', 'team-p2');
+  guidanceEl?.classList.remove('is-my-turn');
 
   if (currentGameState.match_result) {
     const result = currentGameState.match_result;
     statusEl.textContent = result.winner_seat == null
       ? 'Match Complete — Draw'
       : `Match Complete — Player ${result.winner_seat} Wins`;
+    if (guidanceEl) guidanceEl.textContent = 'The battle is over. Return to the Dropship to review the match.';
     updateInitiativeButtonState();
     return;
   }
 
   const phaseLabel = PHASE_LABELS[currentGameState.phase] || currentGameState.phase;
   statusEl.textContent = `Round ${currentGameState.round} — ${phaseLabel}`;
+  const phaseGuidance = {
+    initiative: 'Roll 2D6 initiative when ready. Both players must roll before Movement begins.',
+    movement: "Choose an eligible 'Mech and complete its movement activation.",
+    reaction: "Choose each eligible 'Mech, then confirm its torso reaction.",
+    weapon_attack: "Choose an eligible 'Mech, declare its target and weapons, then confirm — or choose No Fire.",
+    physical_attack: 'Resolve any legal punches or kicks, or pass the remaining physical attacks.',
+    heat: 'Review the heat ledger, then apply heat sinks to complete the round.',
+    end: 'The host advances to the next round once all end-of-round work is complete.'
+  };
+  if (guidanceEl) guidanceEl.textContent = phaseGuidance[currentGameState.phase] || '';
 
   if (currentGameState.active_player_id) {
     const activePlayer = getActivePlayerRecord();
@@ -176,8 +189,10 @@ function updateGameHeader() {
     if (isMyActiveTurn()) {
       statusEl.textContent += ' — YOUR TURN';
       statusEl.classList.add('is-my-turn', `team-p${mySeatNumber}`);
+      guidanceEl?.classList.add('is-my-turn');
     } else {
       statusEl.textContent += ` — ${activeLabel}'s Turn`;
+      if (guidanceEl) guidanceEl.textContent = `Waiting for ${activeLabel} to finish. ${phaseGuidance[currentGameState.phase] || ''}`;
     }
   } else if (currentGameState.phase === 'initiative') {
     const iHaveRolled = currentGameState.initiative_pending.some(roll =>
@@ -187,6 +202,7 @@ function updateGameHeader() {
     if (canRoll && currentGameState.initiative_round !== currentGameState.round) {
       statusEl.textContent += ' — YOUR ROLL';
       statusEl.classList.add('is-my-turn', `team-p${mySeatNumber || 1}`);
+      guidanceEl?.classList.add('is-my-turn');
     }
   }
 

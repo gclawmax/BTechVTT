@@ -134,6 +134,7 @@
     <button id="btn-advance-phase" onclick="advancePhase()" disabled title="Roll Initiative before continuing to the Movement Phase." style="background:#2a2a4a;border:1px solid #3a3a6a;color:#99c;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:not-allowed;opacity:0.45;border-radius:2px;">Next Phase</button>
     <label id="auto-ai-phase-control" hidden title="Automatically pass the turn or phase after the AI has completed its choices." style="display:inline-flex;align-items:center;gap:5px;color:#9ab;font:10px var(--mono);cursor:pointer;white-space:nowrap;"><input id="auto-ai-phase-checkbox" type="checkbox" onchange="setAutoAdvanceAfterAi(this.checked)"> Auto-next after AI</label>
     <div class="status" id="status-readout" aria-live="polite"></div>
+    <div class="turn-guidance" id="turn-guidance" aria-live="polite"></div>
   </div>
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>

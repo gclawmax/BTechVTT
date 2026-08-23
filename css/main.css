@@ -694,6 +694,16 @@ html, body {
   letter-spacing: .11em;
 }
 
+#header .turn-guidance {
+  flex-basis: 100%;
+  font: 10px/1.35 var(--mono);
+  color: var(--phosphor-dim);
+  text-align: center;
+  min-height: 14px;
+}
+
+#header .turn-guidance.is-my-turn { color: var(--paper); }
+
 #header .status.is-my-turn.team-p1 { --turn-colour: #a32832; background: #fff0f1; }
 #header .status.is-my-turn.team-p2 { --turn-colour: #1f629f; background: #eef6ff; }
 

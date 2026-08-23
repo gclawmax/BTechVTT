@@ -140,7 +140,10 @@ async function handleRejoinGame(code) {
         mySeatNumber = null;
       }
 
-      startGameScreen();
+      // Keep the loading state in place until the saved game snapshot has
+      // hydrated. Showing the board first exposed default Round 1 state for a
+      // moment after reconnecting during an opponent's turn.
+      await startGameScreen();
     }
   } catch (err) {
     console.error('Rejoin error:', err);
