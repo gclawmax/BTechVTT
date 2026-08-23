@@ -43,6 +43,48 @@ const BT_MAPS = Object.freeze({
       '0703': 1, '0803': 1, '0903': 1,
       '0704': 1, '0804': 1, '0904': 1, '0805': 1
     }
+  },
+  // Terrain transcribed from the supplied Flatlands Terrain Set into the
+  // VTT's 16×12 board. The original PDF remains a local reference asset; the
+  // browser draws its own native terrain rather than copying map artwork.
+  'flatlands-open-terrain': {
+    name: 'Flatlands — Open Terrain',
+    description: 'Wide open lanes divided by two irregular wood clusters.',
+    visual: 'flatland',
+    terrain: {
+      '0102': 'light_woods', '0202': 'heavy_woods', '0302': 'light_woods',
+      '0103': 'light_woods', '0203': 'light_woods', '0303': 'heavy_woods',
+      '0104': 'heavy_woods', '0204': 'light_woods',
+      '0906': 'light_woods', '0907': 'heavy_woods', '0908': 'light_woods',
+      '1007': 'light_woods', '1008': 'heavy_woods', '1009': 'light_woods',
+      '1108': 'heavy_woods', '1109': 'light_woods',
+      '0111': 'light_woods', '0211': 'heavy_woods', '0311': 'light_woods'
+    }
+  },
+  // Terrain transcribed from the supplied Hill Terrain Set. Elevation and
+  // rough ground are supported by the authoritative movement and LOS rules.
+  'desert-hills': {
+    name: 'Desert Hills',
+    description: 'Rolling ridges, rocky channels, and several high firing positions.',
+    visual: 'desert',
+    terrain: {
+      '0600': 'rough', '0601': 'rough', '0602': 'rough', '0603': 'rough',
+      '0705': 'rough', '0706': 'rough', '0707': 'rough',
+      '0708': 'rough', '0709': 'rough', '0809': 'rough', '0810': 'rough',
+      '1308': 'rough'
+    },
+    elevation: {
+      '0200': 1, '0300': 1, '0400': 1, '0201': 1, '0301': 2, '0401': 1,
+      '0202': 2, '0302': 2, '0402': 1, '0203': 2, '0303': 2, '0403': 1,
+      '0204': 2, '0304': 1, '0305': 1, '0405': 1,
+      '1000': 1, '1100': 1, '1001': 1, '1101': 2, '1002': 2, '1102': 2,
+      '1003': 2, '1103': 1, '1004': 2, '1104': 1,
+      '0904': 1, '0905': 1, '0805': 1, '0806': 1, '0906': 1,
+      '1007': 1, '1107': 2, '1207': 2, '1008': 2, '1108': 3, '1208': 2,
+      '1009': 2, '1109': 3, '1209': 2, '1110': 2, '1210': 2,
+      '1306': 1, '1406': 2, '1307': 2, '1407': 2, '1308': 2,
+      '0911': 1, '1011': 1, '1111': 1, '1211': 1, '1311': 1
+    }
   }
 });
 

@@ -232,7 +232,9 @@ const MAP_VISUAL_PALETTES = Object.freeze({
   grassland: { light: '#afbc76', dark: '#879b57', speck: 'rgba(57,77,36,.16)' },
   woodland: { light: '#91a76d', dark: '#647c4f', speck: 'rgba(37,62,35,.20)' },
   steppe: { light: '#c5ae75', dark: '#9d8654', speck: 'rgba(92,66,36,.15)' },
-  highland: { light: '#aa9d70', dark: '#7f7451', speck: 'rgba(67,59,40,.20)' }
+  highland: { light: '#aa9d70', dark: '#7f7451', speck: 'rgba(67,59,40,.20)' },
+  flatland: { light: '#c7b56c', dark: '#8e8145', speck: 'rgba(72,61,25,.16)' },
+  desert: { light: '#c58f61', dark: '#925f3e', speck: 'rgba(82,47,27,.15)' }
 });
 
 function stableMapNoise(col, row, salt = 0) {
