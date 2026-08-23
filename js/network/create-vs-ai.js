@@ -3,13 +3,20 @@ async function handleCreateVsAI() {
   if (!currentUser) return;
   showLoading(true);
   try {
+    // Pin the match to the current immutable catalogue release, exactly like
+    // the human-vs-human path (create-game.js). Without this the authoritative
+    // RPCs (movement, standing, weapon fire, heat) reject the match with
+    // "This match is missing its pinned catalogue" and the game can't advance
+    // past movement. See issue #6.
+    const catalogueVersion = await loadLatestUnitCatalogue();
     const code = generateGameCode();
     const { data: game, error: gameErr } = await db
       .from('btech_games')
       .insert({
         game_code: code,
         host_id: currentUser.id,
-        state: JSON.stringify({ units: [], turn: 0, phase: 'setup', ai_difficulty: aiDifficulty }),
+        catalogue_version: catalogueVersion,
+        state: JSON.stringify({ units: [], turn: 0, phase: 'setup', vs_ai_mode: true, ai_difficulty: aiDifficulty, catalogue_version: catalogueVersion }),
         status: 'lobby',
         created_at: new Date().toISOString()
       })

@@ -236,10 +236,24 @@ function canonicalUnitId(unitId) {
   return BT_UNIT_ID_ALIASES[unitId] || unitId;
 }
 
+// The prototype 'Mechs use hyphenated variant ids (atlas-as7-d) while the
+// durable catalogue release stores the same units without the inner hyphen
+// (atlas-as7d). Once a match pins a catalogue, getSupportedUnit() switches to
+// the database-backed set, so resolve both spellings to the same entry —
+// otherwise the default vs-AI roster is orphaned and its 'Mechs lose their
+// structure/armor, crashing movement. See issue #6.
+function resolveCatalogueId(id) {
+  if (databaseSupportedUnitIds.has(id)) return id;
+  const normalized = id.replace(/-([a-z0-9]+)$/i, '$1');
+  if (normalized !== id && databaseSupportedUnitIds.has(normalized)) return normalized;
+  return id;
+}
+
 function getSupportedUnit(unitId) {
   const id = canonicalUnitId(unitId);
   if (activeCatalogueVersion) {
-    return databaseSupportedUnitIds.has(id) ? BT_UNIT_CATALOGUE[id] || null : null;
+    const resolved = resolveCatalogueId(id);
+    return databaseSupportedUnitIds.has(resolved) ? BT_UNIT_CATALOGUE[resolved] || null : null;
   }
   return BT_UNIT_SUPPORT[id]?.status === 'supported' ? BT_UNIT_CATALOGUE[id] || null : null;
 }

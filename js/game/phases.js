@@ -867,15 +867,11 @@ async function advancePhase(skipPhysicalWarning = false) {
         currentGameState.active_player_id = null;
       }
 
-      const transitionState = {
-        initiative_order: currentGameState.initiative_order,
-        initiative_rolls: currentGameState.initiative_rolls,
-        initiative_round: currentGameState.initiative_round,
-        initiative_winner: currentGameState.initiative_winner,
-        match_result: currentGameState.match_result,
-        active_player_player_id: currentGameState.active_player_id,
-        mech_instances: mechInstances
-      };
+      // Preserve match configuration on every phase transition. In
+      // particular, vs_ai_mode controls both the AI scheduler and the
+      // AI-only state writer; omitting it makes the next realtime reload turn
+      // an AI match into a human match midway through a round.
+      const transitionState = makePhaseState();
 
       const { error: phaseError } = await db
         .from('btech_games')

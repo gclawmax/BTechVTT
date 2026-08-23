@@ -105,11 +105,14 @@ function initGame() {
   // Place mech instances — different setup for AI mode vs multiplayer
   // NOTE: `facing` is a hex-direction index 0-5 (0=E,1=NE,2=NW,3=W,4=SW,5=SE), see HEX_DIRS.
   if (vsAiMode) {
+    // A pinned catalogue can normalize older prototype IDs (for example
+    // atlas-as7-d → atlas-as7d). The server validates the persisted ID.
+    const catalogueId = id => typeof resolveCatalogueId === 'function' ? resolveCatalogueId(id) : id;
     // AI mode: Player 1 gets Atlas, AI (owner 2) gets Hunchback + Locust
     mechInstances = [
-      { instanceId: 'atlas-1', unitId: 'atlas-as7-d', col: 4, row: 5, owner: 1, facing: 0, torsoFacing: 0 },
-      { instanceId: 'hunchback-ai', unitId: 'hunchback-hbk-4g', col: 9, row: 7, owner: 2, facing: 3, torsoFacing: 3 },
-      { instanceId: 'locust-ai', unitId: 'locust-lct-1v', col: 10, row: 4, owner: 2, facing: 2, torsoFacing: 2 }
+      { instanceId: 'atlas-1', unitId: catalogueId('atlas-as7-d'), col: 4, row: 5, owner: 1, facing: 0, torsoFacing: 0 },
+      { instanceId: 'hunchback-ai', unitId: catalogueId('hunchback-hbk-4g'), col: 9, row: 7, owner: 2, facing: 3, torsoFacing: 3 },
+      { instanceId: 'locust-ai', unitId: catalogueId('locust-lct-1v'), col: 10, row: 4, owner: 2, facing: 2, torsoFacing: 2 }
     ];
   } else {
     // Multiplayer demo: 3 units for 2 players
