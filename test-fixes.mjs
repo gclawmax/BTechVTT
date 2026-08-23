@@ -27,6 +27,7 @@ function fakeEl() {
 }
 const sandbox = {
   console, Math, JSON, Object, Array, Number, String, Boolean, Promise,
+  localStorage: { getItem: () => null, setItem: () => {} },
   ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
   document: { getElementById: (id) => (id === 'hexmap' ? fakeEl() : null), querySelector: () => null, querySelectorAll: () => [],
     createElement: () => fakeEl(), addEventListener: () => {}, body: { appendChild: () => {} } },
@@ -203,6 +204,25 @@ check('#4 submit called', !!rpc);
 const jumpAction = rpc?.args.p_path?.find(p => p.action === 'jump');
 check('#4 chosen facing sent to server', jumpAction?.facing === 1, `facing=${jumpAction?.facing}`);
 check('#4 moveState cleared after confirm', sandbox.moveState.active === false);
+
+// ── #4b Physical attacks and match end ───────────────────────────────────
+// Load these after the movement state-machine checks: phases.js owns a local
+// game-state object, while the jump test intentionally controls the stub.
+load('js/game/physical-attack.js');
+load('js/game/phases.js');
+sandbox.BT_UNITS.testmech.tonnage = 50;
+const physicalAttacker = { ...mkMech(4), col: 4, row: 4, facing: 0, structure: { ...STRUCT, ll: 7, rl: 7 } };
+const adjacentTarget = { ...t3, col: 5, row: 4, facing: 3, structure: { ...STRUCT } };
+const kick = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'kick', 'll');
+check('#4b adjacent forward kick is legal', kick.valid && kick.damage === 10 && kick.targetNumber === 3, `damage=${kick.damage} tn=${kick.targetNumber}`);
+check('#4b physical attacks reject non-adjacent targets', !sandbox.evaluatePhysicalAttack(physicalAttacker, { ...adjacentTarget, col: 7 }, 'kick', 'll').valid);
+check('#4b destroyed limbs cannot make physical attacks', !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, structure: { ...physicalAttacker.structure, ll: 0 } }, adjacentTarget, 'kick', 'll').valid);
+sandbox.mechInstances = [physicalAttacker, adjacentTarget];
+check('#4b opposing survivors keep the match open', sandbox.determineMatchResult() === null);
+sandbox.mechInstances = [physicalAttacker, { ...adjacentTarget, destroyed: true }];
+check('#4b destroyed opposing force awards the surviving player victory', sandbox.determineMatchResult()?.winner_seat === 1);
+sandbox.mechInstances = [{ ...physicalAttacker, destroyed: true }, { ...adjacentTarget, destroyed: true }];
+check('#4b mutually destroyed forces produce a draw', sandbox.determineMatchResult()?.winner_seat === null);
 
 // ── #5 Release migration guardrails ───────────────────────────────────────
 const migration = fs.readFileSync(`${ROOT}/SQL/45_preserve_current_rules_fixes.sql`, 'utf8');
