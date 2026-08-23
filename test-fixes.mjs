@@ -146,6 +146,17 @@ check('#3 default gunnery = 4', tnDefault === 4, `tn=${tnDefault} (expect 4)`);
 check('#3 gunnery 6 feeds formula', tnG6 === tnDefault + 2, `default=${tnDefault} g6=${tnG6}`);
 check('#3 breakdown shows gunnery', sandbox.evaluateWeaponAttack(aG6, t3, wpn).breakdown.includes('Gunnery 6'));
 
+// A valid range is not enough: a blocked shot and a destroyed target must
+// never become selectable in the attack panel.
+sandbox.woodsBetween = () => 3;
+check('#3 line of sight blocks dense intervening woods', !sandbox.evaluateWeaponAttack(aDefault, t3, wpn).valid && /line of sight/i.test(sandbox.evaluateWeaponAttack(aDefault, t3, wpn).reason));
+sandbox.woodsBetween = () => 0;
+sandbox.elevationBlocksLineOfSight = () => true;
+check('#3 line of sight blocks an intervening ridge', !sandbox.evaluateWeaponAttack(aDefault, t3, wpn).valid && /ridge/i.test(sandbox.evaluateWeaponAttack(aDefault, t3, wpn).reason));
+sandbox.elevationBlocksLineOfSight = () => false;
+const destroyedTarget = { ...t3, destroyed: true };
+check('#3 destroyed targets cannot be selected for weapon attacks', !sandbox.evaluateWeaponAttack(aDefault, destroyedTarget, wpn).valid);
+
 // ── #3b LB-X Cluster ammunition starts in its declared mode ───────────────
 const lbxMount = { key: 'lb10x', location: 'Left Arm', mountId: 'lb10x:la:0' };
 sandbox.BT_UNITS.testmech.weapons = [lbxMount];
