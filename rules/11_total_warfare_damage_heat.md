@@ -37,6 +37,16 @@ persists a prone state plus grouped fall damage and critical results.
 a prone BattleMech spends its Movement activation attempting to stand, with a
 server-rolled Piloting Skill Roll and a saved success or failure outcome.
 
+`SQL/56_correct_dfa_movement_declaration.sql` and
+`SQL/57_resolve_declared_dfa.sql` supersede the provisional SQL/55 DFA slice.
+A Death From Above attack is declared while jumping in the Movement Phase,
+after stopping one hex short of a target that has completed movement. The
+attacker cannot fire weapons, remains staged during weapon fire, and enters
+the target hex only when the attack resolves in the Physical Attack Phase.
+Successful damage is grouped in five-point clusters, the target is displaced,
+and the attacker's landing damage and Piloting Skill Roll are server-resolved.
+A miss applies the corresponding elevated fall and leaves the attacker prone.
+
 ## Heat
 
 Heat should be a per-unit round ledger, not a single opaque number:

@@ -651,6 +651,13 @@ function renderWeaponAttackPanel() {
     return;
   }
 
+  if (weaponPhaseStartMech(attacker)?.dfaDeclaration) {
+    panel.innerHTML = `<div class="panel-eyebrow">Weapon Attack — Death From Above</div>
+      <div style="font-size:11px;color:var(--amber);line-height:1.55;margin-bottom:8px;">${mechLabel(attacker)} is airborne and committed to Death From Above. It cannot fire weapons this turn.</div>
+      <button id="weapon-submit" onclick="confirmWeaponAttack()" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">Confirm No Fire</button>`;
+    return;
+  }
+
   const enemies = mechInstances.filter(m => m.owner !== attacker.owner && canFireFromWeaponPhaseStart(m));
   const supportPicker = attacker.prone ? `<div style="font-size:10px;color:var(--amber);margin-bottom:7px;">PRONE SUPPORT ARM — choose the arm holding the BattleMech up.</div><div style="display:flex;gap:6px;margin-bottom:8px;">${['la','ra'].map(arm => `<button onclick="setProneWeaponSupportArm('${attacker.instanceId}','${arm}')" style="flex:1;padding:7px;border:1px solid ${attacker.proneSupportArm === arm ? 'var(--amber)' : 'var(--panel-line)'};background:${attacker.proneSupportArm === arm ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">${attacker.proneSupportArm === arm ? '✓ ' : ''}${arm === 'la' ? 'Left Arm' : 'Right Arm'}</button>`).join('')}</div>` : '';
   const weaponRows = BT_UNITS[attacker.unitId].weapons.map((entry, index) => {

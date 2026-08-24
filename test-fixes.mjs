@@ -215,11 +215,6 @@ const physicalAttacker = { ...mkMech(4), col: 4, row: 4, facing: 0, structure: {
 const adjacentTarget = { ...t3, col: 5, row: 4, facing: 3, structure: { ...STRUCT } };
 const kick = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'kick', 'll');
 check('#4b adjacent forward kick is legal', kick.valid && kick.damage === 10 && kick.targetNumber === 3, `damage=${kick.damage} tn=${kick.targetNumber}`);
-const dfaAttacker = { ...physicalAttacker, movementMode: 'jump', hexesMoved: 3 };
-const dfa = sandbox.evaluatePhysicalAttack(dfaAttacker, adjacentTarget, 'dfa', 'dfa');
-check('#4b Death From Above requires a jump and is legal after one', dfa.valid && dfa.damage === 10 && dfa.selfDamage === 5, `damage=${dfa.damage} self=${dfa.selfDamage}`);
-check('#4b Death From Above rejects a non-jumping attacker', !sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'dfa', 'dfa').valid);
-check('#4b Death From Above rejects a rear target', !sandbox.evaluatePhysicalAttack({ ...dfaAttacker, facing: 3 }, adjacentTarget, 'dfa', 'dfa').valid);
 check('#4b physical attacks reject non-adjacent targets', !sandbox.evaluatePhysicalAttack(physicalAttacker, { ...adjacentTarget, col: 7 }, 'kick', 'll').valid);
 check('#4b destroyed limbs cannot make physical attacks', !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, structure: { ...physicalAttacker.structure, ll: 0 } }, adjacentTarget, 'kick', 'll').valid);
 sandbox.mechInstances = [physicalAttacker, adjacentTarget];
@@ -247,6 +242,15 @@ check('#5 LB-X snapshot migration validates persisted bins', lbxSnapshotMigratio
 const dfaMigration = fs.readFileSync(`${ROOT}/SQL/55_death_from_above.sql`, 'utf8');
 check('#5 Death From Above migration preserves the authoritative physical resolver', dfaMigration.includes("to_regprocedure('public.btech_process_physical_declaration") && dfaMigration.includes("'self_damage'"));
 check('#5 Death From Above migration creates shared piloting checks', dfaMigration.includes('btech_resolve_physical_piloting_checks') && dfaMigration.includes('hit by Death From Above'));
+const dfaCorrection = fs.readFileSync(`${ROOT}/SQL/56_correct_dfa_movement_declaration.sql`, 'utf8');
+check('#5 DFA correction blocks the obsolete Physical Attack declaration', dfaCorrection.includes("p_attack_type NOT IN (''punch'',''kick'',''hatchet'',''dfa'')") && dfaCorrection.includes("p_attack_type NOT IN (''punch'',''kick'',''hatchet'')"));
+check('#5 DFA correction declares the attack authoritatively in Movement', dfaCorrection.includes('declare_death_from_above') && dfaCorrection.includes('DFA staging hex must be one hex short'));
+const movementSource = fs.readFileSync(`${ROOT}/js/movement/movement.js`, 'utf8');
+check('#5 DFA is offered from Movement rather than the Physical Attack panel', movementSource.includes('declareDeathFromAbove') && !fs.readFileSync(`${ROOT}/js/game/physical-attack.js`, 'utf8').includes("attackTypes.push('dfa')"));
+const dfaResolution = fs.readFileSync(`${ROOT}/SQL/57_resolve_declared_dfa.sql`, 'utf8');
+check('#5 DFA resolution applies Total Warfare grouped damage', dfaResolution.includes('attacker_mass*3/10.0') && dfaResolution.includes('attacker_mass/5.0') && dfaResolution.includes('least(5,remaining)'));
+check('#5 DFA resolution lands and displaces in Physical Attacks', dfaResolution.includes('btech_neighbor_hex') && dfaResolution.includes("g.current_phase<>'physical_attack'"));
+check('#5 DFA attacker cannot fire weapons', dfaResolution.includes('A BattleMech executing Death From Above cannot fire weapons'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

@@ -16,7 +16,6 @@ function physicalLimbLabel(limb) {
 function physicalLimbCandidates(type) {
   if (type === 'punch') return ['la', 'ra'];
   if (type === 'hatchet') return ['ra'];
-  if (type === 'dfa') return ['dfa'];
   return ['ll', 'rl'];
 }
 
@@ -34,21 +33,6 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
     return { valid: false, reason: 'Physical attacks require an adjacent target.' };
   }
   const directionDifference = (weaponDirectionTo(attacker, target) - attacker.facing + 6) % 6;
-  if (type === 'dfa') {
-    if (attacker.movementMode !== 'jump' || Number(attacker.hexesMoved || 0) < 1) return { valid: false, reason: 'Death From Above requires this BattleMech to jump this turn.' };
-    if (![0, 1, 5].includes(directionDifference)) return { valid: false, reason: 'Death From Above needs a target in the three forward hexes.' };
-    const piloting = Number(attacker.pilot?.piloting ?? attacker.pilotingSkill ?? 5);
-    const attackerMove = movementToHitModifier(attacker);
-    const targetMove = targetMovementModifier(target);
-    const targetTerrain = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
-    return {
-      valid: true,
-      damage: physicalAttackDamage(attacker, type),
-      selfDamage: Math.max(1, Math.ceil(BT_UNITS[attacker.unitId].tonnage / 10)),
-      targetNumber: piloting + attackerMove + targetMove + targetTerrain,
-      breakdown: `Piloting ${piloting} + jump ${attackerMove} + target ${targetMove} + terrain ${targetTerrain}`
-    };
-  }
   if (type === 'kick' && ![0, 1, 5].includes(directionDifference)) return { valid: false, reason: 'Kick target is outside the three forward hexes.' };
   if (['punch', 'hatchet'].includes(type) && directionDifference === 3) return { valid: false, reason: `${type === 'hatchet' ? 'Hatchet' : 'Punch'} target is in the rear arc.` };
   if (['punch', 'hatchet'].includes(type) && [1, 2].includes(directionDifference) && limb !== 'la') return { valid: false, reason: 'Only the left arm can reach this side.' };
@@ -113,13 +97,13 @@ function selectPhysicalAttackType(type) {
   const attacker = mechInstances.find(m => m.instanceId === physicalAttackState.attackerId);
   const target = mechInstances.find(m => m.instanceId === physicalAttackState.targetId);
   physicalAttackState.limbs = physicalLimbCandidates(type).filter(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid);
-  if (['kick', 'hatchet', 'dfa'].includes(type)) physicalAttackState.limbs = physicalAttackState.limbs.slice(0, 1);
+  if (['kick', 'hatchet'].includes(type)) physicalAttackState.limbs = physicalAttackState.limbs.slice(0, 1);
   renderPhysicalAttackPanel();
 }
 
 function togglePhysicalLimb(limb) {
   const selected = physicalAttackState.limbs || [];
-  if (['kick', 'hatchet', 'dfa'].includes(physicalAttackState.attackType)) physicalAttackState.limbs = selected.includes(limb) ? [] : [limb];
+  if (['kick', 'hatchet'].includes(physicalAttackState.attackType)) physicalAttackState.limbs = selected.includes(limb) ? [] : [limb];
   else physicalAttackState.limbs = selected.includes(limb) ? selected.filter(value => value !== limb) : [...selected, limb];
   renderPhysicalAttackPanel();
 }
@@ -127,7 +111,7 @@ function togglePhysicalLimb(limb) {
 async function confirmAuthoritativePhysicalAttack(attacker, target, type) {
   const attackType = type || 'pass';
   const limbs = attackType === 'pass' ? [] : physicalAttackState.limbs;
-  if (attackType !== 'pass' && !limbs.length) { flashMoveWarning(`Choose ${attackType === 'kick' ? 'a leg' : attackType === 'dfa' ? 'Death From Above' : 'an arm'}.`); return; }
+  if (attackType !== 'pass' && !limbs.length) { flashMoveWarning(`Choose ${attackType === 'kick' ? 'a leg' : 'an arm'}.`); return; }
   const submitButton = document.getElementById('physical-submit');
   if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Submitting Declaration…'; }
   showGameToast(`${mechLabel(attacker)} physical attack declaration submitted. Waiting for the server.`, 'success');
@@ -143,6 +127,21 @@ async function confirmAuthoritativePhysicalAttack(attacker, target, type) {
   await loadGameState();
   renderPhysicalAttackPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
   if (data?.status === 'resolved') await checkForMatchEnd();
+}
+
+async function resolveDeclaredDeathFromAbove(attackerId) {
+  const attacker = mechInstances.find(mech => mech.instanceId === attackerId);
+  if (!attacker?.dfaDeclaration || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack') return;
+  const button = document.getElementById('dfa-resolve');
+  if (button) { button.disabled = true; button.textContent = 'Resolving Death From Above…'; }
+  const { data, error } = await db.rpc('resolve_declared_death_from_above', { p_game_id: currentGameId, p_attacker_instance_id: attackerId });
+  if (error) { if (button) { button.disabled = false; button.textContent = 'Resolve Death From Above'; } flashMoveWarning(error.message); logEvent(`Server rejected Death From Above resolution: ${error.message}`, 'error'); return; }
+  const target = mechInstances.find(mech => mech.instanceId === attacker.dfaDeclaration.target_instance_id);
+  const roll = data?.result?.to_hit || {};
+  logEvent(`${mechLabel(attacker)} resolved Death From Above against ${mechLabel(target)} — need ${roll.target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}: ${data?.hit ? 'hit' : 'miss'}.`, 'attack');
+  physicalAttackState = { attackerId: null, targetId: null, attackType: null, limbs: [] };selectedInstanceId = null;
+  await loadGameState();renderPhysicalAttackPanel();renderRoster();renderDetail();draw();updateAdvanceButtonState();
+  await loadResolvedPhysicalEvents();await checkForMatchEnd();
 }
 
 async function confirmPhysicalAttack() {
@@ -209,25 +208,32 @@ function renderPhysicalAttackPanel() {
     return;
   }
 
+  if (attacker.dfaDeclaration) {
+    const dfaTarget = mechInstances.find(mech => mech.instanceId === attacker.dfaDeclaration.target_instance_id);
+    panel.innerHTML = `<div class="panel-eyebrow">Physical Attack — Death From Above</div>
+      <div style="font-size:11px;color:var(--amber);line-height:1.55;margin-bottom:8px;">${mechLabel(attacker)} is committed to land on ${mechLabel(dfaTarget)}. The server will resolve the attack, displacement, grouped damage and fall consequences.</div>
+      <button id="dfa-resolve" onclick="resolveDeclaredDeathFromAbove('${attacker.instanceId}')" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">Resolve Death From Above</button>`;
+    return;
+  }
+
   const enemies = mechInstances.filter(m => m.owner !== attacker.owner && !m.destroyed);
   const attackTypes = ['punch', 'kick'];
   if (physicalComponentState(attacker, 'ra', 'Hatchet').exists) attackTypes.push('hatchet');
-  if (!vsAiMode) attackTypes.push('dfa');
   const options = attackTypes.map(type => {
     const evaluation = target ? physicalLimbCandidates(type).map(limb => evaluatePhysicalAttack(attacker, target, type, limb)).find(value => value.valid) : null;
     const selected = physicalAttackState.attackType === type;
     const disabled = target && !evaluation?.valid;
-    const label = type === 'hatchet' ? 'Hatchet' : type === 'dfa' ? 'Death From Above' : type;
+    const label = type === 'hatchet' ? 'Hatchet' : type;
     return `<button onclick="selectPhysicalAttackType('${type}')" ${disabled ? 'disabled' : ''} style="flex:1;padding:8px 6px;border:1px solid ${selected ? 'var(--amber)' : 'var(--panel-line)'};background:${selected ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--display);font-size:9px;text-transform:uppercase;cursor:${disabled ? 'not-allowed' : 'pointer'};">${label}${evaluation?.valid ? ` · TN ${evaluation.targetNumber}` : ''}</button>`;
   }).join('');
-  const limbOptions = physicalAttackState.attackType === 'dfa' ? '' : physicalAttackState.attackType ? physicalLimbCandidates(physicalAttackState.attackType).map(limb => {
+  const limbOptions = physicalAttackState.attackType ? physicalLimbCandidates(physicalAttackState.attackType).map(limb => {
     const evaluation = evaluatePhysicalAttack(attacker, target, physicalAttackState.attackType, limb);
     const selected = physicalAttackState.limbs.includes(limb);
     return `<button onclick="togglePhysicalLimb('${limb}')" ${evaluation.valid ? '' : 'disabled'} style="flex:1;padding:7px;border:1px solid ${selected ? 'var(--amber)' : 'var(--panel-line)'};background:${selected ? 'rgba(212,128,10,.18)' : 'transparent'};font:9px var(--mono);">${selected ? '✓ ' : ''}${physicalLimbLabel(limb)}${evaluation.valid ? ` · ${evaluation.damage} dmg · TN ${evaluation.targetNumber}` : ` · ${evaluation.reason}`}</button>`;
   }).join('') : '';
   panel.innerHTML = `
     <div class="panel-eyebrow">Physical Attack — Declaration</div>
-    <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · punches and hatchets use the matching side arc; kicks use the three forward hexes. Death From Above requires a jump this turn and strikes forward.</div>
+    <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · punches and hatchets use the matching side arc; kicks use the three forward hexes.</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => `<button onclick="selectPhysicalTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${mechLabel(enemy)}</button>`).join('')}</div>
     ${target ? `<div style="display:flex;gap:6px;">${options}</div>${limbOptions ? `<div style="display:flex;gap:6px;margin-top:6px;">${limbOptions}</div>` : ''}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select an enemy to see available attacks.</div>'}
     <button id="physical-submit" onclick="confirmPhysicalAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${physicalAttackState.attackType ? 'Confirm Physical Attack Declaration' : 'No Physical Attack / Complete'}</button>`;
@@ -236,12 +242,14 @@ function renderPhysicalAttackPanel() {
 function authoritativePhysicalResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
-  const action = result.attack_type === 'dfa' ? 'made a Death From Above attack on' : result.attack_type === 'kick' ? 'kicked' : result.attack_type === 'hatchet' ? 'struck with its hatchet' : `punched with ${physicalLimbLabel(result.limb)}`;
-  if (!result.hit) return result.attack_type === 'dfa'
-    ? `${mechLabel(attacker)} attempted Death From Above on ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`
-    : `${mechLabel(attacker)} ${action} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
-  const selfDamage = result.self_damage ? ` ${mechLabel(attacker)} takes ${result.self_damage} leg damage (${hitLocationLabel(result.self_location)}).${formatAuthoritativeCriticals(result.self_critical_checks)}` : '';
-  return `${mechLabel(attacker)} ${action} ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${formatAuthoritativeCriticals(result.critical_checks)}${selfDamage}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+  if (['dfa', 'death_from_above'].includes(result.attack_type)) {
+    if (!result.hit) return `${mechLabel(attacker)} attempted Death From Above on ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: missed and suffered ${result.fall_damage || 0} falling damage.`;
+    const psr = result.attacker_piloting_check || {};
+    return `${mechLabel(attacker)} landed Death From Above on ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.damage} damage to the target and ${result.self_damage} damage to the attacker.${psr.target ? ` Landing PSR need ${psr.target}, rolled ${psr.die_a} + ${psr.die_b} = ${psr.total}: ${psr.passed ? 'passed' : 'failed and fell'}.` : ''}`;
+  }
+  const action = result.attack_type === 'kick' ? 'kicked' : result.attack_type === 'hatchet' ? 'struck with its hatchet' : `punched with ${physicalLimbLabel(result.limb)}`;
+  if (!result.hit) return `${mechLabel(attacker)} ${action} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
+  return `${mechLabel(attacker)} ${action} ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${formatAuthoritativeCriticals(result.critical_checks)}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function authoritativePilotingResultMessage(check) {
@@ -262,7 +270,7 @@ async function loadResolvedPhysicalEvents() {
   if (error) { console.warn('[BT-LOG] failed to load resolved physical events:', error); return; }
   const entries = [];
   for (const event of data || []) {
-    if (event.resolution?.state_version !== 'authoritative-physical-01') continue;
+    if (!['authoritative-physical-01','authoritative-dfa-02'].includes(event.resolution?.state_version)) continue;
     const attacker = mechInstances.find(mech => mech.instanceId === event.attacker_instance_id);
     const target = mechInstances.find(mech => mech.instanceId === event.target_instance_id);
     const resolvedAt = Date.parse(event.resolved_at || '') || Date.now();
