@@ -47,6 +47,16 @@ Successful damage is grouped in five-point clusters, the target is displaced,
 and the attacker's landing damage and Piloting Skill Roll are server-resolved.
 A miss applies the corresponding elevated fall and leaves the attacker prone.
 
+`SQL/58_charge_attacks.sql` adds Movement-declared charges. A walking or
+running BattleMech stops one hex short of a standing target that has completed
+movement, cannot fire weapons, and resolves impact damage, counter-damage,
+displacement and both Piloting checks during Physical Attacks.
+
+`SQL/59_push_attacks.sql` adds server-resolved pushes against a standing
+BattleMech directly ahead at the same level. Both arms are required, arm-fired
+weapons are checked from the combat ledger, successful attacks displace the
+target and advance the attacker, and the target rolls to avoid falling.
+
 ## Heat
 
 Heat should be a per-unit round ledger, not a single opaque number:

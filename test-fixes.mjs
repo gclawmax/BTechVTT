@@ -215,6 +215,8 @@ const physicalAttacker = { ...mkMech(4), col: 4, row: 4, facing: 0, structure: {
 const adjacentTarget = { ...t3, col: 5, row: 4, facing: 3, structure: { ...STRUCT } };
 const kick = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'kick', 'll');
 check('#4b adjacent forward kick is legal', kick.valid && kick.damage === 10 && kick.targetNumber === 3, `damage=${kick.damage} tn=${kick.targetNumber}`);
+const push = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'push', 'push');
+check('#4b push is legal only directly ahead with both arms', push.valid && push.damage === 0 && !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, facing: 3 }, adjacentTarget, 'push', 'push').valid);
 check('#4b physical attacks reject non-adjacent targets', !sandbox.evaluatePhysicalAttack(physicalAttacker, { ...adjacentTarget, col: 7 }, 'kick', 'll').valid);
 check('#4b destroyed limbs cannot make physical attacks', !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, structure: { ...physicalAttacker.structure, ll: 0 } }, adjacentTarget, 'kick', 'll').valid);
 sandbox.mechInstances = [physicalAttacker, adjacentTarget];
@@ -251,6 +253,12 @@ const dfaResolution = fs.readFileSync(`${ROOT}/SQL/57_resolve_declared_dfa.sql`,
 check('#5 DFA resolution applies Total Warfare grouped damage', dfaResolution.includes('attacker_mass*3/10.0') && dfaResolution.includes('attacker_mass/5.0') && dfaResolution.includes('least(5,remaining)'));
 check('#5 DFA resolution lands and displaces in Physical Attacks', dfaResolution.includes('btech_neighbor_hex') && dfaResolution.includes("g.current_phase<>'physical_attack'"));
 check('#5 DFA attacker cannot fire weapons', dfaResolution.includes('A BattleMech executing Death From Above cannot fire weapons'));
+const chargeMigration = fs.readFileSync(`${ROOT}/SQL/58_charge_attacks.sql`, 'utf8');
+check('#5 Charge is declared in Movement and resolved in Physical Attacks', chargeMigration.includes('declare_charge_attack') && chargeMigration.includes('resolve_declared_charge') && chargeMigration.includes("g.current_phase<>'physical_attack'"));
+check('#5 Charge damage and counter-damage use unit weights', chargeMigration.includes('att_mass/10.0*') && chargeMigration.includes('tgt_mass/10.0'));
+const pushMigration = fs.readFileSync(`${ROOT}/SQL/59_push_attacks.sql`, 'utf8');
+check('#5 Push validates both arms and displaces the target', pushMigration.includes('Both arms are required to Push') && pushMigration.includes('btech_neighbor_hex'));
+check('#5 Push blocks arm weapon conflicts and rolls target Piloting', pushMigration.includes('cannot Push after firing an arm-mounted weapon') && pushMigration.includes('target_piloting_check'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

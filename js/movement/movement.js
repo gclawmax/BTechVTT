@@ -372,6 +372,22 @@ async function declareDeathFromAbove(targetId) {
   if (data?.status) renderMovementPanel();
 }
 
+async function declareChargeAttack(targetId) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === moveState.instanceId);
+  const target = mechInstances.find(candidate => candidate.instanceId === targetId);
+  if (!mech || !target || vsAiMode || !['walk', 'run'].includes(moveState.mode) || axialDistance(mech.col, mech.row, target.col, target.row) !== 1) return;
+  const { data, error } = await db.rpc('declare_charge_attack', {
+    p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId, p_target_instance_id: target.instanceId,
+    p_staging_col: mech.col, p_staging_row: mech.row, p_staging_facing: mech.facing,
+    p_mode: moveState.mode, p_hexes_moved: moveState.hexesMoved, p_mp_used: moveState.mpUsed
+  });
+  if (error) { flashMoveWarning(error.message); logEvent(`Server rejected Charge: ${error.message}`, 'error'); return; }
+  moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
+  await loadGameState();
+  logEvent(`${mechLabel(mech)} declared a Charge against ${mechLabel(target)}. It remains one hex short until Physical Attacks.`, 'move');
+  if (data?.status) renderMovementPanel();
+}
+
 // Abandon the in-progress move and snap the 'Mech back to where it started this action.
 function cancelMovement() {
   if (moveState.active) {
@@ -465,6 +481,10 @@ function renderMovementPanel() {
       ? mechInstances.filter(candidate => candidate.owner !== mech.owner && !candidate.destroyed && candidate.hasMoved && axialDistance(mech.col, mech.row, candidate.col, candidate.row) === 1)
       : [];
     const dfaPicker = dfaTargets.length ? `<div style="margin:0 0 7px;font-size:10px;color:var(--amber);">Death From Above — declare against a completed enemy movement. The jump costs MP to the target hex; your 'Mech remains one hex short until Physical Attacks.<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${dfaTargets.map(target => `<button onclick="declareDeathFromAbove('${target.instanceId}')" style="padding:6px;border:1px solid var(--amber);background:rgba(212,128,10,.12);color:var(--paper);font:9px var(--mono);cursor:pointer;">DFA: ${mechLabel(target)}</button>`).join('')}</div></div>` : '';
+    const chargeTargets = ['walk', 'run'].includes(moveState.mode) && !vsAiMode && moveState.hexesMoved > 0
+      ? mechInstances.filter(candidate => candidate.owner !== mech.owner && !candidate.destroyed && !candidate.prone && candidate.hasMoved && !candidate.dfaDeclaration && !candidate.chargeDeclaration && axialDistance(mech.col, mech.row, candidate.col, candidate.row) === 1 && directionBetween(mech.col, mech.row, candidate.col, candidate.row) === mech.facing)
+      : [];
+    const chargePicker = chargeTargets.length ? `<div style="margin:0 0 7px;font-size:10px;color:var(--amber);">Charge — declare against a standing enemy that has completed movement. No weapons may be fired this turn.<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${chargeTargets.map(target => `<button onclick="declareChargeAttack('${target.instanceId}')" style="padding:6px;border:1px solid var(--amber);background:rgba(212,128,10,.12);color:var(--paper);font:9px var(--mono);cursor:pointer;">Charge: ${mechLabel(target)}</button>`).join('')}</div></div>` : '';
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement — ${titleCaseMode(moveState.mode)}</div>
       <div style="font-size:11px;color:var(--paper);margin-bottom:6px;">
@@ -476,6 +496,7 @@ function renderMovementPanel() {
         <button onclick="turnMovementFacing('${mech.instanceId}','right')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">↷ Turn Right — 1 MP</button>
       </div>
       ${dfaPicker}
+      ${chargePicker}
       <div style="display:flex;gap:8px;">
         <button onclick="confirmMove()" style="flex:1;${MOVE_BTN_STYLE}text-align:center;">Confirm Move</button>
         <button onclick="cancelMovement()" style="flex:1;padding:9px 10px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Cancel</button>

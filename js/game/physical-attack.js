@@ -16,6 +16,7 @@ function physicalLimbLabel(limb) {
 function physicalLimbCandidates(type) {
   if (type === 'punch') return ['la', 'ra'];
   if (type === 'hatchet') return ['ra'];
+  if (type === 'push') return ['push'];
   return ['ll', 'rl'];
 }
 
@@ -33,6 +34,16 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
     return { valid: false, reason: 'Physical attacks require an adjacent target.' };
   }
   const directionDifference = (weaponDirectionTo(attacker, target) - attacker.facing + 6) % 6;
+  if (type === 'push') {
+    if (directionDifference !== 0) return { valid: false, reason: 'A push target must be directly ahead.' };
+    if (target.prone || target.dfaDeclaration || target.chargeDeclaration) return { valid: false, reason: 'Choose a standing target not making a displacement attack.' };
+    if (elevationAt(attacker.col, attacker.row) !== elevationAt(target.col, target.row)) return { valid: false, reason: 'A push requires both BattleMechs at the same level.' };
+    if (['la', 'ra'].some(arm => (attacker.structure?.[arm] || 0) <= 0)) return { valid: false, reason: 'Both arms are required to push.' };
+    const shoulderModifier = ['la', 'ra'].filter(arm => physicalComponentState(attacker, arm, 'Shoulder').damaged).length * 2;
+    const piloting = Number(attacker.pilot?.piloting ?? attacker.pilotingSkill ?? 5);
+    const targetNumber = piloting - 1 + movementToHitModifier(attacker) + targetMovementModifier(target) + shoulderModifier;
+    return { valid: true, damage: 0, targetNumber, breakdown: `Piloting ${piloting} - push 1 + move ${movementToHitModifier(attacker)} + target ${targetMovementModifier(target)}${shoulderModifier ? ` + shoulders ${shoulderModifier}` : ''}` };
+  }
   if (type === 'kick' && ![0, 1, 5].includes(directionDifference)) return { valid: false, reason: 'Kick target is outside the three forward hexes.' };
   if (['punch', 'hatchet'].includes(type) && directionDifference === 3) return { valid: false, reason: `${type === 'hatchet' ? 'Hatchet' : 'Punch'} target is in the rear arc.` };
   if (['punch', 'hatchet'].includes(type) && [1, 2].includes(directionDifference) && limb !== 'la') return { valid: false, reason: 'Only the left arm can reach this side.' };
@@ -144,6 +155,25 @@ async function resolveDeclaredDeathFromAbove(attackerId) {
   await loadResolvedPhysicalEvents();await checkForMatchEnd();
 }
 
+async function resolveDeclaredCharge(attackerId) {
+  const attacker = mechInstances.find(mech => mech.instanceId === attackerId);
+  if (!attacker?.chargeDeclaration || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack') return;
+  const button = document.getElementById('charge-resolve');if (button) { button.disabled = true;button.textContent = 'Resolving Charge…'; }
+  const { data, error } = await db.rpc('resolve_declared_charge', { p_game_id: currentGameId, p_attacker_instance_id: attackerId });
+  if (error) { if (button) { button.disabled = false;button.textContent = 'Resolve Charge'; }flashMoveWarning(error.message);logEvent(`Server rejected Charge resolution: ${error.message}`, 'error');return; }
+  const target = mechInstances.find(mech => mech.instanceId === attacker.chargeDeclaration.target_instance_id);const roll = data?.result?.to_hit || {};
+  logEvent(`${mechLabel(attacker)} resolved its Charge against ${mechLabel(target)} — need ${roll.target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}: ${data?.hit ? 'hit' : 'miss'}.`, 'attack');
+  physicalAttackState={attackerId:null,targetId:null,attackType:null,limbs:[]};selectedInstanceId=null;await loadGameState();renderPhysicalAttackPanel();renderRoster();renderDetail();draw();updateAdvanceButtonState();await loadResolvedPhysicalEvents();await checkForMatchEnd();
+}
+
+async function resolvePushAttack(attacker, target) {
+  const button=document.getElementById('physical-submit');if(button){button.disabled=true;button.textContent='Resolving Push…';}
+  const {data,error}=await db.rpc('resolve_push_attack',{p_game_id:currentGameId,p_attacker_instance_id:attacker.instanceId,p_target_instance_id:target.instanceId});
+  if(error){if(button){button.disabled=false;button.textContent='Confirm Push';}flashMoveWarning(error.message);logEvent(`Server rejected Push: ${error.message}`,'error');return;}
+  const roll=data?.result?.to_hit||{};logEvent(`${mechLabel(attacker)} pushed ${mechLabel(target)} — need ${roll.target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}: ${data?.hit?'hit':'miss'}.`,'attack');
+  physicalAttackState={attackerId:null,targetId:null,attackType:null,limbs:[]};selectedInstanceId=null;await loadGameState();renderPhysicalAttackPanel();renderRoster();renderDetail();draw();updateAdvanceButtonState();await loadResolvedPhysicalEvents();await checkForMatchEnd();
+}
+
 async function confirmPhysicalAttack() {
   // Match the panel's selection behaviour: roster/map selection is just as
   // valid as choosing the 'Mech from the physical-attack panel.
@@ -152,6 +182,7 @@ async function confirmPhysicalAttack() {
   if (!attacker || attacker.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || attacker.hasPhysicalAttacked) return;
   const target = mechInstances.find(m => m.instanceId === physicalAttackState.targetId);
   const type = physicalAttackState.attackType;
+  if (!vsAiMode && type === 'push' && target) return resolvePushAttack(attacker, target);
   if (!vsAiMode) return confirmAuthoritativePhysicalAttack(attacker, target, type);
   let message;
   if (type && target) {
@@ -215,9 +246,14 @@ function renderPhysicalAttackPanel() {
       <button id="dfa-resolve" onclick="resolveDeclaredDeathFromAbove('${attacker.instanceId}')" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">Resolve Death From Above</button>`;
     return;
   }
+  if (attacker.chargeDeclaration) {
+    const chargeTarget = mechInstances.find(mech => mech.instanceId === attacker.chargeDeclaration.target_instance_id);
+    panel.innerHTML = `<div class="panel-eyebrow">Physical Attack — Charge</div><div style="font-size:11px;color:var(--amber);line-height:1.55;margin-bottom:8px;">${mechLabel(attacker)} is committed to charge ${mechLabel(chargeTarget)}. The server will resolve impact damage, counter-damage, displacement and Piloting checks.</div><button id="charge-resolve" onclick="resolveDeclaredCharge('${attacker.instanceId}')" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">Resolve Charge</button>`;
+    return;
+  }
 
   const enemies = mechInstances.filter(m => m.owner !== attacker.owner && !m.destroyed);
-  const attackTypes = ['punch', 'kick'];
+  const attackTypes = ['punch', 'kick', 'push'];
   if (physicalComponentState(attacker, 'ra', 'Hatchet').exists) attackTypes.push('hatchet');
   const options = attackTypes.map(type => {
     const evaluation = target ? physicalLimbCandidates(type).map(limb => evaluatePhysicalAttack(attacker, target, type, limb)).find(value => value.valid) : null;
@@ -226,14 +262,14 @@ function renderPhysicalAttackPanel() {
     const label = type === 'hatchet' ? 'Hatchet' : type;
     return `<button onclick="selectPhysicalAttackType('${type}')" ${disabled ? 'disabled' : ''} style="flex:1;padding:8px 6px;border:1px solid ${selected ? 'var(--amber)' : 'var(--panel-line)'};background:${selected ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--display);font-size:9px;text-transform:uppercase;cursor:${disabled ? 'not-allowed' : 'pointer'};">${label}${evaluation?.valid ? ` · TN ${evaluation.targetNumber}` : ''}</button>`;
   }).join('');
-  const limbOptions = physicalAttackState.attackType ? physicalLimbCandidates(physicalAttackState.attackType).map(limb => {
+  const limbOptions = physicalAttackState.attackType === 'push' ? '' : physicalAttackState.attackType ? physicalLimbCandidates(physicalAttackState.attackType).map(limb => {
     const evaluation = evaluatePhysicalAttack(attacker, target, physicalAttackState.attackType, limb);
     const selected = physicalAttackState.limbs.includes(limb);
     return `<button onclick="togglePhysicalLimb('${limb}')" ${evaluation.valid ? '' : 'disabled'} style="flex:1;padding:7px;border:1px solid ${selected ? 'var(--amber)' : 'var(--panel-line)'};background:${selected ? 'rgba(212,128,10,.18)' : 'transparent'};font:9px var(--mono);">${selected ? '✓ ' : ''}${physicalLimbLabel(limb)}${evaluation.valid ? ` · ${evaluation.damage} dmg · TN ${evaluation.targetNumber}` : ` · ${evaluation.reason}`}</button>`;
   }).join('') : '';
   panel.innerHTML = `
     <div class="panel-eyebrow">Physical Attack — Declaration</div>
-    <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · punches and hatchets use the matching side arc; kicks use the three forward hexes.</div>
+    <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · punches and hatchets use the matching side arc; kicks use the three forward hexes; pushes require a standing target directly ahead.</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => `<button onclick="selectPhysicalTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${mechLabel(enemy)}</button>`).join('')}</div>
     ${target ? `<div style="display:flex;gap:6px;">${options}</div>${limbOptions ? `<div style="display:flex;gap:6px;margin-top:6px;">${limbOptions}</div>` : ''}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select an enemy to see available attacks.</div>'}
     <button id="physical-submit" onclick="confirmPhysicalAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${physicalAttackState.attackType ? 'Confirm Physical Attack Declaration' : 'No Physical Attack / Complete'}</button>`;
@@ -242,6 +278,11 @@ function renderPhysicalAttackPanel() {
 function authoritativePhysicalResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
+  if (result.attack_type === 'charge_attack') {
+    if (!result.hit) return `${mechLabel(attacker)} charged ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
+    return `${mechLabel(attacker)} charged ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: target took ${result.damage} damage and attacker took ${result.self_damage} damage.`;
+  }
+  if (result.attack_type === 'push_attack') return `${mechLabel(attacker)} pushed ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.hit ? 'target displaced and must make a Piloting check' : 'miss'}.`;
   if (['dfa', 'death_from_above'].includes(result.attack_type)) {
     if (!result.hit) return `${mechLabel(attacker)} attempted Death From Above on ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: missed and suffered ${result.fall_damage || 0} falling damage.`;
     const psr = result.attacker_piloting_check || {};
@@ -269,13 +310,14 @@ async function loadResolvedPhysicalEvents() {
     .eq('game_id', currentGameId).eq('phase', 'physical_attack').eq('status', 'resolved').order('round').order('sequence').limit(GAME_LOG_MAX);
   if (error) { console.warn('[BT-LOG] failed to load resolved physical events:', error); return; }
   const entries = [];
+  const specialAttackers = new Set((data || []).filter(event => ['authoritative-dfa-02','authoritative-charge-01','authoritative-push-01'].includes(event.resolution?.state_version)).map(event => `${event.round}:${event.attacker_instance_id}`));
   for (const event of data || []) {
-    if (!['authoritative-physical-01','authoritative-dfa-02'].includes(event.resolution?.state_version)) continue;
+    if (!['authoritative-physical-01','authoritative-dfa-02','authoritative-charge-01','authoritative-push-01'].includes(event.resolution?.state_version)) continue;
     const attacker = mechInstances.find(mech => mech.instanceId === event.attacker_instance_id);
     const target = mechInstances.find(mech => mech.instanceId === event.target_instance_id);
     const resolvedAt = Date.parse(event.resolved_at || '') || Date.now();
     const results = event.resolution?.results || [];
-    if (!results.length) entries.push({ id:`physical-${event.id}-pass`,ts:resolvedAt+event.sequence,time:new Date(resolvedAt).toTimeString().slice(0,8),round:event.round,phase:event.phase,cat:'attack',msg:`${mechLabel(attacker)} declared no physical attack.` });
+    if (!results.length && !specialAttackers.has(`${event.round}:${event.attacker_instance_id}`)) entries.push({ id:`physical-${event.id}-pass`,ts:resolvedAt+event.sequence,time:new Date(resolvedAt).toTimeString().slice(0,8),round:event.round,phase:event.phase,cat:'attack',msg:`${mechLabel(attacker)} declared no physical attack.` });
     results.forEach((result,index) => entries.push({ id:`physical-${event.id}-${index}`,ts:resolvedAt+event.sequence*100+index,time:new Date(resolvedAt).toTimeString().slice(0,8),round:event.round,phase:event.phase,cat:'attack',msg:authoritativePhysicalResultMessage(attacker,target,result) }));
     (event.resolution?.piloting_checks || []).forEach((check,index) => entries.push({ id:`physical-psr-${event.id}-${index}`,ts:resolvedAt+event.sequence*100+results.length+index+1,time:new Date(resolvedAt).toTimeString().slice(0,8),round:event.round,phase:event.phase,cat:'roll',msg:authoritativePilotingResultMessage(check) }));
   }

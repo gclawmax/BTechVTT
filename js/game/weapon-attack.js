@@ -651,9 +651,10 @@ function renderWeaponAttackPanel() {
     return;
   }
 
-  if (weaponPhaseStartMech(attacker)?.dfaDeclaration) {
+  const displacementAttack = weaponPhaseStartMech(attacker)?.dfaDeclaration ? 'Death From Above' : weaponPhaseStartMech(attacker)?.chargeDeclaration ? 'a Charge' : null;
+  if (displacementAttack) {
     panel.innerHTML = `<div class="panel-eyebrow">Weapon Attack — Death From Above</div>
-      <div style="font-size:11px;color:var(--amber);line-height:1.55;margin-bottom:8px;">${mechLabel(attacker)} is airborne and committed to Death From Above. It cannot fire weapons this turn.</div>
+      <div style="font-size:11px;color:var(--amber);line-height:1.55;margin-bottom:8px;">${mechLabel(attacker)} is committed to ${displacementAttack}. It cannot fire weapons this turn.</div>
       <button id="weapon-submit" onclick="confirmWeaponAttack()" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">Confirm No Fire</button>`;
     return;
   }
