@@ -78,6 +78,7 @@ async function loadGameState() {
     ...(gameState.rosters ? { rosters: gameState.rosters } : {}),
     ...(typeof gameState.vs_ai_mode === 'boolean' ? { vs_ai_mode: gameState.vs_ai_mode } : {}),
     ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {}),
+    ...(gameState.special_ammo_setup_v1 ? { special_ammo_setup_v1: true } : {}),
     ...(game.catalogue_version ? { catalogue_version: game.catalogue_version } : {})
   };
   // Always derive this from the loaded game. Otherwise an AI game visited in
@@ -231,13 +232,13 @@ function updateInitiativeButtonState() {
   const canRoll = vsAiMode
     ? isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
     : mySeatNumber != null && currentGameState.phase === 'initiative' && !alreadyRolled && !iHaveRolled && !currentGameState.match_result;
-  const lbXPending = currentGameState.round === 1 && mechInstances.some(mech =>
-    (!vsAiMode || mech.owner === mySeatNumber) && (mech.ammoBins || []).some(bin => bin.type === 'lb10x' && !bin.loadType)
+  const ammoSetupPending = currentGameState.round === 1 && mechInstances.some(mech =>
+    (!vsAiMode || mech.owner === mySeatNumber) && (mech.ammoBins || []).some(bin => ammoSetupRequiredForBin(bin))
   );
-  initBtn.disabled = !canRoll || lbXPending;
-  initBtn.title = canRoll && !lbXPending
+  initBtn.disabled = !canRoll || ammoSetupPending;
+  initBtn.title = canRoll && !ammoSetupPending
     ? (vsAiMode ? 'Roll initiative for both sides.' : 'Roll your own 2D6 initiative.')
-    : (lbXPending ? 'Each LB-X ammunition bin must be declared during Round 1 setup.' : (alreadyRolled ? 'Initiative has already been resolved this round.' : 'Waiting for the other player to roll initiative.'));
+    : (ammoSetupPending ? 'Each specialised ammunition bin must be declared during Round 1 setup.' : (alreadyRolled ? 'Initiative has already been resolved this round.' : 'Waiting for the other player to roll initiative.'));
 }
 
 function setAutoAdvanceAfterAi(enabled) {
@@ -307,18 +308,18 @@ function renderInitiativeDisplay() {
     header.appendChild(initDisplay);
   }
 
-  const allUnloadedLbBins = currentGameState.round === 1 && currentGameState.phase === 'initiative'
-    ? mechInstances.flatMap(mech => (mech.ammoBins || []).filter(bin => bin.type === 'lb10x' && !bin.loadType).map(bin => ({ mech, bin })))
+  const allUnloadedSpecialBins = currentGameState.round === 1 && currentGameState.phase === 'initiative'
+    ? mechInstances.flatMap(mech => (mech.ammoBins || []).filter(bin => ammoSetupRequiredForBin(bin)).map(bin => ({ mech, bin })))
     : [];
-  const ownUnloadedLbBins = allUnloadedLbBins.filter(({ mech }) => mech.owner === mySeatNumber);
-  if (ownUnloadedLbBins.length) {
-    initDisplay.textContent = 'LB-X ammunition selection required — select your LB-X-equipped BattleMech to configure its ammunition.';
-    logRoundOneAmmoPrompt(ownUnloadedLbBins, true);
+  const ownUnloadedSpecialBins = allUnloadedSpecialBins.filter(({ mech }) => mech.owner === mySeatNumber);
+  if (ownUnloadedSpecialBins.length) {
+    initDisplay.textContent = 'Ammunition selection required — select each highlighted BattleMech to configure its bins.';
+    logRoundOneAmmoPrompt(ownUnloadedSpecialBins, true);
     return;
   }
-  if (allUnloadedLbBins.length) {
-    initDisplay.textContent = 'Waiting for the other player to declare Round 1 LB-X ammunition.';
-    logRoundOneAmmoPrompt(allUnloadedLbBins, false);
+  if (allUnloadedSpecialBins.length) {
+    initDisplay.textContent = 'Waiting for the other player to declare Round 1 ammunition.';
+    logRoundOneAmmoPrompt(allUnloadedSpecialBins, false);
     return;
   }
   if (currentGameState.initiative_order.length === 0) {
@@ -347,14 +348,26 @@ function logRoundOneAmmoPrompt(unloadedBins, isOwner) {
   roundOneAmmoPrompted.add(key);
   if (isOwner) {
     const units = [...new Set(unloadedBins.map(({ mech }) => mechLabel(mech)))].join(', ');
-    logEvent(`Action required: choose Slug or Cluster ammunition in the Ammunition section for ${units}, then confirm the loadout before Initiative.`, 'system');
+    logEvent(`Action required: choose ammunition in the Ammunition section for ${units}, then confirm the loadout before Initiative.`, 'system');
   } else {
-    logEvent('Initiative is waiting for the other player to declare their LB-X ammunition loadout.', 'system');
+    logEvent('Initiative is waiting for the other player to declare their ammunition loadout.', 'system');
   }
 }
 
+function specialAmmoLoadTypes(bin) {
+  if (!bin) return [];
+  if (bin.type === 'lb10x') return ['slug', 'cluster'];
+  if (['srm2', 'srm4', 'srm6'].includes(bin.type)) return ['standard', 'inferno'];
+  if (['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type)) return ['standard', 'precision'];
+  return [];
+}
+
+function ammoSetupRequiredForBin(bin) {
+  return !bin?.loadType && (bin?.type === 'lb10x' || (currentMatchConfig.special_ammo_setup_v1 && specialAmmoLoadTypes(bin).length > 1));
+}
+
 function setRoundOneAmmoChoice(key, loadType) {
-  if (['slug', 'cluster'].includes(loadType)) {
+  if (['slug', 'cluster', 'standard', 'inferno', 'precision'].includes(loadType)) {
     roundOneAmmoChoices[key] = loadType;
     renderDetail();
   }
@@ -362,8 +375,8 @@ function setRoundOneAmmoChoice(key, loadType) {
 
 async function submitRoundOneAmmoLoadout() {
   const entries = mechInstances.flatMap(mech => mech.owner === mySeatNumber
-    ? (mech.ammoBins || []).filter(bin => bin.type === 'lb10x' && !bin.loadType).map(bin => [
-      `${mech.instanceId}:${bin.id}`, roundOneAmmoChoices[`${mech.instanceId}:${bin.id}`] || 'slug'
+    ? (mech.ammoBins || []).filter(bin => ammoSetupRequiredForBin(bin)).map(bin => [
+      `${mech.instanceId}:${bin.id}`, roundOneAmmoChoices[`${mech.instanceId}:${bin.id}`] || specialAmmoLoadTypes(bin)[0]
     ]) : []);
   if (!entries.length) return;
   if (vsAiMode) {
@@ -384,10 +397,10 @@ async function submitRoundOneAmmoLoadout() {
     p_loadouts: Object.fromEntries(entries)
   });
   if (error) {
-    logEvent(`Could not save LB-X ammunition: ${error.message}`, 'error');
+    logEvent(`Could not save ammunition: ${error.message}`, 'error');
     return;
   }
-  logEvent('Round 1 LB-X ammunition loadout saved.', 'system');
+  logEvent('Round 1 ammunition loadout saved.', 'system');
   await loadGameState();
 }
 

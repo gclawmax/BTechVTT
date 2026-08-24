@@ -355,6 +355,17 @@ check('#5 legacy catalogue repair requires every deployed unit in one release', 
 check('#5 legacy catalogue repair can identify pre-deployment matches from their rosters', legacyCatalogueMigration.includes("jsonb_typeof(match_state->'rosters')") && legacyCatalogueMigration.includes('roster_unit'));
 check('#5 legacy catalogue repair stamps the match and each deployed BattleMech', legacyCatalogueMigration.includes("'{catalogueVersion}'") && legacyCatalogueMigration.includes('SET catalogue_version = selected_version'));
 check('#5 game loading invokes the narrowly scoped legacy repair', fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8').includes('repairLegacyMatchCatalogue(loadedGame)'));
+const advancedTerrainMigration = fs.readFileSync(`${ROOT}/SQL/70_advanced_terrain.sql`, 'utf8');
+check('#5 advanced terrain adds the Industrial Crossing battlefield', advancedTerrainMigration.includes("WHEN 'industrial-crossing'") && advancedTerrainMigration.includes("'building'") && advancedTerrainMigration.includes("'deep_water'"));
+check('#5 smoke, fire, and buildings authoritatively obscure line of sight', advancedTerrainMigration.includes("WHEN 'heavy_smoke' THEN 2") && advancedTerrainMigration.includes("WHEN 'fire' THEN 1") && advancedTerrainMigration.includes("WHEN 'building' THEN 3"));
+check('#5 advanced movement resolves pavement control and terrain heat', advancedTerrainMigration.includes('running turn on pavement') && advancedTerrainMigration.includes('pendingTerrainHeat') && advancedTerrainMigration.includes("fire_hexes*2"));
+const specialisedAmmoMigration = fs.readFileSync(`${ROOT}/SQL/71_specialised_ammunition.sql`, 'utf8');
+check('#5 specialised ammunition supports Inferno and Precision choices', specialisedAmmoMigration.includes("ARRAY['standard','inferno']") && specialisedAmmoMigration.includes("ARRAY['standard','precision']"));
+check('#5 Inferno heat and Precision target-modifier reduction are authoritative', specialisedAmmoMigration.includes('missiles_hit*2') && specialisedAmmoMigration.includes("-least(2,target_mod)"));
+check('#5 Precision bins carry half shots and legacy matches retain LB-X-only setup', specialisedAmmoMigration.includes('floor(standard_shots/2.0)') && specialisedAmmoMigration.includes("bin->>'type'='lb10x' OR special_setup"));
+const advancedMapSource = fs.readFileSync(`${ROOT}/js/game/maps.js`, 'utf8');
+const advancedWeaponSource = fs.readFileSync(`${ROOT}/js/game/weapon-attack.js`, 'utf8');
+check('#5 client exposes advanced map terrain and specialised ammunition', advancedMapSource.includes("'industrial-crossing'") && advancedWeaponSource.includes("ammoLoadType === 'precision'") && advancedWeaponSource.includes("ammo_load_type === 'inferno'"));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

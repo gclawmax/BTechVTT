@@ -234,7 +234,8 @@ const MAP_VISUAL_PALETTES = Object.freeze({
   steppe: { light: '#c5ae75', dark: '#9d8654', speck: 'rgba(92,66,36,.15)' },
   highland: { light: '#aa9d70', dark: '#7f7451', speck: 'rgba(67,59,40,.20)' },
   flatland: { light: '#c7b56c', dark: '#8e8145', speck: 'rgba(72,61,25,.16)' },
-  desert: { light: '#c58f61', dark: '#925f3e', speck: 'rgba(82,47,27,.15)' }
+  desert: { light: '#c58f61', dark: '#925f3e', speck: 'rgba(82,47,27,.15)' },
+  industrial: { light: '#aaa99f', dark: '#777872', speck: 'rgba(45,48,49,.20)' }
 });
 
 function stableMapNoise(col, row, salt = 0) {
@@ -317,6 +318,18 @@ function drawTerrainFeature(cx, cy, col, row, terrain) {
     ctx.beginPath(); ctx.moveTo(cx - 30, cy + 8); ctx.lineTo(cx + 30, cy - 8); ctx.stroke();
     ctx.strokeStyle = 'rgba(212,204,176,.58)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(cx - 30, cy + 8); ctx.lineTo(cx + 30, cy - 8); ctx.stroke();
+  } else if (terrain === 'building') {
+    ctx.fillStyle = '#5b6062'; ctx.fillRect(cx - 14, cy - 12, 28, 23);
+    ctx.strokeStyle = '#292d2f'; ctx.lineWidth = 2; ctx.strokeRect(cx - 14, cy - 12, 28, 23);
+    ctx.fillStyle = '#d8b66b';
+    for (const x of [-8, 0, 8]) for (const y of [-6, 2]) ctx.fillRect(cx + x - 2, cy + y - 2, 4, 4);
+  } else if (terrain === 'fire') {
+    ctx.fillStyle = 'rgba(190,47,20,.30)'; traceHex(cx, cy, HEX_SIZE - 3); ctx.fill();
+    ctx.fillStyle = '#ef7d22';
+    for (const x of [-9, 0, 9]) { ctx.beginPath(); ctx.moveTo(cx + x - 5, cy + 8); ctx.quadraticCurveTo(cx + x, cy - 13, cx + x + 5, cy + 8); ctx.fill(); }
+  } else if (terrain === 'light_smoke' || terrain === 'heavy_smoke') {
+    ctx.fillStyle = terrain === 'heavy_smoke' ? 'rgba(57,61,63,.62)' : 'rgba(102,108,110,.42)';
+    for (const offset of [-9, 0, 9]) { ctx.beginPath(); ctx.arc(cx + offset, cy, 9, 0, Math.PI * 2); ctx.fill(); }
   }
   ctx.restore();
 }

@@ -7,7 +7,7 @@ let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammo
 
 function weaponLineOfSight(observer, target) {
   const woods = woodsBetween(observer, target);
-  const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
+  const targetWoods = terrainLosPoints(terrainAt(target.col, target.row), false);
   return { valid: woods < 3 && !elevationBlocksLineOfSight(observer, target), woods: woods + targetWoods };
 }
 
@@ -79,6 +79,20 @@ function ammoBinLabel(bin) {
   const loadout = bin.loadType ? ` · ${bin.loadType[0].toUpperCase()}${bin.loadType.slice(1)}` : '';
   const guidance = bin.artemisCapable ? ' · Artemis IV' : bin.narcCapable ? ' · Narc-capable' : '';
   return `${bin.location}${loadout}${guidance} · ${bin.shots}/${bin.maxShots} shots`;
+}
+
+function selectedAmmoLoadType(attacker, weaponEntry) {
+  const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
+  const selectedId = weaponAttackState.ammoBinsByMount[mountId];
+  const bins = compatibleAmmoBins(attacker, weaponEntry);
+  return (bins.find(bin => bin.id === selectedId) || bins[0])?.loadType || 'standard';
+}
+
+function terrainLosPoints(terrain, intervening = true) {
+  if (terrain === 'heavy_woods' || terrain === 'heavy_smoke') return 2;
+  if (terrain === 'light_woods' || terrain === 'light_smoke' || terrain === 'fire') return 1;
+  if (intervening && terrain === 'building') return 3;
+  return 0;
 }
 
 function weaponDirectionTo(attacker, target) {
@@ -181,7 +195,7 @@ function woodsBetween(attacker, target) {
   for (let step = 1; step < distance; step++) {
     const axial = axialRound(a.q + (b.q - a.q) * step / distance, a.r + (b.r - a.r) * step / distance);
     const hex = axialToOffset(axial.q, axial.r);
-    points += terrainAt(hex.col, hex.row) === 'heavy_woods' ? 2 : terrainAt(hex.col, hex.row) === 'light_woods' ? 1 : 0;
+    points += terrainLosPoints(terrainAt(hex.col, hex.row));
   }
   return points;
 }
@@ -191,6 +205,7 @@ function woodsBetween(attacker, target) {
 // test only intervening hexes. A ridge blocks this introductory elevation-LOS
 // layer when it rises above both BattleMechs.
 function elevationBlocksLineOfSight(attacker, target) {
+  if ((terrainAt(attacker.col, attacker.row) === 'deep_water') !== (terrainAt(target.col, target.row) === 'deep_water')) return true;
   const attackerElevation = elevationAt(attacker.col, attacker.row);
   const targetElevation = elevationAt(target.col, target.row);
   let current = { col: attacker.col, row: attacker.row };
@@ -209,6 +224,9 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   const weapon = weaponProfile(weaponEntry);
   if (!weapon || eligibleAttacker.destroyed || eligibleTarget.destroyed || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
+  }
+  if (terrainAt(attacker.col, attacker.row) === 'deep_water' || terrainAt(target.col, target.row) === 'deep_water') {
+    return { valid: false, reason: 'The current catalogue has no underwater-capable weapon profile for a fully submerged target or attacker.' };
   }
   const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
   if ((eligibleAttacker.weaponJams || []).includes(mountId)) return { valid: false, reason: `${weapon.name} is jammed.` };
@@ -242,12 +260,14 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   const woods = woodsBetween(observer, target);
   if (!indirect && woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
   if (!indirect && elevationBlocksLineOfSight(attacker, target)) return { valid: false, reason: 'Line of sight is blocked by an intervening ridge.' };
-  const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
+  const targetWoods = terrainLosPoints(terrainAt(target.col, target.row), false);
   const sensorCritical = typeof criticalToHitModifier === 'function' ? criticalToHitModifier(eligibleAttacker) : 0;
   const critical = sensorCritical + weaponComponentToHitModifier(eligibleAttacker, weaponEntry);
   const heat = weaponHeatToHitModifier(eligibleAttacker);
   const gunnery = eligibleAttacker.pilot?.gunnery ?? 4;
   const clusterModifier = weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster' ? -1 : 0;
+  const ammoLoadType = selectedAmmoLoadType(attacker, weaponEntry);
+  const precisionModifier = ammoLoadType === 'precision' ? -Math.min(2, targetMove) : 0;
   const accuracyModifier = Number(weapon.toHitModifier || 0);
   const indirectModifier = indirect ? 1 : 0;
   const spotterMovement = indirect ? movementToHitModifier(spotter) : 0;
@@ -257,9 +277,9 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
     weapon,
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + accuracyModifier + indirectModifier + spotterMovement + partialCover,
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + accuracyModifier + indirectModifier + spotterMovement + partialCover,
     attackAngle: attackDirection(attacker, target),
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + terrain ${woods + targetWoods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
   };
 }
 
@@ -463,7 +483,8 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const roll = result.to_hit || {};
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
   const targetNumberExplanation = formatAuthoritativeTargetNumber(roll);
-  const modeSuffix = result.fire_mode === 'rapid' ? ' (rapid fire)' : result.fire_mode === 'cluster' ? ' (cluster ammunition)' : '';
+  const modeSuffix = result.fire_mode === 'rapid' ? ' (rapid fire)' : result.fire_mode === 'cluster' ? ' (cluster ammunition)'
+    : result.ammo_load_type === 'inferno' ? ' (Inferno ammunition)' : result.ammo_load_type === 'precision' ? ' (Precision ammunition)' : '';
   if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: miss.${result.streak_no_lock ? ' Streak did not lock; no ammunition or heat expended.' : ''}${result.jammed ? ' Ultra AC jammed.' : ''}`;
   if (result.tagged) return `${mechLabel(attacker)} designated ${mechLabel(target)} with TAG — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: lock confirmed.`;
   if (result.narc_attached) return `${mechLabel(attacker)} attached a Narc beacon to ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: beacon attached.`;
@@ -476,6 +497,7 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
     const pellets = result.cluster_kind === 'lb_x' ? 'pellet' : 'missile';
     const clusterText = result.streak_lock ? 'Streak lock confirmed' : `Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}${cluster.modified_total && cluster.modified_total !== cluster.total ? `, modified to ${cluster.modified_total}` : ''}`;
     const defence = result.ams ? ' AMS engaged.' : result.narc_guided ? ' Narc guidance applied.' : result.artemis_guided ? ' Artemis IV guidance applied.' : '';
+    if (result.ammo_load_type === 'inferno') return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. ${clusterText}: ${result.missiles_hit} missile${result.missiles_hit === 1 ? '' : 's'} struck; ${mechLabel(target)} gains ${result.heat_inflicted || 0} heat.${defence}`;
     return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. ${clusterText}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.${defence}`;
   }
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
@@ -488,7 +510,7 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
 function formatAuthoritativeTargetNumber(roll) {
   const b = roll?.breakdown;
   if (!b || typeof b.gunnery !== 'number') return '';
-  const labels = [['attacker_movement', 'attacker movement'], ['spotter_movement', 'spotter movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'woods'], ['partial_cover', 'partial cover'], ['indirect_fire', 'indirect fire'], ['spotter_firing', 'spotter firing'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'prone target'], ['lb_x_cluster', 'LB-X cluster'], ['weapon_accuracy', 'weapon accuracy']];
+  const labels = [['attacker_movement', 'attacker movement'], ['spotter_movement', 'spotter movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'terrain'], ['partial_cover', 'partial cover'], ['indirect_fire', 'indirect fire'], ['spotter_firing', 'spotter firing'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'prone target'], ['lb_x_cluster', 'LB-X cluster'], ['special_ammunition', 'special ammunition'], ['weapon_accuracy', 'weapon accuracy']];
   const terms = [`Gunnery ${b.gunnery}`];
   for (const [key, label] of labels) {
     const value = Number(b[key] || 0);

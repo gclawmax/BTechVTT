@@ -85,17 +85,19 @@ function armorCell(loc, label, armor, armorMax, structure, structureMax) {
 
 function roundOneAmmoControl(inst, bin) {
   const isInitiative = currentGameState.round === 1 && currentGameState.phase === 'initiative';
-  const isUnloadedLbX = bin.type === 'lb10x' && !bin.loadType;
-  if (!isInitiative || !isUnloadedLbX) return '';
+  const choices = typeof specialAmmoLoadTypes === 'function' ? specialAmmoLoadTypes(bin) : [];
+  const isUnloadedSpecialBin = typeof ammoSetupRequiredForBin === 'function' && ammoSetupRequiredForBin(bin);
+  if (!isInitiative || !isUnloadedSpecialBin) return '';
   if (inst.owner !== mySeatNumber) {
-    return `<div style="grid-column:1 / -1;color:var(--phosphor-dim);font-size:9px;margin:2px 0 6px;">Player ${inst.owner} must choose this LB-X ammunition before Initiative.</div>`;
+    return `<div style="grid-column:1 / -1;color:var(--phosphor-dim);font-size:9px;margin:2px 0 6px;">Player ${inst.owner} must choose this ammunition before Initiative.</div>`;
   }
   const key = `${inst.instanceId}:${bin.id}`;
-  const selected = roundOneAmmoChoices[key] || 'slug';
+  const selected = roundOneAmmoChoices[key] || choices[0];
+  const labels = { slug: 'Slug', cluster: 'Cluster', standard: 'Standard', inferno: 'Inferno', precision: 'Precision' };
   return `<div style="grid-column:1 / -1;margin:3px 0 8px;padding:8px;border:1px solid var(--amber);background:rgba(181,107,0,.08);">
-    <div style="color:var(--amber);font-size:10px;margin-bottom:6px;">ROUND 1 LB-X AMMUNITION — required before Initiative</div>
+    <div style="color:var(--amber);font-size:10px;margin-bottom:6px;">ROUND 1 AMMUNITION — required before Initiative</div>
     <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;">Load type
-      <select onchange="setRoundOneAmmoChoice('${key}',this.value)" style="font:10px var(--mono);padding:3px;"><option value="slug" ${selected === 'slug' ? 'selected' : ''}>Slug</option><option value="cluster" ${selected === 'cluster' ? 'selected' : ''}>Cluster</option></select>
+      <select onchange="setRoundOneAmmoChoice('${key}',this.value)" style="font:10px var(--mono);padding:3px;">${choices.map(choice => `<option value="${choice}" ${selected === choice ? 'selected' : ''}>${labels[choice] || titleCase(choice)}</option>`).join('')}</select>
     </label>
     <button onclick="submitRoundOneAmmoLoadout()" style="width:100%;margin-top:7px;padding:6px 8px;border:1px solid var(--amber);background:transparent;color:var(--amber);font:10px var(--display);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;">Confirm ammunition loadout</button>
   </div>`;

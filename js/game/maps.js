@@ -85,6 +85,24 @@ const BT_MAPS = Object.freeze({
       '1306': 1, '1406': 2, '1307': 2, '1407': 2, '1308': 2,
       '0911': 1, '1011': 1, '1111': 1, '1211': 1, '1311': 1
     }
+  },
+  'industrial-crossing': {
+    name: 'Industrial Crossing',
+    description: 'A damaged industrial district with deep water, burning ground, smoke, rubble, pavement and solid buildings.',
+    visual: 'industrial',
+    terrain: {
+      '0700': 'pavement', '0800': 'pavement', '0701': 'pavement', '0801': 'pavement',
+      '0702': 'pavement', '0802': 'pavement', '0703': 'pavement', '0803': 'pavement',
+      '0704': 'pavement', '0804': 'pavement', '0705': 'pavement', '0805': 'pavement',
+      '0706': 'pavement', '0806': 'pavement', '0707': 'pavement', '0807': 'pavement',
+      '0708': 'pavement', '0808': 'pavement', '0709': 'pavement', '0809': 'pavement',
+      '0710': 'pavement', '0810': 'pavement', '0711': 'pavement', '0811': 'pavement',
+      '0205': 'shallow_water', '0305': 'deep_water', '0405': 'deep_water',
+      '0505': 'deep_water', '0605': 'shallow_water',
+      '0503': 'rubble', '1008': 'rubble',
+      '0603': 'building', '0903': 'building', '0608': 'building', '0908': 'building',
+      '1004': 'fire', '1104': 'light_smoke', '1204': 'heavy_smoke'
+    }
   }
 });
 

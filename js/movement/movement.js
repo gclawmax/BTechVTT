@@ -8,6 +8,10 @@ function movementTerrainCost(col, row) {
   return ({ light_woods: 1, heavy_woods: 2, rough: 1, rubble: 1, shallow_water: 1, deep_water: 3 })[terrainAt(col, row)] || 0;
 }
 
+function movementTerrainHeat(path = []) {
+  return path.filter(step => step.action === 'step' && terrainAt(step.col, step.row) === 'fire').length * 2;
+}
+
 function movementElevationCost(fromCol, fromRow, toCol, toRow) {
   const level = (col, row) => terrainAt(col, row) === 'deep_water' ? -2 : terrainAt(col, row) === 'shallow_water' ? -1 : elevationAt(col, row);
   return Math.abs(level(toCol, toRow) - level(fromCol, fromRow));
@@ -369,6 +373,7 @@ async function submitAuthoritativeMovement(mech, mode, path) {
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
   await loadGameState();
   logEvent(`${summary}${mode === 'stand' ? '' : ` (${data?.hexes_moved || 0} hex${data?.hexes_moved === 1 ? '' : 'es'}, ${data?.mp_used || 0}/${data?.mp_max || 0} MP)`}.`, 'move');
+  if (data?.terrain_heat) logEvent(`${mechLabel(mech)} gained ${data.terrain_heat} heat from burning terrain.`, 'phase');
   if (data?.terrain_check) {
     const check = data.terrain_check;
     const movedMech = mechInstances.find(candidate => candidate.instanceId === check.instance_id) || mech;

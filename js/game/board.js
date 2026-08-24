@@ -6,7 +6,7 @@ const GRID_COLS = 16;
 const GRID_ROWS = 12;
 
 function terrainAt(col, row) { return getMapDefinition(activeMapId).terrain[hexCode(col, row)] || 'clear'; }
-function terrainMovementBlocked(col, row) { return terrainAt(col, row) === 'impassable'; }
+function terrainMovementBlocked(col, row) { return ['impassable', 'building'].includes(terrainAt(col, row)); }
 
 function ensureMechCombatState(mech) {
   mech.unitId = canonicalUnitId(mech.unitId);

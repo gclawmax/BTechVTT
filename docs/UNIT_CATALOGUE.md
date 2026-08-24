@@ -20,8 +20,10 @@ pinned versioned tables. The six browser definitions remain for AI testing.
 
 `btech_games.catalogue_version` pins a match to one immutable release. Every
 new human lobby sets it when created. `SQL/18_pin_versioned_catalogue.sql`
-prevents a pinned match from being repointed to different definitions. Current
-development builds do not support continuing old unpinned matches.
+prevents a pinned match from being repointed to different definitions.
+`SQL/69_repair_legacy_catalogue_pins.sql` can safely recover a participant's
+older unpinned match when every selected or deployed unit exists together in
+one installed release; ambiguous matches remain unchanged.
 
 The `megamek-2026-08-missiles-01` release adds explicit per-missile damage to
 supported LRM/SRM mount definitions. Install its generated content pack before

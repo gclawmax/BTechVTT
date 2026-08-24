@@ -108,6 +108,20 @@ in shallow water receives +1 partial cover; a hit-location result against either
 leg strikes the water and applies no damage. This is resolved on the server for
 both direct attacks and clustered missile damage groups.
 
+`SQL/70` adds the Industrial Crossing battlefield and its first advanced-terrain
+layer. Solid buildings block movement and line of sight; light and heavy smoke
+and burning hexes obscure fire; deep water prevents unsupported weapon fire;
+rubble, water, and running pavement turns cause authoritative Piloting checks.
+Fire traversed during Movement and fire occupied at the end of Movement feed the
+authoritative heat ledger.
+
+`SQL/71` adds Round 1 specialised-ammunition declarations to new human matches.
+Standard SRM bins can be loaded with Inferno rounds, which inflict two heat per
+missile up to the external-heat cap instead of normal damage. Standard AC bins
+can be loaded with Precision rounds, which reduce target movement modifiers by
+up to two but halve the bin's shots. Existing LB-X slug/cluster selection remains
+available, while older matches without the feature flag retain their prior setup.
+
 The live focused regression in `tools/test-human-vs-human-rules.mjs` exercises
 these rules through two authenticated players and the deployed Supabase
 functions. It verifies shallow-water movement and cover, ridge-blocked indirect

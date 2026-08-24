@@ -105,6 +105,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
           units: [], turn: 0, phase: 'setup', vs_ai_mode: false,
           map_id: mapId, dropship_tonnage: dropshipTonnage,
           catalogue_version: catalogueVersion,
+          special_ammo_setup_v1: true,
           rosters,
           ...(beginnerScenario ? { beginner_scenario: beginnerScenario } : {})
         }),
