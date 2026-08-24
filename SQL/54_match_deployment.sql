@@ -15,7 +15,9 @@ BEGIN
  IF (SELECT count(*) FROM jsonb_array_elements(p_positions))<>(SELECT count(DISTINCT (e->>'col')||','||(e->>'row')) FROM jsonb_array_elements(p_positions) e) THEN RAISE EXCEPTION 'Two BattleMechs cannot occupy the same hex'; END IF;
  all_positions:=coalesce(st->'deployment_positions','{}'::jsonb);
  IF EXISTS (SELECT 1 FROM jsonb_each(all_positions) owner, jsonb_array_elements(owner.value) e, jsonb_array_elements(p_positions) mine WHERE owner.key<>player.seat_number::text AND (e->>'col')=(mine->>'col') AND (e->>'row')=(mine->>'row')) THEN RAISE EXCEPTION 'That deployment hex is already occupied'; END IF;
- st:=jsonb_set(st,ARRAY['deployment_positions',player.seat_number::text],p_positions,true);
+ -- jsonb_set does not create a missing intermediate object. Build the seat
+ -- map first so a player's very first placed BattleMech persists correctly.
+ st:=jsonb_set(st,'{deployment_positions}',jsonb_set(coalesce(st->'deployment_positions','{}'::jsonb),ARRAY[player.seat_number::text],p_positions,true),true);
  UPDATE btech_games SET state=st WHERE id=p_game_id;
  RETURN p_positions;
 END $$;

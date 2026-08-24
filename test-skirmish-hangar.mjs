@@ -40,6 +40,7 @@ const deploymentSql = readFileSync('SQL/54_match_deployment.sql', 'utf8');
 assert.match(deploymentSql, /CREATE OR REPLACE FUNCTION public\.set_match_deployment/);
 assert.match(deploymentSql, /own deployment zone/);
 assert.match(deploymentSql, /Two BattleMechs cannot occupy the same hex/);
+assert.match(deploymentSql, /jsonb_set\(st,'\{deployment_positions\}'/);
 assert.match(lobby, /pilotingSkill: pilot\.piloting/);
 assert.match(lobby, /each BattleMech has its own pilot/);
 const movement = readFileSync('js/movement/rules.js', 'utf8');
