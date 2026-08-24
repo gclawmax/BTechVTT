@@ -199,8 +199,10 @@ async function loadUnitCatalogue(catalogueVersion) {
       ammoBins: (ammoByUnit[row.unit_id] || []).map(bin => ({
         id: bin.bin_id, type: bin.ammo_type,
         location: BT_LOCATION_NAMES[bin.location] || bin.location,
-        shots: bin.shots
-        , narcCapable: /narc-capable/i.test(bin.raw_name || '')
+        shots: bin.shots,
+        rawName: bin.raw_name,
+        narcCapable: /narc-capable/i.test(bin.raw_name || ''),
+        artemisCapable: /artemis-capable/i.test(bin.raw_name || '')
       }))
     };
     const layout = {};

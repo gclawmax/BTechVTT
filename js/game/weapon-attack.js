@@ -3,7 +3,35 @@
 // standard weapons in BT_WEAPONS.  Critical-hit slot damage and primary
 // component effects are resolved from the BattleMech record sheet.
 
-let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {} };
+let weaponAttackState = { attackerId: null, targetId: null, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {}, indirect: false, spotterId: null };
+
+function weaponLineOfSight(observer, target) {
+  const woods = woodsBetween(observer, target);
+  const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
+  return { valid: woods < 3 && !elevationBlocksLineOfSight(observer, target), woods: woods + targetWoods };
+}
+
+function eligibleIndirectSpotters(attacker, target) {
+  return mechInstances.filter(mech => {
+    const spotter = weaponPhaseStartMech(mech);
+    return mech.owner === attacker.owner && mech.instanceId !== attacker.instanceId && !spotter.destroyed && !spotter.shutdown &&
+      (!spotter.pilot?.consciousness || spotter.pilot.consciousness === 'conscious') &&
+      !spotter.dfaDeclaration && !spotter.chargeDeclaration && weaponLineOfSight(spotter, weaponPhaseStartMech(target)).valid;
+  });
+}
+
+function setIndirectFire(enabled) {
+  weaponAttackState.indirect = Boolean(enabled);
+  if (!weaponAttackState.indirect) weaponAttackState.spotterId = null;
+  weaponAttackState.weaponKeys = [];
+  renderWeaponAttackPanel();
+}
+
+function selectIndirectSpotter(instanceId) {
+  weaponAttackState.spotterId = instanceId;
+  weaponAttackState.weaponKeys = [];
+  renderWeaponAttackPanel();
+}
 
 function weaponProfile(entry) {
   return entry?.weapon || BT_WEAPONS[entry?.key];
@@ -49,7 +77,8 @@ function weaponShotsForMode(mountId, weaponEntry) {
 
 function ammoBinLabel(bin) {
   const loadout = bin.loadType ? ` · ${bin.loadType[0].toUpperCase()}${bin.loadType.slice(1)}` : '';
-  return `${bin.location}${loadout} · ${bin.shots}/${bin.maxShots} shots`;
+  const guidance = bin.artemisCapable ? ' · Artemis IV' : bin.narcCapable ? ' · Narc-capable' : '';
+  return `${bin.location}${loadout}${guidance} · ${bin.shots}/${bin.maxShots} shots`;
 }
 
 function weaponDirectionTo(attacker, target) {
@@ -174,7 +203,7 @@ function elevationBlocksLineOfSight(attacker, target) {
   return false;
 }
 
-function evaluateWeaponAttack(attacker, target, weaponEntry) {
+function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   const eligibleAttacker = weaponPhaseStartMech(attacker);
   const eligibleTarget = weaponPhaseStartMech(target);
   const weapon = weaponProfile(weaponEntry);
@@ -188,23 +217,31 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
     ? criticalLocationKey(weaponEntry.location)
     : weaponEntry.location.toLowerCase().includes('left arm') ? 'la'
       : weaponEntry.location.toLowerCase().includes('right arm') ? 'ra' : null;
+  if (attacker.prone && (Number(eligibleAttacker.structure?.la || 0) <= 0 || Number(eligibleAttacker.structure?.ra || 0) <= 0)) return { valid: false, reason: 'A prone BattleMech cannot fire after either arm is destroyed.' };
   if (attacker.prone && !['la', 'ra'].includes(supportArm)) return { valid: false, reason: 'Choose a supporting arm before firing while prone.' };
   if (attacker.prone && weaponLocation === supportArm) return { valid: false, reason: 'Supporting-arm weapons cannot fire while prone.' };
+  if (attacker.prone && ['ll', 'rl'].includes(weaponLocation)) return { valid: false, reason: 'Leg-mounted weapons cannot fire while prone.' };
   if (weaponLocationDestroyed(eligibleAttacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was mounted in a location destroyed before this phase.` };
   if (typeof weaponsDisabledByCritical === 'function' && weaponsDisabledByCritical(eligibleAttacker)) return { valid: false, reason: 'Sensors were destroyed before this phase.' };
   if (typeof isWeaponCriticallyDestroyed === 'function' && isWeaponCriticallyDestroyed(eligibleAttacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was destroyed before this phase.` };
   const distance = axialDistance(attacker.col, attacker.row, target.col, target.row);
   const range = weaponRangeModifier(weapon, distance);
   if (!range) return { valid: false, reason: `${weapon.name} is beyond long range (${distance} hexes).` };
+  const indirect = Boolean(options.indirect);
+  const spotter = options.spotter;
+  if (indirect && !weaponEntry.key?.startsWith('lrm')) return { valid: false, reason: 'Only LRM weapons may fire indirectly.' };
+  if (indirect && weaponLineOfSight(attacker, target).valid) return { valid: false, reason: 'Indirect fire is unavailable while the attacker has direct line of sight.' };
+  if (indirect && (!spotter || !eligibleIndirectSpotters(attacker, target).some(candidate => candidate.instanceId === spotter.instanceId))) return { valid: false, reason: 'Choose a friendly spotter with line of sight.' };
   const facing = weaponArcFacing(weaponEntry, attacker);
-  if (!isInForwardArc(facing, weaponDirectionTo(attacker, target))) {
+  if (!indirect && !isInForwardArc(facing, weaponDirectionTo(attacker, target))) {
     return { valid: false, reason: `${weapon.name} target is outside its firing arc.` };
   }
   const attackerMove = movementToHitModifier(attacker);
   const targetMove = targetMovementModifier(target);
-  const woods = woodsBetween(attacker, target);
-  if (woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
-  if (elevationBlocksLineOfSight(attacker, target)) return { valid: false, reason: 'Line of sight is blocked by an intervening ridge.' };
+  const observer = indirect ? spotter : attacker;
+  const woods = woodsBetween(observer, target);
+  if (!indirect && woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
+  if (!indirect && elevationBlocksLineOfSight(attacker, target)) return { valid: false, reason: 'Line of sight is blocked by an intervening ridge.' };
   const targetWoods = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
   const sensorCritical = typeof criticalToHitModifier === 'function' ? criticalToHitModifier(eligibleAttacker) : 0;
   const critical = sensorCritical + weaponComponentToHitModifier(eligibleAttacker, weaponEntry);
@@ -212,14 +249,17 @@ function evaluateWeaponAttack(attacker, target, weaponEntry) {
   const gunnery = eligibleAttacker.pilot?.gunnery ?? 4;
   const clusterModifier = weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster' ? -1 : 0;
   const accuracyModifier = Number(weapon.toHitModifier || 0);
+  const indirectModifier = indirect ? 1 : 0;
+  const spotterMovement = indirect ? movementToHitModifier(spotter) : 0;
+  const partialCover = terrainAt(target.col, target.row) === 'shallow_water' && !eligibleTarget.prone ? 1 : 0;
   return {
     valid: true,
     weapon,
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + accuracyModifier,
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + accuracyModifier + indirectModifier + spotterMovement + partialCover,
     attackAngle: attackDirection(attacker, target),
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + woods ${woods + targetWoods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
   };
 }
 
@@ -252,6 +292,8 @@ function selectWeaponTarget(instanceId) {
   weaponAttackState.weaponKeys = [];
   weaponAttackState.ammoBinsByMount = {};
   weaponAttackState.fireModesByMount = {};
+  weaponAttackState.indirect = false;
+  weaponAttackState.spotterId = null;
   renderWeaponAttackPanel();
 }
 
@@ -405,7 +447,7 @@ function formatAuthoritativeCriticals(checks) {
   return (checks || []).map(check =>
     ` Critical check ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.${(check.events || []).map(event =>
       event.special === 'blown_off' ? ` ${hitLocationLabel(event.location)} blown off.` :
-        event.ammo_explosion ? ` ${event.ammo_explosion} ammunition exploded for ${event.damage} damage.` :
+        event.ammo_explosion ? ` ${event.ammo_explosion} ammunition exploded for ${event.damage} damage.${event.case_protected ? ` CASE vented ${event.vented_damage || 0} excess damage.` : ''}${(event.pilot_checks || []).map(formatAuthoritativePilotCheck).join('')}` :
           event.label ? ` ${hitLocationLabel(event.location)} slot ${event.slot_index + 1}: ${event.label} destroyed.` : ''
     ).join('')}`
   ).join('');
@@ -429,23 +471,24 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
     const cluster = result.cluster_roll;
     const groups = (result.groups || []).map(group => {
       const gauss = group.gauss_explosion ? `; Gauss rifle exploded for ${group.gauss_explosion.damage} internal damage in ${hitLocationLabel(group.gauss_explosion.location)}` : '';
-      return `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}${gauss}${formatAuthoritativePilotCheck(group.pilot_check)}`;
+      return group.partial_cover ? `${hitLocationLabel(group.location)} — absorbed by partial cover` : `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}${gauss}${formatAuthoritativePilotCheck(group.pilot_check)}`;
     }).join('; ');
     const pellets = result.cluster_kind === 'lb_x' ? 'pellet' : 'missile';
     const clusterText = result.streak_lock ? 'Streak lock confirmed' : `Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}${cluster.modified_total && cluster.modified_total !== cluster.total ? `, modified to ${cluster.modified_total}` : ''}`;
-    const defence = result.ams ? ' AMS engaged.' : result.narc_guided ? ' Narc guidance applied.' : '';
+    const defence = result.ams ? ' AMS engaged.' : result.narc_guided ? ' Narc guidance applied.' : result.artemis_guided ? ' Artemis IV guidance applied.' : '';
     return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. ${clusterText}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.${defence}`;
   }
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
   const gaussExplosion = result.gauss_explosion ? ` Gauss rifle exploded for ${result.gauss_explosion.damage} internal damage in ${hitLocationLabel(result.gauss_explosion.location)}.` : '';
   const flamerHeat = result.heat_inflicted ? ` ${mechLabel(target)} gains ${result.heat_inflicted} heat.` : '';
+  if (result.partial_cover) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${hitLocationLabel(result.location)} hit absorbed by partial cover.`;
   return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${gaussExplosion}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function formatAuthoritativeTargetNumber(roll) {
   const b = roll?.breakdown;
   if (!b || typeof b.gunnery !== 'number') return '';
-  const labels = [['attacker_movement', 'attacker movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'woods'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'target prone'], ['lb_x_cluster', 'LB-X cluster'], ['weapon_accuracy', 'weapon accuracy']];
+  const labels = [['attacker_movement', 'attacker movement'], ['spotter_movement', 'spotter movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'woods'], ['partial_cover', 'partial cover'], ['indirect_fire', 'indirect fire'], ['spotter_firing', 'spotter firing'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'prone target'], ['lb_x_cluster', 'LB-X cluster'], ['weapon_accuracy', 'weapon accuracy']];
   const terms = [`Gunnery ${b.gunnery}`];
   for (const [key, label] of labels) {
     const value = Number(b[key] || 0);
@@ -487,7 +530,7 @@ async function loadWeaponCombatEvents() {
       time: new Date(declaredAt).toTimeString().slice(0, 8), round: event.round,
       phase: event.phase, cat: 'attack', team: attacker.owner,
       msg: mounts.length
-        ? `${mechLabel(attacker)} declared ${weaponDeclarationSummary(attacker, mounts, event.declaration?.ammo_bins?.__fire_modes)} at ${mechLabel(target)}.`
+        ? `${mechLabel(attacker)} declared ${weaponDeclarationSummary(attacker, mounts, event.declaration?.ammo_bins?.__fire_modes)}${event.declaration?.ammo_bins?.__indirect ? ` indirectly using ${mechLabel(mechInstances.find(mech => mech.instanceId === event.declaration.ammo_bins.__spotter))} as spotter` : ''} at ${mechLabel(target)}.`
         : `${mechLabel(attacker)} declared no weapon fire.`
     });
     if (event.status !== 'resolved' || !['simultaneous-declarations-01', 'alternating-activations-01'].includes(event.resolution?.state_version)) continue;
@@ -529,7 +572,7 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
       const catalogueIndex = BT_UNITS[attacker.unitId].weapons.indexOf(entry);
       return weaponMountId(entry, catalogueIndex >= 0 ? catalogueIndex : index);
     }),
-    p_ammo_bins: { ...ammoDeclaration.choices, __fire_modes: ammoDeclaration.fireModes }
+    p_ammo_bins: { ...ammoDeclaration.choices, __fire_modes: ammoDeclaration.fireModes, __indirect: Boolean(weaponAttackState.indirect), __spotter: weaponAttackState.spotterId }
   });
   if (error) {
     if (submitButton) { submitButton.disabled = false; submitButton.textContent = 'Confirm Weapon Attacks'; }
@@ -551,6 +594,7 @@ async function confirmWeaponAttack() {
     mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!attacker || attacker.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || attacker.hasFired) return;
   const target = mechInstances.find(m => m.instanceId === weaponAttackState.targetId);
+  const spotter = mechInstances.find(m => m.instanceId === weaponAttackState.spotterId);
   const selectedWeapons = BT_UNITS[attacker.unitId].weapons.filter((entry, index) =>
     weaponAttackState.weaponKeys.includes(weaponMountId(entry, index))
   );
@@ -638,6 +682,7 @@ function renderWeaponAttackPanel() {
   const pending = mechInstances.filter(m => m.owner === activeSeat && canFireFromWeaponPhaseStart(m) && !m.hasFired);
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId) || mechInstances.find(m => m.instanceId === selectedInstanceId);
   const target = mechInstances.find(m => m.instanceId === weaponAttackState.targetId);
+  const spotter = mechInstances.find(m => m.instanceId === weaponAttackState.spotterId);
 
   if (!isMine) {
     panel.innerHTML = `<div class="panel-eyebrow">Weapon Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">Waiting for Player ${activeSeat} to complete weapon attacks.</div>`;
@@ -661,10 +706,13 @@ function renderWeaponAttackPanel() {
 
   const enemies = mechInstances.filter(m => m.owner !== attacker.owner && canFireFromWeaponPhaseStart(m));
   const supportPicker = attacker.prone ? `<div style="font-size:10px;color:var(--amber);margin-bottom:7px;">PRONE SUPPORT ARM — choose the arm holding the BattleMech up.</div><div style="display:flex;gap:6px;margin-bottom:8px;">${['la','ra'].map(arm => `<button onclick="setProneWeaponSupportArm('${attacker.instanceId}','${arm}')" style="flex:1;padding:7px;border:1px solid ${attacker.proneSupportArm === arm ? 'var(--amber)' : 'var(--panel-line)'};background:${attacker.proneSupportArm === arm ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">${attacker.proneSupportArm === arm ? '✓ ' : ''}${arm === 'la' ? 'Left Arm' : 'Right Arm'}</button>`).join('')}</div>` : '';
+  const spotters = target ? eligibleIndirectSpotters(attacker, target) : [];
+  const attackerHasLrm = BT_UNITS[attacker.unitId].weapons.some(entry => entry.key?.startsWith('lrm'));
+  const indirectControls = target && attackerHasLrm ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px var(--mono);color:var(--paper);"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" onchange="setIndirectFire(this.checked)" ${weaponAttackState.indirect ? 'checked' : ''}> LRM INDIRECT FIRE</label>${weaponAttackState.indirect ? `<div style="margin-top:6px;color:var(--phosphor-dim);">Attacker must lack direct LOS. Choose a friendly spotter:</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">${spotters.map(candidate => `<button onclick="selectIndirectSpotter('${candidate.instanceId}')" style="padding:5px;border:1px solid ${spotter?.instanceId === candidate.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);">${mechLabel(candidate)}</button>`).join('') || 'No eligible spotter has line of sight.'}</div>` : ''}</div>` : '';
   const weaponRows = BT_UNITS[attacker.unitId].weapons.map((entry, index) => {
     const mountId = weaponMountId(entry, index);
     const checked = weaponAttackState.weaponKeys.includes(mountId);
-    const evaluation = target ? evaluateWeaponAttack(attacker, target, entry) : null;
+    const evaluation = target ? evaluateWeaponAttack(attacker, target, entry, { indirect: weaponAttackState.indirect, spotter }) : null;
     const weapon = weaponProfile(entry);
     if (weapon?.supportOnly) return '';
     const shotsRequired = weaponShotsForMode(mountId, entry);
@@ -685,6 +733,6 @@ function renderWeaponAttackPanel() {
     ${supportPicker}
     <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:4px;">TARGET</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => `<button onclick="selectWeaponTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${mechLabel(enemy)}</button>`).join('')}</div>
-    ${target ? `<div style="font-size:10px;color:var(--amber);margin-bottom:4px;">TARGET: ${mechLabel(target)}</div>${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}
+    ${target ? `<div style="font-size:10px;color:var(--amber);margin-bottom:4px;">TARGET: ${mechLabel(target)}</div>${indirectControls}${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}
     <button id="weapon-submit" onclick="confirmWeaponAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${weaponAttackState.weaponKeys.length ? 'Confirm Weapon Attacks' : 'No Fire / Complete Attacks'}</button>`;
 }

@@ -2,15 +2,15 @@
 
 > Supersedes the roadmap in `README.md` and the roadmap table in the `bttech-vtt`
 > skill, both of which predate the completion of Phases 2–6.
-> Last updated: 2026-08-21 (commit `63ee467`).
+> Last updated: 2026-08-24.
 
 ## Phase status
 
 | Phase | Status | Description |
 |-------|--------|-------------|
 | 1 — Hex Grid + Unit Placement | ✅ Done | Flat-top hex grid, odd-q offset, unit tokens with facing, click-to-inspect, hex code labels, mobile-responsive |
-| 2 — Movement | ✅ Done | Pathfinding, walk/run/jump ranges, facing changes, movement preview, terrain/elevation movement, rough-ground piloting checks, elevation LOS |
-| 3 — Combat | ✅ Done | To-hit resolution (range/facing/hit-location), armor/structure damage, criticals with per-chassis layouts, heat management, reactions, LB-X ammo modes, Ultra AC rapid fire, hatchets, flamers, piloting checks after damage |
+| 2 — Movement | ✅ Done | Pathfinding, walk/run/jump ranges, facing changes, deployment, terrain/elevation costs, water/rubble piloting checks, and elevation LOS |
+| 3 — Combat | ✅ Done | Server-authoritative weapon and physical combat, destruction/critical consequences, displacement/falls, prone fire, shallow-water cover, indirect LRM fire, and supported ammunition modes |
 | 4 — Multiplayer Sync | ✅ Done | Supabase Realtime sync, turn management (Initiative → Movement → Reaction → Weapon Attack → Physical Attack → Heat → End), shared battlefield, game codes, lobby |
 | 5 — Full Unit Roster | ✅ Done | Curated IS + Clan roster, MegaMek-derived records, canonical equipment resolver, MegaMek sprites, hangar search, variant favourites, lance-style skirmish hangars, per-mech skirmish pilots |
 | 6 — Supabase Backend | ✅ Done | Auth (username/password), DB schema (players/games/state incl. AI seats), API layer, split SQL migrations for the Supabase SQL Editor |
@@ -26,10 +26,11 @@ including Clan ER Medium Lasers at 7 damage and 5/10/15 range.
 
 ## Suggested next steps (priority order)
 
-1. Run the human-vs-human regression smoke test before gameplay changes.
-2. Phase 7 polish: sound effects → map editor → campaign mode → production
+1. Apply migrations 62–68, then run the focused human-vs-human combat regression.
+2. Expand remaining specialist rules in catalogue-led batches.
+3. Phase 7 polish: sound effects → map editor → campaign mode → production
    deployment.
-3. Documentation: replace `README.md`'s stale roadmap with `README2.md` /
+4. Documentation: replace `README.md`'s stale roadmap with `README2.md` /
    this file when ready.
 
 ## Key conventions

@@ -82,6 +82,32 @@ A one-legged BattleMech may make its single +5 stand attempt and, if upright,
 has 1 Walking MP and cannot run; two destroyed legs or a destroyed gyro prevent
 standing.
 
+`SQL/62` and `SQL/67` complete location and system destruction. Destroyed
+locations disable all mounted equipment, including side-torso engine slots,
+heat sinks and jump jets. Repeated identical weapons are tracked as individual
+mounts. Ammunition explosions inflict two pilot hits and transfer through
+internal structure, while CASE (including integral Clan CASE) vents excess
+damage. Destroyed life support injures the pilot during Heat Phases at 15+
+heat, and XL/light engines are destroyed when any three engine slots are lost.
+
+`SQL/64` completes prone weapon fire: both arms must remain intact, one arm is
+chosen as support and cannot fire, leg-mounted weapons cannot fire, and all
+otherwise eligible head, torso and opposite-arm weapons receive the +2 prone
+modifier.
+
+`SQL/65` adds simultaneous LRM indirect fire. The attacker must lack direct
+LOS and nominate a friendly spotter that has LOS to one target. Attacker,
+target and spotter movement, spotter terrain, the +1 indirect modifier, and
+the extra +1 when the spotter also fires are resolved authoritatively.
+`SQL/66` completes the guided ammunition present in the supported catalogue:
+Artemis IV and Narc-capable bins apply their +2 cluster modifiers when their
+guidance systems remain available.
+
+`SQL/68` completes depth-one water cover for weapon attacks. A standing target
+in shallow water receives +1 partial cover; a hit-location result against either
+leg strikes the water and applies no damage. This is resolved on the server for
+both direct attacks and clustered missile damage groups.
+
 ## Heat
 
 Heat should be a per-unit round ledger, not a single opaque number:

@@ -296,15 +296,17 @@ function drawTerrainFeature(cx, cy, col, row, terrain) {
       ctx.fillStyle = terrain === 'heavy_woods' ? '#56884a' : '#74a75d'; ctx.fill();
       ctx.fillStyle = '#493b25'; ctx.fillRect(px - .8, py + radius * .35, 1.6, radius * .75);
     }
-  } else if (terrain === 'shallow_water') {
+  } else if (terrain === 'shallow_water' || terrain === 'deep_water') {
+    ctx.fillStyle = terrain === 'deep_water' ? 'rgba(32,91,132,.45)' : 'rgba(72,139,166,.28)';
+    traceHex(cx, cy, HEX_SIZE - 3); ctx.fill();
     ctx.strokeStyle = 'rgba(211,241,244,.82)'; ctx.lineWidth = 1.15;
     for (let i = -1; i <= 1; i++) {
       const y = cy + i * 7;
       ctx.beginPath(); ctx.arc(cx - 9, y, 6, 0.15 * Math.PI, .85 * Math.PI); ctx.arc(cx + 3, y, 6, 1.15 * Math.PI, 1.85 * Math.PI); ctx.stroke();
     }
-  } else if (terrain === 'rough' || terrain === 'impassable') {
-    const count = terrain === 'impassable' ? 5 : 3;
-    ctx.fillStyle = terrain === 'impassable' ? '#55463b' : '#78634b';
+  } else if (terrain === 'rough' || terrain === 'rubble' || terrain === 'impassable') {
+    const count = terrain === 'impassable' ? 5 : terrain === 'rubble' ? 6 : 3;
+    ctx.fillStyle = terrain === 'impassable' ? '#55463b' : terrain === 'rubble' ? '#675f56' : '#78634b';
     for (let i = 0; i < count; i++) {
       const px = cx + (stableMapNoise(col, row, i + 55) - .5) * 26;
       const py = cy + (stableMapNoise(col, row, i + 65) - .5) * 20;
@@ -349,10 +351,13 @@ function drawMovementHighlights() {
       const n = hexNeighbor(mech.col, mech.row, d);
       if (n.col < 0 || n.col >= GRID_COLS || n.row < 0 || n.row >= GRID_ROWS) continue;
       if (isHexOccupied(n.col, n.row, mech.instanceId)) continue;
-      if (terrainMovementBlocked(n.col, n.row) || Math.abs(elevationAt(mech.col, mech.row) - elevationAt(n.col, n.row)) > 1) continue;
+      if (terrainMovementBlocked(n.col, n.row) || movementElevationCost(mech.col, mech.row, n.col, n.row) > 2) continue;
       const isRear = d === ((mech.facing + 3) % 6);
       if (isRear && moveState.mode !== 'walk') continue; // running 'Mechs can't move backward
-      const cost = (d === mech.facing) ? 1 + movementTerrainCost(n.col, n.row) : (isRear ? 1 : facingTurnCost(mech.facing, d) + 1) + movementTerrainCost(n.col, n.row);
+      const levelCost = movementElevationCost(mech.col, mech.row, n.col, n.row);
+      if (isRear && levelCost) continue;
+      if (moveState.mode === 'run' && ['shallow_water', 'deep_water'].includes(terrainAt(n.col, n.row))) continue;
+      const cost = (d === mech.facing ? 1 : (isRear ? 1 : facingTurnCost(mech.facing, d) + 1)) + movementTerrainCost(n.col, n.row) + levelCost;
       if (cost <= mpLeft) highlightHex(n.col, n.row, 'rgba(90,190,110,0.35)');
     }
   }

@@ -147,6 +147,11 @@ const tnG6 = sandbox.evaluateWeaponAttack(aG6, t3, wpn).targetNumber;
 check('#3 default gunnery = 4', tnDefault === 4, `tn=${tnDefault} (expect 4)`);
 check('#3 gunnery 6 feeds formula', tnG6 === tnDefault + 2, `default=${tnDefault} g6=${tnG6}`);
 check('#3 breakdown shows gunnery', sandbox.evaluateWeaponAttack(aG6, t3, wpn).breakdown.includes('Gunnery 6'));
+const originalTerrainAt = sandbox.terrainAt;
+sandbox.terrainAt = (col, row) => col === t3.col && row === t3.row ? 'shallow_water' : 'clear';
+const waterCoverShot = sandbox.evaluateWeaponAttack(aDefault, t3, wpn);
+check('#3 a standing target in shallow water receives partial cover', waterCoverShot.targetNumber === tnDefault + 1 && waterCoverShot.breakdown.includes('partial cover 1'), waterCoverShot.breakdown);
+sandbox.terrainAt = originalTerrainAt;
 
 // A valid range is not enough: a blocked shot and a destroyed target must
 // never become selectable in the attack panel.
@@ -158,6 +163,24 @@ check('#3 line of sight blocks an intervening ridge', !sandbox.evaluateWeaponAtt
 sandbox.elevationBlocksLineOfSight = () => false;
 const destroyedTarget = { ...t3, destroyed: true };
 check('#3 destroyed targets cannot be selected for weapon attacks', !sandbox.evaluateWeaponAttack(aDefault, destroyedTarget, wpn).valid);
+
+// Indirect LRM fire is legal only when the attacker lacks LOS and a friendly
+// spotter has LOS. It includes +1 indirect fire and the spotter's movement.
+const lrm = { key: 'lrm10', name: 'LRM 10', location: 'Left Torso', weapon: { key: 'lrm10', name: 'LRM 10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6 } };
+const spotter = { ...mkMech(4), instanceId: 's', col: 2, row: 1, movementMode: 'walk' };
+sandbox.mechInstances = [aDefault, spotter, t3];
+sandbox.elevationBlocksLineOfSight = observer => observer.instanceId === 'a';
+const indirect = sandbox.evaluateWeaponAttack(aDefault, t3, lrm, { indirect: true, spotter });
+check('#3 indirect LRM accepts a valid spotter when attacker LOS is blocked', indirect.valid, indirect.reason || indirect.breakdown);
+check('#3 indirect LRM includes indirect and spotter movement modifiers', indirect.targetNumber === 10, `tn=${indirect.targetNumber}`);
+check('#3 non-LRM weapons cannot use indirect fire', !sandbox.evaluateWeaponAttack(aDefault, t3, wpn, { indirect: true, spotter }).valid);
+sandbox.elevationBlocksLineOfSight = () => false;
+sandbox.mechInstances = [];
+
+const proneShooter = { ...aDefault, prone: true, proneSupportArm: 'la' };
+check('#3 prone support-arm weapon cannot fire', !sandbox.evaluateWeaponAttack(proneShooter, t3, wpn).valid);
+check('#3 prone leg-mounted weapon cannot fire', !sandbox.evaluateWeaponAttack({ ...proneShooter, proneSupportArm: 'ra' }, t3, { ...wpn, location: 'Left Leg' }).valid);
+check('#3 prone firing requires both arms intact', !sandbox.evaluateWeaponAttack({ ...proneShooter, structure: { ...STRUCT, ra: 0 } }, t3, { ...wpn, location: 'Center Torso' }).valid);
 
 // ── #3b LB-X Cluster ammunition starts in its declared mode ───────────────
 const lbxMount = { key: 'lb10x', location: 'Left Arm', mountId: 'lb10x:la:0' };
@@ -255,6 +278,15 @@ check('#4c one destroyed leg permits one walking MP but no running', oneLegProfi
 const gyroDestroyed = { ...mkMech(4), structure: { ...STRUCT }, criticalSlotDamage: { ct: [0, 1] } };
 check('#4c two gyro hits destroy the gyro and impose the automatic-fall modifier', sandbox.criticalMobilityState(gyroDestroyed).gyroDestroyed && sandbox.criticalMobilityState(gyroDestroyed).pilotingModifier === 6);
 
+const repeatedLasers = [
+  { key: 'med_laser', location: 'Left Arm', mountId: 'med_laser:la:0' },
+  { key: 'med_laser', location: 'Left Arm', mountId: 'med_laser:la:1' }
+];
+sandbox.BT_UNITS.testmech.weapons = repeatedLasers;
+sandbox.BT_CRITICAL_LAYOUTS.testmech.la = ['Medium Laser', 'Medium Laser'];
+const oneLaserDestroyed = { ...mkMech(4), criticalSlotDamage: { la: [0] }, destroyedMounts: ['med_laser:la:0'] };
+check('#4c identical weapon mounts are destroyed individually', sandbox.isWeaponCriticallyDestroyed(oneLaserDestroyed, repeatedLasers[0]) && !sandbox.isWeaponCriticallyDestroyed(oneLaserDestroyed, repeatedLasers[1]));
+
 // ── #5 Release migration guardrails ───────────────────────────────────────
 const migration = fs.readFileSync(`${ROOT}/SQL/45_preserve_current_rules_fixes.sql`, 'utf8');
 check('#5 migration patches the live weapon resolver', migration.includes("to_regprocedure('public.btech_process_weapon_declaration"));
@@ -301,6 +333,21 @@ check('#5 critical consequences share one mobility model', criticalConsequencesM
 check('#5 critical consequences compare phase-start snapshots', criticalConsequencesMigration.includes("'weaponPhaseStart'") && criticalConsequencesMigration.includes("'physicalPhaseStart'") && criticalConsequencesMigration.includes('gyro critical hit'));
 check('#5 critical movement rolls after running and jump landing', criticalConsequencesMigration.includes('running with damaged hip or gyro') && criticalConsequencesMigration.includes('jump landing with gyro or leg damage'));
 check('#5 one-legged standing and automatic falls are authoritative', criticalConsequencesMigration.includes('A BattleMech with both legs destroyed cannot stand') && criticalConsequencesMigration.includes("reasons||jsonb_build_array('leg destroyed')") && criticalConsequencesMigration.includes('automatic_fall:=true'));
+const destructionMigration = fs.readFileSync(`${ROOT}/SQL/62_complete_destruction_consequences.sql`, 'utf8');
+check('#5 destruction consequences include CASE, ammo pilot hits and location equipment loss', destructionMigration.includes('btech_location_has_case') && destructionMigration.includes('btech_apply_ammunition_explosion') && destructionMigration.includes('btech_destroy_location_components'));
+check('#5 a centre-torso ammunition explosion kills the pilot', destructionMigration.includes('centre torso destroyed by ammunition explosion') && destructionMigration.includes("'{pilot,consciousness}'"));
+const terrainMigration = fs.readFileSync(`${ROOT}/SQL/63_complete_common_terrain.sql`, 'utf8');
+check('#5 terrain rules cover bundled maps, water, rubble and level costs', terrainMigration.includes('flatlands-open-terrain') && terrainMigration.includes('desert-hills') && terrainMigration.includes('entering water') && terrainMigration.includes('entering rubble') && terrainMigration.includes('abs(next_level-current_level)'));
+const proneMigration = fs.readFileSync(`${ROOT}/SQL/64_complete_prone_weapon_fire.sql`, 'utf8');
+check('#5 prone fire requires both arms and blocks supporting-arm and leg weapons', proneMigration.includes('after either arm is destroyed') && proneMigration.includes('Leg-mounted weapons cannot fire while prone'));
+const indirectMigration = fs.readFileSync(`${ROOT}/SQL/65_lrm_indirect_fire.sql`, 'utf8');
+check('#5 indirect LRM resolves spotter movement and simultaneous spotter fire', indirectMigration.includes('spotter_move_mod') && indirectMigration.includes('__spotter_fired') && indirectMigration.includes('A spotter may spot only one target'));
+const guidedMigration = fs.readFileSync(`${ROOT}/SQL/66_guided_ammunition_consequences.sql`, 'utf8');
+check('#5 supported guided ammunition applies Artemis and Narc cluster modifiers', guidedMigration.includes('artemis_guided') && guidedMigration.includes('narc_guided'));
+const systemMigration = fs.readFileSync(`${ROOT}/SQL/67_complete_system_destruction.sql`, 'utf8');
+check('#5 repeated weapon mounts and life support consequences are authoritative', systemMigration.includes('btech_mount_for_critical_slot') && systemMigration.includes('life_support_heat_v1'));
+const waterCoverMigration = fs.readFileSync(`${ROOT}/SQL/68_shallow_water_partial_cover.sql`, 'utf8');
+check('#5 shallow water adds partial cover and absorbs leg hits', waterCoverMigration.includes('shallow_cover_mod') && waterCoverMigration.includes("IN (''ll'',''rl'')") && waterCoverMigration.includes("''partial_cover''"));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

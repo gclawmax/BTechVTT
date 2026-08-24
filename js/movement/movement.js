@@ -5,7 +5,20 @@ const MOVE_BTN_STYLE = 'padding:9px 10px;border:1px solid var(--phosphor);backgr
 const MOVEMENT_HEAT = { stand: 0, walk: 1, run: 2, jump: 3 };
 
 function movementTerrainCost(col, row) {
-  return ({ light_woods: 1, heavy_woods: 2, rough: 1, shallow_water: 1 })[terrainAt(col, row)] || 0;
+  return ({ light_woods: 1, heavy_woods: 2, rough: 1, rubble: 1, shallow_water: 1, deep_water: 3 })[terrainAt(col, row)] || 0;
+}
+
+function movementElevationCost(fromCol, fromRow, toCol, toRow) {
+  const level = (col, row) => terrainAt(col, row) === 'deep_water' ? -2 : terrainAt(col, row) === 'shallow_water' ? -1 : elevationAt(col, row);
+  return Math.abs(level(toCol, toRow) - level(fromCol, fromRow));
+}
+
+function submergedLegJumpJets(mech) {
+  if (terrainAt(mech.col, mech.row) !== 'shallow_water') return 0;
+  const layout = BT_CRITICAL_LAYOUTS[mech.unitId] || {};
+  return ['ll', 'rl'].reduce((total, location) => total + (layout[location] || []).filter((slot, index) =>
+    /jump jet/i.test(criticalSlotName(slot)) && !(mech.criticalSlotDamage?.[location] || []).includes(index)
+  ).length, 0);
 }
 
 function titleCaseMode(mode) {
@@ -185,7 +198,12 @@ async function startMovementMode(instanceId, mode) {
     return;
   }
 
-  const mpMax = Math.max(0, (criticalMovement[mode] || 0) - heatMovementPenalty(mech));
+  if (mode === 'jump' && terrainAt(mech.col, mech.row) === 'deep_water') {
+    flashMoveWarning("A submerged 'Mech cannot use its jump jets.");
+    return;
+  }
+  const waterJetPenalty = mode === 'jump' ? submergedLegJumpJets(mech) : 0;
+  const mpMax = Math.max(0, (criticalMovement[mode] || 0) - heatMovementPenalty(mech) - waterJetPenalty);
   if (mpMax <= 0) return;
 
   moveState = {
@@ -238,10 +256,13 @@ function attemptMoveStep(col, row) {
     const dir = directionBetween(mech.col, mech.row, col, row);
     if (dir === -1) { flashMoveWarning('Click a hex adjacent to your ‘Mech.'); return; }
     if (terrainMovementBlocked(col, row)) { flashMoveWarning('That terrain is impassable.'); return; }
-    if (Math.abs(elevationAt(mech.col, mech.row) - elevationAt(col, row)) > 1) { flashMoveWarning('A BattleMech can climb or descend only one elevation level at a time.'); return; }
+    if (movementElevationCost(mech.col, mech.row, col, row) > 2) { flashMoveWarning('A BattleMech cannot cross a level change greater than two.'); return; }
     const isRear = dir === ((mech.facing + 3) % 6);
     if (isRear && moveState.mode !== 'walk') { flashMoveWarning("Can't move backward while running."); return; }
-    const cost = (dir === mech.facing) ? 1 + movementTerrainCost(col, row) : (isRear ? 1 : facingTurnCost(mech.facing, dir) + 1) + movementTerrainCost(col, row);
+    const levelCost = movementElevationCost(mech.col, mech.row, col, row);
+    if (isRear && levelCost) { flashMoveWarning("A BattleMech cannot change levels while moving backward."); return; }
+    if (moveState.mode === 'run' && ['shallow_water', 'deep_water'].includes(terrainAt(col, row))) { flashMoveWarning("A running BattleMech cannot enter water."); return; }
+    const cost = (dir === mech.facing ? 1 : (isRear ? 1 : facingTurnCost(mech.facing, dir) + 1)) + movementTerrainCost(col, row) + levelCost;
     if (cost > mpLeft) { flashMoveWarning('Not enough MP for that move.'); return; }
     mech.col = col;
     mech.row = row;
@@ -353,11 +374,12 @@ async function submitAuthoritativeMovement(mech, mode, path) {
     const movedMech = mechInstances.find(candidate => candidate.instanceId === check.instance_id) || mech;
     const roll = check.to_hit || {};
     const gyro = roll.gyro_modifier ? ` (including +${roll.gyro_modifier} gyro damage)` : '';
+    const reason = (check.reasons || ['terrain hazard']).join(' and ');
     if (check.passed) {
-      logEvent(`${mechLabel(movedMech)} passed its Piloting Skill Roll for running through rough ground — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
+      logEvent(`${mechLabel(movedMech)} passed its Piloting Skill Roll for ${reason} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
     } else {
       const groups = (check.fall_groups || []).map(group => `${hitLocationLabel(group.location)} ${group.damage}`).join(', ');
-      logEvent(`${mechLabel(movedMech)} failed its Piloting Skill Roll for running through rough ground — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`, 'roll');
+      logEvent(`${mechLabel(movedMech)} failed its Piloting Skill Roll for ${reason} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`, 'roll');
     }
   }
   if (data?.movement_piloting_check && !data?.terrain_check) {

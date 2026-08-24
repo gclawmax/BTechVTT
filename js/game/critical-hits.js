@@ -15,6 +15,10 @@ function criticalSlotName(slot) {
   return String(slot || '').replace(/\s*\([A-Z]\)$/, '').trim();
 }
 
+function criticalEquipmentKey(label) {
+  return criticalSlotName(label).toLowerCase().replace(/^(is|clan|cl)/, '').replace(/[^a-z0-9]/g, '');
+}
+
 function criticalDie() {
   return Math.floor(Math.random() * 6) + 1;
 }
@@ -54,7 +58,10 @@ function markCriticalSlot(mech, location, index) {
 function criticalWeaponLabel(key) {
   return ({
     ac20: 'Autocannon/20', ac10: 'Autocannon/10', ac5: 'Autocannon/5', ac2: 'Autocannon/2',
-    lr20: 'LRM 20', lrm20: 'LRM 20', lrm10: 'LRM 10', lr6: 'LRM 6', sr6: 'SRM 6', srm6: 'SRM 6',
+    uac20: 'Ultra AC/20', uac10: 'Ultra AC/10', uac5: 'Ultra AC/5', uac2: 'Ultra AC/2', lb10x: 'LB 10-X AC',
+    gauss: 'Gauss Rifle', lrm20: 'LRM 20', lrm15: 'LRM 15', lrm10: 'LRM 10', lrm5: 'LRM 5',
+    lr20: 'LRM 20', lr15: 'LRM 15', lr10: 'LRM 10', lr5: 'LRM 5',
+    srm6: 'SRM 6', srm4: 'SRM 4', srm2: 'SRM 2', sr6: 'SRM 6', sr4: 'SRM 4', sr2: 'SRM 2',
     med_laser: 'Medium Laser', small_laser: 'Small Laser', large_laser: 'Large Laser',
     erl: 'ER Large Laser', ppc: 'PPC', machine_gun: 'Machine Gun', streak_sr4: 'Streak SRM 4'
   })[key] || key;
@@ -213,8 +220,19 @@ function criticalMovementProfile(mech) {
 function isWeaponCriticallyDestroyed(mech, weaponEntry) {
   const location = criticalLocationKey(weaponEntry.location);
   const layout = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [];
-  const wanted = criticalWeaponLabel(weaponEntry.key);
-  return (mech.criticalSlotDamage?.[location] || []).some(index => criticalSlotName(layout[index]) === wanted);
+  const catalogueLabel = criticalWeaponLabel(weaponEntry.key);
+  const wanted = criticalEquipmentKey(catalogueLabel === weaponEntry.key ? (weaponEntry.weapon?.name || catalogueLabel) : catalogueLabel);
+  const mountId = weaponEntry.mountId;
+  if (mountId && (mech.destroyedMounts || []).includes(mountId)) return true;
+  const unitWeapons = (BT_UNITS[mech.unitId]?.weapons || []).filter(entry => {
+    const label = criticalWeaponLabel(entry.key);
+    return criticalLocationKey(entry.location) === location && criticalEquipmentKey(label === entry.key ? (entry.weapon?.name || label) : label) === wanted;
+  });
+  const matchingSlots = layout.map((slot, index) => criticalEquipmentKey(slot) === wanted ? index : -1).filter(index => index >= 0);
+  const mountIndex = unitWeapons.indexOf(weaponEntry);
+  if (mountIndex < 0 || !matchingSlots.length) return false;
+  const assigned = matchingSlots.filter((_, slotOrdinal) => Math.floor(slotOrdinal * unitWeapons.length / matchingSlots.length) === mountIndex);
+  return assigned.some(index => (mech.criticalSlotDamage?.[location] || []).includes(index));
 }
 
 function criticalToHitModifier(mech) {

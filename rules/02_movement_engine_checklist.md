@@ -20,12 +20,14 @@ MP is 0 - walk/run/jump when the corresponding MP rating is 0
 
 For walk/run: 1. Destination must be adjacent for a single step. 2.
 Determine direction relative to current facing. 3. Forward entry costs 1
-MP plus terrain cost. 4. Rear entry is legal only when walking and costs
-1 MP plus terrain cost. 5. Other directions require facing change,
+MP plus terrain and level-change costs. 4. Rear entry is legal only when
+walking, cannot change levels, and costs 1 MP plus terrain cost. 5. Other directions require facing change,
 costing 1 MP per hexside, then movement cost. 6. Running cannot move
 into the rear hex. 7. Cannot move through an enemy 'Mech. 8. Cannot
 finish in any occupied hex. 9. Total MP used must remain within the
-selected mode's MP rating.
+selected mode's MP rating. 10. Running cannot enter Depth 1+ water.
+11. Entering water or rubble requires the appropriate Piloting roll; rough
+ground costs +1 MP but does not itself cause a roll.
 
 ## Validate jumping
 
@@ -35,6 +37,8 @@ selected mode's MP rating.
 4.  Destination cannot contain another 'Mech.
 5.  Initial facing does not restrict direction.
 6.  Final facing may be chosen freely.
+7.  A submerged unit cannot jump; in Depth 1 water, submerged leg jump jets
+    do not contribute Jumping MP.
 
 ## Important state
 

@@ -22,14 +22,16 @@ Full turn structure: **Initiative → Movement → Reaction → Weapon Attack �
 - Walk/run/jump movement ranges with hex pathfinding
 - Facing changes during movement and on jump landing
 - Movement preview/highlighting
-- Terrain and elevation movement rules, rough-ground piloting checks
+- Terrain and elevation movement rules, including woods, rough, rubble and water
 - Elevation line-of-sight rules
 
 ### Combat (`js/game/`)
-- Weapon attacks with range, facing, and hit-location tables
+- Weapon attacks with range, facing, hit-location tables, shallow-water cover,
+  prone firing and LRM indirect fire with simultaneous spotters
 - LB-X ammunition modes (cluster/shotgun fire derived from the selected ammunition bin)
 - Ultra AC rapid fire, hatchet attacks, flamer heat
-- Physical attacks, critical hits with per-chassis critical layouts
+- Physical attacks (including Charge, Push and Death From Above), displacement,
+  complete falls, and critical/destruction consequences from per-chassis layouts
 - Heat management and heat sinks
 - Reaction phase (counterattacks)
 - Piloting checks applied after weapon damage
@@ -94,7 +96,7 @@ profiles. For example, Clan ER Medium Lasers use 7 damage and 5/10/15 range.
 
 ## Remaining work
 
-- Establish and run the human-vs-human regression test before gameplay changes
+- Apply migrations 62–68 and run the focused human-vs-human combat regression
 - Phase 7 polish: sound effects, map editor, campaign mode, production deployment
   beyond GitHub Pages
 - Documentation refresh (this file and `SKILL_ROADMAP2.md` replace the stale
