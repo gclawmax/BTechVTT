@@ -275,6 +275,7 @@ check('#5 displacement resolves accidental falls from above', completedPhysicalM
 check('#5 every complete fall changes facing and checks pilot injury', completedPhysicalMigration.includes('facing_delta') && completedPhysicalMigration.includes('fall_direction_die') && completedPhysicalMigration.includes("btech_apply_pilot_hit(m,'fall')"));
 check('#5 ordinary combat and failed stands share complete fall handling', completedPhysicalMigration.includes('CREATE OR REPLACE FUNCTION public.attempt_stand_battlemech') && completedPhysicalMigration.includes('CREATE OR REPLACE FUNCTION public.btech_resolve_physical_piloting_checks') && completedPhysicalMigration.includes('CREATE OR REPLACE FUNCTION public.btech_resolve_weapon_piloting_checks'));
 check('#5 Total Warfare physical-equipment table is data driven', ['backhoe','chainsaw','dual_saw','hatchet','mining_drill','retractable_blade','spot_welder','sword','wrecking_ball'].every(key => completedPhysicalMigration.includes(`WHEN '${key}'`)));
+check('#5 physical resolver installs deterministically', completedPhysicalMigration.includes('CREATE OR REPLACE FUNCTION public.btech_process_physical_declaration') && !completedPhysicalMigration.includes('Could not safely extend every required physical declaration rule'));
 check('#5 blocked DFA searches alternate legal displacement hexes', completedPhysicalMigration.includes('candidate_direction') && completedPhysicalMigration.includes('btech_mark_mech_destroyed'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
