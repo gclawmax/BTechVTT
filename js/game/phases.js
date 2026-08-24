@@ -660,7 +660,7 @@ function resetHeatManagementForRound() {
 function activePlayerHasLegalPhysicalAttack() {
   const attackers = getPhaseUnitsForActivePlayer().filter(m => !m.hasPhysicalAttacked);
   return attackers.some(attacker => mechInstances.some(target =>
-    target.owner !== attacker.owner && !target.destroyed && ['punch', 'kick'].some(type =>
+    target.owner !== attacker.owner && !target.destroyed && ['punch', 'kick', 'dfa'].some(type =>
       physicalLimbCandidates(type).some(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid))
   ));
 }
@@ -668,7 +668,7 @@ function activePlayerHasLegalPhysicalAttack() {
 function anyLegalPhysicalAttackExists() {
   return mechInstances.some(attacker => !attacker.destroyed && mechInstances.some(target =>
     target.owner !== attacker.owner && !target.destroyed &&
-    ['punch', 'kick'].some(type => physicalLimbCandidates(type).some(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid))
+    ['punch', 'kick', 'dfa'].some(type => physicalLimbCandidates(type).some(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid))
   ));
 }
 

@@ -215,6 +215,11 @@ const physicalAttacker = { ...mkMech(4), col: 4, row: 4, facing: 0, structure: {
 const adjacentTarget = { ...t3, col: 5, row: 4, facing: 3, structure: { ...STRUCT } };
 const kick = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'kick', 'll');
 check('#4b adjacent forward kick is legal', kick.valid && kick.damage === 10 && kick.targetNumber === 3, `damage=${kick.damage} tn=${kick.targetNumber}`);
+const dfaAttacker = { ...physicalAttacker, movementMode: 'jump', hexesMoved: 3 };
+const dfa = sandbox.evaluatePhysicalAttack(dfaAttacker, adjacentTarget, 'dfa', 'dfa');
+check('#4b Death From Above requires a jump and is legal after one', dfa.valid && dfa.damage === 10 && dfa.selfDamage === 5, `damage=${dfa.damage} self=${dfa.selfDamage}`);
+check('#4b Death From Above rejects a non-jumping attacker', !sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'dfa', 'dfa').valid);
+check('#4b Death From Above rejects a rear target', !sandbox.evaluatePhysicalAttack({ ...dfaAttacker, facing: 3 }, adjacentTarget, 'dfa', 'dfa').valid);
 check('#4b physical attacks reject non-adjacent targets', !sandbox.evaluatePhysicalAttack(physicalAttacker, { ...adjacentTarget, col: 7 }, 'kick', 'll').valid);
 check('#4b destroyed limbs cannot make physical attacks', !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, structure: { ...physicalAttacker.structure, ll: 0 } }, adjacentTarget, 'kick', 'll').valid);
 sandbox.mechInstances = [physicalAttacker, adjacentTarget];
@@ -239,6 +244,9 @@ check('#5 Cluster migration patches the authoritative target number', clusterMig
 check('#5 Cluster migration records target-number breakdowns', clusterMigration.includes("''breakdown'',jsonb_build_object"));
 const lbxSnapshotMigration = fs.readFileSync(`${ROOT}/SQL/48_fix_lb_x_snapshot_validation.sql`, 'utf8');
 check('#5 LB-X snapshot migration validates persisted bins', lbxSnapshotMigration.includes("'attacker_start->''ammoBins''','attacker->''ammoBins''"));
+const dfaMigration = fs.readFileSync(`${ROOT}/SQL/55_death_from_above.sql`, 'utf8');
+check('#5 Death From Above migration preserves the authoritative physical resolver', dfaMigration.includes("to_regprocedure('public.btech_process_physical_declaration") && dfaMigration.includes("'self_damage'"));
+check('#5 Death From Above migration creates shared piloting checks', dfaMigration.includes('btech_resolve_physical_piloting_checks') && dfaMigration.includes('hit by Death From Above'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);
