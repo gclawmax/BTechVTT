@@ -117,11 +117,32 @@ function applyCriticalInternalDamage(mech, location, damage) {
   return { destroyed: !!mech.destroyed };
 }
 
+function finalizeBlownOffLocation(mech, location) {
+  mech.structure[location] = 0;
+  const slots = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [];
+  mech.criticalSlotDamage ||= {};
+  mech.criticalSlotDamage[location] = slots.map((_, index) => index);
+  for (const bin of mech.ammoBins || []) {
+    if (criticalLocationKey(bin.location) !== location && !String(bin.id || '').startsWith(`${location}:`)) continue;
+    bin.shots = 0;
+    bin.destroyed = true;
+  }
+  if (location === 'head') {
+    mech.destroyed = true;
+    mech.pilot ||= {};
+    mech.pilot.hits = 6;
+    mech.pilot.consciousness = 'dead';
+  }
+}
+
 function criticalEffectMessage(mech, location, slot) {
   const label = criticalSlotName(slot);
   const normalized = label.toLowerCase();
   if (normalized === 'cockpit') {
     mech.destroyed = true;
+    mech.pilot ||= {};
+    mech.pilot.hits = 6;
+    mech.pilot.consciousness = 'dead';
     return 'Cockpit destroyed — pilot killed; BattleMech destroyed.';
   }
   if (normalized === 'fusion engine') {
@@ -266,8 +287,7 @@ function resolveCriticalHits(mech, initialLocation) {
   const initial = criticalRollResult(roll.total, initialLocation);
   const events = [];
   if (initial.special === 'blown_off') {
-    mech.structure[initialLocation] = 0;
-    if (initialLocation === 'head') mech.destroyed = true;
+    finalizeBlownOffLocation(mech, initialLocation);
     events.push(`${CRITICAL_LOCATION_NAMES[initialLocation]} blown off on a 12${initialLocation === 'head' ? ' — target destroyed' : ''}.`);
     return { triggered: true, roll, events, count: 0 };
   }

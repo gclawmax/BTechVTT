@@ -90,6 +90,12 @@ internal structure, while CASE (including integral Clan CASE) vents excess
 damage. Destroyed life support injures the pilot during Heat Phases at 15+
 heat, and XL/light engines are destroyed when any three engine slots are lost.
 
+`SQL/72` closes the remaining supported critical-effect edges. A cockpit
+critical now persists the MechWarrior as dead as well as destroying the
+BattleMech. A blown-off head or limb destroys every component in that location
+and retires its ammunition bins, so detached heat sinks and ammunition cannot
+continue affecting later phases.
+
 `SQL/64` completes prone weapon fire: both arms must remain intact, one arm is
 chosen as support and cannot fire, leg-mounted weapons cannot fire, and all
 otherwise eligible head, torso and opposite-arm weapons receive the +2 prone

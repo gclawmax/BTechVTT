@@ -286,6 +286,13 @@ sandbox.BT_UNITS.testmech.weapons = repeatedLasers;
 sandbox.BT_CRITICAL_LAYOUTS.testmech.la = ['Medium Laser', 'Medium Laser'];
 const oneLaserDestroyed = { ...mkMech(4), criticalSlotDamage: { la: [0] }, destroyedMounts: ['med_laser:la:0'] };
 check('#4c identical weapon mounts are destroyed individually', sandbox.isWeaponCriticallyDestroyed(oneLaserDestroyed, repeatedLasers[0]) && !sandbox.isWeaponCriticallyDestroyed(oneLaserDestroyed, repeatedLasers[1]));
+const cockpitDestroyed = { ...mkMech(4), pilot: { hits: 0, consciousness: 'conscious' } };
+sandbox.criticalEffectMessage(cockpitDestroyed, 'head', 'Cockpit');
+check('#4c cockpit destruction persists pilot death', cockpitDestroyed.destroyed && cockpitDestroyed.pilot.hits === 6 && cockpitDestroyed.pilot.consciousness === 'dead');
+sandbox.BT_CRITICAL_LAYOUTS.testmech.la = ['Medium Laser', 'Heat Sink', 'IS Ammo AC/5'];
+const blownOffArm = { ...mkMech(4), structure: { ...STRUCT }, criticalSlotDamage: {}, ammoBins: [{ id: 'la:2', type: 'ac5', location: 'Left Arm', shots: 20 }] };
+sandbox.finalizeBlownOffLocation(blownOffArm, 'la');
+check('#4c a blown-off limb retires all slots and ammunition in that location', blownOffArm.structure.la === 0 && blownOffArm.criticalSlotDamage.la.length === 3 && blownOffArm.ammoBins[0].destroyed && blownOffArm.ammoBins[0].shots === 0);
 
 // ── #5 Release migration guardrails ───────────────────────────────────────
 const migration = fs.readFileSync(`${ROOT}/SQL/45_preserve_current_rules_fixes.sql`, 'utf8');
@@ -366,6 +373,9 @@ check('#5 Precision bins carry half shots and legacy matches retain LB-X-only se
 const advancedMapSource = fs.readFileSync(`${ROOT}/js/game/maps.js`, 'utf8');
 const advancedWeaponSource = fs.readFileSync(`${ROOT}/js/game/weapon-attack.js`, 'utf8');
 check('#5 client exposes advanced map terrain and specialised ammunition', advancedMapSource.includes("'industrial-crossing'") && advancedWeaponSource.includes("ammoLoadType === 'precision'") && advancedWeaponSource.includes("ammo_load_type === 'inferno'"));
+const criticalEdgesMigration = fs.readFileSync(`${ROOT}/SQL/72_complete_critical_effect_edges.sql`, 'utf8');
+check('#5 cockpit criticals persist pilot death authoritatively', criticalEdgesMigration.includes('btech_destroy_cockpit') && criticalEdgesMigration.includes("'{pilot,consciousness}'") && criticalEdgesMigration.includes("'{pilot,hits}'"));
+check('#5 blown-off locations destroy every component and ammunition bin', criticalEdgesMigration.includes('btech_finalize_blown_off_location') && criticalEdgesMigration.includes('btech_destroy_location_components') && criticalEdgesMigration.includes("'{destroyed}'"));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);
