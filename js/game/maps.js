@@ -108,6 +108,7 @@ const BT_MAPS = Object.freeze({
 
 const DEFAULT_MAP_ID = 'training-grounds';
 let activeMapId = DEFAULT_MAP_ID;
+let activeTerrainState = { overrides: {}, building_cf: {} };
 
 function getMapDefinition(mapId) {
   return BT_MAPS[mapId] || BT_MAPS[DEFAULT_MAP_ID];
@@ -115,6 +116,26 @@ function getMapDefinition(mapId) {
 
 function setActiveMap(mapId) {
   activeMapId = BT_MAPS[mapId] ? mapId : DEFAULT_MAP_ID;
+}
+
+// Terrain which changes during a match is kept in the authoritative game
+// state.  An explicit "clear" override is meaningful: it removes smoke or a
+// fire printed in the base map without changing the map catalogue itself.
+function setActiveTerrainState(state = {}) {
+  activeTerrainState = {
+    overrides: state.terrain_overrides && typeof state.terrain_overrides === 'object' ? state.terrain_overrides : {},
+    building_cf: state.building_cf && typeof state.building_cf === 'object' ? state.building_cf : {}
+  };
+}
+
+function terrainStatusAt(col, row) {
+  const code = hexCode(col, row);
+  return {
+    terrain: Object.prototype.hasOwnProperty.call(activeTerrainState.overrides, code)
+      ? activeTerrainState.overrides[code]
+      : (getMapDefinition(activeMapId).terrain[code] || 'clear'),
+    buildingCF: activeTerrainState.building_cf[code] ?? null
+  };
 }
 
 function elevationAt(col, row) {

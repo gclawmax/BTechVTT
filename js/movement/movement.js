@@ -385,6 +385,12 @@ async function submitAuthoritativeMovement(mech, mode, path) {
     } else {
       const groups = (check.fall_groups || []).map(group => `${hitLocationLabel(group.location)} ${group.damage}`).join(', ');
       logEvent(`${mechLabel(movedMech)} failed its Piloting Skill Roll for ${reason} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`, 'roll');
+      if (check.skid) {
+        const collision = (check.skid.collisions || []).map(item => item.type === 'building'
+          ? `building ${item.hex} (CF ${item.construction_factor_before}→${item.construction_factor_after})`
+          : mechLabel(mechInstances.find(unit => unit.instanceId === item.target_instance_id))).join(', ');
+        logEvent(`${mechLabel(movedMech)} skidded ${check.skid.hexes_skidded}/${check.skid.hexes_required} hexes for ${check.skid.damage} additional damage${collision ? `; struck ${collision}` : ''}${check.skid.stop_reason ? `; stopped by ${check.skid.stop_reason}` : ''}.`, 'roll');
+      }
     }
   }
   if (data?.movement_piloting_check && !data?.terrain_check) {

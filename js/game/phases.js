@@ -72,6 +72,7 @@ async function loadGameState() {
 
   const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   setActiveMap(gameState.map_id);
+  setActiveTerrainState(gameState);
   currentMatchConfig = {
     ...(gameState.map_id ? { map_id: gameState.map_id } : {}),
     ...(gameState.dropship_tonnage ? { dropship_tonnage: gameState.dropship_tonnage } : {}),
@@ -79,6 +80,12 @@ async function loadGameState() {
     ...(typeof gameState.vs_ai_mode === 'boolean' ? { vs_ai_mode: gameState.vs_ai_mode } : {}),
     ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {}),
     ...(gameState.special_ammo_setup_v1 ? { special_ammo_setup_v1: true } : {}),
+    ...(gameState.terrain_overrides ? { terrain_overrides: gameState.terrain_overrides } : {}),
+    ...(gameState.building_cf ? { building_cf: gameState.building_cf } : {}),
+    ...(gameState.generated_smoke_hexes ? { generated_smoke_hexes: gameState.generated_smoke_hexes } : {}),
+    ...(gameState.terrain_advanced_after_round != null ? { terrain_advanced_after_round: gameState.terrain_advanced_after_round } : {}),
+    ...(gameState.wind_direction != null ? { wind_direction: gameState.wind_direction } : {}),
+    ...(gameState.terrain_events ? { terrain_events: gameState.terrain_events } : {}),
     ...(game.catalogue_version ? { catalogue_version: game.catalogue_version } : {})
   };
   // Always derive this from the loaded game. Otherwise an AI game visited in

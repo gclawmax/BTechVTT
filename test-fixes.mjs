@@ -376,6 +376,11 @@ check('#5 client exposes advanced map terrain and specialised ammunition', advan
 const criticalEdgesMigration = fs.readFileSync(`${ROOT}/SQL/72_complete_critical_effect_edges.sql`, 'utf8');
 check('#5 cockpit criticals persist pilot death authoritatively', criticalEdgesMigration.includes('btech_destroy_cockpit') && criticalEdgesMigration.includes("'{pilot,consciousness}'") && criticalEdgesMigration.includes("'{pilot,hits}'"));
 check('#5 blown-off locations destroy every component and ammunition bin', criticalEdgesMigration.includes('btech_finalize_blown_off_location') && criticalEdgesMigration.includes('btech_destroy_location_components') && criticalEdgesMigration.includes("'{destroyed}'"));
+const terrainInteractionsMigration = fs.readFileSync(`${ROOT}/SQL/73_complete_advanced_terrain_interactions.sql`, 'utf8');
+check('#5 dynamic terrain overlays are shared by movement and weapon LOS', terrainInteractionsMigration.includes('btech_state_terrain') && terrainInteractionsMigration.includes('btech_intervening_terrain'));
+check('#5 failed pavement checks resolve full skid movement and damage', terrainInteractionsMigration.includes('btech_apply_skid') && terrainInteractionsMigration.includes('hexes_required') && terrainInteractionsMigration.includes('damage_groups'));
+check('#5 skids damage buildings and collapse exhausted CF into rubble', terrainInteractionsMigration.includes('construction_factor_after') && terrainInteractionsMigration.includes("'\"rubble\"'::jsonb"));
+check('#5 fire advances smoke and building damage once per completed round', terrainInteractionsMigration.includes('btech_advance_terrain_round') && terrainInteractionsMigration.includes('generated_smoke_hexes') && terrainInteractionsMigration.includes('terrain_advanced_after_round'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

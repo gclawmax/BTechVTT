@@ -323,6 +323,12 @@ function drawTerrainFeature(cx, cy, col, row, terrain) {
     ctx.strokeStyle = '#292d2f'; ctx.lineWidth = 2; ctx.strokeRect(cx - 14, cy - 12, 28, 23);
     ctx.fillStyle = '#d8b66b';
     for (const x of [-8, 0, 8]) for (const y of [-6, 2]) ctx.fillRect(cx + x - 2, cy + y - 2, 4, 4);
+    const cf = terrainStatusAt(col, row).buildingCF;
+    if (cf != null) {
+      ctx.fillStyle = 'rgba(19,22,23,.86)'; ctx.fillRect(cx - 11, cy + 12, 22, 9);
+      ctx.fillStyle = '#f0d58e'; ctx.font = 'bold 7px var(--mono)'; ctx.textAlign = 'center';
+      ctx.fillText(`CF ${cf}`, cx, cy + 19);
+    }
   } else if (terrain === 'fire') {
     ctx.fillStyle = 'rgba(190,47,20,.30)'; traceHex(cx, cy, HEX_SIZE - 3); ctx.fill();
     ctx.fillStyle = '#ef7d22';

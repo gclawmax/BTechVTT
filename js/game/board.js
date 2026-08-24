@@ -5,7 +5,7 @@ const HEX_SIZE = 32;
 const GRID_COLS = 16;
 const GRID_ROWS = 12;
 
-function terrainAt(col, row) { return getMapDefinition(activeMapId).terrain[hexCode(col, row)] || 'clear'; }
+function terrainAt(col, row) { return terrainStatusAt(col, row).terrain; }
 function terrainMovementBlocked(col, row) { return ['impassable', 'building'].includes(terrainAt(col, row)); }
 
 function ensureMechCombatState(mech) {
