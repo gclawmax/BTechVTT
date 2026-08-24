@@ -336,6 +336,7 @@ check('#5 one-legged standing and automatic falls are authoritative', criticalCo
 const destructionMigration = fs.readFileSync(`${ROOT}/SQL/62_complete_destruction_consequences.sql`, 'utf8');
 check('#5 destruction consequences include CASE, ammo pilot hits and location equipment loss', destructionMigration.includes('btech_location_has_case') && destructionMigration.includes('btech_apply_ammunition_explosion') && destructionMigration.includes('btech_destroy_location_components'));
 check('#5 a centre-torso ammunition explosion kills the pilot', destructionMigration.includes('centre torso destroyed by ammunition explosion') && destructionMigration.includes("'{pilot,consciousness}'"));
+check('#5 SQL 62 patch markers are PostgreSQL string literals, not quoted identifiers', !/^\s*"/m.test(destructionMigration) && destructionMigration.includes("'''inert'',ammo_damage=0)'") && destructionMigration.includes("'''damage'',(bin->>''shots'')::int*ammo_damage)'"));
 const terrainMigration = fs.readFileSync(`${ROOT}/SQL/63_complete_common_terrain.sql`, 'utf8');
 check('#5 terrain rules cover bundled maps, water, rubble and level costs', terrainMigration.includes('flatlands-open-terrain') && terrainMigration.includes('desert-hills') && terrainMigration.includes('entering water') && terrainMigration.includes('entering rubble') && terrainMigration.includes('abs(next_level-current_level)'));
 const proneMigration = fs.readFileSync(`${ROOT}/SQL/64_complete_prone_weapon_fire.sql`, 'utf8');

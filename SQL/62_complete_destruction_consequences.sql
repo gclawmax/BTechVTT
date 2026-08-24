@@ -133,8 +133,8 @@ BEGIN
    'IF ammo_damage>0 THEN m:=btech_apply_internal_damage(m,loc,shots*ammo_damage);END IF;',
    'IF ammo_damage>0 THEN ammo_result:=btech_apply_ammunition_explosion(m,loc,shots*ammo_damage);m:=ammo_result->''mech'';END IF;');
   patched:=replace(patched,
-   "'inert',ammo_damage=0)",
-   "'inert',ammo_damage=0,'case_protected',ammo_result->'case_protected','vented_damage',ammo_result->'vented_damage','pilot_checks',ammo_result->'pilot_checks')");
+   '''inert'',ammo_damage=0)',
+   '''inert'',ammo_damage=0,''case_protected'',ammo_result->''case_protected'',''vented_damage'',ammo_result->''vented_damage'',''pilot_checks'',ammo_result->''pilot_checks'')');
   IF patched=source OR position('btech_apply_ammunition_explosion' IN patched)=0 THEN RAISE EXCEPTION 'Critical ammunition consequence marker was not found';END IF;
   EXECUTE patched;
  END IF;
@@ -153,8 +153,8 @@ BEGIN
    'IF ammo_damage>0 THEN processed:=btech_apply_internal_damage(processed,bin_location,coalesce((bin->>''shots'')::int,0)*ammo_damage);END IF;mech:=processed;',
    'IF ammo_damage>0 THEN explosion_result:=btech_apply_ammunition_explosion(processed,bin_location,coalesce((bin->>''shots'')::int,0)*ammo_damage);processed:=explosion_result->''mech'';END IF;mech:=processed;');
   patched:=replace(patched,
-   "'damage',(bin->>'shots')::int*ammo_damage)",
-   "'damage',(bin->>'shots')::int*ammo_damage,'case_protected',explosion_result->'case_protected','vented_damage',explosion_result->'vented_damage','pilot_checks',explosion_result->'pilot_checks')");
+   '''damage'',(bin->>''shots'')::int*ammo_damage)',
+   '''damage'',(bin->>''shots'')::int*ammo_damage,''case_protected'',explosion_result->''case_protected'',''vented_damage'',explosion_result->''vented_damage'',''pilot_checks'',explosion_result->''pilot_checks'')');
   IF patched=source OR position('btech_apply_ammunition_explosion' IN patched)=0 THEN RAISE EXCEPTION 'Heat ammunition consequence marker was not found';END IF;
   EXECUTE patched;
  END IF;
