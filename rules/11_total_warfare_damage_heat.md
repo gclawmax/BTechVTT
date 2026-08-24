@@ -127,6 +127,9 @@ these rules through two authenticated players and the deployed Supabase
 functions. It verifies shallow-water movement and cover, ridge-blocked indirect
 fire, moving spotters, Artemis and Narc guidance, prone support-arm restrictions,
 CASE venting, ammunition pilot hits and unprotected centre-torso destruction.
+It also covers Industrial Crossing fire heat, buildings, pavement control,
+smoke and deep-water LOS, plus two-player Inferno and Precision declarations,
+resolution, Round 1 loadout persistence and the Initiative setup guard.
 
 ## Heat
 

@@ -1,4 +1,4 @@
-// Focused live regression for the authoritative rules added by SQL 62-68.
+// Focused live regression for the authoritative rules added by SQL 62-71.
 // Run after tools/test-human-vs-human.mjs so the dedicated accounts share a
 // disposable in-progress match. The host may update its own match under the
 // normal RLS policy; every rule action still runs through the public RPC used
@@ -47,8 +47,8 @@ async function latestHostMatch(page) {
     return { game: data, players: playersResult.data };
   });
 }
-async function configureScenario(page, game, players, round, phase, rosters, positions, prepare = {}) {
-  return page.evaluate(async ({ game, players, round, phase, rosters, positions, prepare }) => {
+async function configureScenario(page, game, players, round, phase, rosters, positions, prepare = {}, options = {}) {
+  return page.evaluate(async ({ game, players, round, phase, rosters, positions, prepare, options }) => {
     await loadUnitCatalogue(game.catalogue_version);
     const units = buildRosterInstances(rosters, {}, positions);
     for (const mech of units) {
@@ -60,21 +60,26 @@ async function configureScenario(page, game, players, round, phase, rosters, pos
       mech.pilot = { ...(mech.pilot || {}), gunnery: -6, piloting: 5, hits: 0, consciousness: 'conscious' };
       mech.pilotingSkill = 5;
       const changes = prepare[mech.instanceId];
-      if (changes) Object.assign(mech, changes);
+      if (changes) {
+        const { ammoLoadTypes, ...recordChanges } = changes;
+        Object.assign(mech, recordChanges);
+        if (ammoLoadTypes) mech.ammoBins = (mech.ammoBins || []).map(bin => ammoLoadTypes[bin.id] ? { ...bin, loadType: ammoLoadTypes[bin.id] } : bin);
+      }
     }
     const hostPlayer = players.find(player => player.seat_number === 1);
     const guestPlayer = players.find(player => player.seat_number === 2);
     if (!hostPlayer || !guestPlayer) throw new Error('The focused regression requires both test players.');
     const initiative = [hostPlayer, guestPlayer].map(player => ({ player_id: player.id, seat_number: player.seat_number }));
     const state = {
-      map_id: 'ridge-and-ford', catalogue_version: game.catalogue_version,
+      map_id: options.mapId || 'ridge-and-ford', catalogue_version: game.catalogue_version,
+      ...(options.specialAmmo ? { special_ammo_setup_v1: true } : {}),
       mech_instances: units, initiative_order: initiative,
       active_player_player_id: hostPlayer.id, round
     };
     const { error } = await db.from('btech_games').update({ current_round: round, current_phase: phase, active_player_id: hostPlayer.id, state }).eq('id', game.id);
     if (error) throw error;
     return { state, hostPlayer, guestPlayer };
-  }, { game, players, round, phase, rosters, positions, prepare });
+  }, { game, players, round, phase, rosters, positions, prepare, options });
 }
 async function rpc(page, name, args) {
   return page.evaluate(async ({ name, args }) => {
@@ -87,6 +92,43 @@ async function weaponEvent(page, gameId, round, attackerId) {
     const { data, error } = await db.from('btech_combat_events').select('*').eq('game_id', gameId).eq('round', round).eq('phase', 'weapon_attack').eq('attacker_instance_id', attackerId).single();
     return { data, error: error?.message || null };
   }, { gameId, round, attackerId });
+}
+async function specialAmmoFixtures(page, catalogueVersion) {
+  return page.evaluate(async version => {
+    await loadUnitCatalogue(version);
+    const mountsResult = await db.from('btech_catalogue_mounts').select('unit_id,mount_id,weapon_key').eq('catalogue_version', version)
+      .in('weapon_key', ['srm2', 'srm4', 'srm6', 'ac2', 'ac5', 'ac10', 'ac20']);
+    const binsResult = await db.from('btech_catalogue_ammo_bins').select('unit_id,bin_id,ammo_type').eq('catalogue_version', version)
+      .in('ammo_type', ['srm2', 'srm4', 'srm6', 'ac2', 'ac5', 'ac10', 'ac20']);
+    if (mountsResult.error) throw mountsResult.error;
+    if (binsResult.error) throw binsResult.error;
+    const find = acceptedTypes => {
+      const mount = (mountsResult.data || []).find(candidate => acceptedTypes.includes(candidate.weapon_key) &&
+        (binsResult.data || []).some(bin => bin.unit_id === candidate.unit_id && bin.ammo_type === candidate.weapon_key));
+      const bin = mount && binsResult.data.find(candidate => candidate.unit_id === mount.unit_id && candidate.ammo_type === mount.weapon_key);
+      return mount && bin ? { unitId: mount.unit_id, mountId: mount.mount_id, binId: bin.bin_id, binType: bin.ammo_type } : null;
+    };
+    return { inferno: find(['srm2', 'srm4', 'srm6']), precision: find(['ac2', 'ac5', 'ac10', 'ac20']) };
+  }, catalogueVersion);
+}
+async function submitDesiredAmmoLoadout(page, gameId, ownerSeat, desiredType) {
+  return page.evaluate(async ({ gameId, ownerSeat, desiredType }) => {
+    const { data: game, error: readError } = await db.from('btech_games').select('state').eq('id', gameId).single();
+    if (readError) return { data: null, error: { message: readError.message, code: readError.code } };
+    const state = typeof game.state === 'string' ? JSON.parse(game.state) : game.state;
+    const loadouts = {};
+    for (const mech of state.mech_instances || []) {
+      if (mech.owner !== ownerSeat) continue;
+      for (const bin of mech.ammoBins || []) {
+        const choices = bin.type === 'lb10x' ? ['slug', 'cluster']
+          : ['srm2', 'srm4', 'srm6'].includes(bin.type) ? ['standard', 'inferno']
+            : ['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type) ? ['standard', 'precision'] : [];
+        if (choices.length) loadouts[`${mech.instanceId}:${bin.id}`] = choices.includes(desiredType) ? desiredType : choices[0];
+      }
+    }
+    const result = await db.rpc('submit_round_one_ammo_loadout', { p_game_id: gameId, p_loadouts: loadouts });
+    return { data: result.data, error: result.error ? { message: result.error.message, code: result.error.code } : null, loadouts };
+  }, { gameId, ownerSeat, desiredType });
 }
 
 const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
@@ -197,6 +239,145 @@ try {
   check('the prone-fire phase resolves normally for both players', !proneGuest.error && proneGuest.data?.status === 'resolved', JSON.stringify(proneGuest));
   const proneEvent = await weaponEvent(host, game.id, proneRound, 'trebuchet-tbt3c-p1-1');
   check('resolved prone fire records the +2 target-number modifier', proneEvent.data?.resolution?.results?.[0]?.to_hit?.breakdown?.prone === 2, JSON.stringify(proneEvent.data?.resolution?.results?.[0]?.to_hit?.breakdown));
+
+  // SQL 70 advanced terrain: solid buildings, burning terrain, pavement
+  // control, smoke/building LOS, and deep-water weapon restrictions.
+  const fireRound = roundBase + 4;
+  await configureScenario(host, game, players, fireRound, 'movement',
+    { 1: ['locust-lct1e'], 2: ['locust-lct1e'] },
+    { 1: [{ col: 9, row: 4, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] }, {}, { mapId: 'industrial-crossing' });
+  const fireMove = await rpc(host, 'submit_battlemech_movement', {
+    p_game_id: game.id, p_instance_id: 'locust-lct1e-p1-1', p_mode: 'walk',
+    p_path: [{ action: 'step', col: 10, row: 4 }]
+  });
+  check('walking through fire records two immediate terrain heat', !fireMove.error && fireMove.data?.terrain_heat === 2, JSON.stringify(fireMove));
+  const fireState = await host.evaluate(async gameId => {
+    const { data, error } = await db.from('btech_games').select('state').eq('id', gameId).single();
+    const state = typeof data?.state === 'string' ? JSON.parse(data.state) : data?.state;
+    return { mech: state?.mech_instances?.find(unit => unit.instanceId === 'locust-lct1e-p1-1'), error: error?.message || null };
+  }, game.id);
+  check('ending Movement in fire schedules five additional Heat-Phase heat', !fireState.error && fireState.mech?.pendingTerrainHeat === 5, JSON.stringify(fireState));
+
+  const buildingRound = roundBase + 5;
+  await configureScenario(host, game, players, buildingRound, 'movement',
+    { 1: ['locust-lct1e'], 2: ['locust-lct1e'] },
+    { 1: [{ col: 5, row: 3, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] }, {}, { mapId: 'industrial-crossing' });
+  expectedHttp400++;
+  const buildingMove = await rpc(host, 'submit_battlemech_movement', {
+    p_game_id: game.id, p_instance_id: 'locust-lct1e-p1-1', p_mode: 'walk',
+    p_path: [{ action: 'step', col: 6, row: 3 }]
+  });
+  check('solid buildings reject ground movement authoritatively', /impassable/i.test(buildingMove.error?.message || ''), JSON.stringify(buildingMove));
+
+  const pavementRound = roundBase + 6;
+  await configureScenario(host, game, players, pavementRound, 'movement',
+    { 1: ['locust-lct1e'], 2: ['locust-lct1e'] },
+    { 1: [{ col: 7, row: 5, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] }, {}, { mapId: 'industrial-crossing' });
+  const pavementTurn = await rpc(host, 'submit_battlemech_movement', {
+    p_game_id: game.id, p_instance_id: 'locust-lct1e-p1-1', p_mode: 'run',
+    p_path: [{ action: 'turn', direction: 'left' }]
+  });
+  check('a running pavement turn invokes the authoritative control check', !pavementTurn.error && pavementTurn.data?.terrain_check?.reasons?.includes('running turn on pavement'), JSON.stringify(pavementTurn));
+
+  const fixtures = await specialAmmoFixtures(host, game.catalogue_version);
+  check('the pinned catalogue provides standard SRM and autocannon fixtures', fixtures.inferno && fixtures.precision, JSON.stringify(fixtures));
+
+  const obscuredRound = roundBase + 7;
+  await configureScenario(host, game, players, obscuredRound, 'weapon_attack',
+    { 1: [fixtures.precision.unitId], 2: ['locust-lct1e'] },
+    { 1: [{ col: 9, row: 4, facing: 0 }], 2: [{ col: 13, row: 4, facing: 3 }] }, {}, { mapId: 'industrial-crossing' });
+  expectedHttp400++;
+  const obscuredFire = await rpc(host, 'submit_simultaneous_weapon_declaration', {
+    p_game_id: game.id, p_attacker_instance_id: `${fixtures.precision.unitId}-p1-1`, p_target_instance_id: 'locust-lct1e-p2-1',
+    p_weapon_mounts: [fixtures.precision.mountId], p_ammo_bins: { [fixtures.precision.mountId]: fixtures.precision.binId, __fire_modes: {} }
+  });
+  check('combined fire and smoke obscure direct line of sight', /line of sight is blocked/i.test(obscuredFire.error?.message || ''), JSON.stringify(obscuredFire));
+
+  const deepWaterRound = roundBase + 8;
+  await configureScenario(host, game, players, deepWaterRound, 'weapon_attack',
+    { 1: [fixtures.precision.unitId], 2: ['locust-lct1e'] },
+    { 1: [{ col: 3, row: 5, facing: 0 }], 2: [{ col: 7, row: 5, facing: 3 }] }, {}, { mapId: 'industrial-crossing' });
+  expectedHttp400++;
+  const submergedFire = await rpc(host, 'submit_simultaneous_weapon_declaration', {
+    p_game_id: game.id, p_attacker_instance_id: `${fixtures.precision.unitId}-p1-1`, p_target_instance_id: 'locust-lct1e-p2-1',
+    p_weapon_mounts: [fixtures.precision.mountId], p_ammo_bins: { [fixtures.precision.mountId]: fixtures.precision.binId, __fire_modes: {} }
+  });
+  check('deep water blocks unsupported direct weapon fire', /terrain or water depth/i.test(submergedFire.error?.message || ''), JSON.stringify(submergedFire));
+
+  // SQL 71 specialised ammunition: resolve one guaranteed Inferno hit and
+  // one Precision shot through the simultaneous two-player collector.
+  const infernoRound = roundBase + 9;
+  const infernoAttackerId = `${fixtures.inferno.unitId}-p1-1`;
+  await configureScenario(host, game, players, infernoRound, 'weapon_attack',
+    { 1: [fixtures.inferno.unitId], 2: ['locust-lct1e'] },
+    { 1: [{ col: 0, row: 0, facing: 0 }], 2: [{ col: 2, row: 0, facing: 3 }] },
+    { [infernoAttackerId]: { ammoLoadTypes: { [fixtures.inferno.binId]: 'inferno' } } }, { specialAmmo: true });
+  const infernoFire = await rpc(host, 'submit_simultaneous_weapon_declaration', {
+    p_game_id: game.id, p_attacker_instance_id: infernoAttackerId, p_target_instance_id: 'locust-lct1e-p2-1',
+    p_weapon_mounts: [fixtures.inferno.mountId], p_ammo_bins: { [fixtures.inferno.mountId]: fixtures.inferno.binId, __fire_modes: {} }
+  });
+  check('Inferno SRM declaration is accepted for the loaded bin', !infernoFire.error, JSON.stringify(infernoFire));
+  const infernoGuest = await rpc(guest, 'submit_simultaneous_weapon_declaration', {
+    p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p2-1', p_target_instance_id: infernoAttackerId, p_weapon_mounts: [], p_ammo_bins: {}
+  });
+  check('the two-player Inferno attack resolves normally', !infernoGuest.error && infernoGuest.data?.status === 'resolved', JSON.stringify(infernoGuest));
+  const infernoEvent = await weaponEvent(host, game.id, infernoRound, infernoAttackerId);
+  const infernoResult = infernoEvent.data?.resolution?.results?.[0];
+  check('Inferno missiles inflict heat instead of damage within the external cap', infernoResult?.hit && infernoResult?.ammo_load_type === 'inferno' && infernoResult?.heat_inflicted === Math.min(15, infernoResult?.missiles_hit * 2) && (infernoResult?.groups || []).every(group => group.damage === 0), JSON.stringify(infernoResult));
+
+  const precisionRound = roundBase + 10;
+  const precisionAttackerId = `${fixtures.precision.unitId}-p1-1`;
+  await configureScenario(host, game, players, precisionRound, 'weapon_attack',
+    { 1: [fixtures.precision.unitId], 2: ['locust-lct1e'] },
+    { 1: [{ col: 0, row: 0, facing: 0 }], 2: [{ col: 2, row: 0, facing: 3 }] },
+    { [precisionAttackerId]: { ammoLoadTypes: { [fixtures.precision.binId]: 'precision' } }, 'locust-lct1e-p2-1': { movementMode: 'run', hexesMoved: 5 } }, { specialAmmo: true });
+  const precisionFire = await rpc(host, 'submit_simultaneous_weapon_declaration', {
+    p_game_id: game.id, p_attacker_instance_id: precisionAttackerId, p_target_instance_id: 'locust-lct1e-p2-1',
+    p_weapon_mounts: [fixtures.precision.mountId], p_ammo_bins: { [fixtures.precision.mountId]: fixtures.precision.binId, __fire_modes: {} }
+  });
+  check('Precision autocannon declaration is accepted for the loaded bin', !precisionFire.error, JSON.stringify(precisionFire));
+  const precisionGuest = await rpc(guest, 'submit_simultaneous_weapon_declaration', {
+    p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p2-1', p_target_instance_id: precisionAttackerId, p_weapon_mounts: [], p_ammo_bins: {}
+  });
+  check('the two-player Precision attack resolves normally', !precisionGuest.error && precisionGuest.data?.status === 'resolved', JSON.stringify(precisionGuest));
+  const precisionEvent = await weaponEvent(host, game.id, precisionRound, precisionAttackerId);
+  const precisionResult = precisionEvent.data?.resolution?.results?.[0];
+  check('Precision ammunition removes two points of target movement modifier', precisionResult?.ammo_load_type === 'precision' && precisionResult?.to_hit?.breakdown?.target_movement === 2 && precisionResult?.to_hit?.breakdown?.special_ammunition === -2, JSON.stringify(precisionResult));
+
+  // Clear the disposable match's old Round 1 initiative rows with a legal tie,
+  // then exercise the actual two-player Round 1 loadout RPC and its guard.
+  await configureScenario(host, game, players, 1, 'initiative',
+    { 1: ['locust-lct1e'], 2: ['locust-lct1e'] },
+    { 1: [{ col: 4, row: 5, facing: 0 }], 2: [{ col: 11, row: 5, facing: 3 }] });
+  const existingInitiative = await host.evaluate(async gameId => {
+    const { data, error } = await db.from('btech_initiative').select('player_id,roll').eq('game_id', gameId).eq('round', 1);
+    return { rows: data || [], error: error?.message || null };
+  }, game.id);
+  const guestPlayer = players.find(player => player.seat_number === 2);
+  const tieTotal = existingInitiative.rows.find(row => row.player_id === guestPlayer?.id)?.roll || 6;
+  const tieDieA = Math.max(1, tieTotal - 6), tieDieB = tieTotal - tieDieA;
+  const clearHostInitiative = await rpc(host, 'submit_initiative_roll', { p_game_id: game.id, p_die_a: tieDieA, p_die_b: tieDieB });
+  const clearGuestInitiative = clearHostInitiative.data?.status === 'tie' ? { data: clearHostInitiative.data, error: null }
+    : await rpc(guest, 'submit_initiative_roll', { p_game_id: game.id, p_die_a: tieDieA, p_die_b: tieDieB });
+  check('a disposable tied roll clears prior Round 1 initiative records', !existingInitiative.error && !clearHostInitiative.error && !clearGuestInitiative.error && clearGuestInitiative.data?.status === 'tie', JSON.stringify({ existingInitiative, clearHostInitiative, clearGuestInitiative }));
+
+  await configureScenario(host, game, players, 1, 'initiative',
+    { 1: [fixtures.inferno.unitId], 2: [fixtures.precision.unitId] },
+    { 1: [{ col: 4, row: 5, facing: 0 }], 2: [{ col: 11, row: 5, facing: 3 }] }, {}, { specialAmmo: true });
+  const hostLoadout = await submitDesiredAmmoLoadout(host, game.id, 1, 'inferno');
+  const guestLoadout = await submitDesiredAmmoLoadout(guest, game.id, 2, 'precision');
+  check('both players can submit their specialised Round 1 ammunition choices', !hostLoadout.error && !guestLoadout.error, JSON.stringify({ hostLoadout, guestLoadout }));
+  const loadedBins = await host.evaluate(async gameId => {
+    const { data, error } = await db.from('btech_games').select('state').eq('id', gameId).single();
+    const state = typeof data?.state === 'string' ? JSON.parse(data.state) : data?.state;
+    return { bins: (state?.mech_instances || []).flatMap(mech => (mech.ammoBins || []).map(bin => ({ ...bin, owner: mech.owner }))), error: error?.message || null };
+  }, game.id);
+  const liveInfernoBins = loadedBins.bins?.filter(bin => bin.owner === 1 && ['srm2', 'srm4', 'srm6'].includes(bin.type)) || [];
+  const livePrecisionBins = loadedBins.bins?.filter(bin => bin.owner === 2 && ['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type)) || [];
+  check('Round 1 persists Inferno loads and halves Precision bin capacity', !loadedBins.error && liveInfernoBins.length > 0 && liveInfernoBins.every(bin => bin.loadType === 'inferno') && livePrecisionBins.length > 0 && livePrecisionBins.every(bin => bin.loadType === 'precision' && bin.shots === Math.max(1, Math.floor(bin.standardShots / 2))), JSON.stringify(loadedBins));
+  const loadedHostRoll = await rpc(host, 'submit_initiative_roll', { p_game_id: game.id, p_die_a: 1, p_die_b: 2 });
+  const loadedGuestRoll = await rpc(guest, 'submit_initiative_roll', { p_game_id: game.id, p_die_a: 5, p_die_b: 6 });
+  check('Initiative unlocks only after both specialised loadouts are saved', !loadedHostRoll.error && !loadedGuestRoll.error && loadedGuestRoll.data?.status === 'resolved', JSON.stringify({ loadedHostRoll, loadedGuestRoll }));
 
   // Destruction consequences use pure authoritative functions with real
   // catalogue records. The Trebuchet's explicit CASE must vent side-torso
