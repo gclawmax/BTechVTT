@@ -8,6 +8,26 @@ function escapeHtml(value) {
   return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
 
+// Matches made before catalogue pinning can still be active. Repair only such
+// a match; the server verifies the caller and requires one catalogue release
+// to contain every already-deployed unit before committing the permanent pin.
+async function repairLegacyMatchCatalogue(game, gameId = currentGameId) {
+  if (!game || game.catalogue_version || !gameId) return game;
+
+  const { data, error } = await db.rpc('repair_legacy_match_catalogue_pin', { p_game_id: gameId });
+  if (error) {
+    console.warn('Unable to repair legacy match catalogue:', error);
+    return game;
+  }
+
+  if (data?.repaired) logEvent('This older match was safely linked to a compatible BattleMech catalogue.', 'system');
+  return {
+    ...game,
+    catalogue_version: data?.catalogue_version || game.catalogue_version,
+    state: data?.state || game.state
+  };
+}
+
 async function showMainMenu() {
   const username = currentUser?.user_metadata?.username ||
                    currentUser?.email?.replace('@FreeGames.com', '') ||

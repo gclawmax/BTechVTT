@@ -58,13 +58,15 @@ function makePhaseState() {
 async function loadGameState() {
   if (!currentGameId) return;
 
-  const { data: game } = await db
+  const { data: loadedGame } = await db
     .from('btech_games')
     .select('current_round, current_phase, active_player_id, initiative_winner, state, catalogue_version')
     .eq('id', currentGameId)
     .single();
 
-  if (!game) return;
+  if (!loadedGame) return;
+
+  const game = await repairLegacyMatchCatalogue(loadedGame);
 
   if (game.catalogue_version) await loadUnitCatalogue(game.catalogue_version);
 

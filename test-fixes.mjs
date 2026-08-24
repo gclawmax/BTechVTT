@@ -349,6 +349,12 @@ const systemMigration = fs.readFileSync(`${ROOT}/SQL/67_complete_system_destruct
 check('#5 repeated weapon mounts and life support consequences are authoritative', systemMigration.includes('btech_mount_for_critical_slot') && systemMigration.includes('life_support_heat_v1'));
 const waterCoverMigration = fs.readFileSync(`${ROOT}/SQL/68_shallow_water_partial_cover.sql`, 'utf8');
 check('#5 shallow water adds partial cover and absorbs leg hits', waterCoverMigration.includes('shallow_cover_mod') && waterCoverMigration.includes("IN (''ll'',''rl'')") && waterCoverMigration.includes("''partial_cover''"));
+const legacyCatalogueMigration = fs.readFileSync(`${ROOT}/SQL/69_repair_legacy_catalogue_pins.sql`, 'utf8');
+check('#5 legacy catalogue repair is restricted to a human match participant', legacyCatalogueMigration.includes('p.user_id = auth.uid()') && legacyCatalogueMigration.includes("p.role = 'player'"));
+check('#5 legacy catalogue repair requires every deployed unit in one release', legacyCatalogueMigration.includes('unnest(deployed_unit_ids)') && legacyCatalogueMigration.includes('u.catalogue_version = r.version AND u.unit_id = unit_id'));
+check('#5 legacy catalogue repair can identify pre-deployment matches from their rosters', legacyCatalogueMigration.includes("jsonb_typeof(match_state->'rosters')") && legacyCatalogueMigration.includes('roster_unit'));
+check('#5 legacy catalogue repair stamps the match and each deployed BattleMech', legacyCatalogueMigration.includes("'{catalogueVersion}'") && legacyCatalogueMigration.includes('SET catalogue_version = selected_version'));
+check('#5 game loading invokes the narrowly scoped legacy repair', fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8').includes('repairLegacyMatchCatalogue(loadedGame)'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

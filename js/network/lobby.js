@@ -194,7 +194,7 @@ async function loadLobbyUI() {
   if (!currentGameId) return;
 
   // Get game info
-  const { data: game, error: gameError } = await db
+  const { data: loadedGame, error: gameError } = await db
     .from('btech_games')
     .select('game_code,state,catalogue_version')
     .eq('id', currentGameId)
@@ -202,14 +202,16 @@ async function loadLobbyUI() {
 
   // A cascading player-delete event can arrive before the game DELETE event.
   // Treat a missing game row as a closed lobby in either order.
-  if (!game && gameError?.code === 'PGRST116') {
+  if (!loadedGame && gameError?.code === 'PGRST116') {
     await handleLobbyClosed();
     return;
   }
-  if (!game) {
+  if (!loadedGame) {
     console.warn('Unable to refresh lobby:', gameError);
     return;
   }
+
+  const game = await repairLegacyMatchCatalogue(loadedGame);
 
   if (game) {
     document.getElementById('lobby-code').textContent = game.game_code;
