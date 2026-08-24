@@ -1192,3 +1192,46 @@ body.resizing-side-panel, body.resizing-side-panel * {
   border-color: #666;
   color: #999;
 }
+
+/* ── CUSTOM BATTLEMECH DESIGNER ───────────────────────── */
+#mech-designer-screen { overflow:auto; align-items:flex-start; padding:28px; }
+#mech-designer-root { width:min(1180px,100%); margin:0 auto; color:var(--paper); font-family:var(--mono); }
+.designer-heading { display:flex; justify-content:space-between; gap:18px; align-items:flex-start; margin-bottom:18px; }
+.designer-heading h2 { margin:2px 0 4px; font:600 28px var(--display); letter-spacing:.03em; }
+.designer-heading p { margin:0; color:var(--phosphor-dim); }
+.designer-heading > div:last-child,.designer-section-title { display:flex; gap:8px; align-items:center; justify-content:space-between; }
+.designer-heading button,.designer-card button { border:1px solid var(--panel-line); background:transparent; color:var(--paper); padding:7px 10px; font:10px var(--mono); cursor:pointer; }
+.designer-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.designer-card { border:1px solid var(--panel-line); background:var(--panel); padding:15px; min-width:0; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+.designer-card.designer-wide { grid-column:1/-1; }
+.designer-card h3 { margin:0 0 12px; color:var(--amber); font:500 15px var(--display); letter-spacing:.05em; text-transform:uppercase; }
+.designer-fields { display:grid; grid-template-columns:repeat(3,minmax(120px,1fr)); gap:10px; }
+.designer-fields label,.designer-equipment-row label,.designer-armor-grid label { display:flex; flex-direction:column; gap:4px; color:var(--phosphor-dim); font-size:9px; text-transform:uppercase; letter-spacing:.05em; }
+.designer-fields input,.designer-fields select,.designer-equipment-row input,.designer-equipment-row select,.designer-armor-grid input { min-width:0; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); padding:7px; font:11px var(--mono); }
+.designer-note { margin-top:10px; color:var(--phosphor-dim); font-size:10px; line-height:1.5; }
+.designer-armor-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.designer-armor-grid label span { color:#657068; font-size:8px; }
+.designer-equipment-row { display:grid; grid-template-columns:minmax(220px,2fr) minmax(130px,1fr) auto auto; gap:8px; margin:7px 0; align-items:end; }
+.designer-section-title { margin-top:14px; }
+.designer-weight-list > div { display:flex; justify-content:space-between; border-bottom:1px dotted #303733; padding:4px 0; font-size:10px; }
+.designer-weight-list .total { margin-top:6px; padding-top:8px; border-top:1px solid var(--amber); border-bottom:0; color:var(--amber); font-size:12px; }
+.designer-heat { margin-top:10px; color:var(--phosphor-dim); font-size:10px; }
+.designer-validity { border:1px solid; padding:10px; font-weight:600; }
+.designer-validity.valid { color:#7c9; border-color:#3a6a3a; background:rgba(42,74,42,.24); }
+.designer-validity.invalid { color:#d98672; border-color:#713e35; background:rgba(90,35,28,.2); }
+.designer-errors { padding-left:18px; color:#d98672; font-size:10px; line-height:1.5; }
+.designer-save { width:100%; margin-top:10px; }
+.designer-save:disabled { opacity:.35; cursor:not-allowed; }
+#designer-save-status { margin-top:8px; min-height:16px; color:var(--amber); font-size:10px; }
+.designer-saved-row { display:grid; grid-template-columns:1fr auto auto; gap:8px; align-items:center; border-top:1px solid var(--panel-line); padding:9px 0; }
+.designer-saved-row div { display:flex; flex-direction:column; gap:3px; }
+.designer-saved-row span { color:var(--phosphor-dim); font-size:9px; }
+
+@media (max-width:760px) {
+  #mech-designer-screen { padding:14px 8px; }
+  .designer-heading { flex-direction:column; }
+  .designer-grid { grid-template-columns:1fr; }
+  .designer-card.designer-wide { grid-column:auto; }
+  .designer-fields,.designer-armor-grid { grid-template-columns:1fr 1fr; }
+  .designer-equipment-row { grid-template-columns:1fr 1fr; }
+}

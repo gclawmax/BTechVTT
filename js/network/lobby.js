@@ -227,6 +227,11 @@ async function loadLobbyUI() {
   }
   await loadProfileUnitFavourites();
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const rosterUnitIds = Object.values(gameState.rosters || {}).flat();
+  if (game.catalogue_version && rosterUnitIds.some(unitId => !databaseSupportedUnitIds.has(unitId))) {
+    try { await loadUnitCatalogue(game.catalogue_version, true); }
+    catch (error) { console.warn('Unable to refresh newly published custom BattleMech:', error); }
+  }
   if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
 
   // Every human player receives a temporary Avatar when opening a skirmish
@@ -358,7 +363,7 @@ async function handleLobbyClosed() {
 
 function supportedUnitEntries() {
   return Object.entries(BT_UNIT_CATALOGUE)
-    .filter(([id]) => isSupportedUnit(id))
+    .filter(([id, unit]) => isSupportedUnit(id) && (!unit.customDesign || (unit.customOwnerId === currentUser?.id && !unit.customArchived)))
     .sort(([, left], [, right]) => left.tonnage - right.tonnage ||
       left.chassis.localeCompare(right.chassis) || left.variant.localeCompare(right.variant));
 }
@@ -504,11 +509,11 @@ function renderLobbyMatchSetup(gameState, players) {
   const card = ([id, unit]) => {
     const inHangar = hangar.filter(entry => entry.unit_id === id).length;
     const disabled = hangar.length >= 12;
-    const techLabel = techBaseForUnit(unit) === 'clan' ? 'Clan' : 'Inner Sphere';
+    const techLabel = unit.customDesign ? 'Custom IS' : techBaseForUnit(unit) === 'clan' ? 'Clan' : 'Inner Sphere';
     const searchKey = lobbyRosterSearchKey(`${unit.chassis} ${unit.variant} ${id} ${unit.tonnage} ${techLabel}`);
     const favourite = favouriteUnitIds.has(id);
     const favouriteTitle = favourite ? 'Remove this exact variant from favourites' : 'Add this exact variant to favourites';
-    return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${unit.chassis} ${unit.variant}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button></div>`;
+    return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${escapeHtml(unit.chassis)} ${escapeHtml(unit.variant)}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button></div>`;
   };
   const hangarCards = hangar.map(entry => {
     const unit = getSupportedUnit(entry.unit_id);
@@ -525,7 +530,7 @@ function renderLobbyMatchSetup(gameState, players) {
       <div class="hangar-actions"><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Withdraw' : 'Deploy'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div>
     </div>`;
   }).join('') || '<div class="roster-empty">Add BattleMechs below to build your Hangar.</div>';
-  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Match-only Avatar · each BattleMech has its own pilot</span></div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
+  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Match-only Avatar · each BattleMech has its own pilot</span><button onclick="openMechDesigner()">Open MechLab</button></div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
     <div class="roster-search"><label for="lobby-roster-search">Find a BattleMech</label><div><input id="lobby-roster-search" type="search" autocomplete="off" placeholder="Chassis, variant, tonnage or tech base" value="${lobbyRosterFilters.search.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}" oninput="filterLobbyRosterSearch(this.value)"><button id="lobby-roster-search-clear" type="button" onclick="clearLobbyRosterSearch()">Clear</button></div></div>
     <div class="roster-filter-bar"><span>Quick find</span><button class="roster-filter ${lobbyRosterFilters.favouritesOnly ? 'active' : ''}" onclick="toggleLobbyFavouritesFilter()">★ Favourites</button></div>
     <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>

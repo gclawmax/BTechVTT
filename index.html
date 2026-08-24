@@ -9,10 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260824-advanced-terrain-ammo-01">
+  <link rel="stylesheet" href="css/main.css?v=20260825-mech-designer-01">
 </head>
-<body data-build="20260821-hangar-pilots-01">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT 20260821-hangar-pilots-01</div>
+<body data-build="20260825-mech-designer-01">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT 20260825-mech-designer-01</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 
 <!-- ── LOADING OVERLAY ──────────────────────────────────── -->
@@ -61,6 +61,7 @@
     <button class="btn-large scenario" onclick="handleCreateFlatlandsScenario()">Flatlands Skirmish <small>Wolverine vs Griffin · open cover</small></button>
     <button class="btn-large scenario" onclick="handleCreateDesertHillsScenario()">Desert Hills Clash <small>Two lances · ridges and rough ground</small></button>
     <button class="btn-large primary" onclick="handleCreateGame()">Create Game</button>
+    <button class="btn-large" onclick="openMechDesigner()" style="border-color:#d4800a;color:#d4800a;">MechLab <small>Build a custom BattleMech</small></button>
     <a class="menu-guide-link" href="how-to-play.html">How to Play</a>
     <button class="btn-large" onclick="handleCreateVsAI()" style="border-color:#88aaff;color:#88aaff;">Play vs AI</button>
     <div class="join-row" style="max-width:280px;margin:0 auto;">
@@ -98,6 +99,11 @@
       <button class="secondary" onclick="cancelCreateGameSetup()">Back</button>
     </div>
   </div>
+</div>
+
+<!-- ── CUSTOM BATTLEMECH DESIGNER ─────────────────────── -->
+<div id="mech-designer-screen" class="screen">
+  <div id="mech-designer-root"></div>
 </div>
 
 <!-- ── LOBBY SCREEN ─────────────────────────────────────── -->
@@ -190,6 +196,7 @@
 <script src="js/game/maps.js?v=20260824-combat-objectives-01"></script>
 <script src="js/game/unit-catalogue.js?v=20260824-terrain-indirect-01"></script>
 <script src="js/game/critical-layouts.js?v=20260816-versioned-catalogue-01"></script>
+<script src="js/game/mech-designer.js?v=20260825-mech-designer-01"></script>
 <script src="js/game/critical-hits.js?v=20260824-critical-effects-01"></script>
 <script src="js/network/create-game.js?v=20260824-combat-objectives-01"></script>
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>

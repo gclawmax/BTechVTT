@@ -95,6 +95,7 @@ load('js/movement/rules.js');
 load('js/core/game-log.js');
 load('js/game/critical-hits.js');
 load('js/game/weapon-attack.js');
+load('js/game/mech-designer.js');
 load('js/movement/movement.js');
 // moveState is a top-level `let` in rules.js → lives in the context's lexical
 // scope, not on the sandbox object. Expose it through a getter that reads it
@@ -301,6 +302,20 @@ const blownOffArm = { ...mkMech(4), structure: { ...STRUCT }, criticalSlotDamage
 sandbox.finalizeBlownOffLocation(blownOffArm, 'la');
 check('#4c a blown-off limb retires all slots and ammunition in that location', blownOffArm.structure.la === 0 && blownOffArm.criticalSlotDamage.la.length === 3 && blownOffArm.ammoBins[0].destroyed && blownOffArm.ammoBins[0].shots === 0);
 
+// ── #4d Custom BattleMech construction ───────────────────────────────────
+const baseCustomDesign = sandbox.newCustomDesign();
+const baseCustomCalculation = sandbox.calculateCustomDesign(baseCustomDesign);
+check('#4d a standard 50-ton chassis passes baseline construction', baseCustomCalculation.valid && baseCustomCalculation.rating === 200, JSON.stringify(baseCustomCalculation.errors));
+check('#4d maximum armour follows the internal-structure location caps', baseCustomCalculation.armorPoints === 169 && baseCustomCalculation.weights.armor === 11, `armor=${baseCustomCalculation.armorPoints} weight=${baseCustomCalculation.weights.armor}`);
+const customAmmoWithoutWeapon = structuredClone(baseCustomDesign);
+customAmmoWithoutWeapon.ammo.push({ type: 'ac20', location: 'lt', bins: 1 });
+check('#4d ammunition without a matching weapon is rejected', !sandbox.calculateCustomDesign(customAmmoWithoutWeapon).valid && sandbox.calculateCustomDesign(customAmmoWithoutWeapon).errors.some(error => /no matching weapon/i.test(error)));
+const customSlotOverflow = structuredClone(baseCustomDesign);
+customSlotOverflow.weapons.push({ key: 'ac20', location: 'head' });
+check('#4d equipment cannot exceed a location critical-slot capacity', sandbox.calculateCustomDesign(customSlotOverflow).errors.some(error => /Head is over critical-slot capacity/i.test(error)));
+const customEngineOverflow = { ...structuredClone(baseCustomDesign), tonnage: 100, walking_mp: 5, armor: sandbox.customMaximumArmor(100) };
+check('#4d engine ratings above 400 are rejected', sandbox.calculateCustomDesign(customEngineOverflow).errors.some(error => /400 or less/i.test(error)));
+
 // ── #5 Release migration guardrails ───────────────────────────────────────
 const migration = fs.readFileSync(`${ROOT}/SQL/45_preserve_current_rules_fixes.sql`, 'utf8');
 check('#5 migration patches the live weapon resolver', migration.includes("to_regprocedure('public.btech_process_weapon_declaration"));
@@ -402,6 +417,12 @@ check('#5 objective victory thresholds and annihilation fallback are authoritati
 check('#5 objective scoring is idempotent and follows terrain lifecycle', objectiveMigration.includes('objectives_scored_after_round') && objectiveMigration.includes('PERFORM btech_advance_terrain_round') && objectiveMigration.includes('PERFORM btech_score_scenario_round'));
 const createGameSource = fs.readFileSync(`${ROOT}/js/network/create-game.js`, 'utf8');
 check('#5 match creation records the chosen victory condition', createGameSource.includes("['annihilation', 'control', 'breakthrough']") && createGameSource.includes('objective_hexes'));
+const customDesignMigration = fs.readFileSync(`${ROOT}/SQL/76_custom_battlemech_designs.sql`, 'utf8');
+check('#5 custom designs are validated and published as immutable catalogue units', customDesignMigration.includes('btech_validate_custom_design') && customDesignMigration.includes('save_btech_custom_design') && customDesignMigration.includes('INSERT INTO btech_catalogue_units'));
+check('#5 custom construction validates engine, weight, armour, ammunition and critical slots', customDesignMigration.includes('btech_standard_engine_weight') && customDesignMigration.includes('Design is overweight') && customDesignMigration.includes('Armor exceeds a location maximum') && customDesignMigration.includes('Every ammunition weapon needs at least one compatible bin') && customDesignMigration.includes('btech_build_custom_layout'));
+check('#5 custom roster and Hangar entries remain owner-only', customDesignMigration.includes("custom_owner_id''=auth.uid()::text") && customDesignMigration.includes('custom_design_hangar_owner_v1'));
+const customDesignerSource = fs.readFileSync(`${ROOT}/js/game/mech-designer.js`, 'utf8');
+check('#5 MechLab exposes live construction reporting and server publication', customDesignerSource.includes('calculateCustomDesign') && customDesignerSource.includes("db.rpc('save_btech_custom_design'") && customDesignerSource.includes('Construction report'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

@@ -136,8 +136,8 @@ async function fetchCatalogueRows(table, columns, catalogueVersion) {
   }
 }
 
-async function loadUnitCatalogue(catalogueVersion) {
-  if (!catalogueVersion || activeCatalogueVersion === catalogueVersion) return catalogueVersion;
+async function loadUnitCatalogue(catalogueVersion, forceReload = false) {
+  if (!catalogueVersion || (!forceReload && activeCatalogueVersion === catalogueVersion)) return catalogueVersion;
   const [unitsResult, mountsResult, slotsResult, ammoResult] = await Promise.all([
     fetchCatalogueRows('btech_catalogue_units', 'unit_id,definition', catalogueVersion),
     fetchCatalogueRows('btech_catalogue_mounts', 'unit_id,mount_id,weapon_key,raw_name,location,definition', catalogueVersion),
@@ -185,6 +185,9 @@ async function loadUnitCatalogue(catalogueVersion) {
       heat_sinks: definition.heat_sinks,
       heat_sink_type: definition.heat_sink_type,
       heat_sink_capacity: definition.heat_sink_capacity || definition.heat_sinks,
+      customDesign: definition.custom_design === true,
+      customOwnerId: definition.custom_owner_id || null,
+      customArchived: definition.custom_archived === true,
       armor: definition.armor,
       structure: definition.structure,
       weapons: mounts.map(mount => ({

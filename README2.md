@@ -50,6 +50,8 @@ Full turn structure: **Initiative → Movement → Reaction → Weapon Attack �
 - MegaMek-derived unit records (CC BY-NC-SA 4.0, see `docs/MEGAMEK_ATTRIBUTION.md`)
 - Canonical equipment resolver and MegaMek sprites
 - Hangar search (chassis, variant, tonnage, tech base), catalogue paging
+- Player-owned MechLab designs with server-validated standard Inner Sphere
+  construction and immutable catalogue revisions
 - Split SQL imports sized for the Supabase SQL Editor (`local-data/*.sql.parts`)
 
 ### UI
