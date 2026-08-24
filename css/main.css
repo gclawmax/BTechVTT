@@ -178,6 +178,8 @@ html, body {
 .deployment-hex { min-height:13px; border:0; background:#9aac70; cursor:default; }
 .deployment-hex.zone { background:#6a8554; cursor:pointer; }.deployment-hex.enemy-zone { background:#815556; }
 .deployment-hex.occupied { background:var(--amber); }.deployment-help { color:var(--phosphor-dim); font:10px/1.45 var(--mono); }
+.deployment-hex.light_woods { box-shadow:inset 0 0 0 3px #4d7d42; }.deployment-hex.heavy_woods { box-shadow:inset 0 0 0 3px #315d36; }
+.deployment-hex.rough { box-shadow:inset 0 0 0 3px #78634b; }.deployment-hex.shallow_water { box-shadow:inset 0 0 0 3px #5a9db5; }
 .setup-actions { display:flex; gap:8px; margin-top:24px; }
 .setup-actions button { flex:1; padding:10px 14px; border:1px solid var(--phosphor); background:var(--phosphor); color:#fff; font:11px var(--display); letter-spacing:.1em; text-transform:uppercase; cursor:pointer; }
 .setup-actions button.secondary { background:transparent; color:var(--phosphor); }

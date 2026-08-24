@@ -554,9 +554,13 @@ function renderLobbyDeployment(gameState) {
   for (let row = 0; row < GRID_ROWS; row++) for (let col = 0; col < GRID_COLS; col++) {
     const owner = occupied.get(`${col},${row}`);
     const mine = deploymentZoneContains(mySeatNumber, col, row);
-    cells.push(`<button class="deployment-hex ${mine ? 'zone' : 'enemy-zone'} ${owner ? 'occupied' : ''}" ${mine && !owner ? `onclick="placeLobbyDeployment(${col},${row})"` : ''} title="${hexCode(col,row)}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : ' · opponent deployment zone'}"></button>`);
+    const terrain = terrainAt(col, row);
+    const level = elevationAt(col, row);
+    cells.push(`<button class="deployment-hex ${mine ? 'zone' : 'enemy-zone'} ${owner ? 'occupied' : ''} ${terrain}" ${mine && !owner ? `onclick="placeLobbyDeployment(${col},${row})"` : ''} title="${hexCode(col,row)} · ${terrain.replace('_',' ')}${level ? ` · level ${level}` : ''}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : ' · opponent deployment zone'}"></button>`);
   }
-  target.innerHTML = `<div class="deployment-help">Choose each BattleMech, then click an empty green hex on your side. Amber hexes are already occupied. Both players must place every unit before readying up.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div><div class="deployment-grid">${cells.join('')}</div>`;
+  const selected = positions[lobbyDeploymentIndex];
+  const facingButtons = selected ? HEX_DIR_LABELS.map((label, facing) => `<button class="${selected.facing === facing ? 'selected' : ''}" onclick="setLobbyDeploymentFacing(${facing})">${label}</button>`).join('') : '';
+  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Amber hexes are occupied; the tooltip identifies terrain and elevation.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}</div>` : ''}<div class="deployment-grid">${cells.join('')}</div><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
 }
 
 function selectLobbyDeploymentUnit(index) { lobbyDeploymentIndex = index; loadLobbyUI(); }
@@ -569,6 +573,24 @@ async function placeLobbyDeployment(col, row) {
   positions[lobbyDeploymentIndex] = { col, row, facing: mySeatNumber === 1 ? 0 : 3 };
   const { error } = await db.rpc('set_match_deployment', { p_game_id: currentGameId, p_positions: positions });
   if (error) { document.getElementById('lobby-status').textContent = `Deployment rejected: ${error.message}`; return; }
+  await loadLobbyUI();
+}
+
+async function setLobbyDeploymentFacing(facing) {
+  const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const positions = [...(state.deployment_positions?.[String(mySeatNumber)] || [])];
+  if (!positions[lobbyDeploymentIndex]) return;
+  positions[lobbyDeploymentIndex] = { ...positions[lobbyDeploymentIndex], facing };
+  const { error } = await db.rpc('set_match_deployment', { p_game_id: currentGameId, p_positions: positions });
+  if (error) { document.getElementById('lobby-status').textContent = `Facing rejected: ${error.message}`; return; }
+  await loadLobbyUI();
+}
+
+async function resetLobbyDeployment() {
+  const { error } = await db.rpc('set_match_deployment', { p_game_id: currentGameId, p_positions: [] });
+  if (error) { document.getElementById('lobby-status').textContent = `Reset rejected: ${error.message}`; return; }
+  lobbyDeploymentIndex = 0;
   await loadLobbyUI();
 }
 

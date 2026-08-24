@@ -9,7 +9,7 @@ BEGIN
  IF NOT FOUND OR g.status<>'lobby' THEN RAISE EXCEPTION 'Deployment can be changed only by seated players in a lobby'; END IF;
  st:=CASE jsonb_typeof(g.state) WHEN 'string' THEN (g.state#>>'{}')::jsonb ELSE coalesce(g.state,'{}'::jsonb) END;
  roster:=coalesce(st->'rosters'->player.seat_number::text,'[]'::jsonb); count_required:=jsonb_array_length(roster);
- IF jsonb_array_length(p_positions)<>count_required THEN RAISE EXCEPTION 'Place every BattleMech in your roster'; END IF;
+ IF jsonb_array_length(p_positions)<>0 AND jsonb_array_length(p_positions)<>count_required THEN RAISE EXCEPTION 'Place every BattleMech in your roster'; END IF;
  IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_positions) e WHERE jsonb_typeof(e)<>'object' OR (e->>'col') !~ '^[0-9]+$' OR (e->>'row') !~ '^[0-9]+$' OR (e->>'facing') !~ '^[0-5]$') THEN RAISE EXCEPTION 'Each deployment needs col, row and facing'; END IF;
  IF EXISTS (SELECT 1 FROM jsonb_array_elements(p_positions) e WHERE (e->>'col')::int<0 OR (e->>'col')::int>15 OR (e->>'row')::int<0 OR (e->>'row')::int>11 OR (player.seat_number=1 AND (e->>'col')::int>4) OR (player.seat_number=2 AND (e->>'col')::int<11)) THEN RAISE EXCEPTION 'A BattleMech must deploy inside its own deployment zone'; END IF;
  IF (SELECT count(*) FROM jsonb_array_elements(p_positions))<>(SELECT count(DISTINCT (e->>'col')||','||(e->>'row')) FROM jsonb_array_elements(p_positions) e) THEN RAISE EXCEPTION 'Two BattleMechs cannot occupy the same hex'; END IF;
