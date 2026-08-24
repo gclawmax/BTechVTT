@@ -138,6 +138,15 @@ function terrainStatusAt(col, row) {
   };
 }
 
+function objectiveHexesForMap(mapId) {
+  return ({
+    'industrial-crossing': ['0703', '0806', '0809'],
+    'desert-hills': ['0302', '0906', '1108'],
+    'flatlands-open-terrain': ['0505', '0806', '1108'],
+    'ridge-and-ford': ['0704', '0804', '0805']
+  })[mapId] || ['0704', '0806', '0808'];
+}
+
 function elevationAt(col, row) {
   return getMapDefinition(activeMapId).elevation?.[hexCode(col, row)] || 0;
 }

@@ -11,6 +11,7 @@ function handleCreateGame() {
   mapSelect.value = DEFAULT_MAP_ID;
   renderCreateMapPreview();
   document.getElementById('create-tonnage-select').value = '200';
+  document.getElementById('create-victory-select').value = 'annihilation';
   showScreen('match-setup-screen');
 }
 
@@ -45,8 +46,9 @@ async function handleCreateConfiguredGame() {
   if (!currentUser) return;
   const mapId = document.getElementById('create-map-select').value;
   const dropshipTonnage = Number.parseInt(document.getElementById('create-tonnage-select').value, 10);
+  const victoryMode = document.getElementById('create-victory-select').value;
   if (!BT_MAPS[mapId] || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
-  await createHumanGame({ mapId, dropshipTonnage });
+  await createHumanGame({ mapId, dropshipTonnage, victoryMode });
 }
 
 // A short first match removes roster-building friction while preserving the
@@ -89,7 +91,7 @@ async function handleCreateDesertHillsScenario() {
   });
 }
 
-async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null }) {
+async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation' }) {
   if (!BT_MAPS[mapId] || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
   showLoading(true);
   try {
@@ -106,6 +108,9 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
           map_id: mapId, dropship_tonnage: dropshipTonnage,
           catalogue_version: catalogueVersion,
           special_ammo_setup_v1: true,
+          victory_mode: ['annihilation', 'control', 'breakthrough'].includes(victoryMode) ? victoryMode : 'annihilation',
+          objective_hexes: victoryMode === 'control' ? objectiveHexesForMap(mapId) : [],
+          objective_scores: { '1': 0, '2': 0 },
           rosters,
           ...(beginnerScenario ? { beginner_scenario: beginnerScenario } : {})
         }),

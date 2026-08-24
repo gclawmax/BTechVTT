@@ -87,6 +87,12 @@
       <option value="200" selected>200 tons</option>
       <option value="250">250 tons</option>
     </select>
+    <label for="create-victory-select">Victory condition</label>
+    <select id="create-victory-select">
+      <option value="annihilation">Annihilation — destroy the opposing force</option>
+      <option value="control">Objective Control — first to 5 control points</option>
+      <option value="breakthrough">Breakthrough — move 2 BattleMechs into the enemy deployment zone</option>
+    </select>
     <div class="setup-actions">
       <button class="primary" onclick="handleCreateConfiguredGame()">Create Lobby</button>
       <button class="secondary" onclick="cancelCreateGameSetup()">Back</button>
@@ -181,24 +187,24 @@
 <script src="js/core/helpers.js?v=20260824-legacy-catalogue-repair-01"></script>
 <script src="js/core/modal.js?v=20260813-physical-warning-01"></script>
 <script src="js/network/game-code.js?v=20260813-reaction-ui-01"></script>
-<script src="js/game/maps.js?v=20260824-terrain-interactions-01"></script>
+<script src="js/game/maps.js?v=20260824-combat-objectives-01"></script>
 <script src="js/game/unit-catalogue.js?v=20260824-terrain-indirect-01"></script>
 <script src="js/game/critical-layouts.js?v=20260816-versioned-catalogue-01"></script>
 <script src="js/game/critical-hits.js?v=20260824-critical-effects-01"></script>
-<script src="js/network/create-game.js?v=20260824-advanced-terrain-ammo-01"></script>
+<script src="js/network/create-game.js?v=20260824-combat-objectives-01"></script>
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
-<script src="js/network/lobby.js?v=20260824-legacy-catalogue-repair-01"></script>
-<script src="js/game/phases.js?v=20260824-terrain-interactions-01"></script>
+<script src="js/network/lobby.js?v=20260824-combat-objectives-01"></script>
+<script src="js/game/phases.js?v=20260824-combat-objectives-01"></script>
 <script src="js/game/board.js?v=20260824-terrain-interactions-01"></script>
 <script src="js/game/unit-artwork.js?v=20260820-01"></script>
-<script src="js/movement/rules.js?v=20260824-terrain-interactions-01"></script>
+<script src="js/movement/rules.js?v=20260824-combat-objectives-01"></script>
 <script src="js/ui/panels.js?v=20260824-advanced-terrain-ammo-01"></script>
 <script src="js/ui/record-sheet.js?v=20260821-hangar-pilots-01"></script>
 <script src="js/ui/panel-resize.js?v=20260813-resizable-panel-01"></script>
 <script src="js/movement/movement.js?v=20260824-terrain-interactions-01"></script>
 <script src="js/game/reaction.js?v=20260817-authoritative-reaction-01"></script>
-<script src="js/game/weapon-attack.js?v=20260824-advanced-terrain-ammo-01"></script>
+<script src="js/game/weapon-attack.js?v=20260824-combat-objectives-01"></script>
 <script src="js/game/physical-attack.js?v=20260824-critical-consequences-01"></script>
 <script src="js/game/heat.js?v=20260817-advanced-equipment-01"></script>
 <script src="js/app.js?v=20260813-reaction-ui-01"></script>

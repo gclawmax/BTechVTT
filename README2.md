@@ -27,7 +27,8 @@ Full turn structure: **Initiative → Movement → Reaction → Weapon Attack �
 
 ### Combat (`js/game/`)
 - Weapon attacks with range, facing, hit-location tables, shallow-water cover,
-  prone firing and LRM indirect fire with simultaneous spotters
+  prone firing, multiple declared targets and LRM indirect fire with simultaneous spotters
+- Standard AMS missile-flight reduction and single-missile Narc interception
 - LB-X ammunition modes (cluster/shotgun fire derived from the selected ammunition bin)
 - Ultra AC rapid fire, hatchet attacks, flamer heat
 - Physical attacks (including Charge, Push and Death From Above), displacement,
@@ -39,6 +40,7 @@ Full turn structure: **Initiative → Movement → Reaction → Weapon Attack �
 ### Multiplayer (`js/network/`)
 - Supabase Auth (username/password login)
 - Game creation with shareable game codes, join flow
+- Annihilation, Objective Control and Breakthrough victory conditions
 - Lobby with roster selection, search, and persistent variant favourites
 - Realtime state synchronization via Supabase Realtime
 - Skirmish vs AI: the AI is a real game participant (`btech_players.is_ai = true`, `user_id = NULL`), with per-mech skirmish pilots and skirmish hangars
@@ -98,7 +100,7 @@ profiles. For example, Clan ER Medium Lasers use 7 damage and 5/10/15 range.
 
 ## Remaining work
 
-- Expand remaining specialist rules in catalogue-led batches
+- Expand remaining specialist equipment and scenario rules in catalogue-led batches
 - Phase 7 polish: sound effects, map editor, campaign mode, production deployment
   beyond GitHub Pages
 - Documentation refresh (this file and `SKILL_ROADMAP2.md` replace the stale

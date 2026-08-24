@@ -86,6 +86,11 @@ async function loadGameState() {
     ...(gameState.terrain_advanced_after_round != null ? { terrain_advanced_after_round: gameState.terrain_advanced_after_round } : {}),
     ...(gameState.wind_direction != null ? { wind_direction: gameState.wind_direction } : {}),
     ...(gameState.terrain_events ? { terrain_events: gameState.terrain_events } : {}),
+    ...(gameState.victory_mode ? { victory_mode: gameState.victory_mode } : {}),
+    ...(gameState.objective_hexes ? { objective_hexes: gameState.objective_hexes } : {}),
+    ...(gameState.objective_scores ? { objective_scores: gameState.objective_scores } : {}),
+    ...(gameState.breakthrough_scored_units ? { breakthrough_scored_units: gameState.breakthrough_scored_units } : {}),
+    ...(gameState.objectives_scored_after_round != null ? { objectives_scored_after_round: gameState.objectives_scored_after_round } : {}),
     ...(game.catalogue_version ? { catalogue_version: game.catalogue_version } : {})
   };
   // Always derive this from the loaded game. Otherwise an AI game visited in
@@ -180,6 +185,10 @@ function updateGameHeader() {
 
   const phaseLabel = PHASE_LABELS[currentGameState.phase] || currentGameState.phase;
   statusEl.textContent = `Round ${currentGameState.round} — ${phaseLabel}`;
+  if (currentMatchConfig.victory_mode && currentMatchConfig.victory_mode !== 'annihilation') {
+    const scores = currentMatchConfig.objective_scores || { '1': 0, '2': 0 };
+    statusEl.textContent += ` — Objectives P1 ${scores['1'] || 0} : P2 ${scores['2'] || 0}`;
+  }
   const phaseGuidance = {
     initiative: 'Roll 2D6 initiative when ready. Both players must roll before Movement begins.',
     movement: "Choose an eligible 'Mech and complete its movement activation.",
@@ -590,7 +599,8 @@ async function checkForMatchEnd() {
     currentGameState.match_result = result;
     currentGameState.phase = 'end';
     currentGameState.active_player_id = null;
-    logEvent(result.winner_seat == null ? 'Match complete — all forces destroyed. Draw.' : `Match complete — Player ${result.winner_seat} wins.`, 'phase');
+    const reason = result.reason === 'control' ? ' by objective control' : result.reason === 'breakthrough' ? ' by breakthrough' : '';
+    logEvent(result.winner_seat == null ? 'Match complete — draw.' : `Match complete — Player ${result.winner_seat} wins${reason}.`, 'phase');
     await loadGameState();
     return result;
   }

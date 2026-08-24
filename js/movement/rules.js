@@ -193,6 +193,11 @@ function draw() {
       const terrain = terrainAt(col, row);
       const elevation = elevationAt(col, row);
       drawMapHex(px, py, col, row, terrain, elevation);
+      if (typeof currentMatchConfig !== 'undefined' && currentMatchConfig.victory_mode === 'control' && (currentMatchConfig.objective_hexes || []).includes(hexCode(col, row))) {
+        ctx.save(); ctx.strokeStyle = '#d4800a'; ctx.lineWidth = 2.5; ctx.setLineDash([4, 3]);
+        ctx.beginPath(); ctx.arc(px, py, 18, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(212,128,10,.92)'; ctx.font = 'bold 8px "IBM Plex Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('OBJ', px, py - 15); ctx.restore();
+      }
       // Hex code label
       ctx.save();
       ctx.shadowColor = 'rgba(255,255,255,.65)';

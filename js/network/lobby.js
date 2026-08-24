@@ -479,7 +479,8 @@ function renderLobbyMatchSetup(gameState, players) {
   const map = getMapDefinition(gameState.map_id);
   const limit = Number(gameState.dropship_tonnage || 0);
   const beginnerScenario = gameState.beginner_scenario;
-  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${beginnerScenario?.title || map.name}</strong><br>${beginnerScenario?.instructions || map.description}<br>Battlefield: <strong>${map.name}</strong><br>Force limit: <strong>${limit} tons per player</strong></div>`;
+  const victoryLabel = ({ annihilation: 'Annihilation', control: 'Objective Control (first to 5)', breakthrough: 'Breakthrough (2 BattleMechs)' })[gameState.victory_mode] || 'Annihilation';
+  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${beginnerScenario?.title || map.name}</strong><br>${beginnerScenario?.instructions || map.description}<br>Battlefield: <strong>${map.name}</strong><br>Force limit: <strong>${limit} tons per player</strong><br>Victory: <strong>${victoryLabel}</strong></div>`;
   if (beginnerScenario) {
     rosterSection.hidden = true;
     rosterEl.innerHTML = '';
