@@ -50,6 +50,15 @@ async function waitForRestoredState(page, expected, timeout = 25000) {
   }
   return false;
 }
+async function waitForDeploymentState(page, expectedPosition, timeout = 25000) {
+  const until = Date.now() + timeout;
+  while (Date.now() < until) {
+    const snapshot = await state(page);
+    if (snapshot.ownUnits === 1 && snapshot.ownPositions.includes(expectedPosition)) return true;
+    await sleep(250);
+  }
+  return false;
+}
 async function signIn(page, credentials) {
   await page.goto(BASE, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
   await page.fill('#login-username', credentials.user);
@@ -74,7 +83,7 @@ async function addAndDeployLocust(page) {
 async function placeBattlefieldDeployment(page, hex, facing) {
   await page.locator('#lobby-deployment .deployment-grid').waitFor({ state: 'visible', timeout: 20000 });
   await page.locator(`#lobby-deployment .deployment-hex[title^="${hex}"]`).click();
-  await page.waitForFunction(() => /1\/1 placed/.test(document.querySelector('#lobby-deployment .deployment-help')?.textContent || ''), null, { timeout: 15000 });
+  await page.waitForFunction(() => /1\/1 placed/.test(document.querySelector('#lobby-deployment > .deployment-help')?.textContent || ''), null, { timeout: 15000 });
   await page.getByRole('button', { name: facing, exact: true }).click();
 }
 async function state(page) {
@@ -195,7 +204,7 @@ try {
   await Promise.all([addAndDeployLocust(host), addAndDeployLocust(guest)]);
   check('both players deploy a legal roster', /Deployment:\s*[1-9]/.test(await host.locator('.roster-summary').innerText()) && /Deployment:\s*[1-9]/.test(await guest.locator('.roster-summary').innerText()));
   await Promise.all([placeBattlefieldDeployment(host, '0101', 'NE'), placeBattlefieldDeployment(guest, '1410', 'SW')]);
-  check('both players choose deployment hexes and facings', /1\/1 placed/.test(await host.locator('#lobby-deployment .deployment-help').innerText()) && /1\/1 placed/.test(await guest.locator('#lobby-deployment .deployment-help').innerText()));
+  check('both players choose deployment hexes and facings', /1\/1 placed/.test(await host.locator('#lobby-deployment > .deployment-help').innerText()) && /1\/1 placed/.test(await guest.locator('#lobby-deployment > .deployment-help').innerText()));
 
   await host.locator('#btn-ready').click();
   await guest.locator('#btn-ready').click();
@@ -203,6 +212,7 @@ try {
   await host.locator('#btn-start').click();
   check('host starts the shared game', await waitForScreen(host, 'game-screen'));
   check('guest receives the shared game', await waitForScreen(guest, 'game-screen'));
+  await Promise.all([waitForDeploymentState(host, '0101:NE'), waitForDeploymentState(guest, '1410:SW')]);
   const deployedBoard = { host: await state(host), guest: await state(guest) };
   check('shared battlefield uses the selected deployment positions and facings',
     deployedBoard.host.ownPositions.includes('0101:NE') && deployedBoard.guest.ownPositions.includes('1410:SW'), JSON.stringify(deployedBoard));
