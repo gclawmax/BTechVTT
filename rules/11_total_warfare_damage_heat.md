@@ -108,6 +108,12 @@ in shallow water receives +1 partial cover; a hit-location result against either
 leg strikes the water and applies no damage. This is resolved on the server for
 both direct attacks and clustered missile damage groups.
 
+The live focused regression in `tools/test-human-vs-human-rules.mjs` exercises
+these rules through two authenticated players and the deployed Supabase
+functions. It verifies shallow-water movement and cover, ridge-blocked indirect
+fire, moving spotters, Artemis and Narc guidance, prone support-arm restrictions,
+CASE venting, ammunition pilot hits and unprotected centre-torso destruction.
+
 ## Heat
 
 Heat should be a per-unit round ledger, not a single opaque number:

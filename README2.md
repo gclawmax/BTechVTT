@@ -74,6 +74,8 @@ local-data/             MegaMek source data, registries, content-pack SQL
 docs/                   Unit catalogue, MegaMek attribution, local import notes
 test-*.mjs              Node smoke tests (catalogue pagination, LB-X loadout,
                         skirmish hangar, special equipment, general fixes)
+tools/test-human-vs-human*.mjs
+                        Live two-player flow and focused authoritative-rules regressions
 ```
 
 ## Getting started
@@ -96,7 +98,7 @@ profiles. For example, Clan ER Medium Lasers use 7 damage and 5/10/15 range.
 
 ## Remaining work
 
-- Apply migrations 62–68 and run the focused human-vs-human combat regression
+- Expand remaining specialist rules in catalogue-led batches
 - Phase 7 polish: sound effects, map editor, campaign mode, production deployment
   beyond GitHub Pages
 - Documentation refresh (this file and `SKILL_ROADMAP2.md` replace the stale

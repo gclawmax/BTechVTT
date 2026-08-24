@@ -26,11 +26,10 @@ including Clan ER Medium Lasers at 7 damage and 5/10/15 range.
 
 ## Suggested next steps (priority order)
 
-1. Apply migrations 62–68, then run the focused human-vs-human combat regression.
-2. Expand remaining specialist rules in catalogue-led batches.
-3. Phase 7 polish: sound effects → map editor → campaign mode → production
+1. Expand remaining specialist rules in catalogue-led batches.
+2. Phase 7 polish: sound effects → map editor → campaign mode → production
    deployment.
-4. Documentation: replace `README.md`'s stale roadmap with `README2.md` /
+3. Documentation: replace `README.md`'s stale roadmap with `README2.md` /
    this file when ready.
 
 ## Key conventions
@@ -54,5 +53,8 @@ including Clan ER Medium Lasers at 7 damage and 5/10/15 range.
 - **Rules migrations:** Client JS and SQL must stay in parity; use the safe
   migration patching approach from the `e7a8a33`/`a682f78` commits when touching
   hit-location or to-hit rules.
+- **Live regression:** `tools/test-human-vs-human.mjs` covers the complete shared
+  turn, while `tools/test-human-vs-human-rules.mjs` covers terrain, prone and
+  indirect fire, Artemis/Narc guidance, CASE and destruction consequences.
 - **Supabase SQL Editor size limit:** Large catalogue imports are split into
   `local-data/*.sql.parts` for manual execution.
