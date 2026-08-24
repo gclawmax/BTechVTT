@@ -57,6 +57,20 @@ BattleMech directly ahead at the same level. Both arms are required, arm-fired
 weapons are checked from the combat ledger, successful attacks displace the
 target and advance the attacker, and the target rolls to avoid falling.
 
+`SQL/60_complete_displacement_physical_falls.sql` completes the supported
+BattleMech physical-combat edge layer. Occupied displacement destinations now
+resolve recursively as domino effects; downward displacement can produce an
+accidental fall from above; prohibited destinations and DFA fallback hexes are
+resolved before either unit moves. The migration also centralises fall facing,
+five-point damage groups, gyro modifiers and the second Piloting Skill Roll
+that determines whether a fall injures the pilot.
+
+Physical weapons are driven by the Total Warfare equipment table rather than
+by a Hatchetman exception. A supported catalogue record that mounts a backhoe,
+chainsaw, combine, dual saw, hatchet, heavy-duty pile driver, mining drill,
+retractable blade, rock cutter, spot welder, sword or wrecking ball receives
+the appropriate attack option, arc, modifier, damage and actuator effects.
+
 ## Heat
 
 Heat should be a per-unit round ledger, not a single opaque number:
@@ -69,7 +83,7 @@ environmentalHeat, heatDissipated, endingHeat, triggeredEffects
 `SQL/27_authoritative_heat_effects.sql` resolves dissipation, heat-scale
 movement and gunnery modifiers, shutdown checks, and heat ammunition-explosion
 checks on Supabase, recording each outcome in the shared log. Pilot damage and
-consciousness checks remain a later slice.
+consciousness are added by SQL/29 and complete fall injury checks by SQL/60.
 
 `SQL/28_authoritative_startup.sql` lets a shut-down BattleMech use its
 Movement activation for a server-rolled restart attempt, rather than blocking

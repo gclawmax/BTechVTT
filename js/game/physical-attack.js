@@ -4,8 +4,43 @@
 
 let physicalAttackState = { attackerId: null, targetId: null, attackType: null, limbs: [] };
 
+const BT_PHYSICAL_WEAPON_RULES = {
+  backhoe: { label: 'Backhoe', toHit: 1, damage: 6, arc: 'arm', damageActuators: true },
+  chainsaw: { label: 'Chainsaw', toHit: 0, damage: 5, arc: 'arm' },
+  combine: { label: 'Combine', toHit: -2, damage: 3, arc: 'arm' },
+  dual_saw: { label: 'Dual Saw', toHit: 0, damage: 7, arc: 'arm' },
+  hatchet: { label: 'Hatchet', toHit: -1, damageDivisor: 5, arc: 'arm', damageActuators: true },
+  heavy_duty_pile_driver: { label: 'Heavy-Duty Pile Driver', toHit: 2, damage: 9, arc: 'forward' },
+  mining_drill: { label: 'Mining Drill', toHit: -1, damage: 4, arc: 'arm' },
+  retractable_blade: { label: 'Retractable Blade', toHit: -2, damageDivisor: 10, arc: 'arm', damageActuators: true, ignoreHand: true },
+  rock_cutter: { label: 'Rock Cutter', toHit: 1, damage: 5, arc: 'arm' },
+  spot_welder: { label: 'Spot Welder', toHit: 0, damage: 5, arc: 'arm', heat: 2 },
+  sword: { label: 'Sword', toHit: -2, damageDivisor: 10, damageBonus: 1, arc: 'arm', damageActuators: true },
+  wrecking_ball: { label: 'Wrecking Ball', toHit: 1, damage: 8, arc: 'forward' }
+};
+
+function physicalWeaponRule(type) {
+  if (!type?.startsWith('physical_')) return null;
+  const [key, locationTable = 'standard'] = type.slice(9).split('__');
+  const rule = BT_PHYSICAL_WEAPON_RULES[key];
+  return rule ? { ...rule, key, locationTable } : null;
+}
+
+function availablePhysicalWeapons(mech) {
+  return Object.entries(BT_PHYSICAL_WEAPON_RULES).flatMap(([key, rule]) => {
+    const limbs = ['la', 'ra'].filter(limb => physicalComponentState(mech, limb, rule.label).exists);
+    return limbs.length ? ['standard', 'punch', 'kick'].map(locationTable => ({
+      type: `physical_${key}${locationTable === 'standard' ? '' : `__${locationTable}`}`,
+      ...rule, limbs, locationTable,
+      displayLabel: `${rule.label}${locationTable === 'standard' ? '' : ` (${locationTable} table +4)`}`
+    })) : [];
+  });
+}
+
 function physicalAttackDamage(attacker, type) {
   const tonnage = BT_UNITS[attacker.unitId].tonnage;
+  const physicalWeapon = physicalWeaponRule(type);
+  if (physicalWeapon) return Math.max(1, physicalWeapon.damage ?? Math.ceil(tonnage / physicalWeapon.damageDivisor) + (physicalWeapon.damageBonus || 0));
   return Math.max(1, Math.ceil(tonnage / (['kick', 'hatchet', 'dfa'].includes(type) ? 5 : 10)));
 }
 
@@ -15,7 +50,7 @@ function physicalLimbLabel(limb) {
 
 function physicalLimbCandidates(type) {
   if (type === 'punch') return ['la', 'ra'];
-  if (type === 'hatchet') return ['ra'];
+  if (physicalWeaponRule(type)) return ['la', 'ra'];
   if (type === 'push') return ['push'];
   return ['ll', 'rl'];
 }
@@ -27,13 +62,16 @@ function physicalComponentState(mech, location, label) {
 }
 
 function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandidates(type)[0]) {
-  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.shutdown || target.shutdown || (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious') || attacker.owner === target.owner) {
+  const physicalWeapon = physicalWeaponRule(type);
+  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.shutdown || (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious') || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target.' };
   }
   if (axialDistance(attacker.col, attacker.row, target.col, target.row) !== 1) {
     return { valid: false, reason: 'Physical attacks require an adjacent target.' };
   }
   const directionDifference = (weaponDirectionTo(attacker, target) - attacker.facing + 6) % 6;
+  const levelDifference = elevationAt(target.col, target.row) - elevationAt(attacker.col, attacker.row);
+  if (Math.abs(levelDifference) > 1) return { valid: false, reason: 'Physical attacks require targets within one elevation level.' };
   if (type === 'push') {
     if (directionDifference !== 0) return { valid: false, reason: 'A push target must be directly ahead.' };
     if (target.prone || target.dfaDeclaration || target.chargeDeclaration) return { valid: false, reason: 'Choose a standing target not making a displacement attack.' };
@@ -45,24 +83,27 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
     return { valid: true, damage: 0, targetNumber, breakdown: `Piloting ${piloting} - push 1 + move ${movementToHitModifier(attacker)} + target ${targetMovementModifier(target)}${shoulderModifier ? ` + shoulders ${shoulderModifier}` : ''}` };
   }
   if (type === 'kick' && ![0, 1, 5].includes(directionDifference)) return { valid: false, reason: 'Kick target is outside the three forward hexes.' };
-  if (['punch', 'hatchet'].includes(type) && directionDifference === 3) return { valid: false, reason: `${type === 'hatchet' ? 'Hatchet' : 'Punch'} target is in the rear arc.` };
-  if (['punch', 'hatchet'].includes(type) && [1, 2].includes(directionDifference) && limb !== 'la') return { valid: false, reason: 'Only the left arm can reach this side.' };
-  if (['punch', 'hatchet'].includes(type) && [4, 5].includes(directionDifference) && limb !== 'ra') return { valid: false, reason: 'Only the right arm can reach this side.' };
+  if (type === 'kick' && levelDifference > 0) return { valid: false, reason: 'A standing target one level higher cannot be kicked.' };
+  if (type === 'punch' && levelDifference < 0) return { valid: false, reason: 'A standing target one level lower cannot be punched.' };
+  if (physicalWeapon?.arc === 'forward' && ![0, 1, 5].includes(directionDifference)) return { valid: false, reason: `${physicalWeapon.label} requires the forward arc.` };
+  if ((type === 'punch' || physicalWeapon?.arc === 'arm') && directionDifference === 3) return { valid: false, reason: `${physicalWeapon?.label || 'Punch'} target is in the rear arc.` };
+  if ((type === 'punch' || physicalWeapon?.arc === 'arm') && [1, 2].includes(directionDifference) && limb !== 'la') return { valid: false, reason: 'Only the left arm can reach this side.' };
+  if ((type === 'punch' || physicalWeapon?.arc === 'arm') && [4, 5].includes(directionDifference) && limb !== 'ra') return { valid: false, reason: 'Only the right arm can reach this side.' };
   if ((attacker.structure?.[limb] || 0) <= 0) return { valid: false, reason: `${physicalLimbLabel(limb)} is destroyed.` };
   let componentModifier = 0;
   let reductions = 0;
-  if (['punch', 'hatchet'].includes(type)) {
+  if (type === 'punch' || physicalWeapon) {
     if (physicalComponentState(attacker, limb, 'Shoulder').damaged) return { valid: false, reason: 'Damaged shoulder prevents this punch.' };
-    if (type === 'hatchet') {
-      const hatchet = physicalComponentState(attacker, limb, 'Hatchet');
-      if (!hatchet.exists) return { valid: false, reason: 'No functioning hatchet is mounted in this arm.' };
-      if (hatchet.damaged) return { valid: false, reason: 'The hatchet is destroyed.' };
+    if (physicalWeapon) {
+      const equipment = physicalComponentState(attacker, limb, physicalWeapon.label);
+      if (!equipment.exists) return { valid: false, reason: `No ${physicalWeapon.label} is mounted in this arm.` };
+      if (equipment.damaged) return { valid: false, reason: `The ${physicalWeapon.label} is destroyed.` };
     }
     if (physicalComponentState(attacker, limb, 'Upper Arm Actuator').damaged) { componentModifier += 2; reductions++; }
     const lower = physicalComponentState(attacker, limb, 'Lower Arm Actuator');
     if (!lower.exists || lower.damaged) { componentModifier += 2; reductions++; }
     const hand = physicalComponentState(attacker, limb, 'Hand Actuator');
-    if (!hand.exists || hand.damaged) componentModifier += 1;
+    if ((!hand.exists || hand.damaged) && !physicalWeapon?.ignoreHand) componentModifier += 1;
   } else {
     if (['ll', 'rl'].some(side => physicalComponentState(attacker, side, 'Hip').damaged)) return { valid: false, reason: 'A damaged hip prevents kicking.' };
     for (const label of ['Upper Leg Actuator', 'Lower Leg Actuator']) {
@@ -74,13 +115,14 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
   const targetMove = targetMovementModifier(target);
   const targetTerrain = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
   let damage = physicalAttackDamage(attacker, type);
+  if (physicalWeapon && !physicalWeapon.damageActuators) reductions = 0;
   while (reductions-- > 0) damage = Math.floor(damage / 2);
   const piloting = Number(attacker.pilot?.piloting ?? attacker.pilotingSkill ?? 5);
   return {
     valid: true,
     damage: Math.max(1, damage),
-    targetNumber: piloting + attackerMove + targetMove + targetTerrain + componentModifier + (type === 'kick' ? -2 : 0),
-    breakdown: `Piloting ${piloting} + move ${attackerMove} + target ${targetMove} + terrain ${targetTerrain}${componentModifier ? ` + actuator ${componentModifier}` : ''}${type === 'kick' ? ' - kick 2' : ''}`
+    targetNumber: piloting + attackerMove + targetMove + targetTerrain + componentModifier + (type === 'kick' ? -2 : physicalWeapon?.toHit || 0) + (physicalWeapon && physicalWeapon.locationTable !== 'standard' ? 4 : 0),
+    breakdown: `Piloting ${piloting} + move ${attackerMove} + target ${targetMove} + terrain ${targetTerrain}${componentModifier ? ` + actuator ${componentModifier}` : ''}${type === 'kick' ? ' - kick 2' : physicalWeapon?.toHit ? ` ${physicalWeapon.toHit > 0 ? '+' : '-'} weapon ${Math.abs(physicalWeapon.toHit)}` : ''}${physicalWeapon && physicalWeapon.locationTable !== 'standard' ? ` + ${physicalWeapon.locationTable} table 4` : ''}`
   };
 }
 
@@ -108,13 +150,13 @@ function selectPhysicalAttackType(type) {
   const attacker = mechInstances.find(m => m.instanceId === physicalAttackState.attackerId);
   const target = mechInstances.find(m => m.instanceId === physicalAttackState.targetId);
   physicalAttackState.limbs = physicalLimbCandidates(type).filter(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid);
-  if (['kick', 'hatchet'].includes(type)) physicalAttackState.limbs = physicalAttackState.limbs.slice(0, 1);
+  if (type === 'kick' || physicalWeaponRule(type)) physicalAttackState.limbs = physicalAttackState.limbs.slice(0, 1);
   renderPhysicalAttackPanel();
 }
 
 function togglePhysicalLimb(limb) {
   const selected = physicalAttackState.limbs || [];
-  if (['kick', 'hatchet'].includes(physicalAttackState.attackType)) physicalAttackState.limbs = selected.includes(limb) ? [] : [limb];
+  if (physicalAttackState.attackType === 'kick' || physicalWeaponRule(physicalAttackState.attackType)) physicalAttackState.limbs = selected.includes(limb) ? [] : [limb];
   else physicalAttackState.limbs = selected.includes(limb) ? selected.filter(value => value !== limb) : [...selected, limb];
   renderPhysicalAttackPanel();
 }
@@ -186,6 +228,7 @@ async function confirmPhysicalAttack() {
   if (!vsAiMode) return confirmAuthoritativePhysicalAttack(attacker, target, type);
   let message;
   if (type && target) {
+    const physicalWeapon = physicalWeaponRule(type);
     const limb = physicalAttackState.limbs[0] || physicalLimbCandidates(type)[0];
     const attack = evaluatePhysicalAttack(attacker, target, type, limb);
     if (!attack.valid) return;
@@ -193,9 +236,9 @@ async function confirmPhysicalAttack() {
     const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);
     if (hit) {
       const damage = applyWeaponDamage(target, attack.damage, 'front');
-      message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : type === 'hatchet' ? 'struck with its hatchet' : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
+      message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : physicalWeapon ? `struck with its ${physicalWeapon.label}` : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
     } else {
-      message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : type === 'hatchet' ? 'swung its hatchet at' : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.`;
+      message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : physicalWeapon ? `swung its ${physicalWeapon.label} at` : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.`;
     }
   } else {
     message = `${mechLabel(attacker)} made no physical attack.`;
@@ -253,13 +296,13 @@ function renderPhysicalAttackPanel() {
   }
 
   const enemies = mechInstances.filter(m => m.owner !== attacker.owner && !m.destroyed);
-  const attackTypes = ['punch', 'kick', 'push'];
-  if (physicalComponentState(attacker, 'ra', 'Hatchet').exists) attackTypes.push('hatchet');
+  const physicalWeapons = availablePhysicalWeapons(attacker);
+  const attackTypes = ['punch', 'kick', 'push', ...physicalWeapons.map(weapon => weapon.type)];
   const options = attackTypes.map(type => {
     const evaluation = target ? physicalLimbCandidates(type).map(limb => evaluatePhysicalAttack(attacker, target, type, limb)).find(value => value.valid) : null;
     const selected = physicalAttackState.attackType === type;
     const disabled = target && !evaluation?.valid;
-    const label = type === 'hatchet' ? 'Hatchet' : type;
+    const label = physicalWeapons.find(weapon => weapon.type === type)?.displayLabel || physicalWeaponRule(type)?.label || type;
     return `<button onclick="selectPhysicalAttackType('${type}')" ${disabled ? 'disabled' : ''} style="flex:1;padding:8px 6px;border:1px solid ${selected ? 'var(--amber)' : 'var(--panel-line)'};background:${selected ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--display);font-size:9px;text-transform:uppercase;cursor:${disabled ? 'not-allowed' : 'pointer'};">${label}${evaluation?.valid ? ` · TN ${evaluation.targetNumber}` : ''}</button>`;
   }).join('');
   const limbOptions = physicalAttackState.attackType === 'push' ? '' : physicalAttackState.attackType ? physicalLimbCandidates(physicalAttackState.attackType).map(limb => {
@@ -269,9 +312,9 @@ function renderPhysicalAttackPanel() {
   }).join('') : '';
   panel.innerHTML = `
     <div class="panel-eyebrow">Physical Attack — Declaration</div>
-    <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · punches and hatchets use the matching side arc; kicks use the three forward hexes; pushes require a standing target directly ahead.</div>
+    <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · punches and arm-mounted physical weapons use the matching side arc; kicks use the three forward hexes; pushes require a standing target directly ahead.</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => `<button onclick="selectPhysicalTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${mechLabel(enemy)}</button>`).join('')}</div>
-    ${target ? `<div style="display:flex;gap:6px;">${options}</div>${limbOptions ? `<div style="display:flex;gap:6px;margin-top:6px;">${limbOptions}</div>` : ''}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select an enemy to see available attacks.</div>'}
+    ${target ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${options}</div>${limbOptions ? `<div style="display:flex;gap:6px;margin-top:6px;">${limbOptions}</div>` : ''}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select an enemy to see available attacks.</div>'}
     <button id="physical-submit" onclick="confirmPhysicalAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${physicalAttackState.attackType ? 'Confirm Physical Attack Declaration' : 'No Physical Attack / Complete'}</button>`;
 }
 
@@ -288,7 +331,8 @@ function authoritativePhysicalResultMessage(attacker, target, result) {
     const psr = result.attacker_piloting_check || {};
     return `${mechLabel(attacker)} landed Death From Above on ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: ${result.damage} damage to the target and ${result.self_damage} damage to the attacker.${psr.target ? ` Landing PSR need ${psr.target}, rolled ${psr.die_a} + ${psr.die_b} = ${psr.total}: ${psr.passed ? 'passed' : 'failed and fell'}.` : ''}`;
   }
-  const action = result.attack_type === 'kick' ? 'kicked' : result.attack_type === 'hatchet' ? 'struck with its hatchet' : `punched with ${physicalLimbLabel(result.limb)}`;
+  if (result.fumble) return `${mechLabel(attacker)} fumbled its ${result.physical_weapon || 'physical weapon'} attack — rolled ${rolled}, struck itself for ${result.self_damage || 0} damage and made a Piloting check.`;
+  const action = result.attack_type === 'kick' ? 'kicked' : result.attack_type === 'physical_weapon' ? `struck with its ${result.physical_weapon || 'physical weapon'}` : result.attack_type === 'hatchet' ? 'struck with its hatchet' : `punched with ${physicalLimbLabel(result.limb)}`;
   if (!result.hit) return `${mechLabel(attacker)} ${action} at ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: miss.`;
   return `${mechLabel(attacker)} ${action} ${mechLabel(target)} — need ${roll.target}, rolled ${rolled}: hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${formatAuthoritativeCriticals(result.critical_checks)}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }

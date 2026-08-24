@@ -217,6 +217,16 @@ const kick = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'k
 check('#4b adjacent forward kick is legal', kick.valid && kick.damage === 10 && kick.targetNumber === 3, `damage=${kick.damage} tn=${kick.targetNumber}`);
 const push = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'push', 'push');
 check('#4b push is legal only directly ahead with both arms', push.valid && push.damage === 0 && !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, facing: 3 }, adjacentTarget, 'push', 'push').valid);
+sandbox.BT_CRITICAL_LAYOUTS.testmech = { la: ['Shoulder', 'Upper Arm Actuator', 'Lower Arm Actuator', 'Hand Actuator', 'Sword'], ra: ['Shoulder', 'Upper Arm Actuator', 'Lower Arm Actuator', 'Hand Actuator', 'Hatchet'] };
+const sword = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'physical_sword', 'la');
+check('#4b catalogue physical weapons use their own damage and to-hit rules', sword.valid && sword.damage === 6 && sword.targetNumber === 3, `damage=${sword.damage} tn=${sword.targetNumber}`);
+const aimedSword = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'physical_sword__punch', 'la');
+check('#4b physical weapons can choose a punch or kick location table at +4', aimedSword.valid && aimedSword.targetNumber === sword.targetNumber + 4);
+check('#4b physical weapons are discovered from critical layouts', sandbox.availablePhysicalWeapons(physicalAttacker).some(weapon => weapon.type === 'physical_sword' && weapon.limbs.includes('la')));
+check('#4b a physical weapon cannot attack from the wrong arm', !sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'physical_sword', 'ra').valid);
+sandbox.elevationAt = (col, row) => col === adjacentTarget.col && row === adjacentTarget.row ? 1 : 0;
+check('#4b different levels allow punches but not kicks against a higher target', sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'punch', 'la').valid && !sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'kick', 'll').valid);
+sandbox.elevationAt = () => 0;
 check('#4b physical attacks reject non-adjacent targets', !sandbox.evaluatePhysicalAttack(physicalAttacker, { ...adjacentTarget, col: 7 }, 'kick', 'll').valid);
 check('#4b destroyed limbs cannot make physical attacks', !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, structure: { ...physicalAttacker.structure, ll: 0 } }, adjacentTarget, 'kick', 'll').valid);
 sandbox.mechInstances = [physicalAttacker, adjacentTarget];
@@ -259,6 +269,13 @@ check('#5 Charge damage and counter-damage use unit weights', chargeMigration.in
 const pushMigration = fs.readFileSync(`${ROOT}/SQL/59_push_attacks.sql`, 'utf8');
 check('#5 Push validates both arms and displaces the target', pushMigration.includes('Both arms are required to Push') && pushMigration.includes('btech_neighbor_hex'));
 check('#5 Push blocks arm weapon conflicts and rolls target Piloting', pushMigration.includes('cannot Push after firing an arm-mounted weapon') && pushMigration.includes('target_piloting_check'));
+const completedPhysicalMigration = fs.readFileSync(`${ROOT}/SQL/60_complete_displacement_physical_falls.sql`, 'utf8');
+check('#5 displacement recursively resolves occupied domino chains', completedPhysicalMigration.includes('btech_displace_battlemech_chain') && completedPhysicalMigration.includes('p_depth+1') && completedPhysicalMigration.includes("'domino effect'"));
+check('#5 displacement resolves accidental falls from above', completedPhysicalMigration.includes('accidental fall from above') && completedPhysicalMigration.includes('impact_damage') && completedPhysicalMigration.includes('drop_levels>=2'));
+check('#5 every complete fall changes facing and checks pilot injury', completedPhysicalMigration.includes('facing_delta') && completedPhysicalMigration.includes('fall_direction_die') && completedPhysicalMigration.includes("btech_apply_pilot_hit(m,'fall')"));
+check('#5 ordinary combat and failed stands share complete fall handling', completedPhysicalMigration.includes('CREATE OR REPLACE FUNCTION public.attempt_stand_battlemech') && completedPhysicalMigration.includes('CREATE OR REPLACE FUNCTION public.btech_resolve_physical_piloting_checks') && completedPhysicalMigration.includes('CREATE OR REPLACE FUNCTION public.btech_resolve_weapon_piloting_checks'));
+check('#5 Total Warfare physical-equipment table is data driven', ['backhoe','chainsaw','dual_saw','hatchet','mining_drill','retractable_blade','spot_welder','sword','wrecking_ball'].every(key => completedPhysicalMigration.includes(`WHEN '${key}'`)));
+check('#5 blocked DFA searches alternate legal displacement hexes', completedPhysicalMigration.includes('candidate_direction') && completedPhysicalMigration.includes('btech_mark_mech_destroyed'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);
