@@ -93,6 +93,7 @@ function load(rel) {
 }
 load('js/movement/rules.js');
 load('js/core/game-log.js');
+load('js/game/critical-hits.js');
 load('js/game/weapon-attack.js');
 load('js/movement/movement.js');
 // moveState is a top-level `let` in rules.js → lives in the context's lexical
@@ -236,6 +237,24 @@ check('#4b destroyed opposing force awards the surviving player victory', sandbo
 sandbox.mechInstances = [{ ...physicalAttacker, destroyed: true }, { ...adjacentTarget, destroyed: true }];
 check('#4b mutually destroyed forces produce a draw', sandbox.determineMatchResult()?.winner_seat === null);
 
+// ── #4c Critical mobility consequences ───────────────────────────────────
+sandbox.BT_CRITICAL_LAYOUTS.testmech = {
+  ct: ['Gyro', 'Gyro'],
+  ll: ['Hip', 'Upper Leg Actuator', 'Lower Leg Actuator', 'Foot Actuator', 'Jump Jet'],
+  rl: ['Hip', 'Upper Leg Actuator', 'Lower Leg Actuator', 'Foot Actuator', 'Jump Jet']
+};
+const actuatorDamaged = { ...mkMech(4), structure: { ...STRUCT }, criticalSlotDamage: { ll: [1, 3] } };
+const actuatorProfile = sandbox.criticalMovementProfile(actuatorDamaged);
+check('#4c leg and foot actuator hits reduce walking and recalculated running MP', actuatorProfile.walk === 2 && actuatorProfile.run === 3 && actuatorProfile.pilotingModifier === 2, JSON.stringify(actuatorProfile));
+const hipDamaged = { ...mkMech(4), structure: { ...STRUCT }, criticalSlotDamage: { ll: [0, 1, 2, 3], rl: [1] } };
+const hipProfile = sandbox.criticalMovementProfile(hipDamaged);
+check('#4c hip damage halves walking before unaffected-leg deductions', hipProfile.walk === 1 && hipProfile.run === 2 && hipProfile.pilotingModifier === 3, JSON.stringify(hipProfile));
+const oneLegged = { ...mkMech(4), structure: { ...STRUCT, ll: 0 }, criticalSlotDamage: {} };
+const oneLegProfile = sandbox.criticalMovementProfile(oneLegged);
+check('#4c one destroyed leg permits one walking MP but no running', oneLegProfile.walk === 1 && oneLegProfile.run === 0 && oneLegProfile.pilotingModifier === 5, JSON.stringify(oneLegProfile));
+const gyroDestroyed = { ...mkMech(4), structure: { ...STRUCT }, criticalSlotDamage: { ct: [0, 1] } };
+check('#4c two gyro hits destroy the gyro and impose the automatic-fall modifier', sandbox.criticalMobilityState(gyroDestroyed).gyroDestroyed && sandbox.criticalMobilityState(gyroDestroyed).pilotingModifier === 6);
+
 // ── #5 Release migration guardrails ───────────────────────────────────────
 const migration = fs.readFileSync(`${ROOT}/SQL/45_preserve_current_rules_fixes.sql`, 'utf8');
 check('#5 migration patches the live weapon resolver', migration.includes("to_regprocedure('public.btech_process_weapon_declaration"));
@@ -277,6 +296,11 @@ check('#5 ordinary combat and failed stands share complete fall handling', compl
 check('#5 Total Warfare physical-equipment table is data driven', ['backhoe','chainsaw','dual_saw','hatchet','mining_drill','retractable_blade','spot_welder','sword','wrecking_ball'].every(key => completedPhysicalMigration.includes(`WHEN '${key}'`)));
 check('#5 physical resolver installs deterministically', completedPhysicalMigration.includes('CREATE OR REPLACE FUNCTION public.btech_process_physical_declaration') && !completedPhysicalMigration.includes('Could not safely extend every required physical declaration rule'));
 check('#5 blocked DFA searches alternate legal displacement hexes', completedPhysicalMigration.includes('candidate_direction') && completedPhysicalMigration.includes('btech_mark_mech_destroyed'));
+const criticalConsequencesMigration = fs.readFileSync(`${ROOT}/SQL/61_critical_hit_consequences.sql`, 'utf8');
+check('#5 critical consequences share one mobility model', criticalConsequencesMigration.includes('btech_critical_mobility_state') && criticalConsequencesMigration.includes('btech_critical_movement_profile'));
+check('#5 critical consequences compare phase-start snapshots', criticalConsequencesMigration.includes("'weaponPhaseStart'") && criticalConsequencesMigration.includes("'physicalPhaseStart'") && criticalConsequencesMigration.includes('gyro critical hit'));
+check('#5 critical movement rolls after running and jump landing', criticalConsequencesMigration.includes('running with damaged hip or gyro') && criticalConsequencesMigration.includes('jump landing with gyro or leg damage'));
+check('#5 one-legged standing and automatic falls are authoritative', criticalConsequencesMigration.includes('A BattleMech with both legs destroyed cannot stand') && criticalConsequencesMigration.includes("reasons||jsonb_build_array('leg destroyed')") && criticalConsequencesMigration.includes('automatic_fall:=true'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

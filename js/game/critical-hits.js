@@ -152,6 +152,64 @@ function criticalDamagedSlots(mech, wantedName) {
   );
 }
 
+function criticalMobilityState(mech) {
+  const damagedIn = (location, names) => {
+    const wanted = new Set(names);
+    const layout = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [];
+    return (mech.criticalSlotDamage?.[location] || []).filter(index => wanted.has(criticalSlotName(layout[index]))).length;
+  };
+  const allDamaged = Object.entries(mech.criticalSlotDamage || {}).flatMap(([location, indices]) => {
+    const layout = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [];
+    return (indices || []).map(index => criticalSlotName(layout[index]));
+  });
+  const gyroHits = allDamaged.filter(label => /gyro/i.test(label)).length;
+  const leftHipHits = damagedIn('ll', ['Hip']);
+  const rightHipHits = damagedIn('rl', ['Hip']);
+  const actuatorNames = ['Upper Leg Actuator', 'Lower Leg Actuator', 'Foot Actuator'];
+  const leftActuatorHits = damagedIn('ll', actuatorNames);
+  const rightActuatorHits = damagedIn('rl', actuatorNames);
+  const leftLegDestroyed = (mech.structure?.ll || 0) <= 0;
+  const rightLegDestroyed = (mech.structure?.rl || 0) <= 0;
+  const leftModifier = leftLegDestroyed ? 5 : leftHipHits ? 2 : leftActuatorHits;
+  const rightModifier = rightLegDestroyed ? 5 : rightHipHits ? 2 : rightActuatorHits;
+  const gyroModifier = gyroHits >= 2 ? 6 : gyroHits === 1 ? 3 : 0;
+  return {
+    gyroHits, gyroDestroyed: gyroHits >= 2, gyroModifier,
+    leftHipHits, rightHipHits, hipHits: leftHipHits + rightHipHits,
+    leftActuatorHits, rightActuatorHits, legActuatorHits: leftActuatorHits + rightActuatorHits,
+    leftLegDestroyed, rightLegDestroyed,
+    destroyedLegs: Number(leftLegDestroyed) + Number(rightLegDestroyed),
+    legModifier: leftModifier + rightModifier,
+    pilotingModifier: gyroModifier + leftModifier + rightModifier
+  };
+}
+
+function criticalMovementProfile(mech) {
+  const unit = BT_UNITS[mech.unitId];
+  const damage = criticalMobilityState(mech);
+  const baseWalk = unit?.movement?.walk || 0;
+  const baseJump = unit?.movement?.jump || 0;
+  let walk;
+  if (damage.destroyedLegs >= 2 || damage.hipHits >= 2) walk = 0;
+  else if (damage.destroyedLegs === 1) walk = 1;
+  else {
+    const leftDeduction = damage.leftHipHits ? 0 : damage.leftActuatorHits;
+    const rightDeduction = damage.rightHipHits ? 0 : damage.rightActuatorHits;
+    walk = Math.max(0, (damage.hipHits === 1 ? Math.ceil(baseWalk / 2) : baseWalk) - leftDeduction - rightDeduction);
+  }
+  const run = damage.destroyedLegs ? 0 : Math.ceil(walk * 1.5);
+  const layout = BT_CRITICAL_LAYOUTS[mech.unitId] || {};
+  let unavailableJumpJets = 0;
+  for (const [location, slots] of Object.entries(layout)) {
+    slots.forEach((slot, index) => {
+      if (!/jump jet/i.test(criticalSlotName(slot))) return;
+      if ((mech.structure?.[location] || 0) <= 0 || (mech.criticalSlotDamage?.[location] || []).includes(index)) unavailableJumpJets++;
+    });
+  }
+  const jump = damage.destroyedLegs >= 2 ? 0 : Math.max(0, baseJump - unavailableJumpJets);
+  return { ...damage, baseWalk, baseJump, walk, run, jump, unavailableJumpJets };
+}
+
 function isWeaponCriticallyDestroyed(mech, weaponEntry) {
   const location = criticalLocationKey(weaponEntry.location);
   const layout = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || [];

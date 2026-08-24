@@ -342,10 +342,16 @@ function authoritativePilotingResultMessage(check) {
   const label = mechLabel(mech);
   const roll = check.to_hit || {};
   const reasons = (check.reasons || []).join(' and ');
-  const gyro = roll.gyro_modifier ? ` (including +${roll.gyro_modifier} gyro damage)` : '';
-  if (check.passed) return `${label} passed its Piloting Skill Roll for ${reasons} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`;
+  const damageModifier = Number(roll.damage_modifier || 0);
+  const situationalModifier = Number(roll.situational_modifier || 0);
+  const modifiers = damageModifier || situationalModifier ? ` (damage +${damageModifier}${situationalModifier ? `, situation +${situationalModifier}` : ''})` : '';
+  if (check.automatic) {
+    const groups = (check.fall_groups || []).map(group => `${hitLocationLabel(group.location)} ${group.damage}`).join(', ');
+    return `${label} automatically fell because of ${reasons}; took ${check.fall_damage} falling damage${groups ? ` (${groups})` : ''}.`;
+  }
+  if (check.passed) return `${label} passed its Piloting Skill Roll for ${reasons} — need ${roll.target}${modifiers}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`;
   const groups = (check.fall_groups || []).map(group => `${hitLocationLabel(group.location)} ${group.damage}`).join(', ');
-  return `${label} failed its Piloting Skill Roll for ${reasons} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`;
+  return `${label} failed its Piloting Skill Roll for ${reasons} — need ${roll.target}${modifiers}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`;
 }
 
 async function loadResolvedPhysicalEvents() {

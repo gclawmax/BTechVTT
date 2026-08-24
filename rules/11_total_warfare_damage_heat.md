@@ -71,6 +71,17 @@ chainsaw, combine, dual saw, hatchet, heavy-duty pile driver, mining drill,
 retractable blade, rock cutter, spot welder, sword or wrecking ball receives
 the appropriate attack option, arc, modifier, damage and actuator effects.
 
+`SQL/61_critical_hit_consequences.sql` connects critical damage to the rest of
+the turn. New gyro, hip, upper/lower leg actuator and foot actuator hits now
+trigger their end-of-phase Piloting consequences. A newly destroyed leg or
+gyro causes an automatic fall, while the shared fall resolver includes all
+current damage modifiers in the pilot-injury avoidance roll. Walking, running
+and jumping MP are recalculated from surviving hips, actuators and jump jets;
+running or jump landing with relevant damage makes the required server roll.
+A one-legged BattleMech may make its single +5 stand attempt and, if upright,
+has 1 Walking MP and cannot run; two destroyed legs or a destroyed gyro prevent
+standing.
+
 ## Heat
 
 Heat should be a per-unit round ledger, not a single opaque number:

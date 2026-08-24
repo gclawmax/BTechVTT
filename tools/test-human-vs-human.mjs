@@ -2,7 +2,8 @@
 //
 // It uses two isolated browser sessions and exercises the real UI and
 // Supabase calls: create lobby → join by code → build/deploy legal rosters
-// → ready/start → separate initiative rolls → alternating movement → reload.
+// → ready/start → separate initiative rolls → converge into contact → declare
+// no weapon fire → exchange simultaneous kicks → Heat → reload.
 //
 // Start a static server first, then run:
 //   python3 -m http.server 8790
@@ -125,9 +126,20 @@ async function completeAlternatingMovement(host, guest) {
     for (const [page, snapshot] of [[host, hostState], [guest, guestState]]) {
       if (snapshot.phase !== 'movement' || !snapshot.myTurn) continue;
       if (snapshot.ownUnmoved > 0) {
-        await page.evaluate(() => {
+        await page.evaluate(async () => {
           const mech = (mechInstances || []).find(candidate => candidate.owner === mySeatNumber && !candidate.hasMoved);
-          if (mech) { selectedInstanceId = mech.instanceId; startMovementMode(mech.instanceId, 'stand'); }
+          if (!mech) return;
+          selectedInstanceId = mech.instanceId;
+          const path = [];
+          let col = mech.col;
+          let row = mech.row;
+          for (let step = 0; step < 3; step++) {
+            const next = hexNeighbor(col, row, mech.facing);
+            path.push({ action: 'step', col: next.col, row: next.row });
+            col = next.col;
+            row = next.row;
+          }
+          await submitAuthoritativeMovement(mech, 'run', path);
         });
         await sleep(750);
       }
@@ -137,6 +149,75 @@ async function completeAlternatingMovement(host, guest) {
     await sleep(750);
   }
   return { hostState: await state(host), guestState: await state(guest) };
+}
+async function advanceThroughNoFireToPhysical(host, guest) {
+  const deadline = Date.now() + 90000;
+  while (Date.now() < deadline) {
+    const hostState = await state(host);
+    const guestState = await state(guest);
+    if (hostState.phase === 'physical_attack' && guestState.phase === 'physical_attack') return { hostState, guestState };
+    for (const [page, snapshot] of [[host, hostState], [guest, guestState]]) {
+      if (!snapshot.myTurn) continue;
+      if (snapshot.phase === 'reaction') {
+        await page.evaluate(() => {
+          const mech = (mechInstances || []).find(candidate => candidate.owner === mySeatNumber && !candidate.hasReacted && !candidate.destroyed);
+          if (mech) { selectedInstanceId = mech.instanceId; completeReaction(mech.instanceId); }
+        });
+      } else if (snapshot.phase === 'weapon_attack') {
+        await page.evaluate(async () => {
+          const mech = (mechInstances || []).find(candidate => candidate.owner === mySeatNumber && !candidate.hasFired && !candidate.destroyed);
+          if (!mech) return;
+          selectWeaponAttacker(mech.instanceId);
+          await confirmWeaponAttack();
+        });
+      }
+      await sleep(700);
+      const next = page.locator('#btn-advance-phase');
+      if (await next.isEnabled().catch(() => false)) await next.click().catch(() => {});
+    }
+    await sleep(700);
+  }
+  return { hostState: await state(host), guestState: await state(guest) };
+}
+async function completePhysicalExchange(host, guest) {
+  const deadline = Date.now() + 90000;
+  while (Date.now() < deadline) {
+    const hostState = await state(host);
+    const guestState = await state(guest);
+    if (hostState.phase === 'heat' && guestState.phase === 'heat') return { hostState, guestState };
+    for (const [page, snapshot] of [[host, hostState], [guest, guestState]]) {
+      if (snapshot.phase !== 'physical_attack' || !snapshot.myTurn) continue;
+      await page.evaluate(async () => {
+        const attacker = (mechInstances || []).find(candidate => candidate.owner === mySeatNumber && !candidate.hasPhysicalAttacked && !candidate.destroyed);
+        const target = (mechInstances || []).find(candidate => candidate.owner !== mySeatNumber && !candidate.destroyed);
+        if (!attacker || !target) return;
+        selectPhysicalAttacker(attacker.instanceId);
+        selectPhysicalTarget(target.instanceId);
+        selectPhysicalAttackType('kick');
+        await confirmPhysicalAttack();
+      });
+      await sleep(900);
+    }
+    await sleep(700);
+  }
+  return { hostState: await state(host), guestState: await state(guest) };
+}
+async function physicalLedger(page) {
+  return page.evaluate(async () => {
+    const { data, error } = await db.from('btech_combat_events')
+      .select('status,attacker_instance_id,target_instance_id,resolution')
+      .eq('game_id', currentGameId).eq('round', 1).eq('phase', 'physical_attack').order('sequence');
+    if (error) return { error: error.message, events: [] };
+    return { events: data || [] };
+  });
+}
+async function sharedCombatSignature(page) {
+  return page.evaluate(() => (mechInstances || []).map(mech => ({
+    id: mech.instanceId, col: mech.col, row: mech.row, facing: mech.facing,
+    prone: Boolean(mech.prone), destroyed: Boolean(mech.destroyed),
+    armor: mech.armor, structure: mech.structure,
+    pilot: mech.pilot
+  })).sort((a, b) => a.id.localeCompare(b.id)));
 }
 async function completePhaseThroughHeat(host, guest) {
   const deadline = Date.now() + 90000;
@@ -203,7 +284,7 @@ try {
 
   await Promise.all([addAndDeployLocust(host), addAndDeployLocust(guest)]);
   check('both players deploy a legal roster', /Deployment:\s*[1-9]/.test(await host.locator('.roster-summary').innerText()) && /Deployment:\s*[1-9]/.test(await guest.locator('.roster-summary').innerText()));
-  await Promise.all([placeBattlefieldDeployment(host, '0101', 'NE'), placeBattlefieldDeployment(guest, '1410', 'SW')]);
+  await Promise.all([placeBattlefieldDeployment(host, '0405', 'E'), placeBattlefieldDeployment(guest, '1105', 'W')]);
   check('both players choose deployment hexes and facings', /1\/1 placed/.test(await host.locator('#lobby-deployment > .deployment-help').innerText()) && /1\/1 placed/.test(await guest.locator('#lobby-deployment > .deployment-help').innerText()));
 
   await host.locator('#btn-ready').click();
@@ -212,10 +293,10 @@ try {
   await host.locator('#btn-start').click();
   check('host starts the shared game', await waitForScreen(host, 'game-screen'));
   check('guest receives the shared game', await waitForScreen(guest, 'game-screen'));
-  await Promise.all([waitForDeploymentState(host, '0101:NE'), waitForDeploymentState(guest, '1410:SW')]);
+  await Promise.all([waitForDeploymentState(host, '0405:E'), waitForDeploymentState(guest, '1105:W')]);
   const deployedBoard = { host: await state(host), guest: await state(guest) };
   check('shared battlefield uses the selected deployment positions and facings',
-    deployedBoard.host.ownPositions.includes('0101:NE') && deployedBoard.guest.ownPositions.includes('1410:SW'), JSON.stringify(deployedBoard));
+    deployedBoard.host.ownPositions.includes('0405:E') && deployedBoard.guest.ownPositions.includes('1105:W'), JSON.stringify(deployedBoard));
 
   const initiativeResolved = await rollUntilResolved(host, guest);
   const initiativeState = { host: await state(host), guest: await state(guest) };
@@ -224,11 +305,32 @@ try {
   const afterMovement = await completeAlternatingMovement(host, guest);
   check('both players advance beyond movement', afterMovement.hostState.phase !== 'movement' && afterMovement.guestState.phase !== 'movement', `${afterMovement.hostState.phase}/${afterMovement.guestState.phase}`);
 
+  const contact = { host: await state(host), guest: await state(guest) };
+  check('both BattleMechs finish movement adjacent and facing one another',
+    contact.host.ownPositions.includes('0705:E') && contact.guest.ownPositions.includes('0805:W'), JSON.stringify(contact));
+
+  const beforePhysical = await advanceThroughNoFireToPhysical(host, guest);
+  check('both players reach the shared Physical Attack phase',
+    beforePhysical.hostState.phase === 'physical_attack' && beforePhysical.guestState.phase === 'physical_attack',
+    `${beforePhysical.hostState.phase}/${beforePhysical.guestState.phase}`);
+
+  const afterPhysical = await completePhysicalExchange(host, guest);
+  check('both kick declarations resolve and advance both players to Heat',
+    afterPhysical.hostState.phase === 'heat' && afterPhysical.guestState.phase === 'heat',
+    `${afterPhysical.hostState.phase}/${afterPhysical.guestState.phase}`);
+  const ledger = await physicalLedger(host);
+  check('the server stores both resolved physical declarations',
+    !ledger.error && ledger.events.length === 2 && ledger.events.every(event => event.status === 'resolved' && event.resolution?.state_version === 'authoritative-physical-01' && event.resolution?.results?.[0]?.attack_type === 'kick'),
+    JSON.stringify(ledger));
+  const [hostCombat, guestCombat] = await Promise.all([sharedCombatSignature(host), sharedCombatSignature(guest)]);
+  check('both browsers receive identical physical damage, facing, fall, and pilot state',
+    JSON.stringify(hostCombat) === JSON.stringify(guestCombat), JSON.stringify({ hostCombat, guestCombat }));
+
   const afterRound = await completePhaseThroughHeat(host, guest);
   check('both players complete Reaction, weapon declaration, Heat, and reach Round 2 Initiative',
     afterRound.hostState.round >= 2 && afterRound.guestState.round >= 2 && afterRound.hostState.phase === 'initiative' && afterRound.guestState.phase === 'initiative',
     `${JSON.stringify(afterRound.hostState)}/${JSON.stringify(afterRound.guestState)}`);
-  check('both players resolve a real weapon declaration before heat management',
+  check('both players persist their no-fire weapon declarations before physical combat',
     afterRound.hostState.ownFired > 0 && afterRound.guestState.ownFired > 0,
     `${afterRound.hostState.ownFired}/${afterRound.guestState.ownFired}`);
 

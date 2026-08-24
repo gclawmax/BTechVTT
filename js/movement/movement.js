@@ -31,13 +31,15 @@ async function attemptStand(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
   if (!mech || !mech.prone || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
   if (vsAiMode) {
+    const mobility = criticalMovementProfile(mech);
+    if (mobility.destroyedLegs >= 2 || mobility.gyroDestroyed) return;
     const roll = roll2d6Detailed();
-    const target = 5;
+    const target = Number(mech.pilot?.piloting ?? mech.pilotingSkill ?? 5) + mobility.pilotingModifier;
     const passed = roll.total >= target;
     mech.prone = !passed;
     mech.hasMoved = true;
-    mech.movementMode = 'stand';
-    mech.mpUsed = 2;
+    mech.movementMode = mobility.destroyedLegs === 1 ? 'run' : 'stand';
+    mech.mpUsed = mobility.destroyedLegs === 1 ? 1 : 2;
     mech.hexesMoved = 0;
     renderMovementPanel(); renderRoster(); renderDetail(); draw();
     logEvent(`${mechLabel(mech)} ${passed ? 'stood up' : 'failed to stand'} — need ${target}, rolled ${format2d6(roll)}.`, 'roll');
@@ -49,8 +51,8 @@ async function attemptStand(instanceId) {
   });
   if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the stand attempt: ${error.message}`, 'error'); return; }
   const roll = data?.to_hit || {};
-  const gyro = roll.gyro_modifier ? ` (including +${roll.gyro_modifier} gyro damage)` : '';
-  logEvent(`${mechLabel(mech)} ${data?.passed ? 'stood up' : 'failed to stand'} — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
+  const damage = roll.damage_modifier ? ` (including +${roll.damage_modifier} critical damage)` : '';
+  logEvent(`${mechLabel(mech)} ${data?.passed ? 'stood up' : 'failed to stand'} — need ${roll.target}${damage}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; spent ${data?.movement_points_spent || 2} MP.`, 'roll');
   await loadGameState();
 }
 
@@ -147,12 +149,17 @@ function flashMoveWarning(msg) {
 async function startMovementMode(instanceId, mode) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
-  if ((mech.structure.ll || 0) <= 0 || (mech.structure.rl || 0) <= 0) {
-    flashMoveWarning("A destroyed leg prevents this 'Mech from moving.");
+  const criticalMovement = criticalMovementProfile(mech);
+  if (criticalMovement.destroyedLegs >= 2) {
+    flashMoveWarning("A 'Mech with both legs destroyed cannot move.");
     return;
   }
   if (gyroDestroyedByCritical(mech)) {
     flashMoveWarning("A destroyed gyro prevents this 'Mech from moving.");
+    return;
+  }
+  if (mode === 'run' && criticalMovement.destroyedLegs) {
+    flashMoveWarning("A 'Mech standing on one leg cannot run.");
     return;
   }
   const unit = BT_UNITS[mech.unitId];
@@ -178,7 +185,7 @@ async function startMovementMode(instanceId, mode) {
     return;
   }
 
-  const mpMax = Math.max(0, ((unit.movement && unit.movement[mode]) || 0) - heatMovementPenalty(mech));
+  const mpMax = Math.max(0, (criticalMovement[mode] || 0) - heatMovementPenalty(mech));
   if (mpMax <= 0) return;
 
   moveState = {
@@ -297,7 +304,7 @@ async function confirmMove() {
     mech.mpUsed = moveState.mpUsed;
     mech.hexesMoved = moveState.hexesMoved;
     mech.hasMoved = true;
-    mech.movementHeat = MOVEMENT_HEAT[moveState.mode] || 0;
+    mech.movementHeat = moveState.mode === 'jump' ? Math.max(3, moveState.hexesMoved) : MOVEMENT_HEAT[moveState.mode] || 0;
     mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
     const moveSummary = `${mechLabel(mech)} ${moveState.mode === 'jump' ? 'jumped' : moveState.mode === 'run' ? 'ran' : 'walked'} to ${hexCode(mech.col, mech.row)} (${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'}, ${moveState.mpUsed}/${moveState.mpMax} MP).`;
     moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
@@ -351,6 +358,17 @@ async function submitAuthoritativeMovement(mech, mode, path) {
     } else {
       const groups = (check.fall_groups || []).map(group => `${hitLocationLabel(group.location)} ${group.damage}`).join(', ');
       logEvent(`${mechLabel(movedMech)} failed its Piloting Skill Roll for running through rough ground — need ${roll.target}${gyro}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`, 'roll');
+    }
+  }
+  if (data?.movement_piloting_check && !data?.terrain_check) {
+    const check = data.movement_piloting_check;
+    const movedMech = mechInstances.find(candidate => candidate.instanceId === check.instance_id) || mech;
+    const roll = check.to_hit || {};
+    const reasons = (check.reasons || []).join(' and ');
+    if (check.passed) logEvent(`${mechLabel(movedMech)} passed its Piloting Skill Roll for ${reasons} — need ${roll.target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
+    else {
+      const groups = (check.fall_groups || []).map(group => `${hitLocationLabel(group.location)} ${group.damage}`).join(', ');
+      logEvent(`${mechLabel(movedMech)} failed its Piloting Skill Roll for ${reasons} — need ${roll.target}${check.automatic ? ' (automatic fall)' : ''}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`, 'roll');
     }
   }
 }
@@ -468,10 +486,13 @@ function renderMovementPanel() {
   }
 
   if (mech.prone) {
+    const mobility = criticalMovementProfile(mech);
+    const cannotStand = mobility.destroyedLegs >= 2 || mobility.gyroDestroyed;
+    const standCost = mobility.destroyedLegs === 1 ? 1 : 2;
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement — Prone</div>
-      <div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">This BattleMech is prone. A stand attempt costs 2 MP and requires a Piloting Skill Roll.</div>
-      <button onclick="attemptStand('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt to Stand — 2 MP</button>`;
+      <div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">${cannotStand ? `This BattleMech cannot stand with ${mobility.gyroDestroyed ? 'a destroyed gyro' : 'both legs destroyed'}.` : `This BattleMech is prone. A stand attempt costs ${standCost} MP and requires a Piloting Skill Roll${mobility.destroyedLegs === 1 ? ' at +5' : ''}.`}</div>
+      ${cannotStand ? '' : `<button onclick="attemptStand('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt to Stand — ${standCost} MP</button>`}`;
     return;
   }
 
@@ -504,11 +525,12 @@ function renderMovementPanel() {
     return;
   }
 
+  const mobility = criticalMovementProfile(mech);
   const modeButtons = [`<button onclick="startMovementMode('${mech.instanceId}','stand')" style="${MOVE_BTN_STYLE}">Stand Still</button>`];
   const heatPenalty = heatMovementPenalty(mech);
-  if (unit.movement.walk > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','walk')" style="${MOVE_BTN_STYLE}">Walk (${unit.movement.walk - heatPenalty} MP)</button>`);
-  if (unit.movement.run > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','run')" style="${MOVE_BTN_STYLE}">Run (${unit.movement.run - heatPenalty} MP)</button>`);
-  if (unit.movement.jump > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','jump')" style="${MOVE_BTN_STYLE}">Jump (${unit.movement.jump - heatPenalty} MP)</button>`);
+  if (mobility.walk > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','walk')" style="${MOVE_BTN_STYLE}">Walk (${mobility.walk - heatPenalty} MP)</button>`);
+  if (mobility.run > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','run')" style="${MOVE_BTN_STYLE}">Run (${mobility.run - heatPenalty} MP)</button>`);
+  if (mobility.jump > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','jump')" style="${MOVE_BTN_STYLE}">Jump (${mobility.jump - heatPenalty} MP)</button>`);
 
   panel.innerHTML = `
     <div class="panel-eyebrow">Movement</div>

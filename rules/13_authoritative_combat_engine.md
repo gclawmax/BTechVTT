@@ -39,8 +39,8 @@ all follow-up checks.
    even though declarations alternate.
 4. Standard biped punches/kicks, limb availability and physical location
    tables are authoritative via `SQL/23_authoritative_physical_attacks.sql`.
-   Kick-triggered Piloting Skill Roll requirements are persisted; authoritative
-   Piloting Skill Rolls, falls and fall damage remain the next sub-slice.
+   Kick-triggered Piloting Skill Rolls, complete falls, displacement and
+   gyro/leg/actuator critical consequences are authoritative through SQL/61.
 5. Heat, shutdown/ammunition interactions, End Phase effects, and advanced
    equipment.
 
