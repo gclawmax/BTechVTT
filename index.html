@@ -11,8 +11,8 @@
 
   <link rel="stylesheet" href="css/main.css?v=20260825-chassis-groups-01">
 </head>
-<body data-build="20260825-electronic-warfare-01">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT 20260825-electronic-warfare-01</div>
+<body data-build="20260825-map-render-01">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260825-map-render-01</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 
 <!-- ── LOADING OVERLAY ──────────────────────────────────── -->
@@ -158,7 +158,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-    <div id="map-caption">FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260825-map-render-01</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -184,7 +184,7 @@
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260813-reaction-ui-01"></script>
-<script src="js/network/supabase.js?v=20260817-curated-roster-01"></script>
+<script src="js/network/supabase.js?v=20260825-build-stamp-01"></script>
 <script src="js/core/state.js?v=20260816-persistent-match-log-01"></script>
 <script src="js/ai/state.js?v=20260813-reaction-ui-01"></script>
 <script src="js/core/game-log.js?v=20260820-weapon-profiles-01"></script>

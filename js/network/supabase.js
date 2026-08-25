@@ -1,5 +1,8 @@
 // Supabase client / diagnostic build
-const BT_BUILD_ID = '20260817-lb-x-setup-01';
+const BT_BUILD_ID = document.body.dataset.build || 'unknown';
+for (const stamp of document.querySelectorAll('#bt-build-stamp, #map-build-stamp')) {
+  stamp.textContent = stamp.id === 'bt-build-stamp' ? `BT BUILD ${BT_BUILD_ID}` : BT_BUILD_ID;
+}
 const SUPABASE_URL  = 'https://ffztxyeevdqlhvxzcopn.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZmenR4eWVldmRxbGh2eHpjb3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyNzgxMTMsImV4cCI6MjA4Nzg1NDExM30.EdA8cwETE00YFENj-CN93ScKMFN4yfNNG63BentHiQ4';
 

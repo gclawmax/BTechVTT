@@ -9,6 +9,8 @@ A BattleTech tabletop simulator built as a browser-based VTT (Virtual Tabletop).
 ## Architecture
 
 - **Frontend:** Vanilla HTML/CSS/JS — single-page canvas game, no build step
+- **Visible release marker:** update the single `data-build` value on the
+  `<body>` in `index.html`; the fixed and dropship build stamps both use it
 - **Backend:** Supabase (PostgreSQL + Auth + Realtime)
 - **Hosting:** GitHub Pages — https://gclawmax.github.io/BTechVTT/
 - **Design:** Flat-top hex grid, odd-q offset coordinates, "phosphor" aesthetic (light bg, dark text, amber accents)
