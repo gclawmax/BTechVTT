@@ -103,6 +103,19 @@ const BT_MAPS = Object.freeze({
       '0603': 'building', '0903': 'building', '0608': 'building', '0908': 'building',
       '1004': 'fire', '1104': 'light_smoke', '1204': 'heavy_smoke'
     }
+  },
+  'weathered-frontier': {
+    name: 'Weathered Frontier',
+    description: 'A hostile proving ground with ice, snow, mud, sand, swamp, magma and two bridge crossings.',
+    visual: 'tundra',
+    terrain: {
+      '0102':'deep_snow','0202':'deep_snow','0302':'ice','0402':'ice','0502':'deep_snow',
+      '0203':'mud','0303':'mud','0403':'swamp','0503':'swamp',
+      '0700':'sand','0701':'sand','0702':'sand','0800':'sand','0801':'sand','0802':'sand',
+      '0905':'shallow_water','1005':'bridge','1105':'shallow_water','1205':'bridge','1305':'shallow_water',
+      '0308':'magma_crust','0408':'magma_crust','0508':'magma_liquid','0309':'magma_crust','0409':'magma_crust',
+      '1009':'ice','1109':'ice','1209':'deep_snow','1010':'mud','1110':'swamp'
+    }
   }
 });
 
@@ -144,6 +157,7 @@ function objectiveHexesForMap(mapId) {
     'desert-hills': ['0302', '0906', '1108'],
     'flatlands-open-terrain': ['0505', '0806', '1108'],
     'ridge-and-ford': ['0704', '0804', '0805']
+    ,'weathered-frontier': ['0403', '1005', '0408']
   })[mapId] || ['0704', '0806', '0808'];
 }
 

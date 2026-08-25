@@ -630,7 +630,7 @@ function renderLobbyDeployment(gameState) {
     const terrain = terrainAt(col, row);
     const level = elevationAt(col, row);
     const description = `${hexCode(col,row)} · ${terrain.replace('_',' ')}${level ? ` · level ${level}` : ''}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : ' · opponent deployment zone'}`;
-    const canPlace = mine && !owner;
+    const canPlace = mine && !owner && !terrainMovementBlocked(col, row);
     const action = canPlace ? `onclick="placeLobbyDeployment(${col},${row})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();placeLobbyDeployment(${col},${row})}"` : '';
     cells.push(`<polygon class="deployment-hex ${mine ? 'zone' : 'enemy-zone'} ${owner ? 'occupied' : ''} ${terrain}" points="${deploymentHexPoints(col,row)}" role="button" tabindex="${canPlace ? '0' : '-1'}" aria-label="${description}" ${action}><title>${description}</title></polygon>`);
   }

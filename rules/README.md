@@ -44,6 +44,8 @@ Use only the relevant focused file:
    and heat.
 4. `12_total_warfare_unit_data.md` for unit records, equipment data, and any
    future construction/import work.
+5. `14_weathered_advanced_terrain.md` for ice, weathered ground, swamp,
+   bridges, and magma.
 
 ### Unit/data work
 

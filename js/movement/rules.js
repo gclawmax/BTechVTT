@@ -245,7 +245,8 @@ const MAP_VISUAL_PALETTES = Object.freeze({
   highland: { light: '#aa9d70', dark: '#7f7451', speck: 'rgba(67,59,40,.20)' },
   flatland: { light: '#c7b56c', dark: '#8e8145', speck: 'rgba(72,61,25,.16)' },
   desert: { light: '#c58f61', dark: '#925f3e', speck: 'rgba(82,47,27,.15)' },
-  industrial: { light: '#aaa99f', dark: '#777872', speck: 'rgba(45,48,49,.20)' }
+  industrial: { light: '#aaa99f', dark: '#777872', speck: 'rgba(45,48,49,.20)' },
+  tundra: { light: '#b7b9ad', dark: '#858a80', speck: 'rgba(53,61,62,.16)' }
 });
 
 function stableMapNoise(col, row, salt = 0) {
@@ -346,6 +347,12 @@ function drawTerrainFeature(cx, cy, col, row, terrain) {
   } else if (terrain === 'light_smoke' || terrain === 'heavy_smoke') {
     ctx.fillStyle = terrain === 'heavy_smoke' ? 'rgba(57,61,63,.62)' : 'rgba(102,108,110,.42)';
     for (const offset of [-9, 0, 9]) { ctx.beginPath(); ctx.arc(cx + offset, cy, 9, 0, Math.PI * 2); ctx.fill(); }
+  } else if (['ice','deep_snow','mud','sand','swamp','magma_crust','magma_liquid','bridge'].includes(terrain)) {
+    const fills = { ice:'rgba(183,226,235,.72)', deep_snow:'rgba(239,244,240,.78)', mud:'rgba(91,67,43,.70)', sand:'rgba(211,174,102,.72)', swamp:'rgba(64,91,57,.72)', magma_crust:'rgba(70,57,52,.88)', magma_liquid:'rgba(222,70,20,.88)', bridge:'rgba(104,91,72,.88)' };
+    ctx.fillStyle=fills[terrain];traceHex(cx,cy,HEX_SIZE-3);ctx.fill();
+    ctx.strokeStyle=terrain==='magma_liquid'?'#ffbd42':terrain==='ice'?'#e9ffff':'rgba(42,40,34,.55)';ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.moveTo(cx-18,cy+7);ctx.lineTo(cx-7,cy-5);ctx.lineTo(cx+3,cy+4);ctx.lineTo(cx+17,cy-8);ctx.stroke();
+    if(terrain==='bridge'){ctx.strokeStyle='#3d3429';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(cx-29,cy);ctx.lineTo(cx+29,cy);ctx.stroke();}
   }
   ctx.restore();
 }

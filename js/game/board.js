@@ -6,7 +6,7 @@ const GRID_COLS = 16;
 const GRID_ROWS = 12;
 
 function terrainAt(col, row) { return terrainStatusAt(col, row).terrain; }
-function terrainMovementBlocked(col, row) { return ['impassable', 'building'].includes(terrainAt(col, row)); }
+function terrainMovementBlocked(col, row) { return ['impassable', 'building', 'magma_liquid'].includes(terrainAt(col, row)); }
 
 function unavailableUnitRecord(unitId) {
   return {

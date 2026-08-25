@@ -5,11 +5,11 @@ const MOVE_BTN_STYLE = 'padding:9px 10px;border:1px solid var(--phosphor);backgr
 const MOVEMENT_HEAT = { stand: 0, walk: 1, run: 2, jump: 3 };
 
 function movementTerrainCost(col, row) {
-  return ({ light_woods: 1, heavy_woods: 2, rough: 1, rubble: 1, shallow_water: 1, deep_water: 3 })[terrainAt(col, row)] || 0;
+  return ({ light_woods: 1, heavy_woods: 2, rough: 1, rubble: 1, shallow_water: 1, deep_water: 3, mud: 1, deep_snow: 1, ice: 1, swamp: 1 })[terrainAt(col, row)] || 0;
 }
 
 function movementTerrainHeat(path = []) {
-  return path.filter(step => step.action === 'step' && terrainAt(step.col, step.row) === 'fire').length * 2;
+  return path.filter(step => step.action === 'step' && ['fire','magma_crust'].includes(terrainAt(step.col, step.row))).length * 2;
 }
 
 function movementElevationCost(fromCol, fromRow, toCol, toRow) {
@@ -387,6 +387,10 @@ async function submitAuthoritativeMovement(mech, mode, path) {
   await loadGameState();
   logEvent(`${summary}${mode === 'stand' ? '' : ` (${data?.hexes_moved || 0} hex${data?.hexes_moved === 1 ? '' : 'es'}, ${data?.mp_used || 0}/${data?.mp_max || 0} MP)`}.`, 'move');
   if (data?.terrain_heat) logEvent(`${mechLabel(mech)} gained ${data.terrain_heat} heat from burning terrain.`, 'phase');
+  for (const crust of data?.magma_crust_checks || []) {
+    const damage = (crust.damage || []).map(hit => `${hitLocationLabel(hit.location)} ${hit.damage}`).join(', ');
+    logEvent(`${mechLabel(mech)} crossed magma crust at ${crust.hex} — needed under ${crust.target} on 1D6, rolled ${crust.die}: ${crust.breached ? `crust collapsed${damage ? `; ${damage} damage` : ''}` : 'crust held'}.`, 'roll');
+  }
   if (data?.terrain_check) {
     const check = data.terrain_check;
     const movedMech = mechInstances.find(candidate => candidate.instanceId === check.instance_id) || mech;
