@@ -176,6 +176,11 @@ function draw() {
   if (!ctx || !canvas) return;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
+  // Rendering helpers use save/restore for clipping, sprites and terrain.
+  // Re-establish the canvas baseline on every frame so a stale browser
+  // transform can never compound across redraws into a distorted battlefield.
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   ctx.save();
   ctx.translate(w / 2, h / 2);
