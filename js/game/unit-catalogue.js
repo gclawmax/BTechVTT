@@ -279,6 +279,15 @@ async function verifyMatchCatalogueUnits(catalogueVersion, instances = []) {
   return missing;
 }
 
+async function repairScenarioCatalogueUnitIds(game, state) {
+  const needsRepair = (state?.mech_instances || []).some(instance => resolveCatalogueId(instance?.unitId) !== instance?.unitId) ||
+    Object.values(state?.rosters || {}).some(roster => (roster || []).some(unitId => resolveCatalogueId(unitId) !== unitId));
+  if (!needsRepair || !game?.catalogue_version) return { game, state };
+  const { data, error } = await db.rpc('repair_btech_match_catalogue_unit_ids', { p_game_id: currentGameId });
+  if (error || !data?.state) return { game, state };
+  return { game: { ...game, catalogue_version: data.catalogue_version || game.catalogue_version }, state: typeof data.state === 'string' ? JSON.parse(data.state) : data.state, repaired: data.repaired === true };
+}
+
 function isSupportedUnit(unitId) {
   return Boolean(getSupportedUnit(unitId));
 }

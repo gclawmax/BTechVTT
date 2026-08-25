@@ -70,7 +70,10 @@ async function loadGameState() {
 
   if (game.catalogue_version) await loadUnitCatalogue(game.catalogue_version);
 
-  const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  let gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const scenarioRepair = await repairScenarioCatalogueUnitIds(game, gameState);
+  gameState = scenarioRepair.state;
+  if (scenarioRepair.repaired) await loadUnitCatalogue(scenarioRepair.game.catalogue_version, true);
   const unavailableCatalogueUnits = await verifyMatchCatalogueUnits(game.catalogue_version, gameState.mech_instances);
   if (unavailableCatalogueUnits.length) {
     const unavailableIds = new Set(unavailableCatalogueUnits);

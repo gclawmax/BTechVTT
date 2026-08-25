@@ -96,6 +96,9 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
   showLoading(true);
   try {
     const catalogueVersion = await loadLatestUnitCatalogue();
+    // Scenario labels retain the readable historical spelling. Persist the
+    // exact ID in the pinned release so the server and browser agree.
+    const resolvedRosters = Object.fromEntries(Object.entries(rosters).map(([seat, unitIds]) => [seat, unitIds.map(resolveCatalogueId)]));
     const code = generateGameCode();
     const { data: game, error: gameErr } = await db
       .from('btech_games')
@@ -111,7 +114,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
           victory_mode: ['annihilation', 'control', 'breakthrough'].includes(victoryMode) ? victoryMode : 'annihilation',
           objective_hexes: victoryMode === 'control' ? objectiveHexesForMap(mapId) : [],
           objective_scores: { '1': 0, '2': 0 },
-          rosters,
+          rosters: resolvedRosters,
           ...(beginnerScenario ? { beginner_scenario: beginnerScenario } : {})
         }),
         status: 'lobby',
