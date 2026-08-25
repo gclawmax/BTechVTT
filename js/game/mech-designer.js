@@ -13,13 +13,21 @@ const CUSTOM_EQUIPMENT = Object.freeze({
   ac2:{name:'Autocannon/2',weight:6,slots:1,heat:1,ammo:'ac2'}, ac5:{name:'Autocannon/5',weight:8,slots:4,heat:1,ammo:'ac5'}, ac10:{name:'Autocannon/10',weight:12,slots:7,heat:3,ammo:'ac10'}, ac20:{name:'Autocannon/20',weight:14,slots:10,heat:7,ammo:'ac20'},
   machine_gun:{name:'Machine Gun',weight:.5,slots:1,heat:0,ammo:'machine_gun'},
   lrm5:{name:'LRM 5',weight:2,slots:1,heat:2,ammo:'lrm5'}, lrm10:{name:'LRM 10',weight:5,slots:2,heat:4,ammo:'lrm10'}, lrm15:{name:'LRM 15',weight:7,slots:3,heat:5,ammo:'lrm15'}, lrm20:{name:'LRM 20',weight:10,slots:5,heat:6,ammo:'lrm20'},
-  srm2:{name:'SRM 2',weight:1,slots:1,heat:2,ammo:'srm2'}, srm4:{name:'SRM 4',weight:2,slots:1,heat:3,ammo:'srm4'}, srm6:{name:'SRM 6',weight:3,slots:2,heat:4,ammo:'srm6'}
+  srm2:{name:'SRM 2',weight:1,slots:1,heat:2,ammo:'srm2'}, srm4:{name:'SRM 4',weight:2,slots:1,heat:3,ammo:'srm4'}, srm6:{name:'SRM 6',weight:3,slots:2,heat:4,ammo:'srm6'},
+  clan_er_small_laser:{name:'Clan ER Small Laser',weight:.5,slots:1,heat:2,clan:true}, clan_er_medium_laser:{name:'Clan ER Medium Laser',weight:1,slots:1,heat:5,clan:true}, clan_er_large_laser:{name:'Clan ER Large Laser',weight:4,slots:1,heat:12,clan:true}, clan_er_ppc:{name:'Clan ER PPC',weight:6,slots:2,heat:15,clan:true}, clan_large_pulse_laser:{name:'Clan Large Pulse Laser',weight:6,slots:2,heat:10,clan:true},
+  lrm5_clan:{name:'Clan LRM 5',weight:1,slots:1,heat:2,ammo:'cl_lrm5',clan:true}, lrm10_clan:{name:'Clan LRM 10',weight:2.5,slots:1,heat:4,ammo:'cl_lrm10',clan:true}, lrm15_clan:{name:'Clan LRM 15',weight:3.5,slots:1,heat:5,ammo:'cl_lrm15',clan:true}, lrm20_clan:{name:'Clan LRM 20',weight:5,slots:1,heat:6,ammo:'cl_lrm20',clan:true},
+  srm2_clan:{name:'Clan SRM 2',weight:.5,slots:1,heat:2,ammo:'cl_srm2',clan:true}, srm4_clan:{name:'Clan SRM 4',weight:1,slots:1,heat:3,ammo:'cl_srm4',clan:true}, srm6_clan:{name:'Clan SRM 6',weight:1.5,slots:1,heat:4,ammo:'cl_srm6',clan:true}
 });
 const CUSTOM_AMMO = Object.freeze({
   ac2:{name:'AC/2',shots:45},ac5:{name:'AC/5',shots:20},ac10:{name:'AC/10',shots:10},ac20:{name:'AC/20',shots:5},machine_gun:{name:'Machine Gun',shots:200},
-  lrm5:{name:'LRM 5',shots:24},lrm10:{name:'LRM 10',shots:12},lrm15:{name:'LRM 15',shots:8},lrm20:{name:'LRM 20',shots:6},srm2:{name:'SRM 2',shots:50},srm4:{name:'SRM 4',shots:25},srm6:{name:'SRM 6',shots:15}
+  lrm5:{name:'LRM 5',shots:24},lrm10:{name:'LRM 10',shots:12},lrm15:{name:'LRM 15',shots:8},lrm20:{name:'LRM 20',shots:6},srm2:{name:'SRM 2',shots:50},srm4:{name:'SRM 4',shots:25},srm6:{name:'SRM 6',shots:15},
+  cl_lrm5:{name:'Clan LRM 5',shots:24,clan:true},cl_lrm10:{name:'Clan LRM 10',shots:12,clan:true},cl_lrm15:{name:'Clan LRM 15',shots:8,clan:true},cl_lrm20:{name:'Clan LRM 20',shots:6,clan:true},cl_srm2:{name:'Clan SRM 2',shots:50,clan:true},cl_srm4:{name:'Clan SRM 4',shots:25,clan:true},cl_srm6:{name:'Clan SRM 6',shots:15,clan:true}
 });
 const CUSTOM_LOCATIONS = Object.freeze({ head:'Head',ct:'Center Torso',lt:'Left Torso',rt:'Right Torso',la:'Left Arm',ra:'Right Arm',ll:'Left Leg',rl:'Right Leg' });
+const CUSTOM_TECH_BASES = Object.freeze({ inner_sphere:'Inner Sphere',clan:'Clan' });
+const CUSTOM_ENGINE_TYPES = Object.freeze({ standard:{name:'Standard fusion',multiplier:1,clan:false,sideSlots:0},is_xl:{name:'IS XL fusion',multiplier:.5,clan:false,sideSlots:3},clan_xl:{name:'Clan XL fusion',multiplier:.5,clan:true,sideSlots:2} });
+const CUSTOM_STRUCTURE_TYPES = Object.freeze({ standard:{name:'Standard',multiplier:1,clan:false,slots:0},is_endo_steel:{name:'IS Endo Steel',multiplier:.5,clan:false,slots:14},clan_endo_steel:{name:'Clan Endo Steel',multiplier:.5,clan:true,slots:7} });
+const CUSTOM_ARMOR_TYPES = Object.freeze({ standard:{name:'Standard',pointsPerTon:16,clan:false,slots:0},is_ferro_fibrous:{name:'IS Ferro-Fibrous',pointsPerTon:17.92,clan:false,slots:14},clan_ferro_fibrous:{name:'Clan Ferro-Fibrous',pointsPerTon:20,clan:true,slots:7} });
 
 let customDesignerState = null;
 let customDesignerReturnScreen = 'menu-screen';
@@ -39,7 +47,7 @@ function customMaximumArmor(tonnage) {
 }
 
 function newCustomDesign() {
-  return { name:'Custom',variant:'CST-1',tech_base:'IS_INTRO',tonnage:50,walking_mp:4,jump_mp:0,heat_sinks:10,armor:customMaximumArmor(50),weapons:[],ammo:[] };
+  return { name:'Custom',variant:'CST-1',tech_base:'inner_sphere',engine_type:'standard',structure_type:'standard',armor_type:'standard',tonnage:50,walking_mp:4,jump_mp:0,heat_sinks:10,armor:customMaximumArmor(50),weapons:[],ammo:[] };
 }
 
 function customEngineWeight(rating) {
@@ -49,12 +57,18 @@ function customEngineWeight(rating) {
 function calculateCustomDesign(design) {
   const errors = [];
   const tons = Number(design.tonnage), walk = Number(design.walking_mp), jump = Number(design.jump_mp), sinks = Number(design.heat_sinks);
-  const structure = customStructure(tons), rating = tons * walk, engine = customEngineWeight(rating);
+  const techBase = design.tech_base === 'clan' ? 'clan' : 'inner_sphere';
+  const engineType = CUSTOM_ENGINE_TYPES[design.engine_type || 'standard'], structureType = CUSTOM_STRUCTURE_TYPES[design.structure_type || 'standard'], armorType = CUSTOM_ARMOR_TYPES[design.armor_type || 'standard'];
+  const structure = customStructure(tons), rating = tons * walk, standardEngine = customEngineWeight(rating), engine = standardEngine == null || !engineType ? null : standardEngine * engineType.multiplier;
   if (!String(design.name || '').trim() || !String(design.variant || '').trim()) errors.push('Enter a chassis name and variant.');
   if (!structure) errors.push('Tonnage must be 20–100 in five-ton steps.');
   if (engine == null) errors.push('Engine rating must be 400 or less.');
   if (jump < 0 || jump > walk) errors.push('Jumping MP cannot exceed Walking MP.');
   if (sinks < 10 || sinks > 50) errors.push('Choose 10–50 heat sinks.');
+  if (!engineType || !structureType || !armorType) errors.push('Choose supported construction equipment.');
+  if (engineType?.clan && techBase !== 'clan' || !engineType?.clan && design.engine_type === 'is_xl' && techBase !== 'inner_sphere') errors.push('Engine type must match the selected tech base.');
+  if (structureType?.clan && techBase !== 'clan' || design.structure_type === 'is_endo_steel' && techBase !== 'inner_sphere') errors.push('Structure type must match the selected tech base.');
+  if (armorType?.clan && techBase !== 'clan' || design.armor_type === 'is_ferro_fibrous' && techBase !== 'inner_sphere') errors.push('Armour type must match the selected tech base.');
   const armor = design.armor || {};
   const armorPoints = Object.values(armor).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
   if (structure) {
@@ -63,15 +77,23 @@ function calculateCustomDesign(design) {
     for (const loc of ['la','ra','ll','rl']) if (Number(armor[loc] || 0) > structure[loc] * 2) errors.push(`${CUSTOM_LOCATIONS[loc]} armour exceeds the location maximum.`);
   }
   const slots = { head:1,ct:2,lt:12,rt:12,la:8,ra:8,ll:2,rl:2 };
+  const allocateAutomatic = (count, locations, label) => {
+    for (let index=0;index<count;index++) { const location=locations.find(loc=>slots[loc]>0); if (!location) { errors.push(`${label} need more legal critical slots.`); return; } slots[location]-=1; }
+  };
+  if (engineType?.sideSlots) { slots.lt -= engineType.sideSlots;slots.rt -= engineType.sideSlots; }
+  allocateAutomatic(structureType?.slots || 0,['lt','rt','la','ra','ll','rl','ct','head'],'Endo Steel');
+  allocateAutomatic(armorType?.slots || 0,['lt','rt','la','ra','ll','rl','ct','head'],'Ferro-Fibrous armour');
   let weaponWeight = 0, ammoWeight = 0, weaponHeat = 0;
   for (const item of design.weapons || []) {
     const profile = CUSTOM_EQUIPMENT[item.key];
     if (!profile || !(item.location in slots)) { errors.push('A weapon selection is unsupported.'); continue; }
+    if (profile.clan && techBase !== 'clan') { errors.push(`${profile.name} requires Clan technology.`); continue; }
     slots[item.location] -= profile.slots; weaponWeight += profile.weight; weaponHeat += profile.heat;
   }
   for (const item of design.ammo || []) {
     const bins = Math.max(0, Number(item.bins) || 0);
     if (!CUSTOM_AMMO[item.type] || !(item.location in slots) || item.location === 'head') { errors.push('An ammunition selection is unsupported.'); continue; }
+    if (CUSTOM_AMMO[item.type].clan && techBase !== 'clan') { errors.push(`${CUSTOM_AMMO[item.type].name} ammunition requires Clan technology.`); continue; }
     slots[item.location] -= bins; ammoWeight += bins;
     if (!(design.weapons || []).some(weapon => CUSTOM_EQUIPMENT[weapon.key]?.ammo === item.type)) errors.push(`${CUSTOM_AMMO[item.type].name} ammunition has no matching weapon.`);
   }
@@ -80,17 +102,9 @@ function calculateCustomDesign(design) {
     if (ammoType && !(design.ammo || []).some(bin => bin.type === ammoType && Number(bin.bins) > 0)) errors.push(`${CUSTOM_EQUIPMENT[weapon.key].name} needs ammunition.`);
   }
   for (const [loc, remaining] of Object.entries(slots)) if (remaining < 0) errors.push(`${CUSTOM_LOCATIONS[loc]} is over critical-slot capacity by ${-remaining}.`);
-  const allocationSlots = Object.fromEntries(Object.entries(slots).map(([loc,value]) => [loc,Math.max(0,value)]));
-  const allocateAutomatic = (count, locations, label) => {
-    for (let index=0;index<count;index++) {
-      const location=locations.find(loc=>allocationSlots[loc]>0);
-      if (!location) { errors.push(`${label} need more legal critical slots.`); return; }
-      allocationSlots[location]-=1;
-    }
-  };
   allocateAutomatic(jump,['ll','rl','lt','rt','ct'],'Jump jets');
   allocateAutomatic(Math.max(0,sinks-Math.min(10,Math.floor(rating/25))),['lt','rt','la','ra','ll','rl','ct','head'],'Heat sinks');
-  const structureWeight = tons / 10, gyro = Math.ceil(rating / 100), armorWeight = Math.ceil(armorPoints / 8) * .5;
+  const structureWeight = tons / 10 * (structureType?.multiplier || 1), gyro = Math.ceil(rating / 100), armorWeight = Math.ceil(armorPoints / (armorType?.pointsPerTon || 16)) * 1;
   const sinkWeight = Math.max(0, sinks - 10), jumpWeight = jump * (tons <= 55 ? .5 : tons <= 85 ? 1 : 2);
   const total = structureWeight + (engine || 0) + gyro + 3 + armorWeight + weaponWeight + ammoWeight + sinkWeight + jumpWeight;
   if (total > tons) errors.push(`Design is ${(total - tons).toFixed(1)} tons overweight.`);
@@ -126,6 +140,14 @@ function updateCustomDesignField(field, value) {
   const numeric = ['tonnage','walking_mp','jump_mp','heat_sinks'].includes(field);
   const previousTonnage = customDesignerState.tonnage;
   customDesignerState[field] = numeric ? Number(value) : value;
+  if (field === 'tech_base') {
+    const clan = value === 'clan';
+    customDesignerState.engine_type = clan ? 'standard' : 'standard';
+    customDesignerState.structure_type = 'standard';
+    customDesignerState.armor_type = 'standard';
+    customDesignerState.weapons = (customDesignerState.weapons || []).filter(item => !CUSTOM_EQUIPMENT[item.key]?.clan || clan);
+    customDesignerState.ammo = (customDesignerState.ammo || []).filter(item => !CUSTOM_AMMO[item.type]?.clan || clan);
+  }
   if (field === 'tonnage' && Number(value) !== previousTonnage) customDesignerState.armor = customMaximumArmor(Number(value));
   if (field === 'walking_mp' && customDesignerState.jump_mp > Number(value)) customDesignerState.jump_mp = Number(value);
   renderMechDesigner();
@@ -151,13 +173,20 @@ function renderMechDesigner() {
   const armorFields = [
     ['head','Head',9],['ct','Centre torso front',s.ct*2],['ct_rear','Centre torso rear',s.ct*2],['lt','Left torso front',s.lt*2],['lt_rear','Left torso rear',s.lt*2],['rt','Right torso front',s.rt*2],['rt_rear','Right torso rear',s.rt*2],['la','Left arm',s.la*2],['ra','Right arm',s.ra*2],['ll','Left leg',s.ll*2],['rl','Right leg',s.rl*2]
   ];
-  const weaponRows = d.weapons.map((item,index) => `<div class="designer-equipment-row"><select onchange="updateCustomWeapon(${index},'key',this.value)">${customOptions(Object.entries(CUSTOM_EQUIPMENT).map(([key,p])=>[key,`${p.name} · ${p.weight}t / ${p.slots} slots`]),item.key)}</select><select onchange="updateCustomWeapon(${index},'location',this.value)">${customLocationOptions(item.location)}</select><button onclick="removeCustomWeapon(${index})">Remove</button></div>`).join('');
-  const ammoRows = d.ammo.map((item,index) => `<div class="designer-equipment-row"><select onchange="updateCustomAmmo(${index},'type',this.value)">${customOptions(Object.entries(CUSTOM_AMMO).map(([key,p])=>[key,`${p.name} ammo · ${p.shots} shots/ton`]),item.type)}</select><select onchange="updateCustomAmmo(${index},'location',this.value)">${customLocationOptions(item.location,false)}</select><label>Bins <input type="number" min="1" max="4" value="${item.bins}" onchange="updateCustomAmmo(${index},'bins',this.value)"></label><button onclick="removeCustomAmmo(${index})">Remove</button></div>`).join('');
+  const techBase = d.tech_base === 'clan' ? 'clan' : 'inner_sphere';
+  const clan = techBase === 'clan';
+  const selectedEquipment = Object.entries(CUSTOM_EQUIPMENT).filter(([,p]) => clan || !p.clan);
+  const selectedAmmo = Object.entries(CUSTOM_AMMO).filter(([,p]) => clan || !p.clan);
+  const engineChoices = Object.entries(CUSTOM_ENGINE_TYPES).filter(([,p]) => !p.clan || clan);
+  const structureChoices = Object.entries(CUSTOM_STRUCTURE_TYPES).filter(([,p]) => !p.clan || clan).filter(([key]) => clan || key !== 'clan_endo_steel');
+  const armorChoices = Object.entries(CUSTOM_ARMOR_TYPES).filter(([,p]) => !p.clan || clan).filter(([key]) => clan || key !== 'clan_ferro_fibrous');
+  const weaponRows = d.weapons.map((item,index) => `<div class="designer-equipment-row"><select onchange="updateCustomWeapon(${index},'key',this.value)">${customOptions(selectedEquipment.map(([key,p])=>[key,`${p.name} · ${p.weight}t / ${p.slots} slots`]),item.key)}</select><select onchange="updateCustomWeapon(${index},'location',this.value)">${customLocationOptions(item.location)}</select><button onclick="removeCustomWeapon(${index})">Remove</button></div>`).join('');
+  const ammoRows = d.ammo.map((item,index) => `<div class="designer-equipment-row"><select onchange="updateCustomAmmo(${index},'type',this.value)">${customOptions(selectedAmmo.map(([key,p])=>[key,`${p.name} ammo · ${p.shots} shots/ton`]),item.type)}</select><select onchange="updateCustomAmmo(${index},'location',this.value)">${customLocationOptions(item.location,false)}</select><label>Bins <input type="number" min="1" max="4" value="${item.bins}" onchange="updateCustomAmmo(${index},'bins',this.value)"></label><button onclick="removeCustomAmmo(${index})">Remove</button></div>`).join('');
   const weights = calc.weights;
   const saved = customSavedDesigns.map(item => `<div class="designer-saved-row"><div><strong>${escapeHtml(item.name)}</strong><span>${item.design?.tonnage || '?'} tons · ${item.design?.walking_mp || '?'} / ${Math.ceil(Number(item.design?.walking_mp||0)*1.5)} / ${item.design?.jump_mp || 0}</span></div><button onclick="loadSavedCustomDesign('${item.id}')">Use as new revision</button><button onclick="archiveCustomDesign('${item.id}')">Archive</button></div>`).join('') || '<div class="roster-empty">No saved custom BattleMechs yet.</div>';
-  root.innerHTML = `<div class="designer-heading"><div><div class="panel-eyebrow">MechLab · Standard Inner Sphere</div><h2>Custom BattleMech Designer</h2><p>Build an immutable, match-ready variant from equipment the VTT fully resolves.</p></div><div><button onclick="resetMechDesigner()">New design</button><button onclick="closeMechDesigner()">Back</button></div></div>
-  <div class="designer-grid"><section class="designer-card"><h3>Chassis</h3><div class="designer-fields"><label>Name<input maxlength="48" value="${escapeHtml(d.name)}" onchange="updateCustomDesignField('name',this.value)"></label><label>Variant<input maxlength="24" value="${escapeHtml(d.variant)}" onchange="updateCustomDesignField('variant',this.value)"></label><label>Tonnage<select onchange="updateCustomDesignField('tonnage',this.value)">${customOptions(Object.keys(CUSTOM_STRUCTURE_TABLE).map(t=>[t,`${t} tons`]),String(d.tonnage))}</select></label><label>Walking MP<input type="number" min="1" max="20" value="${d.walking_mp}" onchange="updateCustomDesignField('walking_mp',this.value)"></label><label>Jumping MP<input type="number" min="0" max="${d.walking_mp}" value="${d.jump_mp}" onchange="updateCustomDesignField('jump_mp',this.value)"></label><label>Single heat sinks<input type="number" min="10" max="50" value="${d.heat_sinks}" onchange="updateCustomDesignField('heat_sinks',this.value)"></label></div><div class="designer-note">Engine ${calc.rating || '—'} · movement ${d.walking_mp}/${Math.ceil(d.walking_mp*1.5)}/${d.jump_mp}. Standard engine, structure and armour are fixed for this construction tier.</div></section>
-  <section class="designer-card"><h3>Armour</h3><div class="designer-armor-grid">${armorFields.map(([key,label,max])=>`<label>${label}<input type="number" min="0" max="${max}" value="${d.armor[key]||0}" onchange="updateCustomArmor('${key}',this.value)"><span>max ${max}</span></label>`).join('')}</div><div class="designer-note">${calc.armorPoints} points · ${weights.armor.toFixed(1)} tons. Torso front and rear share their location maximum.</div></section>
+  root.innerHTML = `<div class="designer-heading"><div><div class="panel-eyebrow">MechLab · Inner Sphere and Clan</div><h2>Custom BattleMech Designer</h2><p>Build an immutable, match-ready variant from equipment the VTT fully resolves.</p></div><div><button onclick="resetMechDesigner()">New design</button><button onclick="closeMechDesigner()">Back</button></div></div>
+  <div class="designer-grid"><section class="designer-card"><h3>Chassis</h3><div class="designer-fields"><label>Name<input maxlength="48" value="${escapeHtml(d.name)}" onchange="updateCustomDesignField('name',this.value)"></label><label>Variant<input maxlength="24" value="${escapeHtml(d.variant)}" onchange="updateCustomDesignField('variant',this.value)"></label><label>Technology<select onchange="updateCustomDesignField('tech_base',this.value)">${customOptions(Object.entries(CUSTOM_TECH_BASES),techBase)}</select></label><label>Tonnage<select onchange="updateCustomDesignField('tonnage',this.value)">${customOptions(Object.keys(CUSTOM_STRUCTURE_TABLE).map(t=>[t,`${t} tons`]),String(d.tonnage))}</select></label><label>Walking MP<input type="number" min="1" max="20" value="${d.walking_mp}" onchange="updateCustomDesignField('walking_mp',this.value)"></label><label>Jumping MP<input type="number" min="0" max="${d.walking_mp}" value="${d.jump_mp}" onchange="updateCustomDesignField('jump_mp',this.value)"></label><label>Single heat sinks<input type="number" min="10" max="50" value="${d.heat_sinks}" onchange="updateCustomDesignField('heat_sinks',this.value)"></label><label>Engine<select onchange="updateCustomDesignField('engine_type',this.value)">${customOptions(engineChoices.map(([key,p])=>[key,p.name]),d.engine_type || 'standard')}</select></label><label>Structure<select onchange="updateCustomDesignField('structure_type',this.value)">${customOptions(structureChoices.map(([key,p])=>[key,p.name]),d.structure_type || 'standard')}</select></label><label>Armour<select onchange="updateCustomDesignField('armor_type',this.value)">${customOptions(armorChoices.map(([key,p])=>[key,p.name]),d.armor_type || 'standard')}</select></label></div><div class="designer-note">Engine ${calc.rating || '—'} · movement ${d.walking_mp}/${Math.ceil(d.walking_mp*1.5)}/${d.jump_mp}. Advanced structure and armour save mass but use critical slots.</div></section>
+  <section class="designer-card"><h3>Armour</h3><div class="designer-armor-grid">${armorFields.map(([key,label,max])=>`<label>${label}<input type="number" min="0" max="${max}" value="${d.armor[key]||0}" onchange="updateCustomArmor('${key}',this.value)"><span>max ${max}</span></label>`).join('')}</div><div class="designer-note">${calc.armorPoints} points · ${weights.armor.toFixed(1)} tons (${armorType?.name || 'Standard'}). Torso front and rear share their location maximum.</div></section>
   <section class="designer-card designer-wide"><div class="designer-section-title"><h3>Weapons</h3><button onclick="addCustomWeapon()">Add weapon</button></div>${weaponRows || '<div class="roster-empty">No weapons fitted.</div>'}<div class="designer-section-title"><h3>Ammunition</h3><button onclick="addCustomAmmo()">Add ammunition</button></div>${ammoRows || '<div class="roster-empty">No ammunition bins fitted.</div>'}</section>
   <section class="designer-card"><h3>Construction report</h3><div class="designer-weight-list">${Object.entries({Structure:weights.structure,Engine:weights.engine,Gyro:weights.gyro,Cockpit:weights.cockpit,Armour:weights.armor,Weapons:weights.weapons,Ammunition:weights.ammo,'Extra heat sinks':weights.heatSinks,'Jump jets':weights.jumpJets}).map(([label,value])=>`<div><span>${label}</span><strong>${Number(value).toFixed(1)} t</strong></div>`).join('')}<div class="total"><span>Total</span><strong>${weights.total.toFixed(1)} / ${d.tonnage} t</strong></div></div><div class="designer-heat">Alpha-strike heat ${calc.weaponHeat} · dissipation ${d.heat_sinks}</div></section>
   <section class="designer-card"><h3>Legality</h3><div class="designer-validity ${calc.valid?'valid':'invalid'}">${calc.valid?`LEGAL · ${weights.remaining.toFixed(1)} tons unused`:`${calc.errors.length} issue${calc.errors.length===1?'':'s'} to fix`}</div>${calc.errors.length?`<ul class="designer-errors">${calc.errors.map(error=>`<li>${escapeHtml(error)}</li>`).join('')}</ul>`:'<p>This design can be published to the active catalogue and added to your Hangar.</p>'}<button class="primary designer-save" onclick="saveCustomDesign()" ${calc.valid?'':'disabled'}>Save immutable design</button><div id="designer-save-status" aria-live="polite"></div></section>

@@ -315,6 +315,14 @@ customSlotOverflow.weapons.push({ key: 'ac20', location: 'head' });
 check('#4d equipment cannot exceed a location critical-slot capacity', sandbox.calculateCustomDesign(customSlotOverflow).errors.some(error => /Head is over critical-slot capacity/i.test(error)));
 const customEngineOverflow = { ...structuredClone(baseCustomDesign), tonnage: 100, walking_mp: 5, armor: sandbox.customMaximumArmor(100) };
 check('#4d engine ratings above 400 are rejected', sandbox.calculateCustomDesign(customEngineOverflow).errors.some(error => /400 or less/i.test(error)));
+const advancedCustomDesign = { ...structuredClone(baseCustomDesign), engine_type:'is_xl', structure_type:'is_endo_steel', armor_type:'is_ferro_fibrous' };
+const advancedCustomCalculation = sandbox.calculateCustomDesign(advancedCustomDesign);
+check('#4d IS XL, Endo Steel and Ferro-Fibrous save the correct construction mass', advancedCustomCalculation.valid && advancedCustomCalculation.weights.engine === 4.25 && advancedCustomCalculation.weights.structure === 2.5 && advancedCustomCalculation.weights.armor === 10, JSON.stringify(advancedCustomCalculation.weights));
+const clanCustomDesign = { ...structuredClone(baseCustomDesign), tech_base:'clan', engine_type:'clan_xl', structure_type:'clan_endo_steel', armor_type:'clan_ferro_fibrous', weapons:[{key:'clan_er_medium_laser',location:'ra'}] };
+const clanCustomCalculation = sandbox.calculateCustomDesign(clanCustomDesign);
+check('#4d Clan construction uses Clan slot savings and equipment', clanCustomCalculation.valid && clanCustomCalculation.weights.engine === 4.25 && clanCustomCalculation.weights.armor === 9 && clanCustomCalculation.weaponHeat === 5, JSON.stringify(clanCustomCalculation));
+const mixedTechCustomDesign = { ...structuredClone(baseCustomDesign), engine_type:'clan_xl' };
+check('#4d mixed Inner Sphere and Clan construction is rejected', !sandbox.calculateCustomDesign(mixedTechCustomDesign).valid && sandbox.calculateCustomDesign(mixedTechCustomDesign).errors.some(error => /tech base/i.test(error)));
 
 // ── #5 Release migration guardrails ───────────────────────────────────────
 const migration = fs.readFileSync(`${ROOT}/SQL/45_preserve_current_rules_fixes.sql`, 'utf8');
@@ -423,6 +431,9 @@ check('#5 custom construction validates engine, weight, armour, ammunition and c
 check('#5 custom roster and Hangar entries remain owner-only', customDesignMigration.includes("custom_owner_id''=auth.uid()::text") && customDesignMigration.includes('custom_design_hangar_owner_v1'));
 const customDesignerSource = fs.readFileSync(`${ROOT}/js/game/mech-designer.js`, 'utf8');
 check('#5 MechLab exposes live construction reporting and server publication', customDesignerSource.includes('calculateCustomDesign') && customDesignerSource.includes("db.rpc('save_btech_custom_design'") && customDesignerSource.includes('Construction report'));
+const advancedCustomMigration = fs.readFileSync(`${ROOT}/SQL/78_advanced_custom_mech_construction.sql`, 'utf8');
+check('#5 advanced MechLab construction is enforced on the server', advancedCustomMigration.includes("'is_xl'") && advancedCustomMigration.includes("'clan_xl'") && advancedCustomMigration.includes("'is_endo_steel'") && advancedCustomMigration.includes("'clan_endo_steel'") && advancedCustomMigration.includes("'is_ferro_fibrous'") && advancedCustomMigration.includes("'clan_ferro_fibrous'") && advancedCustomMigration.includes('Construction equipment must match the selected tech base'));
+check('#5 advanced MechLab publishes resolved Clan equipment and critical-slot layouts', advancedCustomMigration.includes("'clan_er_medium_laser'") && advancedCustomMigration.includes("'lrm20_clan'") && advancedCustomMigration.includes("'Fusion Engine',1") && advancedCustomMigration.includes("'Endo Steel'") && advancedCustomMigration.includes("'Ferro-Fibrous Armour'"));
 const lobbySource = fs.readFileSync(`${ROOT}/js/network/lobby.js`, 'utf8');
 const mainCssSource = fs.readFileSync(`${ROOT}/css/main.css`, 'utf8');
 check('#5 Hangar catalogue groups variants beneath collapsible chassis', lobbySource.includes('expandedLobbyChassis') && lobbySource.includes('chassisGroups(entries)') && lobbySource.includes('roster-chassis-toggle'));
