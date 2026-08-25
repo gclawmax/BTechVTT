@@ -641,7 +641,17 @@ function renderLobbyDeployment(gameState) {
   target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Amber hexes are occupied; the tooltip identifies terrain and elevation.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}</div>` : ''}<svg class="deployment-map" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" aria-label="Battlefield deployment hexes">${cells.join('')}</svg><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
 }
 
-function selectLobbyDeploymentUnit(index) { lobbyDeploymentIndex = index; loadLobbyUI(); }
+async function selectLobbyDeploymentUnit(index) {
+  const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const placed = state.deployment_positions?.[String(mySeatNumber)] || [];
+  if (index > placed.length) {
+    document.getElementById('lobby-status').textContent = 'Place BattleMechs in roster order so their positions stay matched to the roster.';
+    return;
+  }
+  lobbyDeploymentIndex = index;
+  loadLobbyUI();
+}
 
 async function placeLobbyDeployment(col, row) {
   if (!deploymentZoneContains(mySeatNumber, col, row)) return;
