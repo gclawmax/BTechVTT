@@ -444,7 +444,10 @@ const movementRulesSource = fs.readFileSync(`${ROOT}/js/movement/rules.js`, 'utf
 check('#5 board redraw restores its device-pixel baseline before applying view transforms', movementRulesSource.includes('ctx.setTransform(dpr, 0, 0, dpr, 0, 0);') && movementRulesSource.includes('stale browser') && movementRulesSource.includes('ctx.rotate(mapRotation'));
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260825-map-render-01"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260825-rejoin-recovery-01"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
+const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
+check('#5 unarmed custom BattleMechs remain in the pinned catalogue and legacy gaps cannot block rejoin', !catalogueSource.includes('if (!mounts.length || mounts.some') && catalogueSource.includes('An unarmed custom BattleMech') && boardSource.includes('function unavailableUnitRecord') && boardSource.includes('catalogueUnavailable = true'));
 const sequentialDeploymentMigration = fs.readFileSync(`${ROOT}/SQL/79_allow_sequential_match_deployment.sql`, 'utf8');
 check('#5 deployment saves each valid placement while Ready still verifies the complete roster', sequentialDeploymentMigration.includes("jsonb_array_length(p_positions)>count_required") && !sequentialDeploymentMigration.includes("jsonb_array_length(p_positions)<>count_required") && lobbySource.includes('Place BattleMechs in roster order') && lobbySource.includes('deployment_positions?.[String(player.seat_number)] || []).length !=='));
 const electronicWarfareMigration = fs.readFileSync(`${ROOT}/SQL/77_electronic_warfare_and_targeting_support.sql`, 'utf8');

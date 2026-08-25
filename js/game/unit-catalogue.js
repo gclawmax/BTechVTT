@@ -158,7 +158,9 @@ async function loadUnitCatalogue(catalogueVersion, forceReload = false) {
     const definition = row.definition || {};
     if (definition.supported_by_vtt !== true) return;
     const mounts = mountsByUnit[row.unit_id] || [];
-    if (!mounts.length || mounts.some(mount => !mount.weapon_key)) return;
+    // An unarmed custom BattleMech is still a valid, fully resolved unit.
+    // Only reject malformed mount records, not an empty weapon list.
+    if (mounts.some(mount => !mount.weapon_key)) return;
     for (const mount of mounts) {
       const weapon = mount.definition || {};
       if (Array.isArray(weapon.range)) {

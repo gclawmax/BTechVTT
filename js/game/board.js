@@ -8,12 +8,24 @@ const GRID_ROWS = 12;
 function terrainAt(col, row) { return terrainStatusAt(col, row).terrain; }
 function terrainMovementBlocked(col, row) { return ['impassable', 'building'].includes(terrainAt(col, row)); }
 
+function unavailableUnitRecord(unitId) {
+  return {
+    chassis: 'Unavailable BattleMech', variant: unitId, tonnage: 0, color: '#6d6d6d',
+    movement: { walk: 0, run: 0, jump: 0 }, heat_sinks: 0, heat_sink_capacity: 0,
+    weapons: [], ammoBins: [], armor: {}, structure: {}
+  };
+}
+
 function ensureMechCombatState(mech) {
   mech.unitId = canonicalUnitId(mech.unitId);
-  const unit = getSupportedUnit(mech.unitId);
+  let unit = getSupportedUnit(mech.unitId);
   if (!unit) {
-    console.warn(`Unsupported unit in game state: ${mech.unitId}`);
-    return false;
+    // Never let one retired or malformed legacy catalogue record prevent a
+    // player from rejoining the rest of an in-progress match. The placeholder
+    // is display-only and has no weapons or movement capability.
+    console.warn(`Unavailable unit in game state: ${mech.unitId}`);
+    unit = BT_UNITS[mech.unitId] ||= unavailableUnitRecord(mech.unitId);
+    mech.catalogueUnavailable = true;
   }
   if (!mech.armor) mech.armor = { ...unit.armor };
   if (!mech.structure) mech.structure = { ...unit.structure };

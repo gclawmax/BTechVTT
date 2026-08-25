@@ -229,7 +229,7 @@ function draw() {
     const { x, y } = hexToPixel(inst.col, inst.row);
     const px = x + gridOffsetX + mapPanX;
     const py = y + gridOffsetY + mapPanY;
-    const unit = BT_UNITS[inst.unitId];
+    const unit = BT_UNITS[inst.unitId] || unavailableUnitRecord(inst.unitId);
     const angle = HEX_DIRS[inst.facing || 0].angle;
     const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
     drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone, inst.unitId);
