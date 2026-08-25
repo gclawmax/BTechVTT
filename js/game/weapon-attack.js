@@ -205,6 +205,31 @@ function weaponArcFacing(weaponEntry, attacker) {
     : attacker.facing;
 }
 
+function weaponArcLocation(weaponEntry) {
+  const location = String(weaponEntry?.location || '').toLowerCase();
+  if (location.includes('left arm')) return 'la';
+  if (location.includes('right arm')) return 'ra';
+  return null;
+}
+
+// Total Warfare BattleMech arcs: torso, head, and leg weapons use the
+// torso's three-hex forward arc. An arm weapon uses that forward arc plus
+// only its own side arc (left arm: left; right arm: right), never the rear.
+function isWeaponTargetInArc(weaponEntry, attacker, targetDirection) {
+  const difference = (targetDirection - weaponArcFacing(weaponEntry, attacker) + 6) % 6;
+  const location = weaponArcLocation(weaponEntry);
+  if (location === 'la') return [0, 1, 2, 5].includes(difference);
+  if (location === 'ra') return [0, 1, 4, 5].includes(difference);
+  return [0, 1, 5].includes(difference);
+}
+
+function weaponArcLabel(weaponEntry) {
+  const location = weaponArcLocation(weaponEntry);
+  if (location === 'la') return 'forward + left side arc';
+  if (location === 'ra') return 'forward + right side arc';
+  return 'torso forward arc';
+}
+
 function weaponLocationDestroyed(attacker, weaponEntry) {
   const location = weaponEntry.location.toLowerCase();
   const key = location.includes('right arm') ? 'ra' : location.includes('left arm') ? 'la'
@@ -292,8 +317,7 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   if (indirect && !weaponEntry.key?.startsWith('lrm')) return { valid: false, reason: 'Only LRM weapons may fire indirectly.' };
   if (indirect && weaponLineOfSight(attacker, target).valid) return { valid: false, reason: 'Indirect fire is unavailable while the attacker has direct line of sight.' };
   if (indirect && (!spotter || !eligibleIndirectSpotters(attacker, target).some(candidate => candidate.instanceId === spotter.instanceId))) return { valid: false, reason: 'Choose a friendly spotter with line of sight.' };
-  const facing = weaponArcFacing(weaponEntry, attacker);
-  if (!indirect && !isInForwardArc(facing, weaponDirectionTo(attacker, target))) {
+  if (!indirect && !isWeaponTargetInArc(weaponEntry, attacker, weaponDirectionTo(attacker, target))) {
     return { valid: false, reason: `${weapon.name} target is outside its firing arc.` };
   }
   const attackerMove = movementToHitModifier(attacker);
@@ -834,7 +858,7 @@ function renderWeaponAttackPanel() {
     const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${ammoBinLabel(bin)}</option>`).join('')}</select></label>` : '';
     const ultra = weapon?.key?.startsWith('uac');
     const modePicker = checked && ultra ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : '';
-    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location}${assignedTarget ? ` · → ${mechLabel(assignedTarget)}${assignedTargetId === weaponAttackState.primaryTargetId ? ' (primary)' : ''}` : ''}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}</div>`;
+    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location} · ${weaponArcLabel(entry)}${assignedTarget ? ` · → ${mechLabel(assignedTarget)}${assignedTargetId === weaponAttackState.primaryTargetId ? ' (primary)' : ''}` : ''}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}</div>`;
   }).join('');
 
   panel.innerHTML = `
