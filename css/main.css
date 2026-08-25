@@ -441,7 +441,7 @@ html, body {
 .roster-empty { padding:18px 0; color:var(--phosphor-dim); font:11px var(--mono); text-align:center; }
 .roster-options { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
 .roster-option-wrap { position:relative; min-width:0; }
-.roster-option { width:100%; height:100%; min-height:72px; padding:7px 31px 7px 7px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); text-align:left; font:10px var(--mono); cursor:pointer; }
+.roster-option { width:100%; height:100%; min-height:102px; padding:7px 31px 7px 7px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); text-align:left; font:10px var(--mono); cursor:pointer; }
 .roster-option-wrap.favourite .roster-option { border-color:#c98a19; }
 .roster-favourite-star { position:absolute; z-index:1; top:5px; right:5px; width:24px; height:24px; padding:0; border:1px solid transparent; border-radius:2px; background:rgba(255,255,255,.9); color:#8a887d; font:17px/22px sans-serif; cursor:pointer; }
 .roster-favourite-star:hover,.roster-favourite-star:focus-visible { border-color:var(--amber); outline:none; }
@@ -450,6 +450,8 @@ html, body {
 .roster-option:disabled { opacity:.45; cursor:not-allowed; }
 .roster-option .roster-option-name { display:block; font-weight:bold; margin-bottom:5px; }
 .roster-option .roster-option-tonnage { color:var(--phosphor-dim); }
+.roster-option .roster-option-speed { display:block; margin-top:5px; color:#8b5200; font-size:9px; }
+.roster-option .roster-option-weapons { display:-webkit-box; overflow:hidden; margin-top:3px; color:var(--phosphor-dim); font-size:8px; line-height:1.3; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
 .skirmish-avatar { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px; border:1px solid var(--amber); background:#fff7e8; color:#6b4813; font:10px var(--mono); }
 .skirmish-avatar strong { font-family:var(--display); letter-spacing:.07em; text-transform:uppercase; }
 .hangar-list { display:flex; flex-direction:column; gap:5px; max-height:280px; overflow-y:auto; margin:6px 0 10px; }

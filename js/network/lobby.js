@@ -530,6 +530,21 @@ function renderLobbyMatchSetup(gameState, players) {
   const visibleByWeight = weightOrder.map(weight => [weight, filtered.filter(([, unit]) => weightClassForUnit(unit) === weight)]);
   const techButton = (value, label) => `<button class="roster-filter ${lobbyRosterFilters.tech === value ? 'active' : ''}" onclick="setLobbyRosterTechFilter('${value}')">${label}</button>`;
   const weightButton = (weight, label) => `<button class="roster-filter ${lobbyRosterFilters.weights.has(weight) ? 'active' : ''}" onclick="toggleLobbyRosterWeightFilter('${weight}')">${label}</button>`;
+  const movementSummary = unit => {
+    const movement = unit.movement || {};
+    const walk = Number(movement.walk ?? 0);
+    const run = Number(movement.run ?? 0);
+    const jump = Number(movement.jump ?? 0);
+    return `Speed ${walk}/${run}${jump ? `/${jump}J` : ''}`;
+  };
+  const weaponSummary = unit => {
+    const counts = new Map();
+    for (const entry of unit.weapons || []) {
+      const name = entry.weapon?.name || entry.name || BT_WEAPONS?.[entry.key]?.name || entry.key || 'Unknown weapon';
+      counts.set(name, (counts.get(name) || 0) + Number(entry.count || 1));
+    }
+    return [...counts].map(([name, count]) => count > 1 ? `${count}× ${name}` : name).join(', ') || 'No weapons listed';
+  };
   const card = ([id, unit]) => {
     const inHangar = hangar.filter(entry => entry.unit_id === id).length;
     const disabled = hangar.length >= 12;
@@ -537,7 +552,8 @@ function renderLobbyMatchSetup(gameState, players) {
     const searchKey = lobbyRosterSearchKey(`${unit.chassis} ${unit.variant} ${id} ${unit.tonnage} ${techLabel}`);
     const favourite = favouriteUnitIds.has(id);
     const favouriteTitle = favourite ? 'Remove this exact variant from favourites' : 'Add this exact variant to favourites';
-    return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${escapeHtml(unit.chassis)} ${escapeHtml(unit.variant)}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button></div>`;
+    const variantName = unit.variant || id;
+    return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${escapeHtml(variantName)}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span><span class="roster-option-speed">${movementSummary(unit)}</span><span class="roster-option-weapons" title="${escapeHtml(weaponSummary(unit))}">${escapeHtml(weaponSummary(unit))}</span></button></div>`;
   };
   const chassisGroups = entries => {
     const groups = new Map();
