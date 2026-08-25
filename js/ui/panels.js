@@ -3,7 +3,7 @@ function renderRoster() {
   const list = document.getElementById('roster-list');
   list.innerHTML = '';
   mechInstances.forEach(inst => {
-    const unit = BT_UNITS[inst.unitId];
+    const unit = displayUnitFor(inst.unitId);
     const row = document.createElement('div');
     const isActiveUnit = getActivePlayerSeat() === inst.owner && !inst.destroyed;
     row.className = 'roster-item' + (inst.instanceId === selectedInstanceId ? ' selected' : '') +
@@ -118,7 +118,7 @@ function renderDetail() {
     body.textContent = 'This unit is not supported by the current catalogue.';
     return;
   }
-  const unit = BT_UNITS[inst.unitId];
+  const unit = displayUnitFor(inst.unitId);
   const clanWeaponSuffix = /^clan$/i.test(unit.techBase || '') ? ' (C)' : '';
   const axial = offsetToAxial(inst.col, inst.row);
   const pilot = inst.pilot || { hits: 0, consciousness: 'conscious' };

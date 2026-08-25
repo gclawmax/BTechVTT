@@ -20,7 +20,7 @@ function recordAmmoForSlot(mech, location, index, slotName) {
 function showRecordSheet(instanceId) {
   const mech = mechInstances.find(item => item.instanceId === instanceId);
   if (!mech || !ensureMechCombatState(mech)) return;
-  const unit = BT_UNITS[mech.unitId];
+  const unit = displayUnitFor(mech.unitId);
   const layout = BT_CRITICAL_LAYOUTS[mech.unitId] || {};
   document.getElementById('record-sheet-modal')?.remove();
   const locations = RECORD_LOCATIONS.map(([key, label]) => {

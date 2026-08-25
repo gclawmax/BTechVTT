@@ -16,6 +16,14 @@ function unavailableUnitRecord(unitId) {
   };
 }
 
+// Rendering must be able to show an older match even if its catalogue entry
+// is no longer available to this browser. Rules continue to use
+// getSupportedUnit(), so this display fallback cannot make a unit playable.
+function displayUnitFor(unitId) {
+  const id = canonicalUnitId(unitId);
+  return BT_UNITS[id] || unavailableUnitRecord(id);
+}
+
 function ensureMechCombatState(mech) {
   mech.unitId = canonicalUnitId(mech.unitId);
   let unit = getSupportedUnit(mech.unitId);
@@ -70,7 +78,7 @@ let mapRotation = 0;
 // Short human-readable label for a mech instance, e.g. "Atlas AS7-D (P1)".
 function mechLabel(mech) {
   if (!mech) return 'Unknown \'Mech';
-  const unit = BT_UNITS[mech.unitId];
+  const unit = displayUnitFor(mech.unitId);
   const chassisLabel = unit ? `${unit.chassis} ${unit.variant}` : mech.unitId;
   const owner = mech.owner === mySeatNumber ? `P${mech.owner}` : (mech.instanceId && mech.instanceId.includes('ai') ? 'AI' : `P${mech.owner}`);
   return `${chassisLabel} (${owner})`;
