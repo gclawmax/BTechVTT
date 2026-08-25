@@ -2,6 +2,8 @@
 // Human matches resolve the complete heat ledger on Supabase. Local AI games
 // retain the lightweight client path for test play.
 
+let heatSinksPreviewRound = null;
+
 function heatLedger(mech) {
   ensureMechCombatState(mech);
   const engineHeat = engineCriticalHeat(mech);
@@ -67,6 +69,7 @@ async function confirmHeatManagement() {
       }
     }
     await loadGameState();
+    heatSinksPreviewRound = null;
     return;
   }
   const messages = await resolveHeatForSeat(mySeatNumber);
@@ -76,6 +79,14 @@ async function confirmHeatManagement() {
   draw();
   updateAdvanceButtonState();
   messages.forEach(message => logEvent(message, 'phase'));
+  heatSinksPreviewRound = null;
+}
+
+function previewHeatSinkDissipation() {
+  if (currentGameState.phase !== 'heat' || !isMyActiveTurn()) return;
+  heatSinksPreviewRound = currentGameState.round;
+  renderHeatPanel();
+  logEvent('Heat sinks applied: review each remaining Heat Level before resolving shutdown, ammunition, and pilot checks.', 'phase');
 }
 
 async function declareShutdownOverride(instanceId) {
@@ -105,10 +116,12 @@ function renderHeatPanel() {
   const isMine = activeSeat === mySeatNumber && isMyActiveTurn();
   const units = mechInstances.filter(m => m.owner === activeSeat && !m.destroyed);
   const pending = units.filter(m => !m.hasManagedHeat);
+  const sinksPreviewed = heatSinksPreviewRound === currentGameState.round;
   const rows = units.map(mech => {
     const ledger = heatLedger(mech);
-    const predictedShutdownTarget = ledger.after >= 30 ? 99 : ledger.after >= 26 ? 10 : ledger.after >= 22 ? 8 : ledger.after >= 18 ? 6 : ledger.after >= 14 ? 4 : 0;
-    const canOverride = isMine && !mech.hasManagedHeat && !mech.shutdown && predictedShutdownTarget > 0 && predictedShutdownTarget < 99 && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
+    const remainingHeat = sinksPreviewed ? ledger.after : ledger.before;
+    const predictedShutdownTarget = remainingHeat >= 30 ? 99 : remainingHeat >= 26 ? 10 : remainingHeat >= 22 ? 8 : remainingHeat >= 18 ? 6 : remainingHeat >= 14 ? 4 : 0;
+    const canOverride = sinksPreviewed && isMine && !mech.hasManagedHeat && !mech.shutdown && predictedShutdownTarget > 0 && predictedShutdownTarget < 99 && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
     const overrideStatus = predictedShutdownTarget === 99
       ? ' · automatic shutdown at 30+'
       : predictedShutdownTarget > 0
@@ -117,15 +130,15 @@ function renderHeatPanel() {
     return `<div style="padding:7px 0;border-top:1px solid var(--panel-line);font-size:10px;line-height:1.55;">
       <div style="color:var(--paper);">${mechLabel(mech)}${mech.hasManagedHeat ? ' · resolved' : ''}</div>
       <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
-      <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : `will dissipate ${ledger.dissipated}, ending ${ledger.after}`}${mech.shutdown && !mech.hasManagedHeat ? ' · SHUT DOWN' : ''}${overrideStatus}</div>
+      <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : sinksPreviewed ? `dissipates ${ledger.dissipated}, remaining Heat Level ${ledger.after}` : `will dissipate ${ledger.dissipated}`}${mech.shutdown && !mech.hasManagedHeat ? ' · SHUT DOWN' : ''}${sinksPreviewed ? overrideStatus : ''}</div>
       ${canOverride && !mech.shutdownOverrideRequested ? `<button onclick="declareShutdownOverride('${mech.instanceId}')" style="margin-top:5px;${MOVE_BTN_STYLE}">Declare Post-Sink Shutdown Override (need ${predictedShutdownTarget})</button>` : ''}
     </div>`;
   }).join('');
   panel.innerHTML = `
     <div class="panel-eyebrow">Heat Management</div>
-    <div style="font-size:11px;color:var(--paper);margin-bottom:7px;">${isMine ? 'Heat sinks are applied first. Any shutdown, ammunition, and pilot rolls are then resolved from the remaining Heat Level. A shutdown override here is only a declaration for that later post-sink roll.' : `Waiting for Player ${activeSeat} to resolve heat.`}</div>
+    <div style="font-size:11px;color:var(--paper);margin-bottom:7px;">${isMine ? sinksPreviewed ? 'Heat sinks have been applied. Declare any shutdown overrides, then resolve checks from the remaining Heat Level.' : 'First apply heat sinks. No shutdown, ammunition, or pilot check is considered until the resulting Heat Level is shown.' : `Waiting for Player ${activeSeat} to resolve heat.`}</div>
     ${rows || '<div style="font-size:11px;color:var(--phosphor-dim);">No active units require heat management.</div>'}
-    ${isMine && pending.length ? `<button onclick="confirmHeatManagement()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">Apply Heat Sinks, Then Resolve Remaining Checks</button>` : ''}`;
+    ${isMine && pending.length ? sinksPreviewed ? `<button onclick="confirmHeatManagement()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">Resolve Remaining Heat Checks</button>` : `<button onclick="previewHeatSinkDissipation()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">Apply Heat Sinks</button>` : ''}`;
 }
 
 function renderEndPanel() {
