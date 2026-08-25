@@ -49,6 +49,7 @@ function renderRoster() {
     const damaged = Object.keys(unit.armor || {}).some(location => Number(inst.armor?.[location]) < Number(unit.armor?.[location])) ||
       Object.keys(unit.structure || {}).some(location => Number(inst.structure?.[location]) < Number(unit.structure?.[location]));
     const conditionBadges = [
+      inst.catalogueUnavailable ? '<span class="roster-badge damage">CATALOGUE UNAVAILABLE</span>' : '',
       inst.destroyed ? '<span class="roster-badge damage">DESTROYED</span>' : '',
       !inst.destroyed && damaged ? '<span class="roster-badge damage">DAMAGED</span>' : '',
       !inst.destroyed && Number(inst.heat || 0) >= 14 ? `<span class="roster-badge ${Number(inst.heat) >= 20 ? 'heat-hot' : 'heat-warm'}">HEAT ${inst.heat}</span>` : ''
@@ -109,6 +110,11 @@ function renderDetail() {
   if (!inst) {
     body.className = 'no-selection';
     body.innerHTML = 'No unit selected. Click a token on the map, or an entry in the roster above.';
+    return;
+  }
+  if (inst.catalogueUnavailable) {
+    body.className = 'no-selection';
+    body.textContent = 'This BattleMech is unavailable in the match’s pinned catalogue. It is shown for reference but cannot be controlled.';
     return;
   }
   // Realtime game snapshots can contain the compact unit representation.

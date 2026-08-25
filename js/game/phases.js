@@ -71,6 +71,13 @@ async function loadGameState() {
   if (game.catalogue_version) await loadUnitCatalogue(game.catalogue_version);
 
   const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const unavailableCatalogueUnits = await verifyMatchCatalogueUnits(game.catalogue_version, gameState.mech_instances);
+  if (unavailableCatalogueUnits.length) {
+    const unavailableIds = new Set(unavailableCatalogueUnits);
+    for (const mech of gameState.mech_instances || []) {
+      if (unavailableIds.has(canonicalUnitId(mech.unitId))) mech.catalogueUnavailable = true;
+    }
+  }
   setActiveMap(gameState.map_id);
   setActiveTerrainState(gameState);
   currentMatchConfig = {
@@ -137,6 +144,7 @@ async function loadGameState() {
   mergeRemoteLog(gameState.log);
   await loadPersistentGameLog();
   if (gameLog.length === 0) logEvent(`Game loaded — Round ${currentGameState.round}, ${PHASE_LABELS[currentGameState.phase] || currentGameState.phase} phase.`, 'system');
+  if (unavailableCatalogueUnits.length) logEvent(`Catalogue warning: ${unavailableCatalogueUnits.join(', ')} could not be loaded from this match's pinned release. Those units are shown but cannot be controlled.`, 'error');
 
   // If units have already been placed/moved (e.g. rejoining), use the saved positions
   // instead of the default setup positions initGame() placed.

@@ -265,6 +265,20 @@ function getSupportedUnit(unitId) {
   return BT_UNIT_SUPPORT[id]?.status === 'supported' ? BT_UNIT_CATALOGUE[id] || null : null;
 }
 
+// Rejoining a match must use precisely the catalogue release pinned to that
+// match. A forced second read handles a stale browser cache; anything still
+// absent is reported once and remains display-only rather than causing
+// unrelated panels to fail on missing fields.
+async function verifyMatchCatalogueUnits(catalogueVersion, instances = []) {
+  const ids = [...new Set((instances || []).map(instance => canonicalUnitId(instance?.unitId)).filter(Boolean))];
+  let missing = ids.filter(id => !getSupportedUnit(id));
+  if (missing.length && catalogueVersion) {
+    await loadUnitCatalogue(catalogueVersion, true);
+    missing = ids.filter(id => !getSupportedUnit(id));
+  }
+  return missing;
+}
+
 function isSupportedUnit(unitId) {
   return Boolean(getSupportedUnit(unitId));
 }

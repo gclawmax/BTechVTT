@@ -165,7 +165,7 @@ function flashMoveWarning(msg) {
 // Begin a movement action for a 'Mech: 'stand' resolves instantly, others open an interactive move.
 async function startMovementMode(instanceId, mode) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  if (!mech || mech.catalogueUnavailable || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
   const criticalMovement = criticalMovementProfile(mech);
   if (criticalMovement.destroyedLegs >= 2) {
     flashMoveWarning("A 'Mech with both legs destroyed cannot move.");

@@ -128,7 +128,7 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
 
 function selectPhysicalAttacker(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked || mech.shutdown || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious')) return;
+  if (!mech || mech.catalogueUnavailable || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked || mech.shutdown || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious')) return;
   physicalAttackState = { attackerId: instanceId, targetId: null, attackType: null, limbs: [] };
   selectedInstanceId = instanceId;
   logEvent(`${mechLabel(mech)} selected for physical attack declaration.`, 'system');

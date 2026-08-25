@@ -345,7 +345,7 @@ async function setProneWeaponSupportArm(instanceId, arm) {
 
 function selectWeaponAttacker(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!canFireFromWeaponPhaseStart(mech) || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || mech.hasFired) return;
+  if (!canFireFromWeaponPhaseStart(mech) || mech.catalogueUnavailable || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack' || mech.hasFired) return;
   weaponAttackState = { ...emptyWeaponAttackState(), attackerId: instanceId };
   selectedInstanceId = instanceId;
   logEvent(`${mechLabel(mech)} selected for weapon attack declaration.`, 'system');
