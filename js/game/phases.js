@@ -262,9 +262,9 @@ function updateInitiativeButtonState() {
   // The server does not permit either player to roll until both Round 1
   // loadouts are committed. Check the whole battlefield here as well, so the
   // button never encourages a roll the server must reject.
-  const unconfiguredAmmo = currentGameState.round === 1 && mechInstances.filter(mech =>
-    (mech.ammoBins || []).some(bin => ammoSetupRequiredForBin(bin))
-  );
+  const unconfiguredAmmo = currentGameState.round === 1
+    ? mechInstances.filter(mech => (mech.ammoBins || []).some(bin => ammoSetupRequiredForBin(bin)))
+    : [];
   const ownAmmoSetupPending = unconfiguredAmmo.some(mech => mech.owner === mySeatNumber);
   const ammoSetupPending = unconfiguredAmmo.length > 0;
   initBtn.disabled = !canRoll || ammoSetupPending;
