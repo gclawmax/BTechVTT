@@ -35,8 +35,8 @@ BEGIN
   '''__spotter_fired'',''__spotting_while_firing'',''__secondary_modifier'')',
   '''__spotter_fired'',''__spotting_while_firing'',''__secondary_modifier'',''__arms_flipped'')');
  patched:=replace(patched,
-  'firing_facing:=CASE WHEN mount_location IN (''lt'',''rt'',''ct'',''head'') THEN coalesce((attacker->>''torsoFacing'')::int,(attacker->>''facing'')::int) ELSE (attacker->>''facing'')::int END;',
-  'IF coalesce((p_ammo_bins->>''__arms_flipped'')::boolean,false) AND NOT btech_can_flip_battlemech_arms(p_catalogue_version,attacker_start) THEN RAISE EXCEPTION ''This BattleMech cannot flip its arms while prone, torso-twisted, or fitted with lower-arm/hand actuators'';END IF; /* authoritative_arm_flip_v1 */ firing_facing:=CASE WHEN mount_location IN (''lt'',''rt'',''ct'',''head'',''la'',''ra'') THEN coalesce((attacker->>''torsoFacing'')::int,(attacker->>''facing'')::int) ELSE (attacker->>''facing'')::int END;');
+  'firing_facing:=CASE WHEN mount_location IN (''lt'',''rt'',''ct'',''head'') THEN coalesce((attacker_start->>''torsoFacing'')::int,(attacker_start->>''facing'')::int) ELSE (attacker_start->>''facing'')::int END;',
+  'IF coalesce((p_ammo_bins->>''__arms_flipped'')::boolean,false) AND NOT btech_can_flip_battlemech_arms(p_catalogue_version,attacker_start) THEN RAISE EXCEPTION ''This BattleMech cannot flip its arms while prone, torso-twisted, or fitted with lower-arm/hand actuators'';END IF; /* authoritative_arm_flip_v1 */ firing_facing:=CASE WHEN mount_location IN (''lt'',''rt'',''ct'',''head'',''la'',''ra'') THEN coalesce((attacker_start->>''torsoFacing'')::int,(attacker_start->>''facing'')::int) ELSE (attacker_start->>''facing'')::int END;');
  patched:=replace(patched,
   'btech_mech_weapon_arc_allows(mount_location,firing_facing,firing_direction)',
   'btech_mech_weapon_arc_allows(mount_location,firing_facing,firing_direction,coalesce((p_ammo_bins->>''__arms_flipped'')::boolean,false))');
