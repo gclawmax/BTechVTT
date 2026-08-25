@@ -40,7 +40,7 @@ BEGIN
  patched:=replace(patched,
   'btech_mech_weapon_arc_allows(mount_location,firing_facing,firing_direction)',
   'btech_mech_weapon_arc_allows(mount_location,firing_facing,firing_direction,coalesce((p_ammo_bins->>''__arms_flipped'')::boolean,false))');
- IF patched=source OR position('authoritative_arm_flip_v1' IN patched)=0 OR position('''__arms_flipped''')' IN patched)=0 OR position('btech_mech_weapon_arc_allows(mount_location,firing_facing,firing_direction,coalesce' IN patched)=0 THEN
+ IF patched=source OR position('authoritative_arm_flip_v1' IN patched)=0 OR position('__arms_flipped' IN patched)=0 OR position('btech_mech_weapon_arc_allows(mount_location,firing_facing,firing_direction,coalesce' IN patched)=0 THEN
   RAISE EXCEPTION 'Could not safely install BattleMech arm flipping';
  END IF;
  EXECUTE patched;
