@@ -45,9 +45,15 @@ async function confirmHeatManagement() {
       const mech = mechInstances.find(candidate => candidate.instanceId === outcome.instance_id);
       const label = mechLabel(mech);
       logEvent(`${label} heat: ${outcome.before}; dissipated ${Math.min(outcome.before, outcome.sinks)}/${outcome.sinks}, ending ${outcome.after}.`, 'phase');
-      if (outcome.shutdown_target) {
+      if (outcome.automatic_restart) {
+        logEvent(`${label} restarted automatically after cooling below Heat Level 14.`, 'phase');
+      } else if (outcome.shutdown_target) {
         const roll = outcome.shutdown_roll;
-        logEvent(`${label} ${outcome.shutdown ? 'shut down' : 'avoided shutdown'}${roll ? ` — need ${outcome.shutdown_target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}` : ' automatically at 30+ heat'}.`, 'roll');
+        const detail = outcome.shutdown_target === 99
+          ? ' automatically at Heat Level 30 or higher'
+          : roll ? ` — override need ${outcome.shutdown_target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}`
+            : ' — no conscious-pilot override was declared';
+        logEvent(`${label} ${outcome.shutdown ? 'shut down' : 'avoided shutdown'}${detail}.`, 'roll');
       }
       if (outcome.ammo_target && outcome.ammo_roll) {
         const roll = outcome.ammo_roll;
@@ -72,6 +78,15 @@ async function confirmHeatManagement() {
   messages.forEach(message => logEvent(message, 'phase'));
 }
 
+async function declareShutdownOverride(instanceId) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
+  if (!mech || mech.owner !== mySeatNumber || currentGameState.phase !== 'heat' || !isMyActiveTurn()) return;
+  const { data, error } = await db.rpc('declare_shutdown_override', { p_game_id: currentGameId, p_instance_id: instanceId });
+  if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the shutdown override: ${error.message}`, 'error'); return; }
+  logEvent(`${mechLabel(mech)} will attempt to override automatic shutdown — need ${data?.target}.`, 'phase');
+  await loadGameState();
+}
+
 async function resolveAIHeatManagement() {
   const messages = await resolveHeatForSeat(2);
   renderHeatPanel();
@@ -92,15 +107,23 @@ function renderHeatPanel() {
   const pending = units.filter(m => !m.hasManagedHeat);
   const rows = units.map(mech => {
     const ledger = heatLedger(mech);
+    const predictedShutdownTarget = ledger.after >= 30 ? 99 : ledger.after >= 26 ? 10 : ledger.after >= 22 ? 8 : ledger.after >= 18 ? 6 : ledger.after >= 14 ? 4 : 0;
+    const canOverride = isMine && !mech.hasManagedHeat && !mech.shutdown && predictedShutdownTarget > 0 && predictedShutdownTarget < 99 && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
+    const overrideStatus = predictedShutdownTarget === 99
+      ? ' · automatic shutdown at 30+'
+      : predictedShutdownTarget > 0
+        ? mech.shutdownOverrideRequested ? ` · shutdown override declared (need ${predictedShutdownTarget})` : ` · shutdown imminent (need ${predictedShutdownTarget})`
+        : mech.shutdown ? ' · will restart automatically below Heat Level 14' : '';
     return `<div style="padding:7px 0;border-top:1px solid var(--panel-line);font-size:10px;line-height:1.55;">
       <div style="color:var(--paper);">${mechLabel(mech)}${mech.hasManagedHeat ? ' · resolved' : ''}</div>
       <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
-      <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : `will dissipate ${ledger.dissipated}, ending ${ledger.after}`}${mech.shutdown ? ' · SHUT DOWN' : ''}</div>
+      <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : `will dissipate ${ledger.dissipated}, ending ${ledger.after}`}${mech.shutdown && !mech.hasManagedHeat ? ' · SHUT DOWN' : ''}${overrideStatus}</div>
+      ${canOverride && !mech.shutdownOverrideRequested ? `<button onclick="declareShutdownOverride('${mech.instanceId}')" style="margin-top:5px;${MOVE_BTN_STYLE}">Attempt Shutdown Override (need ${predictedShutdownTarget})</button>` : ''}
     </div>`;
   }).join('');
   panel.innerHTML = `
     <div class="panel-eyebrow">Heat Management</div>
-    <div style="font-size:11px;color:var(--paper);margin-bottom:7px;">${isMine ? 'Review the round heat ledger, then apply heat sinks.' : `Waiting for Player ${activeSeat} to resolve heat.`}</div>
+    <div style="font-size:11px;color:var(--paper);margin-bottom:7px;">${isMine ? 'Review Heat Level, declare any conscious-pilot shutdown overrides, then apply heat sinks.' : `Waiting for Player ${activeSeat} to resolve heat.`}</div>
     ${rows || '<div style="font-size:11px;color:var(--phosphor-dim);">No active units require heat management.</div>'}
     ${isMine && pending.length ? `<button onclick="confirmHeatManagement()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">Apply Heat Sinks / Complete</button>` : ''}`;
 }

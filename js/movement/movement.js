@@ -39,7 +39,7 @@ async function attemptStartup(instanceId) {
   const reason = !mech ? 'BattleMech is no longer available.'
     : !mech.shutdown ? 'This BattleMech is already running.'
       : mech.hasMoved ? 'This BattleMech has already spent its Movement activation this round.'
-        : mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious' ? `Its pilot is ${mech.pilot.consciousness}.`
+        : Number(mech.heat || 0) >= 14 && mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious' ? `Its pilot is ${mech.pilot.consciousness}.`
           : mech.owner !== mySeatNumber ? 'You cannot attempt startup for the other player’s BattleMech.'
             : currentGameState.phase !== 'movement' ? 'Startup attempts are available only during Movement.'
               : !isMyActiveTurn() ? 'Wait for your Movement activation before attempting startup.'
@@ -47,6 +47,11 @@ async function attemptStartup(instanceId) {
   if (reason) { flashMoveWarning(reason); logEvent(`Startup unavailable: ${reason}`, 'error'); return; }
   const { data, error } = await db.rpc('attempt_startup_battlemech', { p_game_id: currentGameId, p_instance_id: instanceId });
   if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the startup attempt: ${error.message}`, 'error'); return; }
+  if (data?.automatic_restart) {
+    logEvent(`${mechLabel(mech)} restarted automatically below Heat Level 14.`, 'phase');
+    await loadGameState();
+    return;
+  }
   const roll = data?.to_hit || {};
   logEvent(`${mechLabel(mech)} ${data?.passed ? 'restarted' : 'failed to restart'} — need ${roll.target}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}.`, 'roll');
   await loadGameState();
@@ -500,18 +505,24 @@ function renderMovementPanel() {
   const unit = BT_UNITS[mech.unitId];
   const isMine = mech.owner === mySeatNumber;
 
-  if (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') {
-    panel.innerHTML = `<div class="panel-eyebrow">Movement — Pilot ${mech.pilot.consciousness}</div><div style="font-size:11px;color:#a32832;line-height:1.5;">This BattleMech cannot act while its pilot is ${mech.pilot.consciousness}.</div>`;
-    return;
-  }
-
   if (mech.shutdown) {
+    const automaticRestart = Number(mech.heat || 0) < 14;
     const startupStatus = !isMine
       ? `Not your BattleMech — Player ${mech.owner} must attempt startup.`
       : mech.hasMoved
         ? 'Startup has already been attempted this round. It remains shut down until next round.'
-        : 'This BattleMech cannot move until it restarts. A startup attempt consumes its Movement activation.';
-    panel.innerHTML = `<div class="panel-eyebrow">Movement — Shut Down</div><div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">${startupStatus}</div>${isMine && !mech.hasMoved ? `<button onclick="attemptStartup('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt Startup</button>` : ''}`;
+        : automaticRestart
+          ? 'It will restart automatically below Heat Level 14 without spending Movement.'
+          : mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious'
+            ? `A conscious MechWarrior is required to attempt startup (pilot is ${mech.pilot.consciousness}).`
+            : 'This BattleMech cannot move until it restarts. A startup attempt consumes its Movement activation.';
+    const canAttempt = isMine && !mech.hasMoved && (automaticRestart || !mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
+    panel.innerHTML = `<div class="panel-eyebrow">Movement — Shut Down</div><div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">${startupStatus}</div>${canAttempt ? `<button onclick="attemptStartup('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">${automaticRestart ? 'Restart Automatically' : 'Attempt Startup'}</button>` : ''}`;
+    return;
+  }
+
+  if (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') {
+    panel.innerHTML = `<div class="panel-eyebrow">Movement — Pilot ${mech.pilot.consciousness}</div><div style="font-size:11px;color:#a32832;line-height:1.5;">This BattleMech cannot act while its pilot is ${mech.pilot.consciousness}.</div>`;
     return;
   }
 
