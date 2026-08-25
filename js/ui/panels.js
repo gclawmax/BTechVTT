@@ -145,7 +145,7 @@ function renderDetail() {
       <div class="k">Torso Facing</div><div class="v">${HEX_DIR_LABELS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing]}</div>
       <div class="k">Walk / Run / Jump</div><div class="v">${unit.movement.walk} / ${unit.movement.run} / ${unit.movement.jump}</div>
       <div class="k">Heat Sinks</div><div class="v">${unit.heat_sinks} (${unit.heat_sink_type})</div>
-      <div class="k">Heat</div><div class="v">${inst.heat || 0}${inst.movementHeat || inst.weaponHeat ? ` · move +${inst.movementHeat || 0}, weapons +${inst.weaponHeat || 0}` : ''}</div>
+      <div class="k">Heat Level</div><div class="v">${inst.heat || 0}</div>
       <div class="k">Pilot</div><div class="v" style="color:${pilotColour};">${escapeHtml(pilot.name || 'MechWarrior')} · Gunnery ${pilot.gunnery ?? 4} · Piloting ${pilot.piloting ?? inst.pilotingSkill ?? 5} · ${pilotState} · ${pilot.hits || 0} hit${pilot.hits === 1 ? '' : 's'}</div>
       <div class="k">Damage State</div><div class="v">${inst.destroyed ? 'DESTROYED' : `${inst.prone ? 'PRONE · ' : ''}${inst.shutdown ? 'SHUT DOWN · ' : ''}${Object.values(inst.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0)} critical slot${Object.values(inst.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0) === 1 ? '' : 's'} damaged`}</div>
       ${inst.hasMoved ? `<div class="k">This Turn</div><div class="v">${titleCaseMode(inst.movementMode)} · ${inst.hexesMoved} hex${inst.hexesMoved===1?'':'es'}</div>` : ''}
