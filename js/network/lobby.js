@@ -598,6 +598,16 @@ function deploymentZoneContains(seat, col, row) {
   return row >= 0 && row < GRID_ROWS && (seat === 1 ? col >= 0 && col <= 4 : col >= 11 && col < GRID_COLS);
 }
 
+function deploymentHexPoints(col, row) {
+  const root3 = Math.sqrt(3);
+  const centerX = root3 * (col + 0.5 * (row & 1)) + root3 / 2;
+  const centerY = row * 1.5 + 1;
+  return Array.from({ length: 6 }, (_, index) => {
+    const angle = (60 * index + 30) * Math.PI / 180;
+    return `${(centerX + Math.cos(angle)).toFixed(3)},${(centerY + Math.sin(angle)).toFixed(3)}`;
+  }).join(' ');
+}
+
 function renderLobbyDeployment(gameState) {
   const section = document.getElementById('lobby-deployment-section');
   const target = document.getElementById('lobby-deployment');
@@ -619,11 +629,16 @@ function renderLobbyDeployment(gameState) {
     const mine = deploymentZoneContains(mySeatNumber, col, row);
     const terrain = terrainAt(col, row);
     const level = elevationAt(col, row);
-    cells.push(`<button class="deployment-hex ${mine ? 'zone' : 'enemy-zone'} ${owner ? 'occupied' : ''} ${terrain}" ${mine && !owner ? `onclick="placeLobbyDeployment(${col},${row})"` : ''} title="${hexCode(col,row)} · ${terrain.replace('_',' ')}${level ? ` · level ${level}` : ''}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : ' · opponent deployment zone'}"></button>`);
+    const description = `${hexCode(col,row)} · ${terrain.replace('_',' ')}${level ? ` · level ${level}` : ''}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : ' · opponent deployment zone'}`;
+    const canPlace = mine && !owner;
+    const action = canPlace ? `onclick="placeLobbyDeployment(${col},${row})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();placeLobbyDeployment(${col},${row})}"` : '';
+    cells.push(`<polygon class="deployment-hex ${mine ? 'zone' : 'enemy-zone'} ${owner ? 'occupied' : ''} ${terrain}" points="${deploymentHexPoints(col,row)}" role="button" tabindex="${canPlace ? '0' : '-1'}" aria-label="${description}" ${action}><title>${description}</title></polygon>`);
   }
   const selected = positions[lobbyDeploymentIndex];
   const facingButtons = selected ? HEX_DIR_LABELS.map((label, facing) => `<button class="${selected.facing === facing ? 'selected' : ''}" onclick="setLobbyDeploymentFacing(${facing})">${label}</button>`).join('') : '';
-  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Amber hexes are occupied; the tooltip identifies terrain and elevation.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}</div>` : ''}<div class="deployment-grid">${cells.join('')}</div><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
+  const mapWidth = Math.sqrt(3) * (GRID_COLS + 0.5);
+  const mapHeight = (GRID_ROWS - 1) * 1.5 + 2;
+  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Amber hexes are occupied; the tooltip identifies terrain and elevation.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}</div>` : ''}<svg class="deployment-map" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" aria-label="Battlefield deployment hexes">${cells.join('')}</svg><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
 }
 
 function selectLobbyDeploymentUnit(index) { lobbyDeploymentIndex = index; loadLobbyUI(); }
