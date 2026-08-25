@@ -259,13 +259,20 @@ function updateInitiativeButtonState() {
   const canRoll = vsAiMode
     ? isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
     : mySeatNumber != null && currentGameState.phase === 'initiative' && !alreadyRolled && !iHaveRolled && !currentGameState.match_result;
-  const ammoSetupPending = currentGameState.round === 1 && mechInstances.some(mech =>
-    (!vsAiMode || mech.owner === mySeatNumber) && (mech.ammoBins || []).some(bin => ammoSetupRequiredForBin(bin))
+  // The server does not permit either player to roll until both Round 1
+  // loadouts are committed. Check the whole battlefield here as well, so the
+  // button never encourages a roll the server must reject.
+  const unconfiguredAmmo = currentGameState.round === 1 && mechInstances.filter(mech =>
+    (mech.ammoBins || []).some(bin => ammoSetupRequiredForBin(bin))
   );
+  const ownAmmoSetupPending = unconfiguredAmmo.some(mech => mech.owner === mySeatNumber);
+  const ammoSetupPending = unconfiguredAmmo.length > 0;
   initBtn.disabled = !canRoll || ammoSetupPending;
   initBtn.title = canRoll && !ammoSetupPending
     ? (vsAiMode ? 'Roll initiative for both sides.' : 'Roll your own 2D6 initiative.')
-    : (ammoSetupPending ? 'Each specialised ammunition bin must be declared during Round 1 setup.' : (alreadyRolled ? 'Initiative has already been resolved this round.' : 'Waiting for the other player to roll initiative.'));
+    : (ammoSetupPending
+      ? (ownAmmoSetupPending ? 'Declare your specialised ammunition before Initiative.' : 'Waiting for the other player to declare their specialised ammunition.')
+      : (alreadyRolled ? 'Initiative has already been resolved this round.' : 'Waiting for the other player to roll initiative.'));
 }
 
 function setAutoAdvanceAfterAi(enabled) {
