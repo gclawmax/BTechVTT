@@ -36,7 +36,15 @@ function heatMovementPenalty(mech) {
 
 async function attemptStartup(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
-  if (!mech || !mech.shutdown || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  const reason = !mech ? 'BattleMech is no longer available.'
+    : !mech.shutdown ? 'This BattleMech is already running.'
+      : mech.hasMoved ? 'This BattleMech has already spent its Movement activation this round.'
+        : mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious' ? `Its pilot is ${mech.pilot.consciousness}.`
+          : mech.owner !== mySeatNumber ? 'You cannot attempt startup for the other player’s BattleMech.'
+            : currentGameState.phase !== 'movement' ? 'Startup attempts are available only during Movement.'
+              : !isMyActiveTurn() ? 'Wait for your Movement activation before attempting startup.'
+                : null;
+  if (reason) { flashMoveWarning(reason); logEvent(`Startup unavailable: ${reason}`, 'error'); return; }
   const { data, error } = await db.rpc('attempt_startup_battlemech', { p_game_id: currentGameId, p_instance_id: instanceId });
   if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the startup attempt: ${error.message}`, 'error'); return; }
   const roll = data?.to_hit || {};
@@ -498,7 +506,12 @@ function renderMovementPanel() {
   }
 
   if (mech.shutdown) {
-    panel.innerHTML = `<div class="panel-eyebrow">Movement — Shut Down</div><div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">This BattleMech cannot move until it restarts. A startup attempt consumes its Movement activation.</div><button onclick="attemptStartup('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt Startup</button>`;
+    const startupStatus = !isMine
+      ? `Not your BattleMech — Player ${mech.owner} must attempt startup.`
+      : mech.hasMoved
+        ? 'Startup has already been attempted this round. It remains shut down until next round.'
+        : 'This BattleMech cannot move until it restarts. A startup attempt consumes its Movement activation.';
+    panel.innerHTML = `<div class="panel-eyebrow">Movement — Shut Down</div><div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">${startupStatus}</div>${isMine && !mech.hasMoved ? `<button onclick="attemptStartup('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt Startup</button>` : ''}`;
     return;
   }
 
