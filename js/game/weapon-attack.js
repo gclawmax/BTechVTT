@@ -79,7 +79,7 @@ function weaponShotsForMode(mountId, weaponEntry) {
 }
 
 function ammoBinLabel(bin) {
-  const loadout = bin.loadType ? ` · ${bin.loadType[0].toUpperCase()}${bin.loadType.slice(1)}` : '';
+  const loadout = bin.loadType ? ` · ${bin.loadType === 'semi_guided' ? 'Semi-guided' : `${bin.loadType[0].toUpperCase()}${bin.loadType.slice(1)}`}` : '';
   const guidance = bin.artemisCapable ? ' · Artemis IV' : bin.narcCapable ? ' · Narc-capable' : '';
   return `${bin.location}${loadout}${guidance} · ${bin.shots}/${bin.maxShots} shots`;
 }
@@ -146,6 +146,45 @@ function weaponComponentToHitModifier(mech, weaponEntry) {
 function weaponHeatToHitModifier(mech) {
   const heat = (mech.roundStartingHeat || 0) + (mech.movementHeat || 0);
   return heat >= 24 ? 4 : heat >= 17 ? 3 : heat >= 13 ? 2 : heat >= 8 ? 1 : 0;
+}
+
+function electronicEquipmentKey(label) {
+  return String(label || '').toLowerCase().replace(/^(is|clan|cl)/, '').replace(/[^a-z0-9]/g, '');
+}
+
+function hasOperationalElectronicEquipment(mech, keys) {
+  if (!mech || mech.destroyed) return false;
+  const layout = BT_CRITICAL_LAYOUTS[mech.unitId] || {};
+  const matched = [];
+  for (const [location, slots] of Object.entries(layout)) {
+    (slots || []).forEach((label, index) => {
+      if (keys.includes(electronicEquipmentKey(label))) matched.push([location, index]);
+    });
+  }
+  return matched.length > 0 && matched.every(([location, index]) => !(mech.criticalSlotDamage?.[location] || []).includes(index));
+}
+
+function hasOperationalEcm(mech) {
+  return hasOperationalElectronicEquipment(mech, ['guardianecmsuite', 'clanecmsuite']);
+}
+
+function hasOperationalActiveProbe(mech) {
+  return hasOperationalElectronicEquipment(mech, ['beagleactiveprobe', 'clanactiveprobe']);
+}
+
+function targetGuidanceEcm(attacker, target) {
+  return mechInstances.some(emitter => emitter.owner !== attacker.owner && hasOperationalEcm(emitter) &&
+    axialDistance(emitter.col, emitter.row, target.col, target.row) <= 6);
+}
+
+function electronicWarfareReadout(attacker, target) {
+  const notices = [];
+  if (hasOperationalEcm(attacker)) notices.push('Guardian ECM active (6 hexes)');
+  if (hasOperationalActiveProbe(attacker)) notices.push('Beagle Active Probe operational');
+  if (target && targetGuidanceEcm(attacker, target)) notices.push(`${mechLabel(target)} is ECM-protected: Artemis and Narc guidance are suppressed`);
+  if (target && Number(target.taggedRound) === Number(currentGameState.round)) notices.push(`${mechLabel(target)} is TAG-designated this round`);
+  if (target?.narcPod && Number(target.narcPod.round) === Number(currentGameState.round)) notices.push(`${mechLabel(target)} carries a Narc beacon`);
+  return notices;
 }
 
 function weaponRangeModifier(weapon, distance) {
@@ -270,7 +309,10 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   const gunnery = eligibleAttacker.pilot?.gunnery ?? 4;
   const clusterModifier = weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster' ? -1 : 0;
   const ammoLoadType = selectedAmmoLoadType(attacker, weaponEntry);
+  const tagGuided = ammoLoadType === 'semi_guided' && Number(eligibleTarget.taggedRound) === Number(currentGameState.round);
+  const guidanceEcm = targetGuidanceEcm(eligibleAttacker, eligibleTarget);
   const precisionModifier = ammoLoadType === 'precision' ? -Math.min(2, targetMove) : 0;
+  const semiGuidedModifier = tagGuided ? (indirect ? -1 : -Math.min(2, woods)) : 0;
   const accuracyModifier = Number(weapon.toHitModifier || 0);
   const indirectModifier = indirect ? 1 : 0;
   const spotterMovement = indirect ? movementToHitModifier(spotter) : 0;
@@ -284,10 +326,10 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
     weapon,
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + accuracyModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + semiGuidedModifier + accuracyModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
     attackAngle: attackDirection(attacker, target),
     multipleTargets,
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + terrain ${woods + targetWoods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + terrain ${woods + targetWoods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
   };
 }
 
@@ -501,7 +543,8 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const rolled = `${roll.die_a} + ${roll.die_b} = ${roll.total}`;
   const targetNumberExplanation = formatAuthoritativeTargetNumber(roll);
   const modeSuffix = result.fire_mode === 'rapid' ? ' (rapid fire)' : result.fire_mode === 'cluster' ? ' (cluster ammunition)'
-    : result.ammo_load_type === 'inferno' ? ' (Inferno ammunition)' : result.ammo_load_type === 'precision' ? ' (Precision ammunition)' : '';
+    : result.ammo_load_type === 'inferno' ? ' (Inferno ammunition)' : result.ammo_load_type === 'precision' ? ' (Precision ammunition)'
+      : result.ammo_load_type === 'semi_guided' ? ' (semi-guided ammunition)' : '';
   if (result.intercepted) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: on target, but ${mechLabel(target)}'s AMS destroyed the missile (interception roll ${result.ams?.single_missile_roll}).`;
   if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: miss.${result.streak_no_lock ? ' Streak did not lock; no ammunition or heat expended.' : ''}${result.jammed ? ' Ultra AC jammed.' : ''}`;
   if (result.tagged) return `${mechLabel(attacker)} designated ${mechLabel(target)} with TAG — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: lock confirmed.`;
@@ -514,7 +557,7 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
     }).join('; ');
     const pellets = result.cluster_kind === 'lb_x' ? 'pellet' : 'missile';
     const clusterText = result.streak_lock ? 'Streak lock confirmed' : `Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}${cluster.modified_total && cluster.modified_total !== cluster.total ? `, modified to ${cluster.modified_total}` : ''}`;
-    const defence = result.ams ? ' AMS engaged.' : result.narc_guided ? ' Narc guidance applied.' : result.artemis_guided ? ' Artemis IV guidance applied.' : '';
+    const defence = `${result.ams ? ' AMS engaged.' : ''}${result.narc_guided ? ' Narc guidance applied.' : ''}${result.artemis_guided ? ' Artemis IV guidance applied.' : ''}${result.tag_guided ? ' TAG guidance applied.' : ''}${result.ecm_guidance ? ' ECM suppressed Narc/Artemis guidance.' : ''}`;
     if (result.ammo_load_type === 'inferno') return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. ${clusterText}: ${result.missiles_hit} missile${result.missiles_hit === 1 ? '' : 's'} struck; ${mechLabel(target)} gains ${result.heat_inflicted || 0} heat.${defence}`;
     return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. ${clusterText}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.${defence}`;
   }
@@ -772,6 +815,8 @@ function renderWeaponAttackPanel() {
   const spotters = target ? eligibleIndirectSpotters(attacker, target) : [];
   const attackerHasLrm = BT_UNITS[attacker.unitId].weapons.some(entry => entry.key?.startsWith('lrm'));
   const indirectControls = target && attackerHasLrm ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px var(--mono);color:var(--paper);"><label style="display:flex;align-items:center;gap:6px;"><input type="checkbox" onchange="setIndirectFire(this.checked)" ${weaponAttackState.indirect ? 'checked' : ''}> LRM INDIRECT FIRE</label>${weaponAttackState.indirect ? `<div style="margin-top:6px;color:var(--phosphor-dim);">Attacker must lack direct LOS. Choose a friendly spotter:</div><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;">${spotters.map(candidate => `<button onclick="selectIndirectSpotter('${candidate.instanceId}')" style="padding:5px;border:1px solid ${spotter?.instanceId === candidate.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);">${mechLabel(candidate)}</button>`).join('') || 'No eligible spotter has line of sight.'}</div>` : ''}</div>` : '';
+  const electronicReadout = electronicWarfareReadout(attacker, target);
+  const electronicControls = electronicReadout.length ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px/1.45 var(--mono);color:var(--phosphor-dim);"><strong style="color:var(--amber);">ELECTRONIC WARFARE</strong><br>${electronicReadout.map(escapeHtml).join('<br>')}</div>` : '';
   const weaponRows = BT_UNITS[attacker.unitId].weapons.map((entry, index) => {
     const mountId = weaponMountId(entry, index);
     const checked = weaponAttackState.weaponKeys.includes(mountId);
@@ -798,6 +843,6 @@ function renderWeaponAttackPanel() {
     ${supportPicker}
     <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:4px;">TARGET — choose a target, then assign weapons; repeat to split fire</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => { const assigned = Object.values(weaponAttackState.targetAssignments).filter(id => id === enemy.instanceId).length; return `<button onclick="selectWeaponTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${enemy.instanceId === weaponAttackState.primaryTargetId ? '★ ' : ''}${mechLabel(enemy)}${assigned ? ` · ${assigned}` : ''}</button>`; }).join('')}</div>
-    ${target ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--amber);margin-bottom:4px;"><span>TARGET: ${mechLabel(target)}</span>${Object.values(weaponAttackState.targetAssignments).includes(target.instanceId) ? `<button onclick="selectPrimaryWeaponTarget('${target.instanceId}')" style="padding:4px;border:1px solid var(--panel-line);background:transparent;color:var(--paper);font:8px var(--mono);">${target.instanceId === weaponAttackState.primaryTargetId ? '★ PRIMARY' : 'MAKE PRIMARY'}</button>` : ''}</div>${indirectControls}${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}
+    ${target ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--amber);margin-bottom:4px;"><span>TARGET: ${mechLabel(target)}</span>${Object.values(weaponAttackState.targetAssignments).includes(target.instanceId) ? `<button onclick="selectPrimaryWeaponTarget('${target.instanceId}')" style="padding:4px;border:1px solid var(--panel-line);background:transparent;color:var(--paper);font:8px var(--mono);">${target.instanceId === weaponAttackState.primaryTargetId ? '★ PRIMARY' : 'MAKE PRIMARY'}</button>` : ''}</div>${electronicControls}${indirectControls}${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}
     <button id="weapon-submit" onclick="confirmWeaponAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${weaponAttackState.weaponKeys.length ? 'Confirm Weapon Attacks' : 'No Fire / Complete Attacks'}</button>`;
 }

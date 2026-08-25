@@ -29,6 +29,8 @@ Full turn structure: **Initiative → Movement → Reaction → Weapon Attack �
 - Weapon attacks with range, facing, hit-location tables, shallow-water cover,
   prone firing, multiple declared targets and LRM indirect fire with simultaneous spotters
 - Standard AMS missile-flight reduction and single-missile Narc interception
+- Guardian ECM suppression of Artemis/Narc guidance, TAG-assisted semi-guided LRM fire,
+  and operational-status reporting for Beagle Active Probes
 - LB-X ammunition modes (cluster/shotgun fire derived from the selected ammunition bin)
 - Ultra AC rapid fire, hatchet attacks, flamer heat
 - Physical attacks (including Charge, Push and Death From Above), displacement,

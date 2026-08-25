@@ -14,7 +14,7 @@ function recordAmmoForSlot(mech, location, index, slotName) {
   // name. Only the exact ammunition-bin slot owns a shot count.
   if (!/ammo/i.test(slotName)) return '';
   const bin = (mech.ammoBins || []).find(candidate => candidate.id === `${location}:${index}`);
-  return bin ? ` — ${bin.shots}/${bin.maxShots} shots${bin.loadType ? ` · ${bin.loadType}` : ''}` : '';
+  return bin ? ` — ${bin.shots}/${bin.maxShots} shots${bin.loadType ? ` · ${bin.loadType === 'semi_guided' ? 'semi-guided' : bin.loadType}` : ''}` : '';
 }
 
 function showRecordSheet(instanceId) {

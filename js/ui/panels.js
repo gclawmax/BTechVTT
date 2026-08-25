@@ -93,7 +93,7 @@ function roundOneAmmoControl(inst, bin) {
   }
   const key = `${inst.instanceId}:${bin.id}`;
   const selected = roundOneAmmoChoices[key] || choices[0];
-  const labels = { slug: 'Slug', cluster: 'Cluster', standard: 'Standard', inferno: 'Inferno', precision: 'Precision' };
+  const labels = { slug: 'Slug', cluster: 'Cluster', standard: 'Standard', inferno: 'Inferno', precision: 'Precision', semi_guided: 'Semi-guided' };
   return `<div style="grid-column:1 / -1;margin:3px 0 8px;padding:8px;border:1px solid var(--amber);background:rgba(181,107,0,.08);">
     <div style="color:var(--amber);font-size:10px;margin-bottom:6px;">ROUND 1 AMMUNITION — required before Initiative</div>
     <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;">Load type

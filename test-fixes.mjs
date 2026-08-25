@@ -427,6 +427,12 @@ const lobbySource = fs.readFileSync(`${ROOT}/js/network/lobby.js`, 'utf8');
 const mainCssSource = fs.readFileSync(`${ROOT}/css/main.css`, 'utf8');
 check('#5 Hangar catalogue groups variants beneath collapsible chassis', lobbySource.includes('expandedLobbyChassis') && lobbySource.includes('chassisGroups(entries)') && lobbySource.includes('roster-chassis-toggle'));
 check('#5 roster searches reveal matching chassis without losing saved expansion choices', lobbySource.includes('revealMatches') && lobbySource.includes('expandedLobbyChassis.has(chassis.dataset.chassisKey)') && mainCssSource.includes('.roster-chassis-variants[hidden] { display:none; }'));
+const electronicWarfareMigration = fs.readFileSync(`${ROOT}/SQL/77_electronic_warfare_and_targeting_support.sql`, 'utf8');
+const phaseSource = fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8');
+const weaponAttackSource = fs.readFileSync(`${ROOT}/js/game/weapon-attack.js`, 'utf8');
+check('#5 electronic warfare suppresses guidance at an ECM-protected target', electronicWarfareMigration.includes('btech_target_guidance_ecm') && electronicWarfareMigration.includes('guided_ammunition_v1') && electronicWarfareMigration.includes('narc_guided:=narc_guided AND NOT ecm_guidance') && electronicWarfareMigration.includes('artemis_guided:=artemis_guided AND NOT ecm_guidance'));
+check('#5 TAG-assisted semi-guided LRM ammunition is selectable and authoritative', electronicWarfareMigration.includes("ARRAY['standard','semi_guided']") && electronicWarfareMigration.includes("ammo_load_type=''semi_guided''") && phaseSource.includes("['standard', 'semi_guided']") && weaponAttackSource.includes('tagGuided'));
+check('#5 client reports operational ECM and Beagle probe equipment honestly', weaponAttackSource.includes('hasOperationalEcm') && weaponAttackSource.includes('hasOperationalActiveProbe') && weaponAttackSource.includes('ECM suppressed Narc/Artemis guidance'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

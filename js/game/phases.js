@@ -375,6 +375,7 @@ function specialAmmoLoadTypes(bin) {
   if (bin.type === 'lb10x') return ['slug', 'cluster'];
   if (['srm2', 'srm4', 'srm6'].includes(bin.type)) return ['standard', 'inferno'];
   if (['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type)) return ['standard', 'precision'];
+  if (['lrm5', 'lrm10', 'lrm15', 'lrm20'].includes(bin.type)) return ['standard', 'semi_guided'];
   return [];
 }
 
@@ -383,7 +384,7 @@ function ammoSetupRequiredForBin(bin) {
 }
 
 function setRoundOneAmmoChoice(key, loadType) {
-  if (['slug', 'cluster', 'standard', 'inferno', 'precision'].includes(loadType)) {
+  if (['slug', 'cluster', 'standard', 'inferno', 'precision', 'semi_guided'].includes(loadType)) {
     roundOneAmmoChoices[key] = loadType;
     renderDetail();
   }
