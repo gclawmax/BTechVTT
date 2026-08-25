@@ -30,6 +30,6 @@ BEGIN
  patched:=replace(patched,
   'CASE WHEN coalesce((allocation->>''primary'')::boolean,false)',
   'CASE WHEN coalesce((target_allocation->>''primary'')::boolean,false)');
- IF patched=source OR position('multi_target_allocation_alias_v2' IN patched)=0 OR position('FOR allocation IN SELECT value FROM jsonb_array_elements(p_allocations) value LOOP')>0 THEN RAISE EXCEPTION 'Could not safely disambiguate the multi-target weapon resolver';END IF;
+ IF patched=source OR position('multi_target_allocation_alias_v2' IN patched)=0 OR position('FOR allocation IN SELECT value FROM jsonb_array_elements(p_allocations) value LOOP' IN patched)>0 THEN RAISE EXCEPTION 'Could not safely disambiguate the multi-target weapon resolver';END IF;
  EXECUTE patched;
 END $$;
