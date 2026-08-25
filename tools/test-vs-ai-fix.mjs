@@ -44,7 +44,7 @@ const state = () => page.evaluate(() => JSON.stringify({
   catalogueVersion: currentGameState?.catalogue_version ?? null
 }));
 
-let passA = false, passB = null, passC = false;
+let passA = false, passB = null, passC = false, overall = false;
 let finalState = null;
 
 try {
@@ -157,7 +157,7 @@ try {
   console.log('B. guarded RPCs pass the catalogue check:', passB ? 'PASS' : 'FAIL');
   console.log('C. phase advanced past movement (UI)    :', passC ? 'PASS' : 'FAIL');
   console.log('D. no "pinned catalogue" error          :', hasCatalogueError ? 'FAIL' : 'PASS');
-  const overall = passA && passB && passC && !hasCatalogueError;
+  overall = passA && passB && passC && !hasCatalogueError;
   console.log('OVERALL:', overall ? 'PASS ✅' : 'FAIL ❌');
   await page.screenshot({ path: 'assets/screenshots/test-vs-ai-after-fix.jpg', type: 'jpeg', quality: 70 }).catch(() => {});
 } catch (e) {
@@ -168,3 +168,5 @@ try {
   console.log(errors.slice(0, 25).join('\n') || '(none)');
   await browser.close();
 }
+
+if (!overall) process.exitCode = 1;

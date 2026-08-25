@@ -82,7 +82,7 @@ async function addAndDeployLocust(page) {
   await page.waitForFunction(() => /Deployment:\s*[1-9]/.test(document.querySelector('.roster-summary')?.textContent || ''), null, { timeout: 15000 });
 }
 async function placeBattlefieldDeployment(page, hex, facing) {
-  await page.locator('#lobby-deployment .deployment-grid').waitFor({ state: 'visible', timeout: 20000 });
+  await page.locator('#lobby-deployment .deployment-map').waitFor({ state: 'visible', timeout: 20000 });
   await page.locator(`#lobby-deployment .deployment-hex[title^="${hex}"]`).click();
   await page.waitForFunction(() => /1\/1 placed/.test(document.querySelector('#lobby-deployment > .deployment-help')?.textContent || ''), null, { timeout: 15000 });
   await page.getByRole('button', { name: facing, exact: true }).click();

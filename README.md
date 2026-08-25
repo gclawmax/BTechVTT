@@ -70,6 +70,19 @@ cd BTechVTT
 # No build step required — runs directly from source
 ```
 
+## Automated battle regression
+
+Run the complete browser-based battle suite, including Human-vs-Human and
+Vs-AI matches, with one command:
+
+```bash
+node tools/run-battle-regression.mjs
+```
+
+It uses the existing dedicated regression accounts by default and creates
+disposable matches. `BT_BATTLE_SUITE=quick` skips the longer focused rules
+battle; `BT_BATTLE_SUITE=list` shows the planned checks without running them.
+
 ## Design Notes
 
 - **Hex coordinate system:** Flat-top hexes, odd-q vertical offset layout (matching printed BattleTech maps)
