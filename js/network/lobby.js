@@ -938,7 +938,12 @@ function subscribeGameStateSync() {
         scheduleActiveAiTurn();
       }
     )
-    .subscribe();
+    .subscribe(status => {
+      // A phase update can occur between the initial snapshot and the realtime
+      // channel becoming active. Re-read once on subscription so that missed
+      // initiative/turn hand-offs cannot leave this browser on a stale phase.
+      if (status === 'SUBSCRIBED' && currentGameId) loadGameState();
+    });
 }
 
 async function handleLeaveLobby() {

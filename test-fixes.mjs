@@ -189,6 +189,11 @@ const proneShooter = { ...aDefault, prone: true, proneSupportArm: 'la' };
 check('#3 prone support-arm weapon cannot fire', !sandbox.evaluateWeaponAttack(proneShooter, t3, wpn).valid);
 check('#3 prone leg-mounted weapon cannot fire', !sandbox.evaluateWeaponAttack({ ...proneShooter, proneSupportArm: 'ra' }, t3, { ...wpn, location: 'Left Leg' }).valid);
 check('#3 prone firing requires both arms intact', !sandbox.evaluateWeaponAttack({ ...proneShooter, structure: { ...STRUCT, ra: 0 } }, t3, { ...wpn, location: 'Center Torso' }).valid);
+const flippableMech = { ...aDefault, instanceId: 'flip-test' };
+sandbox.BT_CRITICAL_LAYOUTS.testmech = { la: ['Shoulder', 'Upper Arm Actuator'], ra: ['Shoulder', 'Upper Arm Actuator'] };
+check('#3 arm flipping requires actuator-free arms and no torso twist', sandbox.canFlipBattleMechArms(flippableMech) && !sandbox.canFlipBattleMechArms({ ...flippableMech, torsoFacing: 1 }));
+check('#3 flipped arm weapons use only the three-hex rear arc', sandbox.isWeaponTargetInArc(wpn, flippableMech, 3, true) && !sandbox.isWeaponTargetInArc(wpn, flippableMech, 0, true));
+check('#3 torso twisting rotates arm-mounted weapon arcs too', sandbox.isWeaponTargetInArc({ ...wpn, location: 'Right Arm' }, { ...flippableMech, torsoFacing: 1 }, 2, false));
 
 // ── #3b LB-X Cluster ammunition starts in its declared mode ───────────────
 const lbxMount = { key: 'lb10x', location: 'Left Arm', mountId: 'lb10x:la:0' };
@@ -256,6 +261,10 @@ const aimedSword = sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarg
 check('#4b physical weapons can choose a punch or kick location table at +4', aimedSword.valid && aimedSword.targetNumber === sword.targetNumber + 4);
 check('#4b physical weapons are discovered from critical layouts', sandbox.availablePhysicalWeapons(physicalAttacker).some(weapon => weapon.type === 'physical_sword' && weapon.limbs.includes('la')));
 check('#4b a physical weapon cannot attack from the wrong arm', !sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'physical_sword', 'ra').valid);
+const clubAttacker = { ...physicalAttacker, improvisedClub: { type: 'tree' } };
+const club = sandbox.evaluatePhysicalAttack(clubAttacker, adjacentTarget, 'physical_club', 'both');
+check('#4b an improvised club uses both working hands and floor(weight/5) damage', club.valid && club.damage === 10 && club.targetNumber === 4, `damage=${club.damage} tn=${club.targetNumber}`);
+check('#4b a club is unavailable after either hand is damaged', !sandbox.evaluatePhysicalAttack({ ...clubAttacker, criticalSlotDamage: { la: [3] } }, adjacentTarget, 'physical_club', 'both').valid);
 sandbox.elevationAt = (col, row) => col === adjacentTarget.col && row === adjacentTarget.row ? 1 : 0;
 check('#4b different levels allow punches but not kicks against a higher target', sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'punch', 'la').valid && !sandbox.evaluatePhysicalAttack(physicalAttacker, adjacentTarget, 'kick', 'll').valid);
 sandbox.elevationAt = () => 0;
@@ -453,7 +462,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260825-terrain-complete-16"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260825-arm-club-17"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -462,7 +471,7 @@ const phasesSource = fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8');
 check('#5 rejoin verifies every saved unit against its pinned catalogue and isolates any unresolved record once', catalogueSource.includes('async function verifyMatchCatalogueUnits') && catalogueSource.includes('loadUnitCatalogue(catalogueVersion, true)') && phasesSource.includes('verifyMatchCatalogueUnits(game.catalogue_version, gameState.mech_instances)') && phasesSource.includes('could not be loaded from this match') && panelSource.includes('CATALOGUE UNAVAILABLE'));
 const scenarioRepairMigration = fs.readFileSync(`${ROOT}/SQL/80_repair_scenario_catalogue_unit_ids.sql`, 'utf8');
 check('#5 scenarios persist exact pinned-catalogue IDs and repair untouched historical scenarios safely', scenarioRepairMigration.includes('repair_btech_match_catalogue_unit_ids') && scenarioRepairMigration.includes("g.current_round<>1 OR g.current_phase<>'initiative'") && scenarioRepairMigration.includes("replace(u.unit_id,'-','')") && createGameSource.includes('const resolvedRosters') && catalogueSource.includes('repairScenarioCatalogueUnitIds'));
-check('#5 scenario catalogue repair has a visible, cache-busting build marker', indexSource.includes('20260825-terrain-complete-16'));
+check('#5 scenario catalogue repair has a visible, cache-busting build marker', indexSource.includes('20260825-arm-club-17'));
 check('#5 initiative waits for every player to commit Round 1 ammunition without breaking later phase refreshes', phasesSource.includes('const unconfiguredAmmo') && phasesSource.includes('currentGameState.round === 1') && phasesSource.includes(': [];') && phasesSource.includes('const ownAmmoSetupPending') && phasesSource.includes('Waiting for the other player to declare their specialised ammunition.'));
 const individualAmmoMigration = fs.readFileSync(`${ROOT}/SQL/81_allow_individual_ammunition_bin_confirmation.sql`, 'utf8');
 check('#5 each Round 1 ammunition button commits only its own physical bin', individualAmmoMigration.includes('IF load_type IS NOT NULL THEN') && individualAmmoMigration.includes('IF provided=0') && phasesSource.includes('submitRoundOneAmmoLoadout(binKey = null)') && phasesSource.includes('pendingEntries.filter') && panelSource.includes("Confirm this ammunition bin"));
@@ -491,6 +500,12 @@ const weaponAttackSource = fs.readFileSync(`${ROOT}/js/game/weapon-attack.js`, '
 check('#5 electronic warfare suppresses guidance at an ECM-protected target', electronicWarfareMigration.includes('btech_target_guidance_ecm') && electronicWarfareMigration.includes('guided_ammunition_v1') && electronicWarfareMigration.includes('narc_guided:=narc_guided AND NOT ecm_guidance') && electronicWarfareMigration.includes('artemis_guided:=artemis_guided AND NOT ecm_guidance'));
 check('#5 TAG-assisted semi-guided LRM ammunition is selectable and authoritative', electronicWarfareMigration.includes("ARRAY['standard','semi_guided']") && electronicWarfareMigration.includes("ammo_load_type=''semi_guided''") && phaseSource.includes("['standard', 'semi_guided']") && weaponAttackSource.includes('tagGuided'));
 check('#5 client reports operational ECM and Beagle probe equipment honestly', weaponAttackSource.includes('hasOperationalEcm') && weaponAttackSource.includes('hasOperationalActiveProbe') && weaponAttackSource.includes('ECM suppressed Narc/Artemis guidance'));
+const armClubMigration = fs.readFileSync(`${ROOT}/SQL/88_arm_flipping_and_improvised_clubs.sql`, 'utf8');
+check('#5 arm flipping is authoritative, rear-only, and mutually exclusive with torso twisting', armClubMigration.includes('btech_can_flip_battlemech_arms') && armClubMigration.includes('IN (2,3,4)') && armClubMigration.includes('__arms_flipped') && weaponAttackSource.includes('toggleWeaponArmFlip'));
+check('#5 improvised clubs are found in Weapon Attacks and swung with both arms in Physical Attacks', armClubMigration.includes('find_improvised_club') && armClubMigration.includes("terrain_name IN ('light_woods','heavy_woods')") && armClubMigration.includes("physical_key=''club''") && weaponAttackSource.includes('findImprovisedClub') && fs.readFileSync(`${ROOT}/js/game/physical-attack.js`, 'utf8').includes('bothArms: true'));
+check('#5 the detail panel identifies a carried improvised club', panelSource.includes('inst.improvisedClub') && panelSource.includes('uses both arms'));
+check('#5 live regression targets SVG deployment hexes and SQL 87 terrain interactions', humanBattleSource.includes('.deployment-hex[aria-label^=') && fs.readFileSync(`${ROOT}/tools/test-human-vs-human-rules.mjs`, 'utf8').includes('magma crust adds transit heat'));
+check('#5 realtime subscription catches phase changes missed while connecting', lobbySource.includes("status === 'SUBSCRIBED'") && lobbySource.includes('loadGameState()'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

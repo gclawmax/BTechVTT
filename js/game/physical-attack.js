@@ -6,6 +6,7 @@ let physicalAttackState = { attackerId: null, targetId: null, attackType: null, 
 
 const BT_PHYSICAL_WEAPON_RULES = {
   backhoe: { label: 'Backhoe', toHit: 1, damage: 6, arc: 'arm', damageActuators: true },
+  club: { label: 'Improvised Club', toHit: -1, damageDivisor: 5, floorDamage: true, arc: 'forward', damageActuators: true, bothArms: true },
   chainsaw: { label: 'Chainsaw', toHit: 0, damage: 5, arc: 'arm' },
   combine: { label: 'Combine', toHit: -2, damage: 3, arc: 'arm' },
   dual_saw: { label: 'Dual Saw', toHit: 0, damage: 7, arc: 'arm' },
@@ -28,6 +29,11 @@ function physicalWeaponRule(type) {
 
 function availablePhysicalWeapons(mech) {
   return Object.entries(BT_PHYSICAL_WEAPON_RULES).flatMap(([key, rule]) => {
+    if (key === 'club') return mech.improvisedClub ? ['standard', 'punch', 'kick'].map(locationTable => ({
+      type: `physical_club${locationTable === 'standard' ? '' : `__${locationTable}`}`,
+      ...rule, limbs: ['both'], locationTable,
+      displayLabel: `${mech.improvisedClub.type === 'tree' ? 'Tree' : 'Girder'} Club${locationTable === 'standard' ? '' : ` (${locationTable} table +4)`}`
+    })) : [];
     const limbs = ['la', 'ra'].filter(limb => physicalComponentState(mech, limb, rule.label).exists);
     return limbs.length ? ['standard', 'punch', 'kick'].map(locationTable => ({
       type: `physical_${key}${locationTable === 'standard' ? '' : `__${locationTable}`}`,
@@ -40,15 +46,17 @@ function availablePhysicalWeapons(mech) {
 function physicalAttackDamage(attacker, type) {
   const tonnage = BT_UNITS[attacker.unitId].tonnage;
   const physicalWeapon = physicalWeaponRule(type);
+  if (physicalWeapon?.floorDamage) return Math.max(1, Math.floor(tonnage / physicalWeapon.damageDivisor));
   if (physicalWeapon) return Math.max(1, physicalWeapon.damage ?? Math.ceil(tonnage / physicalWeapon.damageDivisor) + (physicalWeapon.damageBonus || 0));
   return Math.max(1, Math.ceil(tonnage / (['kick', 'hatchet', 'dfa'].includes(type) ? 5 : 10)));
 }
 
 function physicalLimbLabel(limb) {
-  return ({ la: 'Left Arm', ra: 'Right Arm', ll: 'Left Leg', rl: 'Right Leg' })[limb] || limb;
+  return ({ both: 'Both Arms', la: 'Left Arm', ra: 'Right Arm', ll: 'Left Leg', rl: 'Right Leg' })[limb] || limb;
 }
 
 function physicalLimbCandidates(type) {
+  if (physicalWeaponRule(type)?.bothArms) return ['both'];
   if (type === 'punch') return ['la', 'ra'];
   if (physicalWeaponRule(type)) return ['la', 'ra'];
   if (type === 'push') return ['push'];
@@ -89,10 +97,22 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
   if ((type === 'punch' || physicalWeapon?.arc === 'arm') && directionDifference === 3) return { valid: false, reason: `${physicalWeapon?.label || 'Punch'} target is in the rear arc.` };
   if ((type === 'punch' || physicalWeapon?.arc === 'arm') && [1, 2].includes(directionDifference) && limb !== 'la') return { valid: false, reason: 'Only the left arm can reach this side.' };
   if ((type === 'punch' || physicalWeapon?.arc === 'arm') && [4, 5].includes(directionDifference) && limb !== 'ra') return { valid: false, reason: 'Only the right arm can reach this side.' };
-  if ((attacker.structure?.[limb] || 0) <= 0) return { valid: false, reason: `${physicalLimbLabel(limb)} is destroyed.` };
+  if (physicalWeapon?.bothArms) {
+    if (!attacker.improvisedClub) return { valid: false, reason: 'This BattleMech is not holding an improvised club.' };
+    if (['la', 'ra'].some(arm => (attacker.structure?.[arm] || 0) <= 0)) return { valid: false, reason: 'Both arms are required to swing a club.' };
+    if (['la', 'ra'].some(arm => physicalComponentState(attacker, arm, 'Shoulder').damaged)) return { valid: false, reason: 'Both shoulder actuators must be working.' };
+    if (['la', 'ra'].some(arm => !physicalComponentState(attacker, arm, 'Hand Actuator').exists || physicalComponentState(attacker, arm, 'Hand Actuator').damaged)) return { valid: false, reason: 'Both hand actuators must be working.' };
+  }
+  if (!physicalWeapon?.bothArms && (attacker.structure?.[limb] || 0) <= 0) return { valid: false, reason: `${physicalLimbLabel(limb)} is destroyed.` };
   let componentModifier = 0;
   let reductions = 0;
-  if (type === 'punch' || physicalWeapon) {
+  if (physicalWeapon?.bothArms) {
+    for (const arm of ['la', 'ra']) {
+      if (physicalComponentState(attacker, arm, 'Upper Arm Actuator').damaged) { componentModifier += 2; reductions++; }
+      const lower = physicalComponentState(attacker, arm, 'Lower Arm Actuator');
+      if (!lower.exists || lower.damaged) { componentModifier += 2; reductions++; }
+    }
+  } else if (type === 'punch' || physicalWeapon) {
     if (physicalComponentState(attacker, limb, 'Shoulder').damaged) return { valid: false, reason: 'Damaged shoulder prevents this punch.' };
     if (physicalWeapon) {
       const equipment = physicalComponentState(attacker, limb, physicalWeapon.label);
@@ -163,7 +183,7 @@ function togglePhysicalLimb(limb) {
 
 async function confirmAuthoritativePhysicalAttack(attacker, target, type) {
   const attackType = type || 'pass';
-  const limbs = attackType === 'pass' ? [] : physicalAttackState.limbs;
+  const limbs = attackType === 'pass' ? [] : physicalAttackState.limbs.map(limb => limb === 'both' ? 'ra' : limb);
   if (attackType !== 'pass' && !limbs.length) { flashMoveWarning(`Choose ${attackType === 'kick' ? 'a leg' : 'an arm'}.`); return; }
   const submitButton = document.getElementById('physical-submit');
   if (submitButton) { submitButton.disabled = true; submitButton.textContent = 'Submitting Declaration…'; }

@@ -4,7 +4,7 @@
 // component effects are resolved from the BattleMech record sheet.
 
 function emptyWeaponAttackState() {
-  return { attackerId: null, targetId: null, primaryTargetId: null, targetAssignments: {}, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {}, indirect: false, indirectTargetId: null, spotterId: null };
+  return { attackerId: null, targetId: null, primaryTargetId: null, targetAssignments: {}, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {}, indirect: false, indirectTargetId: null, spotterId: null, armsFlipped: false };
 }
 let weaponAttackState = emptyWeaponAttackState();
 
@@ -200,7 +200,7 @@ function weaponRangeModifier(weapon, distance) {
 }
 
 function weaponArcFacing(weaponEntry, attacker) {
-  return /torso|head/i.test(weaponEntry.location)
+  return /torso|head|arm/i.test(weaponEntry.location)
     ? (attacker.torsoFacing == null ? attacker.facing : attacker.torsoFacing)
     : attacker.facing;
 }
@@ -215,19 +215,74 @@ function weaponArcLocation(weaponEntry) {
 // Total Warfare BattleMech arcs: torso, head, and leg weapons use the
 // torso's three-hex forward arc. An arm weapon uses that forward arc plus
 // only its own side arc (left arm: left; right arm: right), never the rear.
-function isWeaponTargetInArc(weaponEntry, attacker, targetDirection) {
+function isWeaponTargetInArc(weaponEntry, attacker, targetDirection, armsFlipped = weaponAttackState.attackerId === attacker?.instanceId && weaponAttackState.armsFlipped) {
   const difference = (targetDirection - weaponArcFacing(weaponEntry, attacker) + 6) % 6;
   const location = weaponArcLocation(weaponEntry);
+  if (armsFlipped && ['la', 'ra'].includes(location)) return [2, 3, 4].includes(difference);
   if (location === 'la') return [0, 1, 2, 5].includes(difference);
   if (location === 'ra') return [0, 1, 4, 5].includes(difference);
   return [0, 1, 5].includes(difference);
 }
 
-function weaponArcLabel(weaponEntry) {
+function weaponArcLabel(weaponEntry, attacker = null) {
   const location = weaponArcLocation(weaponEntry);
+  if (attacker && weaponAttackState.attackerId === attacker.instanceId && weaponAttackState.armsFlipped && ['la', 'ra'].includes(location)) return 'flipped rear arc';
   if (location === 'la') return 'forward + left side arc';
   if (location === 'ra') return 'forward + right side arc';
   return 'torso forward arc';
+}
+
+function armActuatorExists(mech, label) {
+  return ['la', 'ra'].some(location => (BT_CRITICAL_LAYOUTS[mech.unitId]?.[location] || []).some(slot => criticalSlotName(slot) === label));
+}
+
+function canFlipBattleMechArms(mech) {
+  if (!mech || mech.prone) return false;
+  const torsoFacing = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
+  return torsoFacing === mech.facing && !armActuatorExists(mech, 'Lower Arm Actuator') && !armActuatorExists(mech, 'Hand Actuator');
+}
+
+function toggleWeaponArmFlip() {
+  const attacker = mechInstances.find(mech => mech.instanceId === weaponAttackState.attackerId);
+  if (!canFlipBattleMechArms(attacker)) return;
+  weaponAttackState.armsFlipped = !weaponAttackState.armsFlipped;
+  for (const [mountId, targetId] of Object.entries(weaponAttackState.targetAssignments)) {
+    const entry = BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
+    const target = mechInstances.find(mech => mech.instanceId === targetId);
+    if (entry && target && !isWeaponTargetInArc(entry, attacker, weaponDirectionTo(attacker, target))) {
+      delete weaponAttackState.targetAssignments[mountId];
+      weaponAttackState.weaponKeys = weaponAttackState.weaponKeys.filter(id => id !== mountId);
+    }
+  }
+  renderWeaponAttackPanel();
+}
+
+function improvisedClubTerrain(mech) {
+  const terrain = mech ? terrainAt(mech.col, mech.row) : 'clear';
+  if (['light_woods', 'heavy_woods'].includes(terrain)) return 'tree';
+  if (terrain === 'rubble') return 'girder';
+  return null;
+}
+
+function canSearchForImprovisedClub(mech) {
+  if (!mech || mech.improvisedClub || !improvisedClubTerrain(mech)) return false;
+  return ['la', 'ra'].every(location => (mech.structure?.[location] || 0) > 0 &&
+    !physicalComponentState(mech, location, 'Shoulder').damaged &&
+    physicalComponentState(mech, location, 'Hand Actuator').exists &&
+    !physicalComponentState(mech, location, 'Hand Actuator').damaged);
+}
+
+async function findImprovisedClub(instanceId) {
+  const attacker = mechInstances.find(mech => mech.instanceId === instanceId);
+  if (!canSearchForImprovisedClub(attacker) || !isMyActiveTurn() || currentGameState.phase !== 'weapon_attack') return;
+  const { data, error } = await db.rpc('find_improvised_club', { p_game_id: currentGameId, p_instance_id: instanceId });
+  if (error) { flashMoveWarning(error.message); showGameToast(`Club search was rejected: ${error.message}`, 'error'); return; }
+  const found = data?.found === true;
+  logEvent(found ? `${mechLabel(attacker)} found a ${data.club_type === 'tree' ? 'tree' : 'girder'} club and completed its Weapon Attack action.` : `${mechLabel(attacker)} searched the rubble for a club but found nothing.`, 'phase');
+  weaponAttackState = emptyWeaponAttackState();
+  selectedInstanceId = null;
+  await loadGameState();
+  renderWeaponAttackPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
 }
 
 function weaponLocationDestroyed(attacker, weaponEntry) {
@@ -688,6 +743,7 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
     ammo_bins: {
       ...Object.fromEntries(mountIds.filter(id => ammoDeclaration.choices[id]).map(id => [id, ammoDeclaration.choices[id]])),
       __fire_modes: Object.fromEntries(mountIds.filter(id => ammoDeclaration.fireModes[id]).map(id => [id, ammoDeclaration.fireModes[id]])),
+      ...(weaponAttackState.armsFlipped ? { __arms_flipped: true } : {}),
       __indirect: weaponAttackState.indirectTargetId === targetId,
       __spotter: weaponAttackState.indirectTargetId === targetId ? weaponAttackState.spotterId : null
     }
@@ -835,6 +891,8 @@ function renderWeaponAttackPanel() {
   }
 
   const enemies = mechInstances.filter(m => m.owner !== attacker.owner && canFireFromWeaponPhaseStart(m));
+  const armFlipControls = canFlipBattleMechArms(attacker) ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px/1.45 var(--mono);color:var(--paper);"><button onclick="toggleWeaponArmFlip()" style="width:100%;padding:6px;border:1px solid ${weaponAttackState.armsFlipped ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponAttackState.armsFlipped ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">${weaponAttackState.armsFlipped ? '✓ ' : ''}FLIP BOTH ARMS TO REAR</button><div style="margin-top:4px;color:var(--phosphor-dim);">Arm-mounted weapons use the rear arc. This cannot be combined with a torso twist.</div></div>` : '';
+  const clubSearch = canSearchForImprovisedClub(attacker) ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px/1.45 var(--mono);color:var(--paper);"><button onclick="findImprovisedClub('${attacker.instanceId}')" style="width:100%;padding:6px;border:1px solid var(--amber);background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">FIND ${improvisedClubTerrain(attacker) === 'tree' ? 'TREE' : 'GIRDER'} CLUB</button><div style="margin-top:4px;color:var(--phosphor-dim);">Uses this BattleMech's Weapon Attack action. A found club is available in Physical Attacks.</div></div>` : '';
   const supportPicker = attacker.prone ? `<div style="font-size:10px;color:var(--amber);margin-bottom:7px;">PRONE SUPPORT ARM — choose the arm holding the BattleMech up.</div><div style="display:flex;gap:6px;margin-bottom:8px;">${['la','ra'].map(arm => `<button onclick="setProneWeaponSupportArm('${attacker.instanceId}','${arm}')" style="flex:1;padding:7px;border:1px solid ${attacker.proneSupportArm === arm ? 'var(--amber)' : 'var(--panel-line)'};background:${attacker.proneSupportArm === arm ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">${attacker.proneSupportArm === arm ? '✓ ' : ''}${arm === 'la' ? 'Left Arm' : 'Right Arm'}</button>`).join('')}</div>` : '';
   const spotters = target ? eligibleIndirectSpotters(attacker, target) : [];
   const attackerHasLrm = BT_UNITS[attacker.unitId].weapons.some(entry => entry.key?.startsWith('lrm'));
@@ -858,13 +916,15 @@ function renderWeaponAttackPanel() {
     const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${ammoBinLabel(bin)}</option>`).join('')}</select></label>` : '';
     const ultra = weapon?.key?.startsWith('uac');
     const modePicker = checked && ultra ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : '';
-    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location} · ${weaponArcLabel(entry)}${assignedTarget ? ` · → ${mechLabel(assignedTarget)}${assignedTargetId === weaponAttackState.primaryTargetId ? ' (primary)' : ''}` : ''}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}</div>`;
+    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location} · ${weaponArcLabel(entry, attacker)}${assignedTarget ? ` · → ${mechLabel(assignedTarget)}${assignedTargetId === weaponAttackState.primaryTargetId ? ' (primary)' : ''}` : ''}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}</div>`;
   }).join('');
 
   panel.innerHTML = `
     <div class="panel-eyebrow">Weapon Attack — Declaration</div>
     <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · heat ${attacker.heat || 0}${attacker.prone ? ' · PRONE (+2 to hit)' : ''}</div>
     ${supportPicker}
+    ${armFlipControls}
+    ${clubSearch}
     <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:4px;">TARGET — choose a target, then assign weapons; repeat to split fire</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => { const assigned = Object.values(weaponAttackState.targetAssignments).filter(id => id === enemy.instanceId).length; return `<button onclick="selectWeaponTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${enemy.instanceId === weaponAttackState.primaryTargetId ? '★ ' : ''}${mechLabel(enemy)}${assigned ? ` · ${assigned}` : ''}</button>`; }).join('')}</div>
     ${target ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--amber);margin-bottom:4px;"><span>TARGET: ${mechLabel(target)}</span>${Object.values(weaponAttackState.targetAssignments).includes(target.instanceId) ? `<button onclick="selectPrimaryWeaponTarget('${target.instanceId}')" style="padding:4px;border:1px solid var(--panel-line);background:transparent;color:var(--paper);font:8px var(--mono);">${target.instanceId === weaponAttackState.primaryTargetId ? '★ PRIMARY' : 'MAKE PRIMARY'}</button>` : ''}</div>${electronicControls}${indirectControls}${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}

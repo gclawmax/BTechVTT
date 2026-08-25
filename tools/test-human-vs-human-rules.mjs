@@ -279,6 +279,48 @@ try {
   });
   check('a running pavement turn invokes the authoritative control check', !pavementTurn.error && pavementTurn.data?.terrain_check?.reasons?.includes('running turn on pavement'), JSON.stringify(pavementTurn));
 
+  // SQL 87 weathered terrain: unstable ice, magma-crust heat/breach checks,
+  // and liquid magma remaining unavailable to ordinary BattleMech movement.
+  const iceRound = roundBase + 40;
+  await configureScenario(host, game, players, iceRound, 'movement',
+    { 1: ['locust-lct1e'], 2: ['locust-lct1e'] },
+    { 1: [{ col: 2, row: 2, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] }, {}, { mapId: 'weathered-frontier' });
+  const iceMove = await rpc(host, 'submit_battlemech_movement', {
+    p_game_id: game.id, p_instance_id: 'locust-lct1e-p1-1', p_mode: 'walk',
+    p_path: [{ action: 'step', col: 3, row: 2 }]
+  });
+  check('walking onto ice invokes the authoritative unstable-terrain Piloting check', !iceMove.error && iceMove.data?.terrain_check?.reasons?.includes('crossing unstable terrain'), JSON.stringify(iceMove));
+
+  const magmaRound = roundBase + 41;
+  await configureScenario(host, game, players, magmaRound, 'movement',
+    { 1: ['locust-lct1e'], 2: ['locust-lct1e'] },
+    { 1: [{ col: 2, row: 8, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] }, {}, { mapId: 'weathered-frontier' });
+  const magmaMove = await rpc(host, 'submit_battlemech_movement', {
+    p_game_id: game.id, p_instance_id: 'locust-lct1e-p1-1', p_mode: 'walk',
+    p_path: [{ action: 'step', col: 3, row: 8 }]
+  });
+  check('magma crust adds transit heat and records its ground-movement breach roll', !magmaMove.error && magmaMove.data?.terrain_heat === 2 && magmaMove.data?.magma_crust_checks?.[0]?.target === 6, JSON.stringify(magmaMove));
+  const magmaState = await host.evaluate(async gameId => {
+    const { data, error } = await db.from('btech_games').select('state').eq('id', gameId).single();
+    const state = typeof data?.state === 'string' ? JSON.parse(data.state) : data?.state;
+    return { mech: state?.mech_instances?.find(unit => unit.instanceId === 'locust-lct1e-p1-1'), error: error?.message || null };
+  }, game.id);
+  const magmaBreached = magmaMove.data?.magma_crust_checks?.[0]?.breached === true;
+  check('magma crust persists either its end-phase heat or the rolled breach consequences', !magmaState.error && (magmaBreached
+    ? magmaMove.data?.magma_crust_checks?.[0]?.damage?.length === 2
+    : magmaState.mech?.pendingTerrainHeat === 5), JSON.stringify({ magmaMove, magmaState }));
+
+  const liquidRound = roundBase + 42;
+  await configureScenario(host, game, players, liquidRound, 'movement',
+    { 1: ['locust-lct1e'], 2: ['locust-lct1e'] },
+    { 1: [{ col: 4, row: 8, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] }, {}, { mapId: 'weathered-frontier' });
+  expectedHttp400++;
+  const liquidMove = await rpc(host, 'submit_battlemech_movement', {
+    p_game_id: game.id, p_instance_id: 'locust-lct1e-p1-1', p_mode: 'walk',
+    p_path: [{ action: 'step', col: 5, row: 8 }]
+  });
+  check('liquid magma rejects ordinary BattleMech movement authoritatively', /impassable/i.test(liquidMove.error?.message || ''), JSON.stringify(liquidMove));
+
   const fixtures = await specialAmmoFixtures(host, game.catalogue_version);
   check('the pinned catalogue provides standard SRM and autocannon fixtures', fixtures.inferno && fixtures.precision, JSON.stringify(fixtures));
 

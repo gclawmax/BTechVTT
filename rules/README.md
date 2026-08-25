@@ -46,6 +46,8 @@ Use only the relevant focused file:
    future construction/import work.
 5. `14_weathered_advanced_terrain.md` for ice, weathered ground, swamp,
    bridges, and magma.
+6. `15_arm_flipping_and_improvised_clubs.md` for reversed arm weapon arcs and
+   improvised tree/girder clubs.
 
 ### Unit/data work
 

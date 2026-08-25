@@ -148,6 +148,7 @@ function renderDetail() {
       <div class="k">Heat Level</div><div class="v">${inst.heat || 0}</div>
       <div class="k">Pilot</div><div class="v" style="color:${pilotColour};">${escapeHtml(pilot.name || 'MechWarrior')} · Gunnery ${pilot.gunnery ?? 4} · Piloting ${pilot.piloting ?? inst.pilotingSkill ?? 5} · ${pilotState} · ${pilot.hits || 0} hit${pilot.hits === 1 ? '' : 's'}</div>
       <div class="k">Damage State</div><div class="v">${inst.destroyed ? 'DESTROYED' : `${inst.prone ? 'PRONE · ' : ''}${inst.shutdown ? 'SHUT DOWN · ' : ''}${Object.values(inst.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0)} critical slot${Object.values(inst.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0) === 1 ? '' : 's'} damaged`}</div>
+      ${inst.improvisedClub ? `<div class="k">Carried</div><div class="v">${inst.improvisedClub.type === 'tree' ? 'Tree Club' : 'Girder Club'} · uses both arms</div>` : ''}
       ${inst.hasMoved ? `<div class="k">This Turn</div><div class="v">${titleCaseMode(inst.movementMode)} · ${inst.hexesMoved} hex${inst.hexesMoved===1?'':'es'}</div>` : ''}
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>
