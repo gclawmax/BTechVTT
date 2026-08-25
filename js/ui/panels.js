@@ -100,7 +100,7 @@ function roundOneAmmoControl(inst, bin) {
     <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;">Load type
       <select onchange="setRoundOneAmmoChoice('${key}',this.value)" style="font:10px var(--mono);padding:3px;">${choices.map(choice => `<option value="${choice}" ${selected === choice ? 'selected' : ''}>${labels[choice] || titleCase(choice)}</option>`).join('')}</select>
     </label>
-    <button onclick="submitRoundOneAmmoLoadout()" style="width:100%;margin-top:7px;padding:6px 8px;border:1px solid var(--amber);background:transparent;color:var(--amber);font:10px var(--display);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;">Confirm ammunition loadout</button>
+    <button onclick="submitRoundOneAmmoLoadout('${key}')" style="width:100%;margin-top:7px;padding:6px 8px;border:1px solid var(--amber);background:transparent;color:var(--amber);font:10px var(--display);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;">Confirm this ammunition bin</button>
   </div>`;
 }
 

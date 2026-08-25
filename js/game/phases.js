@@ -408,11 +408,12 @@ function setRoundOneAmmoChoice(key, loadType) {
   }
 }
 
-async function submitRoundOneAmmoLoadout() {
-  const entries = mechInstances.flatMap(mech => mech.owner === mySeatNumber
+async function submitRoundOneAmmoLoadout(binKey = null) {
+  const pendingEntries = mechInstances.flatMap(mech => mech.owner === mySeatNumber
     ? (mech.ammoBins || []).filter(bin => ammoSetupRequiredForBin(bin)).map(bin => [
       `${mech.instanceId}:${bin.id}`, roundOneAmmoChoices[`${mech.instanceId}:${bin.id}`] || specialAmmoLoadTypes(bin)[0]
     ]) : []);
+  const entries = binKey ? pendingEntries.filter(([key]) => key === binKey) : pendingEntries;
   if (!entries.length) return;
   if (vsAiMode) {
     entries.forEach(([key, loadType]) => {
@@ -435,7 +436,7 @@ async function submitRoundOneAmmoLoadout() {
     logEvent(`Could not save ammunition: ${error.message}`, 'error');
     return;
   }
-  logEvent('Round 1 ammunition loadout saved.', 'system');
+  logEvent('Round 1 ammunition bin saved.', 'system');
   await loadGameState();
 }
 
