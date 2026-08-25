@@ -423,6 +423,10 @@ check('#5 custom construction validates engine, weight, armour, ammunition and c
 check('#5 custom roster and Hangar entries remain owner-only', customDesignMigration.includes("custom_owner_id''=auth.uid()::text") && customDesignMigration.includes('custom_design_hangar_owner_v1'));
 const customDesignerSource = fs.readFileSync(`${ROOT}/js/game/mech-designer.js`, 'utf8');
 check('#5 MechLab exposes live construction reporting and server publication', customDesignerSource.includes('calculateCustomDesign') && customDesignerSource.includes("db.rpc('save_btech_custom_design'") && customDesignerSource.includes('Construction report'));
+const lobbySource = fs.readFileSync(`${ROOT}/js/network/lobby.js`, 'utf8');
+const mainCssSource = fs.readFileSync(`${ROOT}/css/main.css`, 'utf8');
+check('#5 Hangar catalogue groups variants beneath collapsible chassis', lobbySource.includes('expandedLobbyChassis') && lobbySource.includes('chassisGroups(entries)') && lobbySource.includes('roster-chassis-toggle'));
+check('#5 roster searches reveal matching chassis without losing saved expansion choices', lobbySource.includes('revealMatches') && lobbySource.includes('expandedLobbyChassis.has(chassis.dataset.chassisKey)') && mainCssSource.includes('.roster-chassis-variants[hidden] { display:none; }'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

@@ -427,6 +427,17 @@ html, body {
 .roster-weight-group { padding:10px 0; border-bottom:1px solid #e4e4df; }
 .roster-weight-group:last-child { border-bottom:0; }
 .roster-weight-heading { margin-bottom:6px; color:var(--amber); font:10px var(--display); letter-spacing:.1em; text-transform:uppercase; }
+.roster-chassis-list { display:grid; gap:7px; }
+.roster-chassis-group { overflow:hidden; border:1px solid var(--panel-line); border-radius:3px; background:#fff; }
+.roster-chassis-group.expanded { border-color:var(--amber); }
+.roster-chassis-toggle { width:100%; min-height:38px; display:grid; grid-template-columns:18px minmax(0,1fr) auto; align-items:center; gap:6px; padding:7px 9px; border:0; background:#f6f6f1; color:var(--phosphor); text-align:left; cursor:pointer; }
+.roster-chassis-toggle:hover { background:#fff5df; color:#8b5200; }
+.roster-chassis-toggle:focus-visible { outline:2px solid var(--amber); outline-offset:-2px; }
+.roster-chassis-chevron { color:var(--amber); font:700 22px/1 var(--mono); transition:transform .12s ease; }
+.roster-chassis-group.expanded .roster-chassis-chevron { transform:rotate(90deg); }
+.roster-chassis-count { color:var(--phosphor-dim); font:9px var(--mono); white-space:nowrap; }
+.roster-chassis-variants { padding:7px; border-top:1px solid var(--panel-line); }
+.roster-chassis-variants[hidden] { display:none; }
 .roster-empty { padding:18px 0; color:var(--phosphor-dim); font:11px var(--mono); text-align:center; }
 .roster-options { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
 .roster-option-wrap { position:relative; min-width:0; }

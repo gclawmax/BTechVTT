@@ -14,6 +14,7 @@ async function copyLobbyGameCode() {
 // These are view preferences only: they never change the shared match roster.
 const lobbyRosterFilters = { tech: 'both', weights: new Set(['light', 'medium', 'heavy', 'assault']), search: '', favouritesOnly: false };
 const favouriteUnitIds = new Set();
+const expandedLobbyChassis = new Set();
 let favouritesLoadedForUserId = null;
 let skirmishAvatarEnsureInFlight = false;
 let lobbyDeploymentIndex = 0;
@@ -74,6 +75,23 @@ function lobbyRosterSearchKey(value) {
   return String(value || '').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+function setLobbyChassisExpanded(group, expanded) {
+  if (!group) return;
+  group.classList.toggle('expanded', expanded);
+  const toggle = group.querySelector('.roster-chassis-toggle');
+  const variants = group.querySelector('.roster-chassis-variants');
+  if (toggle) toggle.setAttribute('aria-expanded', String(expanded));
+  if (variants) variants.hidden = !expanded;
+}
+
+function toggleLobbyChassis(chassisKey) {
+  const expanded = !expandedLobbyChassis.has(chassisKey);
+  if (expanded) expandedLobbyChassis.add(chassisKey); else expandedLobbyChassis.delete(chassisKey);
+  for (const group of document.querySelectorAll('.roster-chassis-group[data-chassis-key]')) {
+    if (group.dataset.chassisKey === chassisKey) setLobbyChassisExpanded(group, expanded);
+  }
+}
+
 function filterLobbyRosterSearch(value) {
   lobbyRosterFilters.search = String(value || '');
   const roster = document.getElementById('lobby-roster-builder');
@@ -86,8 +104,14 @@ function filterLobbyRosterSearch(value) {
     option.hidden = searchMismatch || favouriteMismatch;
     if (!option.hidden) visibleCount += 1;
   }
+  const revealMatches = Boolean(needle) || lobbyRosterFilters.favouritesOnly;
+  for (const chassis of roster.querySelectorAll('.roster-chassis-group[data-chassis-key]')) {
+    const hasVisibleVariant = Boolean(chassis.querySelector('.roster-option-wrap[data-search]:not([hidden])'));
+    chassis.hidden = !hasVisibleVariant;
+    setLobbyChassisExpanded(chassis, hasVisibleVariant && (revealMatches || expandedLobbyChassis.has(chassis.dataset.chassisKey)));
+  }
   for (const group of roster.querySelectorAll('.roster-weight-group')) {
-    group.hidden = !group.querySelector('.roster-option-wrap[data-search]:not([hidden])');
+    group.hidden = !group.querySelector('.roster-chassis-group:not([hidden])');
   }
   const empty = document.getElementById('lobby-roster-search-empty');
   if (empty) empty.hidden = visibleCount > 0;
@@ -515,6 +539,21 @@ function renderLobbyMatchSetup(gameState, players) {
     const favouriteTitle = favourite ? 'Remove this exact variant from favourites' : 'Add this exact variant to favourites';
     return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''}><span class="roster-option-name">${escapeHtml(unit.chassis)} ${escapeHtml(unit.variant)}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span></button></div>`;
   };
+  const chassisGroups = entries => {
+    const groups = new Map();
+    for (const entry of entries) {
+      const chassisName = String(entry[1].chassis || 'Unknown chassis');
+      const chassisKey = lobbyRosterSearchKey(chassisName);
+      if (!groups.has(chassisKey)) groups.set(chassisKey, { chassisKey, chassisName, entries: [] });
+      groups.get(chassisKey).entries.push(entry);
+    }
+    return [...groups.values()].sort((a, b) => a.chassisName.localeCompare(b.chassisName));
+  };
+  const chassisGroup = group => {
+    const expanded = expandedLobbyChassis.has(group.chassisKey);
+    const variantLabel = `${group.entries.length} variant${group.entries.length === 1 ? '' : 's'}`;
+    return `<section class="roster-chassis-group ${expanded ? 'expanded' : ''}" data-chassis-key="${group.chassisKey}"><button class="roster-chassis-toggle" type="button" aria-expanded="${expanded}" onclick="toggleLobbyChassis('${group.chassisKey}')"><span class="roster-chassis-chevron" aria-hidden="true">›</span><strong>${escapeHtml(group.chassisName)}</strong><span class="roster-chassis-count">${variantLabel}</span></button><div class="roster-chassis-variants roster-options" ${expanded ? '' : 'hidden'}>${group.entries.map(card).join('')}</div></section>`;
+  };
   const hangarCards = hangar.map(entry => {
     const unit = getSupportedUnit(entry.unit_id);
     const isDeployed = deployed.includes(entry.id);
@@ -535,7 +574,7 @@ function renderLobbyMatchSetup(gameState, players) {
     <div class="roster-filter-bar"><span>Quick find</span><button class="roster-filter ${lobbyRosterFilters.favouritesOnly ? 'active' : ''}" onclick="toggleLobbyFavouritesFilter()">★ Favourites</button></div>
     <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
     <div class="roster-filter-bar"><span>Weight</span>${weightButton('light', 'Light')}${weightButton('medium', 'Medium')}${weightButton('heavy', 'Heavy')}${weightButton('assault', 'Assault')}</div>
-    <div class="roster-scroll">${visibleByWeight.map(([weight, entries]) => entries.length ? `<section class="roster-weight-group"><div class="roster-weight-heading">${weight} ${weight === 'assault' ? '— 80–100 tons' : weight === 'heavy' ? '— 60–75 tons' : weight === 'medium' ? '— 40–55 tons' : '— 20–35 tons'}</div><div class="roster-options">${entries.map(card).join('')}</div></section>` : '').join('')}<div id="lobby-roster-search-empty" class="roster-empty" hidden>No supported BattleMechs match the search and filters.</div></div>`;
+    <div class="roster-scroll">${visibleByWeight.map(([weight, entries]) => entries.length ? `<section class="roster-weight-group"><div class="roster-weight-heading">${weight} ${weight === 'assault' ? '— 80–100 tons' : weight === 'heavy' ? '— 60–75 tons' : weight === 'medium' ? '— 40–55 tons' : '— 20–35 tons'}</div><div class="roster-chassis-list">${chassisGroups(entries).map(chassisGroup).join('')}</div></section>` : '').join('')}<div id="lobby-roster-search-empty" class="roster-empty" hidden>No supported BattleMechs match the search and filters.</div></div>`;
   filterLobbyRosterSearch(lobbyRosterFilters.search);
 }
 
