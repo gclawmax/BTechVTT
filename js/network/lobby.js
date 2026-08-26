@@ -331,6 +331,7 @@ async function loadLobbyUI() {
   }
 
   renderLobbyMatchSetup(gameState, players || []);
+  renderLobbyC3Networks(gameState);
   renderLobbyDeployment(gameState);
 
   // Render spectators
@@ -598,6 +599,50 @@ function renderLobbyMatchSetup(gameState, players) {
   filterLobbyRosterSearch(lobbyRosterFilters.search);
 }
 
+function lobbyC3Role(unitId) {
+  const labels = Object.values(BT_CRITICAL_LAYOUTS[unitId] || {}).flat().map(label => String(label || '').toLowerCase().replace(/(?:\s*\([^)]*\))+$/, '').replace(/^(is|clan|cl)/, '').replace(/[^a-z0-9]/g, ''));
+  if (labels.some(label => ['c3icomputer','improvedc3computer'].includes(label))) return 'c3i';
+  if (labels.some(label => ['c3mastercomputer','c3master'].includes(label))) return 'master';
+  if (labels.some(label => ['c3slavecomputer','c3slave'].includes(label))) return 'slave';
+  return null;
+}
+
+function renderLobbyC3Networks(gameState) {
+  const section = document.getElementById('lobby-c3-section');
+  const target = document.getElementById('lobby-c3-builder');
+  if (!section || !target) return;
+  const roster = gameState.rosters?.[String(mySeatNumber)] || [];
+  const equipped = roster.map((unitId,index) => ({ unitId,index,role:lobbyC3Role(unitId),unit:getSupportedUnit(unitId) })).filter(item => item.role);
+  if (vsAiMode || !equipped.length) { section.hidden=true;target.innerHTML='';return; }
+  section.hidden=false;
+  const assignments = gameState.c3_assignments?.[String(mySeatNumber)] || {};
+  const networkOptions = selected => ['', 'A','B','C','D'].map(value => `<option value="${value}" ${value===selected?'selected':''}>${value || 'Offline / unassigned'}</option>`).join('');
+  const rows = equipped.map(item => {
+    const savedAssignment = assignments[String(item.index)] || {};
+    const assignment = savedAssignment.unitId === item.unitId ? savedAssignment : {};
+    const masterOptions = [{index:'',label:'Root / no parent'},...equipped.filter(candidate => candidate.role==='master' && candidate.index!==item.index).map(candidate => ({index:String(candidate.index),label:`${candidate.unit?.chassis || candidate.unitId} ${candidate.unit?.variant || ''}`}))];
+    const parent = assignment.parent == null ? '' : String(assignment.parent);
+    const parentSelect = item.role === 'c3i' ? '<span class="c3-peer-note">Peer network — no master</span>' : `<label>Parent master<select id="c3-parent-${item.index}">${customOptions(masterOptions.map(option=>[option.index,option.label]),parent)}</select></label>`;
+    return `<div class="c3-assignment-row" data-c3-index="${item.index}" data-unit-id="${escapeHtml(item.unitId)}"><div><strong>${escapeHtml(item.unit ? `${item.unit.chassis} ${item.unit.variant}` : item.unitId)}</strong><span>${item.role==='c3i'?'C3i peer':item.role==='master'?'C3 Master':'C3 Slave'}</span></div><label>Network<select id="c3-network-${item.index}">${networkOptions(assignment.network || '')}</select></label>${parentSelect}</div>`;
+  }).join('');
+  target.innerHTML = `<p class="deployment-help">Declare networks before play. Standard C3 uses one root Master with up to three Master or Slave children per controller; C3i uses peer networks of up to six units. Leave equipment offline if it should not be linked.</p><div class="c3-assignment-list">${rows}</div><div class="deployment-unit-row"><button onclick="saveLobbyC3Assignments()">Save Network Assignment</button></div><div id="lobby-c3-status" class="deployment-help"></div>`;
+}
+
+async function saveLobbyC3Assignments() {
+  const assignments = {};
+  for (const row of document.querySelectorAll('.c3-assignment-row[data-c3-index]')) {
+    const index = Number(row.dataset.c3Index), network = document.getElementById(`c3-network-${index}`)?.value || '';
+    const parentValue = document.getElementById(`c3-parent-${index}`)?.value;
+    assignments[String(index)] = { unitId:row.dataset.unitId,network,parent:network && parentValue !== undefined && parentValue !== '' ? Number(parentValue) : null };
+  }
+  const status = document.getElementById('lobby-c3-status');
+  if (status) status.textContent='Saving network…';
+  const { error } = await db.rpc('set_match_c3_assignments',{p_game_id:currentGameId,p_assignments:assignments});
+  if (error) { if(status) status.textContent=`Network rejected: ${error.message}`;return; }
+  isReady=false;
+  await loadLobbyUI();
+}
+
 function deploymentZoneContains(seat, col, row, gameState = null) {
   if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) return false;
   const customZone = gameState?.deployment_zones?.[String(seat)];
@@ -796,7 +841,7 @@ async function handleStartGame() {
       document.getElementById('lobby-status').textContent = 'Each player needs a legal roster within the dropship limit.';
       return;
     }
-    gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars, gameState.deployment_positions);
+    gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars, gameState.deployment_positions, gameState.c3_assignments);
   }
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
@@ -816,7 +861,7 @@ async function handleStartGame() {
   startGameScreen();
 }
 
-function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions = {}) {
+function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions = {}, c3Assignments = {}) {
   const deployment = {
     1: [
       { col: 4, row: 4, facing: 0 }, { col: 3, row: 5, facing: 0 },
@@ -835,8 +880,17 @@ function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions
     const avatar = skirmishAvatars?.[String(seat)] || {};
     const deployedEntries = (avatar.deployed || []).map(entryId => (avatar.hangar || []).find(entry => entry.id === entryId)).filter(Boolean);
     const pilot = skirmishPilotForEntry(deployedEntries[index] || (avatar.hangar || []).find(entry => entry.unit_id === unitId));
+    const instanceId = `${unitId}-p${seat}-${index + 1}`;
+    const savedAssignment = c3Assignments?.[String(seat)]?.[String(index)] || {};
+    const assignment = savedAssignment.unitId === unitId ? savedAssignment : {};
+    const parentIndex = assignment.parent == null ? null : Number(assignment.parent);
+    const role = lobbyC3Role(unitId);
+    const c3Network = assignment.network && role ? {
+      id:`p${seat}-${assignment.network}`,type:role==='c3i'?'c3i':'standard',role,
+      parentInstanceId:parentIndex == null ? null : `${rosters[String(seat)][parentIndex]}-p${seat}-${parentIndex + 1}`
+    } : null;
     return {
-      instanceId: `${unitId}-p${seat}-${index + 1}`,
+      instanceId,
       unitId, owner: seat, col: position.col, row: position.row,
       facing: position.facing, torsoFacing: position.facing,
       // The server is authoritative for damage and movement. Save the full
@@ -849,6 +903,7 @@ function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions
       pilot: { ...pilot, hits: 0, consciousness: 'conscious' },
       pilotingSkill: pilot.piloting,
       criticalSlotDamage: {}, weaponJams: [],
+      ...(c3Network ? { c3Network } : {}),
       ...(activeCatalogueVersion ? { catalogueVersion: activeCatalogueVersion } : {})
     };
   }));

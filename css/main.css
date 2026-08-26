@@ -1163,6 +1163,13 @@ body.resizing-side-panel, body.resizing-side-panel * {
 
 .lobby-code-row { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:12px; }
 .lobby-code-row .lobby-code { margin-bottom:0; }
+.c3-assignment-list { display:flex; flex-direction:column; gap:7px; }
+.c3-assignment-row { display:grid; grid-template-columns:minmax(190px,1.5fr) minmax(150px,1fr) minmax(180px,1fr); gap:9px; align-items:end; padding:9px; border:1px solid var(--panel-line); background:#f7f7f4; }
+.c3-assignment-row > div { display:flex; flex-direction:column; gap:3px; }
+.c3-assignment-row span,.c3-assignment-row label { color:var(--phosphor-dim); font:9px var(--mono); text-transform:uppercase; letter-spacing:.04em; }
+.c3-assignment-row select { width:100%; margin-top:3px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); padding:7px; font:11px var(--mono); }
+.c3-peer-note { align-self:center; padding:7px; }
+@media (max-width:760px) { .c3-assignment-row { grid-template-columns:1fr; } }
 
 .roster-swatch {
   width: 10px;

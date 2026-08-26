@@ -215,18 +215,33 @@ function targetGuidanceEcm(attacker, target) {
 function c3NetworkSupport(attacker, target) {
   const physicalDistance = axialDistance(attacker.col, attacker.row, target.col, target.row);
   const role = c3EquipmentRole(attacker);
-  if (!role || ecmInterferesLine(attacker.owner, attacker)) return { distance: physicalDistance, source: null, jammed: Boolean(role) };
-  const family = role === 'c3i' ? 'c3i' : 'standard';
+  const network = attacker.c3Network;
+  if (!role || !network?.id || network.role !== role || ecmInterferesLine(attacker.owner, attacker)) return { distance: physicalDistance, source: null, jammed: Boolean(role && network?.id) };
+  const family = network.type;
   const eligible = mechInstances.filter(candidate => {
-    if (candidate.owner !== attacker.owner || candidate.destroyed) return false;
+    if (candidate.owner !== attacker.owner || candidate.destroyed || candidate.c3Network?.id !== network.id || candidate.c3Network?.type !== family) return false;
     const candidateRole = c3EquipmentRole(candidate);
     if (!candidateRole || (family === 'c3i') !== (candidateRole === 'c3i')) return false;
     return !ecmInterferesLine(attacker.owner, candidate) && weaponLineOfSight(candidate, target).valid;
   });
   if (family === 'standard') {
-    const master = eligible.find(candidate => c3EquipmentRole(candidate) === 'master');
-    if (!master || ecmInterferesLine(attacker.owner, attacker, master)) return { distance: physicalDistance, source: null, jammed: false };
-    const linked = eligible.filter(candidate => !ecmInterferesLine(attacker.owner, candidate, master)).slice(0, 12);
+    const pathToRoot = member => {
+      const path = [], seen = new Set();
+      let current = member;
+      while (current && !seen.has(current.instanceId) && path.length <= 12) {
+        seen.add(current.instanceId);path.push(current);
+        const parentId = current.c3Network?.parentInstanceId;
+        if (!parentId) return c3EquipmentRole(current) === 'master' ? path : null;
+        const parent = mechInstances.find(mech => mech.instanceId === parentId && mech.c3Network?.id === network.id);
+        if (!parent || c3EquipmentRole(parent) !== 'master' || ecmInterferesLine(attacker.owner,current,parent)) return null;
+        current=parent;
+      }
+      return null;
+    };
+    const attackerPath = pathToRoot(attacker);
+    if (!attackerPath) return { distance: physicalDistance, source: null, jammed: false };
+    const rootId = attackerPath.at(-1).instanceId;
+    const linked = eligible.filter(candidate => pathToRoot(candidate)?.at(-1)?.instanceId === rootId).slice(0,12);
     const source = linked.reduce((best, candidate) => !best || axialDistance(candidate.col, candidate.row, target.col, target.row) < axialDistance(best.col, best.row, target.col, target.row) ? candidate : best, null);
     return { distance: source ? Math.min(physicalDistance, axialDistance(source.col, source.row, target.col, target.row)) : physicalDistance, source, jammed: false };
   }
@@ -238,7 +253,7 @@ function c3NetworkSupport(attacker, target) {
 function targetingComputerEligibleWeapon(attacker, weaponEntry) {
   const weapon = weaponProfile(weaponEntry);
   if (!hasOperationalTargetingComputer(attacker) || !weapon || weapon.supportOnly || weapon.missileWeapon) return false;
-  return !['tag', 'narc', 'ams'].includes(weaponEntry.key);
+  return !['tag', 'c3_master_tag', 'narc', 'ams'].includes(weaponEntry.key);
 }
 
 function targetingComputerCanAim(attacker, weaponEntry, mountId) {
