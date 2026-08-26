@@ -413,7 +413,10 @@ async function executeAIAttack(action) {
   }
   await syncMechInstances();
   await checkForMatchEnd();
-  logEvent(`${message}${action._debug ? ` [${action._debug}]` : ''}`, 'attack');
+  await queueLocalWeaponPresentation(attacker, [{
+    msg: `${message}${action._debug ? ` [${action._debug}]` : ''}`,
+    soundFamily: weaponSoundFamily({ weapon: attack.weapon.name })
+  }]);
 
   // Update UI
   draw();

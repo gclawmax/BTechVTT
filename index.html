@@ -9,11 +9,28 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260826-dropship-hover-24">
+  <link rel="stylesheet" href="css/main.css?v=20260826-combat-presentation-25">
 </head>
-<body data-build="20260826-dropship-hover-24">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260826-dropship-hover-24</div>
+<body data-build="20260826-combat-presentation-25">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260826-combat-presentation-25</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
+<div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
+  <section class="game-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
+    <header><div><span class="eyebrow">Local preferences</span><h2 id="game-settings-title">Game Settings</h2></div><button class="settings-close" onclick="closeGameSettings()" title="Close game settings" aria-label="Close game settings">×</button></header>
+    <label for="combat-log-speed">Combat Log Speed</label>
+    <select id="combat-log-speed" onchange="setCombatLogSpeed(this.value)" title="Choose how quickly one BattleMech's weapon results follow the previous BattleMech.">
+      <option value="instant">Instant — show the whole phase</option>
+      <option value="fast">Fast — short pauses</option>
+      <option value="standard">Standard — readable pacing</option>
+      <option value="cinematic">Cinematic — longer pauses</option>
+    </select>
+    <p>Combat is already resolved safely on the server. This controls only how quickly this browser narrates each BattleMech's shooting.</p>
+    <div class="settings-sound-heading"><label for="sound-effects-volume">Sound Effects</label><output id="sound-effects-volume-label" for="sound-effects-volume">55%</output></div>
+    <input id="sound-effects-volume" type="range" min="0" max="100" step="1" value="55" oninput="setSoundEffectsVolume(this.value)" title="Set weapon sound-effect volume">
+    <button id="sound-effects-mute" class="settings-mute" onclick="toggleSoundEffectsMuted()" aria-pressed="false" title="Mute or restore weapon sound effects">Sound Effects On</button>
+    <p class="settings-local-note">These settings are stored only in this browser and do not affect the other player.</p>
+  </section>
+</div>
 
 <!-- ── LOADING OVERLAY ──────────────────────────────────── -->
 <div id="loading-overlay" class="hidden">Loading…</div>
@@ -202,6 +219,7 @@
     <div class="title">BT-VTT <small>Phase 1 — Hex Grid</small></div>
     <button class="btn-back" onclick="handleBackToDropship()">Back to Dropship</button>
     <a class="header-help-link" href="how-to-play.html" target="_blank" rel="noopener">How to Play</a>
+    <button id="btn-game-settings" class="game-settings-cog" onclick="openGameSettings()" title="Open local game settings for combat-log speed and sound effects" aria-label="Open game settings">⚙</button>
     <button id="btn-roll-initiative" class="primary" onclick="rollInitiative()" style="background:#2a4a2a;border-color:#3a6a3a;color:#7c9;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Roll Initiative (2D6)</button>
     <button id="btn-advance-phase" onclick="advancePhase()" disabled title="Roll Initiative before continuing to the Movement Phase." style="background:#2a2a4a;border:1px solid #3a3a6a;color:#99c;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:not-allowed;opacity:0.45;border-radius:2px;">Next Phase</button>
     <label id="auto-ai-phase-control" hidden title="Automatically pass the turn or phase after the AI has completed its choices." style="display:inline-flex;align-items:center;gap:5px;color:#9ab;font:10px var(--mono);cursor:pointer;white-space:nowrap;"><input id="auto-ai-phase-checkbox" type="checkbox" onchange="setAutoAdvanceAfterAi(this.checked)"> Auto-next after AI</label>
@@ -211,7 +229,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260826-dropship-hover-24</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260826-combat-presentation-25</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -240,7 +258,8 @@
 <script src="js/network/supabase.js?v=20260825-build-stamp-01"></script>
 <script src="js/core/state.js?v=20260816-persistent-match-log-01"></script>
 <script src="js/ai/state.js?v=20260813-reaction-ui-01"></script>
-<script src="js/core/game-log.js?v=20260820-weapon-profiles-01"></script>
+<script src="js/core/game-log.js?v=20260826-combat-presentation-25"></script>
+<script src="js/ui/game-settings.js?v=20260826-combat-presentation-25"></script>
 <script src="js/core/screen.js?v=20260813-reaction-ui-01"></script>
 <script src="js/core/auth.js?v=20260813-reaction-ui-01"></script>
 <script src="js/core/helpers.js?v=20260824-legacy-catalogue-repair-01"></script>
@@ -256,7 +275,7 @@
 <script src="js/game/career-avatar.js?v=20260826-dropship-navigation-22"></script>
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
-<script src="js/network/lobby.js?v=20260826-scenario-editor-18"></script>
+<script src="js/network/lobby.js?v=20260826-combat-presentation-25"></script>
 <script src="js/game/phases.js?v=20260826-auto-physical-pass-20"></script>
 <script src="js/game/board.js?v=20260825-terrain-complete-16"></script>
 <script src="js/game/unit-artwork.js?v=20260820-01"></script>
@@ -266,10 +285,10 @@
 <script src="js/ui/panel-resize.js?v=20260813-resizable-panel-01"></script>
 <script src="js/movement/movement.js?v=20260825-terrain-complete-16"></script>
 <script src="js/game/reaction.js?v=20260817-authoritative-reaction-01"></script>
-<script src="js/game/weapon-attack.js?v=20260826-shutdown-target-19"></script>
+<script src="js/game/weapon-attack.js?v=20260826-combat-presentation-25"></script>
 <script src="js/game/physical-attack.js?v=20260826-auto-physical-pass-20"></script>
 <script src="js/game/heat.js?v=20260825-heat-flow-15"></script>
 <script src="js/app.js?v=20260813-reaction-ui-01"></script>
-<script src="js/ai/opponent.js?v=20260826-ai-attack-ev-21"></script>
+<script src="js/ai/opponent.js?v=20260826-combat-presentation-25"></script>
 </body>
 </html>

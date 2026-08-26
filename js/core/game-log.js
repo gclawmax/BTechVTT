@@ -30,7 +30,7 @@ function _logTimeLabel() {
 // Push an entry into the on-screen log immediately, then (fire-and-forget)
 // persist it into the shared game state so other players/browsers see it too.
 // category: 'system' | 'phase' | 'roll' | 'move' | 'attack' | 'error' | 'info'
-function logEvent(message, category, team = null) {
+function logEvent(message, category, team = null, metadata = null) {
   category = category || 'info';
   const entry = {
     id: `${LOG_CLIENT_ID}-${++_logSeq}`,
@@ -40,7 +40,8 @@ function logEvent(message, category, team = null) {
     phase: currentGameState ? currentGameState.phase : null,
     cat: category,
     msg: message,
-    ...(team === 1 || team === 2 ? { team } : {})
+    ...(team === 1 || team === 2 ? { team } : {}),
+    ...(metadata?.kind ? { kind: metadata.kind } : {})
   };
   gameLog.push(entry);
   if (gameLog.length > GAME_LOG_MAX) gameLog = gameLog.slice(-GAME_LOG_MAX);
@@ -48,7 +49,7 @@ function logEvent(message, category, team = null) {
 
   // A brief, local acknowledgement makes successful actions feel responsive
   // without duplicating the durable, shared game log.
-  if (['move', 'attack'].includes(category)) showGameToast(message);
+  if (['move', 'attack'].includes(category) && entry.kind !== 'weapon-header') showGameToast(message);
 
   // Debug console mirror — same info, easier to grep/copy when troubleshooting.
   const tag = `[BT-LOG][R${entry.round ?? '?'}/${entry.phase ?? '?'}][${category}]`;
@@ -94,7 +95,7 @@ function renderGameLog() {
   const wasNearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 12;
   const visibleEntries = gameLog.filter(e => gameLogFilter === 'all' || e.cat === gameLogFilter);
   el.innerHTML = visibleEntries.map(e =>
-    `<div class="log-entry cat-${e.cat} ${logTeamClass(e)}"><span class="log-tag">[${e.time}] R${e.round ?? '?'}/${(e.phase || '?').slice(0,4)}</span><span class="log-message">${escapeLogHtml(e.msg)}</span></div>`
+    `<div class="log-entry cat-${e.cat} ${logTeamClass(e)}${e.kind === 'weapon-header' ? ' combat-mech-header' : ''}"><span class="log-tag">[${e.time}] R${e.round ?? '?'}/${(e.phase || '?').slice(0,4)}</span><span class="log-message">${escapeLogHtml(e.msg)}</span></div>`
   ).join('') || '<div class="log-entry cat-system">No matching log entries.</div>';
   // Autoscroll to the newest entry unless the user has scrolled up to read history.
   if (wasNearBottom || gameLog.length <= 1) el.scrollTop = el.scrollHeight;

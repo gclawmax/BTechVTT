@@ -859,6 +859,7 @@ async function startGameScreen() {
 
   showScreen('game-screen');
   gameLog = [];
+  resetCombatPresentation();
   renderGameLog();
   initGame();
   // Finish the initial snapshot before listening for changes. Otherwise a

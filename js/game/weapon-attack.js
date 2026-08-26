@@ -687,7 +687,8 @@ async function loadWeaponCombatEvents() {
     .eq('game_id', currentGameId).eq('phase', 'weapon_attack')
     .order('round', { ascending: true }).order('sequence', { ascending: true }).limit(GAME_LOG_MAX);
   if (error) { console.warn('[BT-LOG] failed to load weapon combat events:', error); return; }
-  const entries = [];
+  const immediateEntries = [];
+  const animatedGroups = [];
   for (const event of data || []) {
     const attacker = mechInstances.find(mech => mech.instanceId === event.attacker_instance_id);
     const target = mechInstances.find(mech => mech.instanceId === event.target_instance_id);
@@ -699,7 +700,7 @@ async function loadWeaponCombatEvents() {
       const allocationTarget = mechInstances.find(mech => mech.instanceId === allocation.target_instance_id);
       return `${weaponDeclarationSummary(attacker, allocation.weapon_mounts, allocation.ammo_bins?.__fire_modes)} at ${mechLabel(allocationTarget)}${allocation.primary ? ' (primary)' : ''}`;
     }).join('; ');
-    entries.push({
+    immediateEntries.push({
       id: `combat-declaration-${event.id}`, ts: declaredAt + event.sequence,
       time: new Date(declaredAt).toTimeString().slice(0, 8), round: event.round,
       phase: event.phase, cat: 'attack', team: attacker.owner,
@@ -711,18 +712,33 @@ async function loadWeaponCombatEvents() {
     const resolvedAt = Date.parse(event.resolved_at || '') || Date.now();
     const results = event.resolution?.results || [];
     if (!results.length) continue;
-    results.forEach((result, index) => entries.push({
+    const resultEntries = results.map((result, index) => ({
       id: `combat-${event.id}-${index}`, ts: resolvedAt + event.sequence * 100 + index,
-      time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round,
-      phase: event.phase, cat: 'attack', team: attacker.owner, msg: authoritativeWeaponResultMessage(attacker, mechInstances.find(mech => mech.instanceId === result.target_instance_id) || target, result)
+      time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round, phase: event.phase,
+      cat: 'attack', team: attacker.owner, soundFamily: weaponSoundFamily(result),
+      msg: authoritativeWeaponResultMessage(attacker, mechInstances.find(mech => mech.instanceId === result.target_instance_id) || target, result)
     }));
-    (event.resolution?.piloting_checks || []).forEach((check, index) => entries.push({
+    const pilotingEntries = (event.resolution?.piloting_checks || []).map((check, index) => ({
       id: `weapon-psr-${event.id}-${index}`, ts: resolvedAt + event.sequence * 100 + results.length + index + 1,
       time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round,
       phase: event.phase, cat: 'roll', msg: authoritativePilotingResultMessage(check)
     }));
+    const group = {
+      header: {
+        id: `combat-${event.id}-header`, ts: resolvedAt + event.sequence * 100 - 1,
+        time: new Date(resolvedAt).toTimeString().slice(0, 8), round: event.round,
+        phase: event.phase, cat: 'attack', team: attacker.owner, kind: 'weapon-header',
+        msg: `${mechLabel(attacker)} — WEAPON FIRE`
+      },
+      entries: [...resultEntries, ...pilotingEntries]
+    };
+    const presentation = registerResolvedWeaponEvent(event.id);
+    if (presentation === 'hydrate') immediateEntries.push(group.header, ...group.entries);
+    else if (presentation === 'animate') animatedGroups.push(group);
   }
-  mergeRemoteLog(entries);
+  mergeRemoteLog(immediateEntries);
+  markWeaponCombatPresentationHydrated();
+  animatedGroups.forEach(queueAuthoritativeWeaponPresentation);
 }
 
 async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons) {
@@ -801,11 +817,12 @@ async function confirmWeaponAttack() {
   }
 
   const messages = [];
+  const recordWeaponMessage = (msg, weapon = null) => messages.push({ msg, soundFamily: weapon ? weaponSoundFamily({ weapon }) : null });
   let addedHeat = 0;
   for (const weaponEntry of selectedWeapons) {
     const attack = evaluateWeaponAttack(attacker, target, weaponEntry);
     if (!attack.valid) {
-      messages.push(`${mechLabel(attacker)} could not fire ${weaponEntry.key}: ${attack.reason}`);
+      recordWeaponMessage(`${mechLabel(attacker)} could not fire ${weaponEntry.key}: ${attack.reason}`);
       continue;
     }
     const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
@@ -818,7 +835,7 @@ async function confirmWeaponAttack() {
       const hit = !jammed && (attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber));
       const shotLabel = shots > 1 ? ` #${shot}` : '';
       if (!hit) {
-        messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${rapid ? ' (rapid fire)' : ''}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.${jammed ? ' Ultra AC jammed.' : ''}`);
+        recordWeaponMessage(`${mechLabel(attacker)} fired ${attack.weapon.name}${rapid ? ' (rapid fire)' : ''}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.${jammed ? ' Ultra AC jammed.' : ''}`, attack.weapon.name);
         if (jammed) {
           attacker.weaponJams = [...new Set([...(attacker.weaponJams || []), mountId])];
           break;
@@ -833,7 +850,7 @@ async function confirmWeaponAttack() {
           const damage = applyWeaponDamage(target, 1, attack.attackAngle);
           groups.push(hitLocationLabel(damage.location));
         }
-        messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name} (cluster ammunition)${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: hit. Cluster roll ${format2d6(clusterRoll)}: ${pellets} pellet${pellets === 1 ? '' : 's'} hit${groups.length ? ` (${groups.join(', ')}).` : '.'}`);
+        recordWeaponMessage(`${mechLabel(attacker)} fired ${attack.weapon.name} (cluster ammunition)${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: hit. Cluster roll ${format2d6(clusterRoll)}: ${pellets} pellet${pellets === 1 ? '' : 's'} hit${groups.length ? ` (${groups.join(', ')}).` : '.'}`, attack.weapon.name);
         continue;
       }
       const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
@@ -842,7 +859,7 @@ async function confirmWeaponAttack() {
         target.externalHeat = (target.externalHeat || 0) + flamerHeat;
         target.heat = (target.heat || 0) + flamerHeat;
       }
-      messages.push(`${mechLabel(attacker)} fired ${attack.weapon.name}${rapid ? ' (rapid fire)' : ''}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.criticalEvents.length ? ` ${damage.criticalEvents.join(' ')}` : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`);
+      recordWeaponMessage(`${mechLabel(attacker)} fired ${attack.weapon.name}${rapid ? ' (rapid fire)' : ''}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.criticalEvents.length ? ` ${damage.criticalEvents.join(' ')}` : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`, attack.weapon.name);
     }
   }
 
@@ -861,7 +878,7 @@ async function confirmWeaponAttack() {
   logEvent(`${mechLabel(attacker)} weapon attack submitted — saving outcome.`, 'attack', attacker.owner);
   await syncMechInstances();
   await checkForMatchEnd();
-  if (messages.length) messages.forEach(message => logEvent(message, 'attack', attacker.owner));
+  if (messages.length) queueLocalWeaponPresentation(attacker, messages);
   else logEvent(`${mechLabel(attacker)} declared no weapon attacks.`, 'attack', attacker.owner);
 }
 

@@ -868,6 +868,26 @@ html, body {
 
 #header .turn-guidance.is-my-turn { color: var(--paper); }
 
+.game-settings-cog { flex:0 0 auto; width:31px; height:31px; padding:0; border:1px solid #8d8d86; border-radius:3px; background:#f7f7f4; color:#32322e; font:18px/29px sans-serif; cursor:pointer; }
+.game-settings-cog:hover,.game-settings-cog:focus-visible { border-color:var(--amber); background:#fff7e8; color:var(--amber); outline:none; }
+
+.game-settings-overlay { position:fixed; inset:0; z-index:6500; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(5,8,11,.68); backdrop-filter:blur(4px); }
+.game-settings-overlay[hidden] { display:none; }
+.game-settings-dialog { width:min(440px,100%); border:1px solid #8b8b84; border-top:3px solid var(--amber); border-radius:4px; background:#fff; color:var(--paper); box-shadow:0 18px 60px rgba(0,0,0,.42); padding:22px; }
+.game-settings-dialog header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:20px; }
+.game-settings-dialog h2 { margin:3px 0 0; font:22px var(--display); letter-spacing:.1em; text-transform:uppercase; }
+.game-settings-dialog .settings-close { width:31px; height:31px; padding:0; border:1px solid var(--panel-line); background:transparent; color:var(--paper); font:21px/27px sans-serif; cursor:pointer; }
+.game-settings-dialog .settings-close:hover,.game-settings-dialog .settings-close:focus-visible { border-color:var(--alert); color:var(--alert); outline:none; }
+.game-settings-dialog > label,.settings-sound-heading label { display:block; color:var(--phosphor-dim); font:10px var(--mono); letter-spacing:.1em; text-transform:uppercase; }
+.game-settings-dialog select { width:100%; margin-top:7px; padding:10px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); font:11px var(--mono); }
+.game-settings-dialog p { margin:8px 0 20px; color:var(--phosphor-dim); font:10px/1.5 var(--mono); }
+.settings-sound-heading { display:flex; align-items:center; justify-content:space-between; margin-top:4px; }
+.settings-sound-heading output { color:var(--amber); font:11px var(--mono); }
+.game-settings-dialog input[type="range"] { width:100%; margin:11px 0; accent-color:var(--amber); cursor:pointer; }
+.settings-mute { width:100%; padding:9px 12px; border:1px solid #38754b; background:#edf8f0; color:#1f6033; font:11px var(--display); letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
+.settings-mute.muted { border-color:#9c4148; background:#fff0f1; color:#8b252d; }
+.game-settings-dialog .settings-local-note { margin:18px 0 0; padding-top:12px; border-top:1px solid var(--panel-line); }
+
 #header .status.is-my-turn.team-p1 { --turn-colour: #a32832; background: #fff0f1; }
 #header .status.is-my-turn.team-p2 { --turn-colour: #1f629f; background: #eef6ff; }
 
@@ -1110,6 +1130,8 @@ body.resizing-side-panel, body.resizing-side-panel * {
 .log-entry.cat-system { color: var(--phosphor-dim); font-style: italic; }
 .log-entry.cat-error { color: var(--alert); font-weight: 700; }
 .log-entry.cat-info { color: var(--phosphor); }
+.log-entry.combat-mech-header { margin-top:7px; padding:5px 7px; border-top:1px solid var(--team-colour); border-bottom:1px solid color-mix(in srgb,var(--team-colour) 35%,transparent); background:color-mix(in srgb,var(--team-colour) 8%,#fff); font-family:var(--display); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.log-entry.combat-mech-header .log-tag { display:none; }
 
 .roster-item {
   display: flex;
