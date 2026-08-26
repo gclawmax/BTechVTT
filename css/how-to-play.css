@@ -1,4 +1,5 @@
-.guide-page { height:auto; min-height:100%; overflow:auto; background:var(--void); line-height:1.65; }
+html.guide-document { height:auto; min-height:100%; overflow-x:hidden; overflow-y:scroll; scrollbar-gutter:stable; }
+html.guide-document body.guide-page { height:auto; min-height:100vh; overflow:visible; background:var(--void); line-height:1.65; }
 .guide-header { position:sticky; top:0; z-index:5; display:flex; justify-content:space-between; align-items:center; min-height:60px; padding:0 5vw; border-bottom:1px solid var(--panel-line); background:rgba(255,255,255,.96); backdrop-filter:blur(8px); }
 .guide-brand { color:var(--paper); font:600 22px var(--display); letter-spacing:.12em; text-decoration:none; text-transform:uppercase; }
 .guide-brand span { margin-left:10px; color:var(--phosphor-dim); font:10px var(--mono); letter-spacing:.05em; text-transform:none; }

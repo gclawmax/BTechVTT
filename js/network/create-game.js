@@ -30,12 +30,25 @@ function renderCreateMapPreview() {
       const type = terrain[key] || 'clear';
       if (type !== 'clear') counts[type] = (counts[type] || 0) + 1;
       const level = elevation[key] || 0;
-      cells.push(`<span class="map-preview-hex ${type}${level ? ' elevated' : ''}" title="${key}: ${type.replace('_', ' ')}${level ? ` · level ${level}` : ''}"></span>`);
+      const description = `${key}: ${type.replaceAll('_', ' ')}${level ? ` · level ${level}` : ''}`;
+      cells.push(`<polygon class="map-preview-hex ${type}${level ? ' elevated' : ''}" points="${mapPreviewHexPoints(col, row)}"><title>${description}</title></polygon>`);
     }
   }
   const legend = Object.entries(counts).map(([type, count]) => `${count} ${type.replace('_', ' ')}`).join(' · ') || 'Open ground';
   const levels = Object.values(elevation).filter(level => level > 0);
-  preview.innerHTML = `<h3>${map.name}</h3><p>${map.description}</p><div class="map-preview-grid" aria-label="16 by 12 terrain preview">${cells.join('')}</div><div class="map-preview-legend">${legend}${levels.length ? ` · ${levels.length} elevated hexes (up to level ${Math.max(...levels)})` : ''}</div>`;
+  const mapWidth = Math.sqrt(3) * (GRID_COLS + 0.5);
+  const mapHeight = (GRID_ROWS - 1) * 1.5 + 2;
+  preview.innerHTML = `<h3>${map.name}</h3><p>${map.description}</p><svg class="map-preview-grid" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" role="img" aria-label="16 by 12 hex terrain preview">${cells.join('')}</svg><div class="map-preview-legend">${legend}${levels.length ? ` · ${levels.length} elevated hexes (up to level ${Math.max(...levels)})` : ''}</div>`;
+}
+
+function mapPreviewHexPoints(col, row) {
+  const root3 = Math.sqrt(3);
+  const centerX = root3 * (col + 0.5 * (row & 1)) + root3 / 2;
+  const centerY = row * 1.5 + 1;
+  return Array.from({ length: 6 }, (_, index) => {
+    const angle = (60 * index + 30) * Math.PI / 180;
+    return `${(centerX + Math.cos(angle)).toFixed(3)},${(centerY + Math.sin(angle)).toFixed(3)}`;
+  }).join(' ');
 }
 
 function cancelCreateGameSetup() {
