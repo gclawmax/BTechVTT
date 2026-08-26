@@ -250,8 +250,13 @@ function canFlipBattleMechArms(mech) {
 }
 
 function toggleWeaponArmFlip() {
-  const attacker = mechInstances.find(mech => mech.instanceId === weaponAttackState.attackerId);
+  // The roster and map may select a BattleMech without going through the
+  // declaration-panel picker. Bind that selection before changing attack
+  // state so this control behaves identically from every selection path.
+  const attacker = mechInstances.find(mech => mech.instanceId === weaponAttackState.attackerId) ||
+    mechInstances.find(mech => mech.instanceId === selectedInstanceId);
   if (!canFlipBattleMechArms(attacker)) return;
+  weaponAttackState.attackerId = attacker.instanceId;
   weaponAttackState.armsFlipped = !weaponAttackState.armsFlipped;
   for (const [mountId, targetId] of Object.entries(weaponAttackState.targetAssignments)) {
     const entry = BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);

@@ -196,6 +196,16 @@ sandbox.BT_CRITICAL_LAYOUTS.testmech = { la: ['Shoulder', 'Upper Arm Actuator'],
 check('#3 arm flipping requires actuator-free arms and no torso twist', sandbox.canFlipBattleMechArms(flippableMech) && !sandbox.canFlipBattleMechArms({ ...flippableMech, torsoFacing: 1 }));
 check('#3 flipped arm weapons use only the three-hex rear arc', sandbox.isWeaponTargetInArc(wpn, flippableMech, 3, true) && !sandbox.isWeaponTargetInArc(wpn, flippableMech, 0, true));
 check('#3 torso twisting rotates arm-mounted weapon arcs too', sandbox.isWeaponTargetInArc({ ...wpn, location: 'Right Arm' }, { ...flippableMech, torsoFacing: 1 }, 2, false));
+// Selecting an attacker from the roster/map leaves attackerId empty. The arm
+// flip control must bind that selection instead of silently doing nothing.
+sandbox.mechInstances = [flippableMech];
+sandbox.selectedInstanceId = flippableMech.instanceId;
+vm.runInContext('weaponAttackState=emptyWeaponAttackState()', sandbox);
+sandbox.toggleWeaponArmFlip();
+check('#3 roster/map-selected BattleMech can activate arm flipping', vm.runInContext("weaponAttackState.attackerId === 'flip-test' && weaponAttackState.armsFlipped === true", sandbox));
+check('#3 roster/map arm flip immediately enables the rear arc', sandbox.isWeaponTargetInArc(wpn, flippableMech, 3));
+sandbox.mechInstances = [];
+sandbox.selectedInstanceId = null;
 
 // ── #3b LB-X Cluster ammunition starts in its declared mode ───────────────
 const lbxMount = { key: 'lb10x', location: 'Left Arm', mountId: 'lb10x:la:0' };
@@ -483,7 +493,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-combat-presentation-25"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-arm-flip-ui-26"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
