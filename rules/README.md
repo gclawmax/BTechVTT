@@ -48,6 +48,8 @@ Use only the relevant focused file:
    bridges, and magma.
 6. `15_arm_flipping_and_improvised_clubs.md` for reversed arm weapon arcs and
    improvised tree/girder clubs.
+7. `16_custom_map_and_scenario_editor.md` for authored terrain, elevation,
+   deployment zones and objectives.
 
 ### Unit/data work
 

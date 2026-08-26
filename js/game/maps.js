@@ -119,16 +119,40 @@ const BT_MAPS = Object.freeze({
   }
 });
 
+// Custom scenarios are immutable server snapshots, but are registered in the
+// browser when their lobby/game state is loaded. Keeping them separate leaves
+// the built-in catalogue read-only while allowing every participant to render
+// the exact map embedded in the match.
+const BT_CUSTOM_MAPS = Object.create(null);
+
 const DEFAULT_MAP_ID = 'training-grounds';
 let activeMapId = DEFAULT_MAP_ID;
 let activeTerrainState = { overrides: {}, building_cf: {} };
 
 function getMapDefinition(mapId) {
-  return BT_MAPS[mapId] || BT_MAPS[DEFAULT_MAP_ID];
+  return BT_CUSTOM_MAPS[mapId] || BT_MAPS[mapId] || BT_MAPS[DEFAULT_MAP_ID];
 }
 
 function setActiveMap(mapId) {
-  activeMapId = BT_MAPS[mapId] ? mapId : DEFAULT_MAP_ID;
+  activeMapId = BT_MAPS[mapId] || BT_CUSTOM_MAPS[mapId] ? mapId : DEFAULT_MAP_ID;
+}
+
+function registerCustomMapDefinition(definition) {
+  if (!definition || typeof definition !== 'object') return null;
+  const id = String(definition.map_id || definition.id || '');
+  if (!id.startsWith('custom:')) return null;
+  BT_CUSTOM_MAPS[id] = {
+    name: String(definition.name || 'Custom Battlefield').slice(0, 80),
+    description: String(definition.description || 'Player-created battlefield.').slice(0, 240),
+    visual: String(definition.visual || 'custom'),
+    terrain: definition.terrain && typeof definition.terrain === 'object' ? { ...definition.terrain } : {},
+    elevation: definition.elevation && typeof definition.elevation === 'object' ? { ...definition.elevation } : {},
+    objective_hexes: Array.isArray(definition.objective_hexes) ? [...definition.objective_hexes] : [],
+    deployment_zones: definition.deployment_zones && typeof definition.deployment_zones === 'object'
+      ? { '1': [...(definition.deployment_zones['1'] || [])], '2': [...(definition.deployment_zones['2'] || [])] }
+      : null
+  };
+  return id;
 }
 
 // Terrain which changes during a match is kept in the authoritative game
@@ -152,6 +176,7 @@ function terrainStatusAt(col, row) {
 }
 
 function objectiveHexesForMap(mapId) {
+  if (BT_CUSTOM_MAPS[mapId]) return [...(BT_CUSTOM_MAPS[mapId].objective_hexes || [])];
   return ({
     'industrial-crossing': ['0703', '0806', '0809'],
     'desert-hills': ['0302', '0906', '1108'],

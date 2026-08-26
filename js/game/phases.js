@@ -71,6 +71,7 @@ async function loadGameState() {
   if (game.catalogue_version) await loadUnitCatalogue(game.catalogue_version);
 
   let gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  if (gameState.custom_scenario) registerCustomMapDefinition(gameState.custom_scenario);
   const scenarioRepair = await repairScenarioCatalogueUnitIds(game, gameState);
   gameState = scenarioRepair.state;
   if (scenarioRepair.repaired) await loadUnitCatalogue(scenarioRepair.game.catalogue_version, true);
@@ -91,6 +92,9 @@ async function loadGameState() {
     ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {}),
     ...(gameState.special_ammo_setup_v1 ? { special_ammo_setup_v1: true } : {}),
     ...(gameState.terrain_overrides ? { terrain_overrides: gameState.terrain_overrides } : {}),
+    ...(gameState.elevation_overrides ? { elevation_overrides: gameState.elevation_overrides } : {}),
+    ...(gameState.deployment_zones ? { deployment_zones: gameState.deployment_zones } : {}),
+    ...(gameState.custom_scenario ? { custom_scenario: gameState.custom_scenario } : {}),
     ...(gameState.building_cf ? { building_cf: gameState.building_cf } : {}),
     ...(gameState.generated_smoke_hexes ? { generated_smoke_hexes: gameState.generated_smoke_hexes } : {}),
     ...(gameState.terrain_advanced_after_round != null ? { terrain_advanced_after_round: gameState.terrain_advanced_after_round } : {}),

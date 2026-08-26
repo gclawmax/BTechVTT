@@ -14,7 +14,7 @@
 | 4 — Multiplayer Sync | ✅ Done | Supabase Realtime sync, turn management (Initiative → Movement → Reaction → Weapon Attack → Physical Attack → Heat → End), shared battlefield, game codes, lobby, objectives and alternative victory conditions |
 | 5 — Full Unit Roster | ✅ Done | Curated IS + Clan roster, MegaMek-derived records, canonical equipment resolver, MegaMek sprites, hangar search, variant favourites, custom IS + Clan MechLab designs (XL engines, Endo Steel and Ferro-Fibrous armour), lance-style skirmish hangars, per-mech skirmish pilots |
 | 6 — Supabase Backend | ✅ Done | Auth (username/password), DB schema (players/games/state incl. AI seats), API layer, split SQL migrations for the Supabase SQL Editor |
-| 7 — Polish & Deployment | 🔲 Not started | Sound effects, map editor, campaign mode, production deployment beyond GitHub Pages |
+| 7 — Polish & Deployment | 🟨 In progress | Map/scenario editor complete; sound effects, campaign mode and production deployment beyond GitHub Pages remain |
 
 ## Rule and data verification
 
@@ -27,7 +27,7 @@ including Clan ER Medium Lasers at 7 damage and 5/10/15 range.
 ## Suggested next steps (priority order)
 
 1. Expand remaining specialist rules in catalogue-led batches.
-2. Phase 7 polish: sound effects → map editor → campaign mode → production
+2. Phase 7 polish: sound effects → campaign mode → production
    deployment.
 3. Documentation: replace `README.md`'s stale roadmap with `README2.md` /
    this file when ready.

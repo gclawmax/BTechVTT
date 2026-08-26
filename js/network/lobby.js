@@ -251,6 +251,9 @@ async function loadLobbyUI() {
   }
   await loadProfileUnitFavourites();
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  if (gameState.custom_scenario) registerCustomMapDefinition(gameState.custom_scenario);
+  if (gameState.map_id) setActiveMap(gameState.map_id);
+  setActiveTerrainState(gameState);
   const rosterUnitIds = Object.values(gameState.rosters || {}).flat();
   if (game.catalogue_version && rosterUnitIds.some(unitId => !databaseSupportedUnitIds.has(unitId))) {
     try { await loadUnitCatalogue(game.catalogue_version, true); }
@@ -508,8 +511,9 @@ function renderLobbyMatchSetup(gameState, players) {
   const map = getMapDefinition(gameState.map_id);
   const limit = Number(gameState.dropship_tonnage || 0);
   const beginnerScenario = gameState.beginner_scenario;
+  const customScenario = gameState.custom_scenario;
   const victoryLabel = ({ annihilation: 'Annihilation', control: 'Objective Control (first to 5)', breakthrough: 'Breakthrough (2 BattleMechs)' })[gameState.victory_mode] || 'Annihilation';
-  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${beginnerScenario?.title || map.name}</strong><br>${beginnerScenario?.instructions || map.description}<br>Battlefield: <strong>${map.name}</strong><br>Force limit: <strong>${limit} tons per player</strong><br>Victory: <strong>${victoryLabel}</strong></div>`;
+  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${escapeHtml(beginnerScenario?.title || customScenario?.name || map.name)}</strong><br>${escapeHtml(beginnerScenario?.instructions || customScenario?.instructions || map.description)}<br>Battlefield: <strong>${escapeHtml(map.name)}</strong><br>Force limit: <strong>${limit} tons per player</strong><br>Victory: <strong>${victoryLabel}</strong></div>`;
   if (beginnerScenario) {
     rosterSection.hidden = true;
     rosterEl.innerHTML = '';
@@ -594,8 +598,11 @@ function renderLobbyMatchSetup(gameState, players) {
   filterLobbyRosterSearch(lobbyRosterFilters.search);
 }
 
-function deploymentZoneContains(seat, col, row) {
-  return row >= 0 && row < GRID_ROWS && (seat === 1 ? col >= 0 && col <= 4 : col >= 11 && col < GRID_COLS);
+function deploymentZoneContains(seat, col, row, gameState = null) {
+  if (row < 0 || row >= GRID_ROWS || col < 0 || col >= GRID_COLS) return false;
+  const customZone = gameState?.deployment_zones?.[String(seat)];
+  if (Array.isArray(customZone)) return customZone.includes(hexCode(col, row));
+  return seat === 1 ? col <= 4 : col >= 11;
 }
 
 function deploymentHexPoints(col, row) {
@@ -626,13 +633,14 @@ function renderLobbyDeployment(gameState) {
   const cells = [];
   for (let row = 0; row < GRID_ROWS; row++) for (let col = 0; col < GRID_COLS; col++) {
     const owner = occupied.get(`${col},${row}`);
-    const mine = deploymentZoneContains(mySeatNumber, col, row);
+    const mine = deploymentZoneContains(mySeatNumber, col, row, gameState);
+    const enemy = deploymentZoneContains(mySeatNumber === 1 ? 2 : 1, col, row, gameState);
     const terrain = terrainAt(col, row);
     const level = elevationAt(col, row);
-    const description = `${hexCode(col,row)} · ${terrain.replace('_',' ')}${level ? ` · level ${level}` : ''}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : ' · opponent deployment zone'}`;
+    const description = `${hexCode(col,row)} · ${terrain.replace('_',' ')}${level ? ` · level ${level}` : ''}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : enemy ? ' · opponent deployment zone' : ' · neutral ground'}`;
     const canPlace = mine && !owner && !terrainMovementBlocked(col, row);
     const action = canPlace ? `onclick="placeLobbyDeployment(${col},${row})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();placeLobbyDeployment(${col},${row})}"` : '';
-    cells.push(`<polygon class="deployment-hex ${mine ? 'zone' : 'enemy-zone'} ${owner ? 'occupied' : ''} ${terrain}" points="${deploymentHexPoints(col,row)}" role="button" tabindex="${canPlace ? '0' : '-1'}" aria-label="${description}" ${action}><title>${description}</title></polygon>`);
+    cells.push(`<polygon class="deployment-hex ${mine ? 'zone' : enemy ? 'enemy-zone' : 'neutral-zone'} ${owner ? 'occupied' : ''} ${terrain}" points="${deploymentHexPoints(col,row)}" role="button" tabindex="${canPlace ? '0' : '-1'}" aria-label="${description}" ${action}><title>${description}</title></polygon>`);
   }
   const selected = positions[lobbyDeploymentIndex];
   const facingButtons = selected ? HEX_DIR_LABELS.map((label, facing) => `<button class="${selected.facing === facing ? 'selected' : ''}" onclick="setLobbyDeploymentFacing(${facing})">${label}</button>`).join('') : '';
@@ -654,9 +662,9 @@ async function selectLobbyDeploymentUnit(index) {
 }
 
 async function placeLobbyDeployment(col, row) {
-  if (!deploymentZoneContains(mySeatNumber, col, row)) return;
   const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
   const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  if (!deploymentZoneContains(mySeatNumber, col, row, state)) return;
   const positions = [...(state.deployment_positions?.[String(mySeatNumber)] || [])];
   positions[lobbyDeploymentIndex] = { col, row, facing: mySeatNumber === 1 ? 0 : 3 };
   const { error } = await db.rpc('set_match_deployment', { p_game_id: currentGameId, p_positions: positions });

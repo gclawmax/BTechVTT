@@ -91,8 +91,8 @@ async function handleCreateDesertHillsScenario() {
   });
 }
 
-async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation' }) {
-  if (!BT_MAPS[mapId] || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
+async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation', customScenario = null }) {
+  if ((!BT_MAPS[mapId] && !BT_CUSTOM_MAPS[mapId]) || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
   showLoading(true);
   try {
     const catalogueVersion = await loadLatestUnitCatalogue();
@@ -100,6 +100,8 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
     // exact ID in the pinned release so the server and browser agree.
     const resolvedRosters = Object.fromEntries(Object.entries(rosters).map(([seat, unitIds]) => [seat, unitIds.map(resolveCatalogueId)]));
     const code = generateGameCode();
+    const customTerrain = customScenario?.terrain && typeof customScenario.terrain === 'object' ? customScenario.terrain : null;
+    const customBuildings = customTerrain ? Object.fromEntries(Object.entries(customTerrain).filter(([, terrain]) => terrain === 'building').map(([code]) => [code, 40])) : null;
     const { data: game, error: gameErr } = await db
       .from('btech_games')
       .insert({
@@ -115,6 +117,13 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
           objective_hexes: victoryMode === 'control' ? objectiveHexesForMap(mapId) : [],
           objective_scores: { '1': 0, '2': 0 },
           rosters: resolvedRosters,
+          ...(customScenario ? {
+            custom_scenario: customScenario,
+            terrain_overrides: customTerrain || {},
+            elevation_overrides: customScenario.elevation || {},
+            deployment_zones: customScenario.deployment_zones,
+            building_cf: customBuildings || {}
+          } : {}),
           ...(beginnerScenario ? { beginner_scenario: beginnerScenario } : {})
         }),
         status: 'lobby',

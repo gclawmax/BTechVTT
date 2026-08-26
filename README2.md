@@ -61,6 +61,8 @@ Full turn structure: **Initiative → Movement → Reaction → Weapon Attack �
 
 ### UI
 - Canvas board with terrain rendering, scrollwheel zoom, map rotation
+- Map & Scenario Editor with terrain/elevation painting, custom deployment
+  zones and objectives, local drafts, JSON import/export and two-player launch
 - Record sheet panel, unit detail panel, game log, resizable panels
 - Mobile-responsive layout
 
@@ -108,7 +110,7 @@ profiles. For example, Clan ER Medium Lasers use 7 damage and 5/10/15 range.
 ## Remaining work
 
 - Expand remaining specialist equipment and scenario rules in catalogue-led batches
-- Phase 7 polish: sound effects, map editor, campaign mode, production deployment
+- Phase 7 polish: sound effects, campaign mode, production deployment
   beyond GitHub Pages
 - Documentation refresh (this file and `SKILL_ROADMAP2.md` replace the stale
   roadmap in `README.md`)

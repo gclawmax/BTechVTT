@@ -462,7 +462,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260825-arm-club-17"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-scenario-editor-18"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -471,7 +471,7 @@ const phasesSource = fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8');
 check('#5 rejoin verifies every saved unit against its pinned catalogue and isolates any unresolved record once', catalogueSource.includes('async function verifyMatchCatalogueUnits') && catalogueSource.includes('loadUnitCatalogue(catalogueVersion, true)') && phasesSource.includes('verifyMatchCatalogueUnits(game.catalogue_version, gameState.mech_instances)') && phasesSource.includes('could not be loaded from this match') && panelSource.includes('CATALOGUE UNAVAILABLE'));
 const scenarioRepairMigration = fs.readFileSync(`${ROOT}/SQL/80_repair_scenario_catalogue_unit_ids.sql`, 'utf8');
 check('#5 scenarios persist exact pinned-catalogue IDs and repair untouched historical scenarios safely', scenarioRepairMigration.includes('repair_btech_match_catalogue_unit_ids') && scenarioRepairMigration.includes("g.current_round<>1 OR g.current_phase<>'initiative'") && scenarioRepairMigration.includes("replace(u.unit_id,'-','')") && createGameSource.includes('const resolvedRosters') && catalogueSource.includes('repairScenarioCatalogueUnitIds'));
-check('#5 scenario catalogue repair has a visible, cache-busting build marker', indexSource.includes('20260825-arm-club-17'));
+check('#5 scenario catalogue repair has a visible, cache-busting build marker', indexSource.includes('20260826-scenario-editor-18'));
 check('#5 initiative waits for every player to commit Round 1 ammunition without breaking later phase refreshes', phasesSource.includes('const unconfiguredAmmo') && phasesSource.includes('currentGameState.round === 1') && phasesSource.includes(': [];') && phasesSource.includes('const ownAmmoSetupPending') && phasesSource.includes('Waiting for the other player to declare their specialised ammunition.'));
 const individualAmmoMigration = fs.readFileSync(`${ROOT}/SQL/81_allow_individual_ammunition_bin_confirmation.sql`, 'utf8');
 check('#5 each Round 1 ammunition button commits only its own physical bin', individualAmmoMigration.includes('IF load_type IS NOT NULL THEN') && individualAmmoMigration.includes('IF provided=0') && phasesSource.includes('submitRoundOneAmmoLoadout(binKey = null)') && phasesSource.includes('pendingEntries.filter') && panelSource.includes("Confirm this ammunition bin"));
@@ -507,6 +507,13 @@ check('#5 improvised clubs are found in Weapon Attacks and swung with both arms 
 check('#5 the detail panel identifies a carried improvised club', panelSource.includes('inst.improvisedClub') && panelSource.includes('uses both arms'));
 check('#5 live regression targets SVG deployment hexes and SQL 87 terrain interactions', humanBattleSource.includes('.deployment-hex[aria-label^=') && fs.readFileSync(`${ROOT}/tools/test-human-vs-human-rules.mjs`, 'utf8').includes('magma crust adds transit heat'));
 check('#5 realtime subscription catches phase changes missed while connecting', lobbySource.includes("status === 'SUBSCRIBED'") && lobbySource.includes('loadGameState()'));
+const scenarioEditorSource = fs.readFileSync(`${ROOT}/js/game/scenario-editor.js`, 'utf8');
+const customScenarioMigration = fs.readFileSync(`${ROOT}/SQL/89_custom_map_and_scenario_editor.sql`, 'utf8');
+check('#5 map editor paints supported terrain and elevation on the native hex grid', scenarioEditorSource.includes('SCENARIO_TERRAIN') && scenarioEditorSource.includes("type === 'elevation'") && scenarioEditorSource.includes('scenarioEditorHexPoints') && scenarioEditorSource.includes('GRID_COLS'));
+check('#5 scenario editor saves drafts and supports JSON import/export', scenarioEditorSource.includes('localStorage.setItem') && scenarioEditorSource.includes('exportScenarioEditor') && scenarioEditorSource.includes('importScenarioEditor'));
+check('#5 custom scenarios launch through the normal human lobby', scenarioEditorSource.includes("db.rpc('save_btech_custom_scenario'") && scenarioEditorSource.includes('createHumanGame({') && createGameSource.includes('custom_scenario: customScenario') && lobbySource.includes('gameState.custom_scenario'));
+check('#5 custom terrain, elevation and deployment zones are authoritative', customScenarioMigration.includes('CREATE OR REPLACE FUNCTION public.btech_terrain') && customScenarioMigration.includes('CREATE OR REPLACE FUNCTION public.btech_elevation') && customScenarioMigration.includes('btech_scenario_zone_contains') && customScenarioMigration.includes('btech_state_terrain(st'));
+check('#5 custom breakthrough uses the opponent authored deployment zone', customScenarioMigration.includes("CASE WHEN unit_owner=1 THEN 2 ELSE 1 END") && customScenarioMigration.includes("mode='breakthrough'"));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);
