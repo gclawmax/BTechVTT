@@ -9,10 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260826-ai-attack-ev-21">
+  <link rel="stylesheet" href="css/main.css?v=20260826-dropship-navigation-22">
 </head>
-<body data-build="20260826-ai-attack-ev-21">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260826-ai-attack-ev-21</div>
+<body data-build="20260826-dropship-navigation-22">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260826-dropship-navigation-22</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 
 <!-- ── LOADING OVERLAY ──────────────────────────────────── -->
@@ -57,20 +57,67 @@
     <h1>BT-VTT</h1>
     <div class="tagline">BattleTech Virtual Tabletop</div>
     <div class="username-display" id="menu-username"></div>
-    <button class="btn-large beginner" onclick="handleCreateBeginnerMatch()">Beginner Match <small>Wolverine vs Griffin</small></button>
-    <button class="btn-large scenario" onclick="handleCreateFlatlandsScenario()">Flatlands Skirmish <small>Wolverine vs Griffin · open cover</small></button>
-    <button class="btn-large scenario" onclick="handleCreateDesertHillsScenario()">Desert Hills Clash <small>Two lances · ridges and rough ground</small></button>
-    <button class="btn-large primary" onclick="handleCreateGame()">Create Game</button>
-    <button class="btn-large" onclick="openScenarioEditor()" style="border-color:#7fa66b;color:#a9cf96;">Map & Scenario Editor <small>Paint terrain, deployment zones and objectives</small></button>
-    <button class="btn-large" onclick="openMechDesigner()" style="border-color:#d4800a;color:#d4800a;">MechLab <small>Build a custom BattleMech</small></button>
-    <a class="menu-guide-link" href="how-to-play.html">How to Play</a>
-    <button class="btn-large" onclick="handleCreateVsAI()" style="border-color:#88aaff;color:#88aaff;">Play vs AI</button>
+    <button class="btn-large career" onclick="openCareerAvatarCreator()" title="Create or update the persistent commander identity stored with your account.">Start Career <small>Create your persistent commander avatar</small></button>
+    <button class="btn-large primary" onclick="handleCreateGame()" title="Create a configurable two-player skirmish with your choice of map, tonnage and victory condition.">Create Custom Skirmish</button>
+    <button class="btn-large ai" onclick="handleCreateVsAI()" title="Create a solo skirmish against a computer-controlled force.">Play vs AI</button>
+
+    <details class="dropship-submenu" name="dropship-navigation">
+      <summary title="Open the built-in scenario list.">Scenarios <small>Three ready-to-play deployments</small></summary>
+      <div class="dropship-submenu-panel">
+        <button class="submenu-action beginner" onclick="handleCreateBeginnerMatch()" title="Start a guided Wolverine-versus-Griffin duel.">Beginner Match <small>Wolverine vs Griffin</small></button>
+        <button class="submenu-action" onclick="handleCreateFlatlandsScenario()" title="Start a Wolverine-versus-Griffin duel on an open battlefield.">Flatlands Skirmish <small>Wolverine vs Griffin · open cover</small></button>
+        <button class="submenu-action" onclick="handleCreateDesertHillsScenario()" title="Start a two-lance battle among ridges and rough ground.">Desert Hills Clash <small>Two lances · ridges and rough ground</small></button>
+      </div>
+    </details>
+
+    <details class="dropship-submenu" name="dropship-navigation">
+      <summary title="Open the BattleMech and scenario creation tools.">Editors <small>Build BattleMechs and battlefields</small></summary>
+      <div class="dropship-submenu-panel">
+        <button class="submenu-action editor-map" onclick="openScenarioEditor()" title="Paint terrain and elevation, mark deployment zones and objectives, then launch the scenario.">Map & Scenario Editor <small>Build a custom battlefield</small></button>
+        <button class="submenu-action editor-mech" onclick="openMechDesigner()" title="Design and save a rules-checked custom BattleMech variant.">MechLab <small>Build a custom BattleMech</small></button>
+      </div>
+    </details>
+
+    <a class="menu-guide-link" href="how-to-play.html" title="Open the complete BT-VTT field guide.">How to Play</a>
     <div class="join-row" style="max-width:280px;margin:0 auto;">
-      <input type="text" id="join-code" placeholder="Game Code" maxlength="7">
-      <button onclick="handleJoinGame()">Join</button>
+      <input type="text" id="join-code" placeholder="Game Code" maxlength="7" title="Enter the seven-character code shared by the match host." aria-label="Shared game code">
+      <button onclick="handleJoinGame()" title="Join the lobby or active match identified by this code.">Join</button>
     </div>
     <div id="active-games-list" style="margin-top:16px;"></div>
-    <button class="btn-logout" onclick="handleLogout()">Logout</button>
+    <button class="btn-logout" onclick="handleLogout()" title="Sign out of BT-VTT on this browser.">Logout</button>
+  </div>
+</div>
+
+<!-- ── CAREER COMMANDER AVATAR ─────────────────────────── -->
+<div id="career-avatar-screen" class="screen">
+  <div id="career-avatar-box">
+    <div class="career-avatar-heading">
+      <div><p class="career-kicker">Persistent Career Identity</p><h2>Career Commander</h2></div>
+      <button class="secondary" onclick="closeCareerAvatarCreator()" title="Return to the Dropship without changing the avatar.">Back to Dropship</button>
+    </div>
+    <div class="career-avatar-layout">
+      <div class="career-avatar-preview" aria-live="polite">
+        <div id="career-avatar-emblem">MW</div>
+        <strong id="career-avatar-preview-callsign">MechWarrior</strong>
+        <span id="career-avatar-preview-company">Independent Command</span>
+        <small id="career-avatar-preview-affiliation">Independent</small>
+      </div>
+      <form onsubmit="saveCareerAvatar(event)">
+        <label for="career-avatar-callsign">Commander callsign</label>
+        <input id="career-avatar-callsign" maxlength="32" required oninput="renderCareerAvatarPreview()" title="The commander name shown throughout Career mode.">
+        <label for="career-avatar-company">Company name</label>
+        <input id="career-avatar-company" maxlength="48" required oninput="renderCareerAvatarPreview()" title="The persistent mercenary command represented by this avatar.">
+        <label for="career-avatar-affiliation">Affiliation</label>
+        <select id="career-avatar-affiliation" onchange="renderCareerAvatarPreview()" title="Choose the background affiliation shown on the commander profile.">
+          <option value="Independent">Independent</option><option value="Inner Sphere">Inner Sphere</option><option value="Clan">Clan</option>
+        </select>
+        <label for="career-avatar-color">Command colour</label>
+        <input id="career-avatar-color" type="color" value="#d4800a" oninput="renderCareerAvatarPreview()" title="Choose the identifying colour for this career avatar.">
+        <button id="career-avatar-save" class="primary" type="submit" title="Save this commander avatar permanently to your signed-in account.">Save Persistent Avatar</button>
+        <div id="career-avatar-status" role="status" aria-live="polite"></div>
+      </form>
+    </div>
+    <p class="career-avatar-note">This establishes your account’s Career identity. Persistent companies, hangars, pilots, repairs and contracts will build on this commander profile.</p>
   </div>
 </div>
 
@@ -164,7 +211,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260826-ai-attack-ev-21</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260826-dropship-navigation-22</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -206,6 +253,7 @@
 <script src="js/game/critical-hits.js?v=20260824-critical-effects-01"></script>
 <script src="js/network/create-game.js?v=20260826-scenario-editor-18"></script>
 <script src="js/game/scenario-editor.js?v=20260826-scenario-editor-18"></script>
+<script src="js/game/career-avatar.js?v=20260826-dropship-navigation-22"></script>
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
 <script src="js/network/lobby.js?v=20260826-scenario-editor-18"></script>

@@ -135,11 +135,14 @@ html, body {
 /* ── MAIN MENU SCREEN ───────────────────────────────────── */
 #menu-screen {
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   overflow:auto;
-  padding:24px 0;
-  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+  padding:28px clamp(22px, 6vw, 96px);
+  background:
+    linear-gradient(90deg,rgba(4,8,14,.68) 0%,rgba(4,8,14,.26) 48%,rgba(4,8,14,.42) 100%),
+    linear-gradient(0deg,rgba(5,8,12,.52),rgba(5,8,12,.08) 45%,rgba(5,8,12,.30)),
+    url('../assets/ui/dropship-background.jpeg') center center / cover no-repeat fixed;
   color: #e0e0d8;
 }
 
@@ -254,6 +257,15 @@ html, body {
 
 #menu-box {
   text-align: center;
+  width:min(380px, 100%);
+  max-height:calc(100vh - 56px);
+  overflow:auto;
+  padding:25px 28px 22px;
+  border:1px solid rgba(200,218,232,.32);
+  border-radius:7px;
+  background:rgba(8,13,20,.88);
+  box-shadow:0 20px 55px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.05);
+  backdrop-filter:blur(12px) saturate(.8);
 }
 
 #menu-box h1 {
@@ -267,22 +279,22 @@ html, body {
 
 #menu-box .tagline {
   font-size: 12px;
-  color: #888;
-  margin-bottom: 40px;
+  color: #b8c1ca;
+  margin-bottom: 14px;
 }
 
 #menu-box .username-display {
   font-size: 11px;
   color: var(--amber);
   letter-spacing: 0.08em;
-  margin-bottom: 32px;
+  margin-bottom: 18px;
 }
 
 #menu-box .btn-large {
   display: block;
   width: 280px;
-  margin: 0 auto 12px;
-  padding: 16px 24px;
+  margin: 0 auto 9px;
+  padding: 12px 20px;
   border: 2px solid #fff;
   background: transparent;
   color: #fff;
@@ -316,6 +328,11 @@ html, body {
   color: #b9ceff;
 }
 
+#menu-box .btn-large.career { border-color:#e3b454; color:#ffe0a0; background:rgba(116,73,10,.22); }
+#menu-box .btn-large.career:hover { background:#d39a31; border-color:#e8b85b; color:#111; }
+#menu-box .btn-large.ai { border-color:#88aaff; color:#b9ceff; }
+#menu-box .btn-large.ai:hover { background:#88aaff; border-color:#88aaff; color:#18202f; }
+
 #menu-box .btn-large.beginner:hover {
   background: #88aaff;
   border-color: #88aaff;
@@ -331,10 +348,25 @@ html, body {
   text-transform: none;
 }
 
+.dropship-submenu { width:280px; margin:0 auto 9px; text-align:left; }
+.dropship-submenu summary { position:relative; list-style:none; padding:11px 38px 11px 17px; border:1px solid rgba(220,228,233,.62); border-radius:4px; color:#f3f5f6; background:rgba(13,20,29,.72); font:15px var(--display); letter-spacing:.12em; text-transform:uppercase; cursor:pointer; transition:.15s; }
+.dropship-submenu summary::-webkit-details-marker { display:none; }
+.dropship-submenu summary::after { content:'＋'; position:absolute; top:50%; right:15px; transform:translateY(-50%); color:#d7a64b; font:17px var(--mono); }
+.dropship-submenu[open] summary { border-color:#d7a64b; background:rgba(26,34,43,.95); }
+.dropship-submenu[open] summary::after { content:'−'; }
+.dropship-submenu summary:hover,.dropship-submenu summary:focus-visible { border-color:#fff; outline:none; }
+.dropship-submenu summary small,.submenu-action small { display:block; margin-top:3px; color:inherit; opacity:.78; font:9px var(--mono); letter-spacing:.03em; text-transform:none; }
+.dropship-submenu-panel { display:grid; gap:5px; padding:7px; border:1px solid rgba(215,166,75,.5); border-top:0; background:rgba(5,9,14,.94); }
+.submenu-action { width:100%; padding:9px 10px; border:1px solid #52606b; background:rgba(21,29,38,.92); color:#e8edf1; text-align:left; font:12px var(--display); letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
+.submenu-action:hover,.submenu-action:focus-visible { border-color:#fff; background:#eef2f4; color:#111; outline:none; }
+.submenu-action.beginner { border-color:#88aaff; color:#c5d6ff; }
+.submenu-action.editor-map { border-color:#7fa66b; color:#bfe0af; }
+.submenu-action.editor-mech { border-color:#d4800a; color:#f2b85e; }
+
 #menu-box .menu-guide-link {
   display: inline-block;
   margin: -2px 0 14px;
-  color: #bbb;
+  color: #d9e0e5;
   font-size: 10px;
   letter-spacing: .1em;
   text-decoration: none;
@@ -348,7 +380,7 @@ html, body {
 
 #menu-box .btn-logout {
   display: inline-block;
-  margin-top: 32px;
+  margin-top: 15px;
   padding: 8px 16px;
   border: 1px solid #555;
   background: transparent;
@@ -360,6 +392,33 @@ html, body {
   cursor: pointer;
   border-radius: 2px;
 }
+
+@media (max-width:680px) {
+  #menu-screen { align-items:center; justify-content:flex-start; padding:18px 12px 36px; background-position:58% center; }
+  #menu-box { max-height:none; padding:21px 18px; }
+}
+
+/* ── CAREER AVATAR ─────────────────────────────────────── */
+#career-avatar-screen { align-items:center; justify-content:center; overflow:auto; padding:24px; background:linear-gradient(rgba(4,8,14,.72),rgba(4,8,14,.78)),url('../assets/ui/dropship-background.jpeg') center/cover fixed; }
+#career-avatar-box { width:min(760px,100%); padding:28px; border:1px solid #66727c; border-radius:6px; background:rgba(244,244,242,.96); box-shadow:0 18px 60px rgba(0,0,0,.58); }
+.career-avatar-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:24px; }
+.career-avatar-heading h2 { margin:2px 0 0; font:26px var(--display); letter-spacing:.1em; text-transform:uppercase; }
+.career-kicker { margin:0; color:var(--amber); font:9px var(--mono); letter-spacing:.12em; text-transform:uppercase; }
+.career-avatar-heading button { padding:8px 11px; border:1px solid #777; background:transparent; color:#333; font:9px var(--mono); text-transform:uppercase; cursor:pointer; }
+.career-avatar-layout { display:grid; grid-template-columns:230px 1fr; gap:28px; }
+.career-avatar-preview { min-height:270px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 15px; border:1px solid #b9b9b1; background:#151b22; color:#f0f2f3; text-align:center; }
+#career-avatar-emblem { display:grid; place-items:center; width:104px; height:104px; margin-bottom:20px; border:3px solid #d4800a; border-radius:50%; background:rgba(212,128,10,.15); color:#fff; font:30px var(--display); letter-spacing:.08em; box-shadow:0 0 24px rgba(212,128,10,.2); }
+.career-avatar-preview strong { font:20px var(--display); letter-spacing:.08em; text-transform:uppercase; }
+.career-avatar-preview span { margin-top:5px; color:#c4ccd2; font:10px/1.4 var(--mono); }
+.career-avatar-preview small { margin-top:18px; color:#d7a64b; font:9px var(--mono); letter-spacing:.1em; text-transform:uppercase; }
+.career-avatar-layout form { display:flex; flex-direction:column; }
+.career-avatar-layout label { margin:0 0 5px; color:#66665f; font:9px var(--mono); letter-spacing:.1em; text-transform:uppercase; }
+.career-avatar-layout input,.career-avatar-layout select { width:100%; margin-bottom:14px; padding:9px 10px; border:1px solid #b7b7ae; background:#fff; color:#171717; font:12px var(--mono); }
+.career-avatar-layout input[type=color] { height:39px; padding:4px; }
+.career-avatar-layout button.primary { margin-top:5px; padding:11px; border:1px solid #9a5b00; background:#9a5b00; color:#fff; font:12px var(--display); letter-spacing:.09em; text-transform:uppercase; cursor:pointer; }
+#career-avatar-status { min-height:32px; padding-top:8px; color:#875100; font:10px/1.4 var(--mono); }
+.career-avatar-note { margin:22px 0 0; padding-top:14px; border-top:1px solid #cacac3; color:#66665f; font:10px/1.55 var(--mono); }
+@media (max-width:620px) { #career-avatar-screen{align-items:flex-start;padding:12px}.career-avatar-heading{display:block}.career-avatar-heading button{margin-top:12px}.career-avatar-layout{grid-template-columns:1fr}.career-avatar-preview{min-height:210px} }
 
 #menu-box .btn-logout:hover {
   border-color: #888;
