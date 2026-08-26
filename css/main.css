@@ -363,10 +363,10 @@ html, body {
 .dropship-submenu summary small,.submenu-action small { display:block; margin-top:3px; color:inherit; opacity:.78; font:9px var(--mono); letter-spacing:.03em; text-transform:none; }
 .dropship-submenu-panel { display:grid; gap:5px; padding:7px; border:1px solid rgba(215,166,75,.5); border-top:0; background:rgba(5,9,14,.94); }
 .submenu-action { width:100%; padding:9px 10px; border:1px solid #52606b; background:rgba(21,29,38,.92); color:#e8edf1; text-align:left; font:12px var(--display); letter-spacing:.08em; text-transform:uppercase; cursor:pointer; }
-.submenu-action:hover,.submenu-action:focus-visible { border-color:#fff; background:#eef2f4; color:#111; outline:none; }
 .submenu-action.beginner { border-color:#88aaff; color:#c5d6ff; }
 .submenu-action.editor-map { border-color:#7fa66b; color:#bfe0af; }
 .submenu-action.editor-mech { border-color:#d4800a; color:#f2b85e; }
+.submenu-action:hover,.submenu-action:focus-visible { border-color:#fff; background:#eef2f4; color:#111; outline:none; }
 
 #menu-box .menu-guide-link {
   display: inline-block;

@@ -483,7 +483,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-hex-preview-scroll-23"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-dropship-hover-24"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -535,6 +535,7 @@ const howToPlaySource = fs.readFileSync(`${ROOT}/how-to-play.html`, 'utf8');
 const howToPlayCssSource = fs.readFileSync(`${ROOT}/css/how-to-play.css`, 'utf8');
 check('#5 How to Play gives scrolling to the document root for wheel and keyboard navigation', howToPlaySource.includes('<html lang="en" class="guide-document">') && howToPlayCssSource.includes('html.guide-document') && howToPlayCssSource.includes('overflow-y:scroll') && howToPlayCssSource.includes('body.guide-page') && howToPlayCssSource.includes('overflow:visible'));
 check('#5 Dropship groups built-in scenarios and editors into labelled submenus', indexSource.includes('<summary title="Open the built-in scenario list.">Scenarios') && indexSource.includes('<summary title="Open the BattleMech and scenario creation tools.">Editors') && indexSource.includes('Create Custom Skirmish') && indexSource.includes('title="Start a guided Wolverine-versus-Griffin duel."'));
+check('#5 submenu hover contrast overrides the coloured scenario variants', mainCssSource.indexOf('.submenu-action:hover') > mainCssSource.indexOf('.submenu-action.beginner') && mainCssSource.includes('.submenu-action:hover,.submenu-action:focus-visible { border-color:#fff; background:#eef2f4; color:#111;'));
 check('#5 Start Career saves a persistent account avatar', indexSource.includes('onclick="openCareerAvatarCreator()"') && careerAvatarSource.includes('db.auth.updateUser') && careerAvatarSource.includes('career_avatar: careerAvatar') && careerAvatarSource.includes('Save Persistent Avatar'));
 check('#5 Dropship uses the supplied readable background and the guide matches its navigation', mainCssSource.includes("url('../assets/ui/dropship-background.jpeg')") && howToPlaySource.includes('Create Custom Skirmish') && howToPlaySource.includes('<em>Scenarios</em>') && howToPlaySource.includes('<em>Editors</em>'));
 check('#5 live regression targets SVG deployment hexes and SQL 87 terrain interactions', humanBattleSource.includes('.deployment-hex[aria-label^=') && fs.readFileSync(`${ROOT}/tools/test-human-vs-human-rules.mjs`, 'utf8').includes('magma crust adds transit heat'));
