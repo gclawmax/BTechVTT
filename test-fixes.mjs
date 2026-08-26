@@ -249,6 +249,7 @@ check('#4 moveState cleared after confirm', sandbox.moveState.active === false);
 // game-state object, while the jump test intentionally controls the stub.
 load('js/game/physical-attack.js');
 load('js/game/phases.js');
+load('js/ai/opponent.js');
 sandbox.BT_UNITS.testmech.tonnage = 50;
 const physicalAttacker = { ...mkMech(4), col: 4, row: 4, facing: 0, structure: { ...STRUCT, ll: 7, rl: 7 } };
 const adjacentTarget = { ...t3, col: 5, row: 4, facing: 3, structure: { ...STRUCT } };
@@ -282,6 +283,19 @@ sandbox.mechInstances = [physicalAttacker, { ...adjacentTarget, destroyed: true 
 check('#4b destroyed opposing force awards the surviving player victory', sandbox.determineMatchResult()?.winner_seat === 1);
 sandbox.mechInstances = [{ ...physicalAttacker, destroyed: true }, { ...adjacentTarget, destroyed: true }];
 check('#4b mutually destroyed forces produce a draw', sandbox.determineMatchResult()?.winner_seat === null);
+
+// ── #4b2 AI expected-value weapon selection ──────────────────────────────
+sandbox.BT_WEAPONS.ai_small = { name: 'AI Small', damage: 2, heat: 1, range: [3, 6, 9] };
+sandbox.BT_WEAPONS.ai_large = { name: 'AI Large', damage: 10, heat: 8, range: [3, 6, 9] };
+sandbox.BT_UNITS.ai_test = { name: 'AI Test', tonnage: 50, movement: { walk: 4, run: 6, jump: 0 }, weapons: [
+  { key: 'ai_small', count: 1, location: 'Right Arm' },
+  { key: 'ai_large', count: 1, location: 'Left Arm' }
+] };
+const aiShooter = { ...physicalAttacker, instanceId: 'ai', unitId: 'ai_test', owner: 2, col: 4, row: 4, facing: 0, torsoFacing: 0 };
+const aiTarget = { ...adjacentTarget, instanceId: 'human', owner: 1, col: 6, row: 4, armor: { ct: 20 }, structure: { ...STRUCT } };
+const aiChoice = sandbox.generateAIAttackAction(aiShooter, [aiTarget], { targetPriority: 'optimal' });
+check('#4b2 AI chooses the highest expected-damage legal weapon', aiChoice?.weaponKey === 'ai_large', aiChoice?._debug || 'no action');
+check('#4b2 2d6 hit probabilities handle automatic, ordinary and impossible shots', sandbox.toHitProbability(2) === 1 && sandbox.toHitProbability(7) === 0.583 && sandbox.toHitProbability(13) === 0);
 
 // ── #4c Critical mobility consequences ───────────────────────────────────
 sandbox.BT_CRITICAL_LAYOUTS.testmech = {
@@ -468,7 +482,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-auto-physical-pass-20"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-ai-attack-ev-21"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -477,7 +491,7 @@ const phasesSource = fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8');
 check('#5 rejoin verifies every saved unit against its pinned catalogue and isolates any unresolved record once', catalogueSource.includes('async function verifyMatchCatalogueUnits') && catalogueSource.includes('loadUnitCatalogue(catalogueVersion, true)') && phasesSource.includes('verifyMatchCatalogueUnits(game.catalogue_version, gameState.mech_instances)') && phasesSource.includes('could not be loaded from this match') && panelSource.includes('CATALOGUE UNAVAILABLE'));
 const scenarioRepairMigration = fs.readFileSync(`${ROOT}/SQL/80_repair_scenario_catalogue_unit_ids.sql`, 'utf8');
 check('#5 scenarios persist exact pinned-catalogue IDs and repair untouched historical scenarios safely', scenarioRepairMigration.includes('repair_btech_match_catalogue_unit_ids') && scenarioRepairMigration.includes("g.current_round<>1 OR g.current_phase<>'initiative'") && scenarioRepairMigration.includes("replace(u.unit_id,'-','')") && createGameSource.includes('const resolvedRosters') && catalogueSource.includes('repairScenarioCatalogueUnitIds'));
-check('#5 scenario catalogue repair has a visible, cache-busting build marker', indexSource.includes('20260826-auto-physical-pass-20'));
+check('#5 scenario catalogue repair has a visible, cache-busting build marker', indexSource.includes('20260826-ai-attack-ev-21'));
 check('#5 initiative waits for every player to commit Round 1 ammunition without breaking later phase refreshes', phasesSource.includes('const unconfiguredAmmo') && phasesSource.includes('currentGameState.round === 1') && phasesSource.includes(': [];') && phasesSource.includes('const ownAmmoSetupPending') && phasesSource.includes('Waiting for the other player to declare their specialised ammunition.'));
 const individualAmmoMigration = fs.readFileSync(`${ROOT}/SQL/81_allow_individual_ammunition_bin_confirmation.sql`, 'utf8');
 check('#5 each Round 1 ammunition button commits only its own physical bin', individualAmmoMigration.includes('IF load_type IS NOT NULL THEN') && individualAmmoMigration.includes('IF provided=0') && phasesSource.includes('submitRoundOneAmmoLoadout(binKey = null)') && phasesSource.includes('pendingEntries.filter') && panelSource.includes("Confirm this ammunition bin"));
@@ -513,6 +527,8 @@ check('#5 improvised clubs are found in Weapon Attacks and swung with both arms 
 check('#5 the detail panel identifies a carried improvised club', panelSource.includes('inst.improvisedClub') && panelSource.includes('uses both arms'));
 const physicalAttackSource = fs.readFileSync(`${ROOT}/js/game/physical-attack.js`, 'utf8');
 check('#5 units without legal physical targets are passed automatically and hidden from the picker', phasesSource.includes('autoPassIneligiblePhysicalAttackers') && phasesSource.includes("p_attack_type: 'pass'") && physicalAttackSource.includes('pending = mechInstances.filter') && physicalAttackSource.includes('hasLegalPhysicalAttack(m)') && physicalAttackSource.includes('const enemies = legalPhysicalTargets(attacker)'));
+const aiOpponentSource = fs.readFileSync(`${ROOT}/js/ai/opponent.js`, 'utf8');
+check('#5 AI weapon selection scores every legal target/mount by expected damage', aiOpponentSource.includes('TWO_D6_HIT_CHANCE') && aiOpponentSource.includes('scoreWeaponAttack') && aiOpponentSource.includes('expectedDamage + killBonus') && aiOpponentSource.includes('candidates.sort((a, b) => b.score - a.score)'));
 check('#5 live regression targets SVG deployment hexes and SQL 87 terrain interactions', humanBattleSource.includes('.deployment-hex[aria-label^=') && fs.readFileSync(`${ROOT}/tools/test-human-vs-human-rules.mjs`, 'utf8').includes('magma crust adds transit heat'));
 check('#5 realtime subscription catches phase changes missed while connecting', lobbySource.includes("status === 'SUBSCRIBED'") && lobbySource.includes('loadGameState()'));
 const scenarioEditorSource = fs.readFileSync(`${ROOT}/js/game/scenario-editor.js`, 'utf8');

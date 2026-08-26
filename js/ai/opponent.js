@@ -160,46 +160,76 @@ function generateAIMoveAction(mech, playerMechs, settings) {
   };
 }
 
-// Generate an attack action for AI mech
+// 2d6 cumulative hit-probability table (chance of rolling >= N on 2d6).
+const TWO_D6_HIT_CHANCE = {
+  2: 1.00, 3: 0.972, 4: 0.917, 5: 0.833, 6: 0.722,
+  7: 0.583, 8: 0.417, 9: 0.278, 10: 0.167, 11: 0.083, 12: 0.028
+};
+
+function toHitProbability(targetNumber) {
+  if (targetNumber <= 2) return 1;
+  if (targetNumber > 12) return 0;
+  return TWO_D6_HIT_CHANCE[targetNumber] ?? 0;
+}
+
+// Roughly value a shot that may finish a badly damaged target. This remains a
+// deliberately conservative bonus: normal expected damage is still the main
+// score, and the real damage resolver remains authoritative.
+function estimatedKillBonus(target, attack) {
+  if (!BT_UNITS[target.unitId]) return 0;
+  const remainingArmor = Object.values(target.armor || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+  const remainingStructure = Object.values(target.structure || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+  const totalRemaining = remainingArmor + remainingStructure;
+  if (totalRemaining <= attack.weapon.damage) return attack.weapon.damage * 1.5;
+  if (totalRemaining <= attack.weapon.damage * 2) return attack.weapon.damage * 0.5;
+  return 0;
+}
+
+function scoreWeaponAttack(mech, target, weaponEntry) {
+  const attack = evaluateWeaponAttack(mech, target, weaponEntry);
+  if (!attack.valid) return null;
+  const hitChance = toHitProbability(attack.targetNumber);
+  const expectedDamage = hitChance * attack.weapon.damage;
+  const killBonus = hitChance * estimatedKillBonus(target, attack);
+  return { target, weaponEntry, attack, hitChance, expectedDamage, score: expectedDamage + killBonus };
+}
+
+// Generate an attack action scored by expected damage rather than choosing
+// the catalogue's first weapon against a distance/tonnage-sorted target.
 function generateAIAttackAction(mech, playerMechs, settings) {
   const unit = BT_UNITS[mech.unitId];
-  
-  // Find targets
-  let targets = playerMechs;
-  
-  if (settings.targetPriority === 'closest') {
-    targets = [...playerMechs].sort((a, b) => {
-      const distA = Math.abs(mech.col - a.col) + Math.abs(mech.row - a.row);
-      const distB = Math.abs(mech.col - b.col) + Math.abs(mech.row - b.row);
-      return distA - distB;
-    });
-  } else if (settings.targetPriority === 'strongest') {
-    targets = [...playerMechs].sort((a, b) => {
-      const tonnageA = BT_UNITS[a.unitId].tonnage;
-      const tonnageB = BT_UNITS[b.unitId].tonnage;
-      return tonnageB - tonnageA;
-    });
+  if (!unit?.weapons?.length) return null;
+
+  const candidates = [];
+  for (const target of playerMechs) {
+    for (const weaponEntry of unit.weapons) {
+      const scored = scoreWeaponAttack(mech, target, weaponEntry);
+      if (scored) candidates.push(scored);
+    }
   }
-  
-  if (targets.length === 0) return null;
-  
-  // Pick first target
-  const target = targets[0];
-  const targetUnit = BT_UNITS[target.unitId];
-  
-  // Pick a weapon (prefer highest damage)
-  const weapons = unit.weapons;
-  const weapon = weapons.length > 0 ? weapons[0] : null;
-  
-  if (!weapon) return null;
-  
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => b.score - a.score);
+
+  let choice;
+  if (settings.targetPriority === 'random') {
+    choice = candidates[Math.floor(Math.random() * candidates.length)];
+  } else if (settings.targetPriority === 'closest') {
+    const nearestTarget = [...playerMechs].sort((a, b) =>
+      axialDistance(mech.col, mech.row, a.col, a.row) - axialDistance(mech.col, mech.row, b.col, b.row)
+    )[0];
+    choice = candidates.find(candidate => candidate.target.instanceId === nearestTarget?.instanceId) || candidates[0];
+  } else {
+    choice = candidates[0];
+  }
+
   return {
     type: 'attack',
     instanceId: mech.instanceId,
-    targetInstanceId: target.instanceId,
-    weaponKey: weapon.key,
-    weaponLocation: weapon.location,
-    weaponCount: weapon.count
+    targetInstanceId: choice.target.instanceId,
+    weaponKey: choice.weaponEntry.key,
+    weaponLocation: choice.weaponEntry.location,
+    weaponCount: choice.weaponEntry.count,
+    _debug: `EV ${choice.expectedDamage.toFixed(1)} dmg (${Math.round(choice.hitChance * 100)}% to hit ${choice.attack.targetNumber}+) vs ${mechLabel(choice.target)}`
   };
 }
 
@@ -361,7 +391,8 @@ async function executeAIAttack(action) {
   
   if (!attacker || !target || attacker.hasFired) return;
   
-  const weaponEntry = BT_UNITS[attacker.unitId].weapons.find(w => w.key === action.weaponKey);
+  const weaponEntry = BT_UNITS[attacker.unitId].weapons.find(weapon =>
+    weapon.key === action.weaponKey && (!action.weaponLocation || weapon.location === action.weaponLocation));
   if (!weaponEntry) return;
   const attack = evaluateWeaponAttack(attacker, target, weaponEntry);
   if (!attack.valid) return;
@@ -382,7 +413,7 @@ async function executeAIAttack(action) {
   }
   await syncMechInstances();
   await checkForMatchEnd();
-  logEvent(message, 'attack');
+  logEvent(`${message}${action._debug ? ` [${action._debug}]` : ''}`, 'attack');
 
   // Update UI
   draw();
