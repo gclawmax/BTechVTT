@@ -50,6 +50,8 @@ Use only the relevant focused file:
    improvised tree/girder clubs.
 7. `16_custom_map_and_scenario_editor.md` for authored terrain, elevation,
    deployment zones and objectives.
+8. `17_targeting_computers_and_electronic_warfare.md` for Targeting Computer
+   modifiers and aimed shots, C3/C3i range sharing, ECM and Active Probes.
 
 ### Unit/data work
 

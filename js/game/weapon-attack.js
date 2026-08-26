@@ -4,7 +4,7 @@
 // component effects are resolved from the BattleMech record sheet.
 
 function emptyWeaponAttackState() {
-  return { attackerId: null, targetId: null, primaryTargetId: null, targetAssignments: {}, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {}, indirect: false, indirectTargetId: null, spotterId: null, armsFlipped: false };
+  return { attackerId: null, targetId: null, primaryTargetId: null, targetAssignments: {}, weaponKeys: [], ammoBinsByMount: {}, fireModesByMount: {}, aimLocationsByMount: {}, indirect: false, indirectTargetId: null, spotterId: null, armsFlipped: false };
 }
 let weaponAttackState = emptyWeaponAttackState();
 
@@ -33,6 +33,7 @@ function setIndirectFire(enabled) {
 function selectIndirectSpotter(instanceId) {
   weaponAttackState.spotterId = instanceId;
   weaponAttackState.weaponKeys = [];
+  weaponAttackState.aimLocationsByMount = {};
   renderWeaponAttackPanel();
 }
 
@@ -156,11 +157,11 @@ function weaponHeatToHitModifier(mech) {
 }
 
 function electronicEquipmentKey(label) {
-  return String(label || '').toLowerCase().replace(/^(is|clan|cl)/, '').replace(/[^a-z0-9]/g, '');
+  return String(label || '').toLowerCase().replace(/(?:\s*\([^)]*\))+$/, '').replace(/^(is|clan|cl)/, '').replace(/[^a-z0-9]/g, '');
 }
 
 function hasOperationalElectronicEquipment(mech, keys) {
-  if (!mech || mech.destroyed) return false;
+  if (!mech || mech.destroyed || mech.shutdown) return false;
   const layout = BT_CRITICAL_LAYOUTS[mech.unitId] || {};
   const matched = [];
   for (const [location, slots] of Object.entries(layout)) {
@@ -172,32 +173,100 @@ function hasOperationalElectronicEquipment(mech, keys) {
 }
 
 function hasOperationalEcm(mech) {
-  return hasOperationalElectronicEquipment(mech, ['guardianecmsuite', 'clanecmsuite']);
+  return hasOperationalElectronicEquipment(mech, ['guardianecmsuite', 'ecmsuite']);
 }
 
 function hasOperationalActiveProbe(mech) {
-  return hasOperationalElectronicEquipment(mech, ['beagleactiveprobe', 'clanactiveprobe']);
+  return hasOperationalElectronicEquipment(mech, ['beagleactiveprobe', 'activeprobe']);
+}
+
+function hasOperationalTargetingComputer(mech) {
+  return hasOperationalElectronicEquipment(mech, ['targetingcomputer']);
+}
+
+function c3EquipmentRole(mech) {
+  if (hasOperationalElectronicEquipment(mech, ['c3icomputer', 'improvedc3computer'])) return 'c3i';
+  if (hasOperationalElectronicEquipment(mech, ['c3mastercomputer', 'c3master'])) return 'master';
+  if (hasOperationalElectronicEquipment(mech, ['c3slavecomputer', 'c3slave'])) return 'slave';
+  return null;
+}
+
+function enemyEcmEmitters(owner) {
+  return mechInstances.filter(mech => mech.owner !== owner && hasOperationalEcm(mech));
+}
+
+function ecmInterferesLine(owner, from, to = from) {
+  const emitters = enemyEcmEmitters(owner);
+  const distance = axialDistance(from.col, from.row, to.col, to.row);
+  const a = offsetToAxial(from.col, from.row), b = offsetToAxial(to.col, to.row);
+  for (let step = 0; step <= distance; step++) {
+    const fraction = distance ? step / distance : 0;
+    const axial = axialRound(a.q + (b.q - a.q) * fraction, a.r + (b.r - a.r) * fraction);
+    const hex = axialToOffset(axial.q, axial.r);
+    if (emitters.some(emitter => axialDistance(emitter.col, emitter.row, hex.col, hex.row) <= 6)) return true;
+  }
+  return false;
 }
 
 function targetGuidanceEcm(attacker, target) {
-  return mechInstances.some(emitter => emitter.owner !== attacker.owner && hasOperationalEcm(emitter) &&
-    axialDistance(emitter.col, emitter.row, target.col, target.row) <= 6);
+  return ecmInterferesLine(attacker.owner, attacker, target);
+}
+
+function c3NetworkSupport(attacker, target) {
+  const physicalDistance = axialDistance(attacker.col, attacker.row, target.col, target.row);
+  const role = c3EquipmentRole(attacker);
+  if (!role || ecmInterferesLine(attacker.owner, attacker)) return { distance: physicalDistance, source: null, jammed: Boolean(role) };
+  const family = role === 'c3i' ? 'c3i' : 'standard';
+  const eligible = mechInstances.filter(candidate => {
+    if (candidate.owner !== attacker.owner || candidate.destroyed) return false;
+    const candidateRole = c3EquipmentRole(candidate);
+    if (!candidateRole || (family === 'c3i') !== (candidateRole === 'c3i')) return false;
+    return !ecmInterferesLine(attacker.owner, candidate) && weaponLineOfSight(candidate, target).valid;
+  });
+  if (family === 'standard') {
+    const master = eligible.find(candidate => c3EquipmentRole(candidate) === 'master');
+    if (!master || ecmInterferesLine(attacker.owner, attacker, master)) return { distance: physicalDistance, source: null, jammed: false };
+    const linked = eligible.filter(candidate => !ecmInterferesLine(attacker.owner, candidate, master)).slice(0, 12);
+    const source = linked.reduce((best, candidate) => !best || axialDistance(candidate.col, candidate.row, target.col, target.row) < axialDistance(best.col, best.row, target.col, target.row) ? candidate : best, null);
+    return { distance: source ? Math.min(physicalDistance, axialDistance(source.col, source.row, target.col, target.row)) : physicalDistance, source, jammed: false };
+  }
+  const linked = eligible.filter(candidate => !ecmInterferesLine(attacker.owner, attacker, candidate)).slice(0, 6);
+  const source = linked.reduce((best, candidate) => !best || axialDistance(candidate.col, candidate.row, target.col, target.row) < axialDistance(best.col, best.row, target.col, target.row) ? candidate : best, null);
+  return { distance: source ? Math.min(physicalDistance, axialDistance(source.col, source.row, target.col, target.row)) : physicalDistance, source, jammed: false };
+}
+
+function targetingComputerEligibleWeapon(attacker, weaponEntry) {
+  const weapon = weaponProfile(weaponEntry);
+  if (!hasOperationalTargetingComputer(attacker) || !weapon || weapon.supportOnly || weapon.missileWeapon) return false;
+  return !['tag', 'narc', 'ams'].includes(weaponEntry.key);
+}
+
+function targetingComputerCanAim(attacker, weaponEntry, mountId) {
+  if (!targetingComputerEligibleWeapon(attacker, weaponEntry)) return false;
+  if (/pulse/i.test(weaponProfile(weaponEntry)?.name || '') || weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster') return false;
+  return weaponFireMode(mountId, weaponEntry) !== 'rapid';
 }
 
 function electronicWarfareReadout(attacker, target) {
   const notices = [];
   if (hasOperationalEcm(attacker)) notices.push('Guardian ECM active (6 hexes)');
-  if (hasOperationalActiveProbe(attacker)) notices.push('Beagle Active Probe operational');
+  if (hasOperationalActiveProbe(attacker)) notices.push(ecmInterferesLine(attacker.owner, attacker) ? 'Active Probe is inside hostile ECM' : 'Active Probe operational (hidden-unit detection is not enabled)');
+  if (hasOperationalTargetingComputer(attacker)) notices.push('Targeting Computer operational: eligible direct fire receives −1 or may make an aimed shot');
+  const c3 = target ? c3NetworkSupport(attacker, target) : null;
+  if (c3?.jammed) notices.push('C3 link is cut by hostile ECM');
+  else if (c3?.source && c3.source.instanceId !== attacker.instanceId && c3.distance < axialDistance(attacker.col, attacker.row, target.col, target.row)) notices.push(`C3 range supplied by ${mechLabel(c3.source)}: ${c3.distance} hexes`);
   if (target && targetGuidanceEcm(attacker, target)) notices.push(`${mechLabel(target)} is ECM-protected: Artemis and Narc guidance are suppressed`);
   if (target && Number(target.taggedRound) === Number(currentGameState.round)) notices.push(`${mechLabel(target)} is TAG-designated this round`);
   if (target?.narcPod && Number(target.narcPod.round) === Number(currentGameState.round)) notices.push(`${mechLabel(target)} carries a Narc beacon`);
   return notices;
 }
 
-function weaponRangeModifier(weapon, distance) {
+function weaponRangeModifier(weapon, distance, physicalDistance = distance) {
   if (distance <= weapon.range[0]) {
-    const minimum = weapon.minimumRange && distance <= weapon.minimumRange
-      ? weapon.minimumRange - distance + 1
+    // C3 may improve the range band, but minimum range always uses the
+    // firing BattleMech's real distance to the target.
+    const minimum = weapon.minimumRange && physicalDistance <= weapon.minimumRange
+      ? weapon.minimumRange - physicalDistance + 1
       : 0;
     return { label: minimum ? 'Minimum' : 'Short', modifier: minimum };
   }
@@ -377,9 +446,13 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   if (typeof weaponsDisabledByCritical === 'function' && weaponsDisabledByCritical(eligibleAttacker)) return { valid: false, reason: 'Sensors were destroyed before this phase.' };
   if (typeof isWeaponCriticallyDestroyed === 'function' && isWeaponCriticallyDestroyed(eligibleAttacker, weaponEntry)) return { valid: false, reason: `${weapon.name} was destroyed before this phase.` };
   const distance = axialDistance(attacker.col, attacker.row, target.col, target.row);
-  const range = weaponRangeModifier(weapon, distance);
-  if (!range) return { valid: false, reason: `${weapon.name} is beyond long range (${distance} hexes).` };
   const indirect = Boolean(options.indirect);
+  const c3 = indirect ? { distance, source: null, jammed: false } : c3NetworkSupport(attacker, target);
+  // C3 can improve the range bracket, but never extends a weapon's maximum
+  // range and never changes minimum-range penalties.
+  if (distance > weapon.range[2]) return { valid: false, reason: `${weapon.name} is beyond long range (${distance} hexes).` };
+  const range = weaponRangeModifier(weapon, c3.distance, distance);
+  if (!range) return { valid: false, reason: `${weapon.name} is beyond long range (${distance} hexes).` };
   const spotter = options.spotter;
   if (indirect && !weaponEntry.key?.startsWith('lrm')) return { valid: false, reason: 'Only LRM weapons may fire indirectly.' };
   if (indirect && weaponLineOfSight(attacker, target).valid) return { valid: false, reason: 'Indirect fire is unavailable while the attacker has direct line of sight.' };
@@ -405,6 +478,12 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   const precisionModifier = ammoLoadType === 'precision' ? -Math.min(2, targetMove) : 0;
   const semiGuidedModifier = tagGuided ? (indirect ? -1 : -Math.min(2, woods)) : 0;
   const accuracyModifier = Number(weapon.toHitModifier || 0);
+  const aimedLocation = weaponAttackState.aimLocationsByMount?.[mountId] || null;
+  const targetingComputerModifier = targetingComputerEligibleWeapon(eligibleAttacker, weaponEntry)
+    ? (aimedLocation ? 3 : weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster' ? 0 : -1)
+    : 0;
+  if (aimedLocation && !targetingComputerCanAim(eligibleAttacker, weaponEntry, mountId)) return { valid: false, reason: `${weapon.name} cannot make a Targeting Computer aimed shot in this firing mode.` };
+  if (aimedLocation && (!['ct', 'lt', 'rt', 'la', 'ra', 'll', 'rl'].includes(aimedLocation) || Number(eligibleTarget.structure?.[aimedLocation] || 0) <= 0)) return { valid: false, reason: 'Choose an intact non-head location for the aimed shot.' };
   const indirectModifier = indirect ? 1 : 0;
   const spotterMovement = indirect ? movementToHitModifier(spotter) : 0;
   const partialCover = terrainAt(target.col, target.row) === 'shallow_water' && !eligibleTarget.prone ? 1 : 0;
@@ -417,10 +496,12 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
     weapon,
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + semiGuidedModifier + accuracyModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + semiGuidedModifier + accuracyModifier + targetingComputerModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
     attackAngle: attackDirection(attacker, target),
     multipleTargets,
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier} + terrain ${woods + targetWoods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
+    aimedLocation,
+    c3,
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier}${c3.source && c3.source.instanceId !== attacker.instanceId && c3.distance < distance ? ` (C3 ${c3.distance} hexes via ${mechLabel(c3.source)})` : ''} + terrain ${woods + targetWoods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${targetingComputerModifier === -1 ? ' - Targeting Computer 1' : targetingComputerModifier === 3 ? ` + Targeting Computer aimed ${aimedLocation} 3` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
   };
 }
 
@@ -431,6 +512,7 @@ async function setProneWeaponSupportArm(instanceId, arm) {
   weaponAttackState.weaponKeys = [];
   weaponAttackState.ammoBinsByMount = {};
   weaponAttackState.fireModesByMount = {};
+  weaponAttackState.aimLocationsByMount = {};
   renderWeaponAttackPanel();
 }
 
@@ -461,6 +543,7 @@ function selectPrimaryWeaponTarget(instanceId) {
 }
 
 function toggleWeaponForAttack(mountId) {
+  weaponAttackState.aimLocationsByMount ||= {};
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
   const selected = weaponAttackState.weaponKeys;
@@ -469,6 +552,7 @@ function toggleWeaponForAttack(mountId) {
     delete weaponAttackState.targetAssignments[mountId];
     delete weaponAttackState.ammoBinsByMount[mountId];
     delete weaponAttackState.fireModesByMount[mountId];
+    delete weaponAttackState.aimLocationsByMount[mountId];
     if (!Object.values(weaponAttackState.targetAssignments).includes(weaponAttackState.primaryTargetId)) {
       weaponAttackState.primaryTargetId = Object.values(weaponAttackState.targetAssignments)[0] || null;
     }
@@ -489,6 +573,7 @@ function toggleWeaponForAttack(mountId) {
 }
 
 function selectWeaponFireMode(mountId, mode) {
+  weaponAttackState.aimLocationsByMount ||= {};
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
   const validModes = entry?.key?.startsWith('uac') ? ['single', 'rapid'] : [];
@@ -502,11 +587,24 @@ function selectWeaponFireMode(mountId, mode) {
     return;
   }
   weaponAttackState.fireModesByMount[mountId] = mode;
+  if (mode === 'rapid') delete weaponAttackState.aimLocationsByMount[mountId];
   if (!bins.some(bin => bin.id === weaponAttackState.ammoBinsByMount[mountId])) weaponAttackState.ammoBinsByMount[mountId] = bins[0].id;
   renderWeaponAttackPanel();
 }
 
+function selectTargetingComputerAim(mountId, location) {
+  weaponAttackState.aimLocationsByMount ||= {};
+  const attacker = mechInstances.find(mech => mech.instanceId === weaponAttackState.attackerId) ||
+    mechInstances.find(mech => mech.instanceId === selectedInstanceId);
+  const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
+  if (!entry) return;
+  if (!location) delete weaponAttackState.aimLocationsByMount[mountId];
+  else if (['ct', 'lt', 'rt', 'la', 'ra', 'll', 'rl'].includes(location) && targetingComputerCanAim(attacker, entry, mountId)) weaponAttackState.aimLocationsByMount[mountId] = location;
+  renderWeaponAttackPanel();
+}
+
 function selectAmmoBinForMount(mountId, binId) {
+  weaponAttackState.aimLocationsByMount ||= {};
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
   if (!entry || !compatibleAmmoBins(attacker, entry, weaponShotsForMode(mountId, entry)).some(bin => bin.id === binId)) return;
@@ -514,6 +612,7 @@ function selectAmmoBinForMount(mountId, binId) {
   if (entry.key === 'lb10x') {
     const bin = (weaponPhaseStartMech(attacker).ammoBins || []).find(candidate => candidate.id === binId);
     weaponAttackState.fireModesByMount[mountId] = bin?.loadType || 'slug';
+    if (weaponAttackState.fireModesByMount[mountId] === 'cluster') delete weaponAttackState.aimLocationsByMount[mountId];
   }
   renderWeaponAttackPanel();
 }
@@ -636,8 +735,13 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const modeSuffix = result.fire_mode === 'rapid' ? ' (rapid fire)' : result.fire_mode === 'cluster' ? ' (cluster ammunition)'
     : result.ammo_load_type === 'inferno' ? ' (Inferno ammunition)' : result.ammo_load_type === 'precision' ? ' (Precision ammunition)'
       : result.ammo_load_type === 'semi_guided' ? ' (semi-guided ammunition)' : '';
+  const aimed = result.aimed_location
+    ? result.aimed_roll
+      ? ` Targeting Computer aimed at ${hitLocationLabel(result.aimed_location)}; location roll ${result.aimed_roll.die_a} + ${result.aimed_roll.die_b} = ${result.aimed_roll.total}${result.aimed_success ? ': designated location acquired.' : ': normal hit location used.'}`
+      : ` Targeting Computer aimed at ${hitLocationLabel(result.aimed_location)}.`
+    : '';
   if (result.intercepted) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: on target, but ${mechLabel(target)}'s AMS destroyed the missile (interception roll ${result.ams?.single_missile_roll}).`;
-  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: miss.${result.streak_no_lock ? ' Streak did not lock; no ammunition or heat expended.' : ''}${result.jammed ? ' Ultra AC jammed.' : ''}`;
+  if (!result.hit) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: miss.${aimed}${result.streak_no_lock ? ' Streak did not lock; no ammunition or heat expended.' : ''}${result.jammed ? ' Ultra AC jammed.' : ''}`;
   if (result.tagged) return `${mechLabel(attacker)} designated ${mechLabel(target)} with TAG — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: lock confirmed.`;
   if (result.narc_attached) return `${mechLabel(attacker)} attached a Narc beacon to ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: beacon attached.`;
   if (result.cluster_roll || result.streak_lock) {
@@ -655,14 +759,14 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
   const gaussExplosion = result.gauss_explosion ? ` Gauss rifle exploded for ${result.gauss_explosion.damage} internal damage in ${hitLocationLabel(result.gauss_explosion.location)}.` : '';
   const flamerHeat = result.heat_inflicted ? ` ${mechLabel(target)} gains ${result.heat_inflicted} heat.` : '';
-  if (result.partial_cover) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${hitLocationLabel(result.location)} hit absorbed by partial cover.`;
-  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${flamerHeat}${criticals}${gaussExplosion}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+  if (result.partial_cover) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${hitLocationLabel(result.location)} hit absorbed by partial cover.${aimed}`;
+  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${aimed}${flamerHeat}${criticals}${gaussExplosion}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function formatAuthoritativeTargetNumber(roll) {
   const b = roll?.breakdown;
   if (!b || typeof b.gunnery !== 'number') return '';
-  const labels = [['attacker_movement', 'attacker movement'], ['spotter_movement', 'spotter movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'terrain'], ['partial_cover', 'partial cover'], ['multiple_targets', 'secondary target'], ['indirect_fire', 'indirect fire'], ['spotter_firing', 'spotter firing'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'prone target'], ['lb_x_cluster', 'LB-X cluster'], ['special_ammunition', 'special ammunition'], ['weapon_accuracy', 'weapon accuracy']];
+  const labels = [['attacker_movement', 'attacker movement'], ['spotter_movement', 'spotter movement'], ['target_movement', 'target movement'], ['range', 'range'], ['woods', 'terrain'], ['partial_cover', 'partial cover'], ['multiple_targets', 'secondary target'], ['indirect_fire', 'indirect fire'], ['spotter_firing', 'spotter firing'], ['sensors', 'sensors'], ['heat', 'heat'], ['component_damage', 'damage'], ['prone', 'prone'], ['target_prone', 'prone target'], ['lb_x_cluster', 'LB-X cluster'], ['special_ammunition', 'special ammunition'], ['weapon_accuracy', 'weapon accuracy'], ['targeting_computer', 'Targeting Computer']];
   const terms = [`Gunnery ${b.gunnery}`];
   for (const [key, label] of labels) {
     const value = Number(b[key] || 0);
@@ -747,6 +851,7 @@ async function loadWeaponCombatEvents() {
 }
 
 async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons) {
+  weaponAttackState.aimLocationsByMount ||= {};
   const ammoDeclaration = resolveDeclaredAmmoBins(attacker, selectedWeapons);
   if (ammoDeclaration.error) {
     flashMoveWarning(ammoDeclaration.error);
@@ -771,6 +876,7 @@ async function confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapon
     ammo_bins: {
       ...Object.fromEntries(mountIds.filter(id => ammoDeclaration.choices[id]).map(id => [id, ammoDeclaration.choices[id]])),
       __fire_modes: Object.fromEntries(mountIds.filter(id => ammoDeclaration.fireModes[id]).map(id => [id, ammoDeclaration.fireModes[id]])),
+      __aim_locations: Object.fromEntries(mountIds.filter(id => weaponAttackState.aimLocationsByMount[id]).map(id => [id, weaponAttackState.aimLocationsByMount[id]])),
       ...(weaponAttackState.armsFlipped ? { __arms_flipped: true } : {}),
       __indirect: weaponAttackState.indirectTargetId === targetId,
       __spotter: weaponAttackState.indirectTargetId === targetId ? weaponAttackState.spotterId : null
@@ -888,6 +994,7 @@ async function confirmWeaponAttack() {
 }
 
 function renderWeaponAttackPanel() {
+  weaponAttackState.aimLocationsByMount ||= {};
   const panel = document.getElementById('movement-panel');
   if (!panel || currentGameState.phase !== 'weapon_attack') return;
   panel.style.display = 'block';
@@ -945,7 +1052,10 @@ function renderWeaponAttackPanel() {
     const binPicker = checked && weapon?.ammoType ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">AMMO BIN<select onchange="selectAmmoBinForMount('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;">${bins.map(bin => `<option value="${bin.id}" ${weaponAttackState.ammoBinsByMount[mountId] === bin.id ? 'selected' : ''}>${ammoBinLabel(bin)}</option>`).join('')}</select></label>` : '';
     const ultra = weapon?.key?.startsWith('uac');
     const modePicker = checked && ultra ? `<div style="display:flex;gap:5px;margin:0 0 7px;"><button onclick="selectWeaponFireMode('${mountId}','single')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'single' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'single' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">SINGLE · 1 AMMO / ${weapon.heat} HEAT</button><button onclick="selectWeaponFireMode('${mountId}','rapid')" style="flex:1;padding:5px;border:1px solid ${weaponFireMode(mountId, entry) === 'rapid' ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponFireMode(mountId, entry) === 'rapid' ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">RAPID · 2 AMMO / ${weapon.heat * 2} HEAT</button></div>` : '';
-    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location} · ${weaponArcLabel(entry, attacker)}${assignedTarget ? ` · → ${mechLabel(assignedTarget)}${assignedTargetId === weaponAttackState.primaryTargetId ? ' (primary)' : ''}` : ''}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}</div>`;
+    const canAim = checked && targetingComputerCanAim(attacker, entry, mountId);
+    const aimLocations = [['ct','Centre Torso'],['lt','Left Torso'],['rt','Right Torso'],['la','Left Arm'],['ra','Right Arm'],['ll','Left Leg'],['rl','Right Leg']].filter(([value]) => Number(weaponPhaseStartMech(assignedTarget)?.structure?.[value] || 0) > 0);
+    const aimPicker = canAim ? `<label style="display:flex;gap:6px;align-items:center;margin:4px 0 7px;font:9px var(--mono);color:var(--phosphor-dim);">TARGETING COMPUTER<select onchange="selectTargetingComputerAim('${mountId}',this.value)" style="flex:1;font:10px var(--mono);padding:4px;"><option value="">Standard tracking (−1 to hit)</option>${aimLocations.map(([value,label]) => `<option value="${value}" ${weaponAttackState.aimLocationsByMount[mountId] === value ? 'selected' : ''}>Aim: ${label} (+3 to hit; location on 6–8)</option>`).join('')}</select></label>` : '';
+    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${weapon?.damage || '?'} max dmg / ${ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : heat} heat · ${entry.location} · ${weaponArcLabel(entry, attacker)}${assignedTarget ? ` · → ${mechLabel(assignedTarget)}${assignedTargetId === weaponAttackState.primaryTargetId ? ' (primary)' : ''}` : ''}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}${aimPicker}</div>`;
   }).join('');
 
   panel.innerHTML = `

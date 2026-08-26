@@ -169,6 +169,49 @@ check('#3 destroyed targets cannot be selected for weapon attacks', !sandbox.eva
 const shutdownTarget = { ...t3, shutdown: true };
 check('#3 shutdown BattleMechs remain selectable weapon targets', sandbox.canBeWeaponTarget(shutdownTarget) && sandbox.evaluateWeaponAttack(aDefault, shutdownTarget, wpn).valid);
 
+// Targeting Computers apply only to eligible direct-fire weapons. Standard
+// tracking is -1; an aimed shot replaces that with +3 and may not choose head.
+sandbox.BT_CRITICAL_LAYOUTS.tcmech = { rt: ['CLTargeting Computer (OMNIPOD)'] };
+sandbox.BT_UNITS.tcmech = { name: 'Targeting Computer TestMech', movement: { walk: 4, run: 7, jump: 0 }, weapons: [wpn] };
+const tcMech = { ...aDefault, instanceId: 'tc', unitId: 'tcmech' };
+sandbox.mechInstances = [tcMech, t3];
+vm.runInContext('weaponAttackState=emptyWeaponAttackState()', sandbox);
+const tcStandard = sandbox.evaluateWeaponAttack(tcMech, t3, wpn, { mountId: 'medium_laser:Left Arm:0' });
+check('#3 Targeting Computer catalogue labels retain their Clan prefix meaning', sandbox.electronicEquipmentKey('CLTargeting Computer (OMNIPOD)') === 'targetingcomputer' && sandbox.hasOperationalTargetingComputer(tcMech));
+check('#3 Targeting Computer gives eligible direct fire −1 to hit', tcStandard.targetNumber === tnDefault - 1, `tn=${tcStandard.targetNumber}`);
+vm.runInContext("weaponAttackState.aimLocationsByMount['medium_laser:Left Arm:0']='ct'", sandbox);
+const tcAimed = sandbox.evaluateWeaponAttack(tcMech, t3, wpn, { mountId: 'medium_laser:Left Arm:0' });
+check('#3 Targeting Computer aimed fire replaces −1 with +3', tcAimed.targetNumber === tnDefault + 3 && tcAimed.aimedLocation === 'ct', `tn=${tcAimed.targetNumber}`);
+const tcMissile = sandbox.evaluateWeaponAttack(tcMech, t3, { key: 'srm6', location: 'Left Torso', weapon: { name: 'SRM 6', damage: 12, heat: 4, range: [3, 6, 9], missileWeapon: true } });
+check('#3 Targeting Computer does not modify missile fire', tcMissile.targetNumber === tnDefault, `tn=${tcMissile.targetNumber}`);
+vm.runInContext('weaponAttackState=emptyWeaponAttackState()', sandbox);
+
+// Standard C3 and C3i use a network member's distance for the range bracket,
+// while retaining the shooter's physical maximum/minimum range and LOS.
+sandbox.BT_CRITICAL_LAYOUTS.c3slave = { lt: ['IS C3 Slave Computer'] };
+sandbox.BT_CRITICAL_LAYOUTS.c3master = { lt: ['IS C3 Master Computer'] };
+sandbox.BT_CRITICAL_LAYOUTS.ecmmech = { lt: ['IS Guardian ECM Suite'] };
+const c3Attacker = { ...aDefault, instanceId: 'c3-attacker', unitId: 'c3slave', col: 0, row: 0 };
+const c3Source = { ...aDefault, instanceId: 'c3-source', unitId: 'c3master', col: 10, row: 0 };
+const c3Target = { ...t3, instanceId: 'c3-target', col: 12, row: 0 };
+const c3Weapon = { key: 'ac2', location: 'Right Arm', weapon: { name: 'AC/2', damage: 2, heat: 1, range: [8, 16, 24] } };
+sandbox.BT_UNITS.c3slave = { name: 'C3 Slave TestMech', movement: { walk: 4, run: 7, jump: 0 }, weapons: [c3Weapon] };
+sandbox.BT_UNITS.c3master = { name: 'C3 Master TestMech', movement: { walk: 4, run: 7, jump: 0 }, weapons: [] };
+sandbox.BT_UNITS.ecmmech = { name: 'ECM TestMech', movement: { walk: 4, run: 7, jump: 0 }, weapons: [] };
+sandbox.mechInstances = [c3Attacker, c3Source, c3Target];
+const c3Shot = sandbox.evaluateWeaponAttack(c3Attacker, c3Target, c3Weapon);
+check('#3 C3 uses the closest linked unit with LOS for the range bracket', c3Shot.valid && c3Shot.c3.distance === 2 && c3Shot.c3.source.instanceId === 'c3-source' && c3Shot.range.label === 'Short', c3Shot.breakdown);
+const clearWoodsBetween = sandbox.woodsBetween;
+sandbox.woodsBetween = observer => observer.instanceId === 'c3-source' ? 3 : 0;
+check('#3 a C3 member without LOS cannot supply range', sandbox.c3NetworkSupport(c3Attacker, c3Target).distance === 12);
+sandbox.woodsBetween = clearWoodsBetween;
+const ecmMech = { ...t3, instanceId: 'ecm', unitId: 'ecmmech', col: 5, row: 0 };
+sandbox.mechInstances = [c3Attacker, c3Source, c3Target, ecmMech];
+check('#3 hostile ECM crossing the link restores physical C3 range', sandbox.c3NetworkSupport(c3Attacker, c3Target).distance === 12 && sandbox.targetGuidanceEcm(c3Attacker, c3Target));
+check('#3 Clan ECM and probe labels normalise to supported equipment keys', sandbox.electronicEquipmentKey('Clan ECM Suite') === 'ecmsuite' && sandbox.electronicEquipmentKey('Clan Active Probe') === 'activeprobe');
+check('#3 shutdown BattleMechs stop projecting electronic equipment', !sandbox.hasOperationalEcm({ ...ecmMech, shutdown: true }));
+sandbox.mechInstances = [];
+
 // Indirect LRM fire is legal only when the attacker lacks LOS and a friendly
 // spotter has LOS. It includes +1 indirect fire and the spotter's movement.
 const lrm = { key: 'lrm10', name: 'LRM 10', location: 'Left Torso', weapon: { key: 'lrm10', name: 'LRM 10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6 } };
@@ -493,7 +536,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-arm-flip-ui-26"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-targeting-ew-27"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -531,6 +574,10 @@ const weaponAttackSource = fs.readFileSync(`${ROOT}/js/game/weapon-attack.js`, '
 check('#5 electronic warfare suppresses guidance at an ECM-protected target', electronicWarfareMigration.includes('btech_target_guidance_ecm') && electronicWarfareMigration.includes('guided_ammunition_v1') && electronicWarfareMigration.includes('narc_guided:=narc_guided AND NOT ecm_guidance') && electronicWarfareMigration.includes('artemis_guided:=artemis_guided AND NOT ecm_guidance'));
 check('#5 TAG-assisted semi-guided LRM ammunition is selectable and authoritative', electronicWarfareMigration.includes("ARRAY['standard','semi_guided']") && electronicWarfareMigration.includes("ammo_load_type=''semi_guided''") && phaseSource.includes("['standard', 'semi_guided']") && weaponAttackSource.includes('tagGuided'));
 check('#5 client reports operational ECM and Beagle probe equipment honestly', weaponAttackSource.includes('hasOperationalEcm') && weaponAttackSource.includes('hasOperationalActiveProbe') && weaponAttackSource.includes('ECM suppressed Narc/Artemis guidance'));
+const targetingNetworkMigration = fs.readFileSync(`${ROOT}/SQL/90_targeting_computers_and_c3_networks.sql`, 'utf8');
+check('#5 Targeting Computer declarations and aimed locations are server-authoritative', targetingNetworkMigration.includes('targeting_computer_c3_v1') && targetingNetworkMigration.includes('__aim_locations') && targetingNetworkMigration.includes('targeting_mod:=-1') && targetingNetworkMigration.includes('aimed_success:=(aimed_da+aimed_db BETWEEN 6 AND 8)') && weaponAttackSource.includes('selectTargetingComputerAim'));
+check('#5 C3 range sharing retains physical limits, requires LOS, and is cut by ECM', targetingNetworkMigration.includes('btech_c3_range_distance') && targetingNetworkMigration.includes('IF dist>long_range') && targetingNetworkMigration.includes('minimum_range-dist+1') && targetingNetworkMigration.includes('btech_intervening_terrain') && targetingNetworkMigration.includes('btech_ecm_interferes_line'));
+check('#5 C3 and C3i network limits are explicit', targetingNetworkMigration.includes("role='c3i' THEN 6 ELSE 12") && targetingNetworkMigration.includes("RETURN 'master'") && targetingNetworkMigration.includes("RETURN 'slave'"));
 const armClubMigration = fs.readFileSync(`${ROOT}/SQL/88_arm_flipping_and_improvised_clubs.sql`, 'utf8');
 check('#5 arm flipping is authoritative, rear-only, and mutually exclusive with torso twisting', armClubMigration.includes('btech_can_flip_battlemech_arms') && armClubMigration.includes('IN (2,3,4)') && armClubMigration.includes('__arms_flipped') && weaponAttackSource.includes('toggleWeaponArmFlip'));
 check('#5 arm-flip migration patches the maintained simultaneous-fire snapshot', armClubMigration.includes("coalesce((attacker_start->>''torsoFacing'')::int,(attacker_start->>''facing'')::int") && !armClubMigration.includes("coalesce((attacker->>''torsoFacing'')::int,(attacker->>''facing'')::int"));
