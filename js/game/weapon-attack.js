@@ -56,6 +56,13 @@ function canFireFromWeaponPhaseStart(mech) {
   return Boolean(mech && !mech.shutdown && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious') && !weaponPhaseStartMech(mech)?.destroyed);
 }
 
+// Shutdown and unconscious BattleMechs cannot fire, but they remain legal
+// targets. Destruction is checked against the phase-start snapshot so that
+// simultaneous weapon declarations remain valid until resolution.
+function canBeWeaponTarget(mech) {
+  return Boolean(mech && !weaponPhaseStartMech(mech)?.destroyed);
+}
+
 function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
   const ammoType = weaponProfile(weaponEntry)?.ammoType;
   if (!ammoType) return [];
@@ -436,7 +443,7 @@ function selectWeaponAttacker(instanceId) {
 
 function selectWeaponTarget(instanceId) {
   const target = mechInstances.find(m => m.instanceId === instanceId);
-  if (!canFireFromWeaponPhaseStart(target)) return;
+  if (!canBeWeaponTarget(target)) return;
   weaponAttackState.targetId = instanceId;
   weaponAttackState.indirect = weaponAttackState.indirectTargetId === instanceId;
   renderWeaponAttackPanel();
@@ -890,7 +897,7 @@ function renderWeaponAttackPanel() {
     return;
   }
 
-  const enemies = mechInstances.filter(m => m.owner !== attacker.owner && canFireFromWeaponPhaseStart(m));
+  const enemies = mechInstances.filter(m => m.owner !== attacker.owner && canBeWeaponTarget(m));
   const armFlipControls = canFlipBattleMechArms(attacker) ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px/1.45 var(--mono);color:var(--paper);"><button onclick="toggleWeaponArmFlip()" style="width:100%;padding:6px;border:1px solid ${weaponAttackState.armsFlipped ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponAttackState.armsFlipped ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">${weaponAttackState.armsFlipped ? '✓ ' : ''}FLIP BOTH ARMS TO REAR</button><div style="margin-top:4px;color:var(--phosphor-dim);">Arm-mounted weapons use the rear arc. This cannot be combined with a torso twist.</div></div>` : '';
   const clubSearch = canSearchForImprovisedClub(attacker) ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px/1.45 var(--mono);color:var(--paper);"><button onclick="findImprovisedClub('${attacker.instanceId}')" style="width:100%;padding:6px;border:1px solid var(--amber);background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">FIND ${improvisedClubTerrain(attacker) === 'tree' ? 'TREE' : 'GIRDER'} CLUB</button><div style="margin-top:4px;color:var(--phosphor-dim);">Uses this BattleMech's Weapon Attack action. A found club is available in Physical Attacks.</div></div>` : '';
   const supportPicker = attacker.prone ? `<div style="font-size:10px;color:var(--amber);margin-bottom:7px;">PRONE SUPPORT ARM — choose the arm holding the BattleMech up.</div><div style="display:flex;gap:6px;margin-bottom:8px;">${['la','ra'].map(arm => `<button onclick="setProneWeaponSupportArm('${attacker.instanceId}','${arm}')" style="flex:1;padding:7px;border:1px solid ${attacker.proneSupportArm === arm ? 'var(--amber)' : 'var(--panel-line)'};background:${attacker.proneSupportArm === arm ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">${attacker.proneSupportArm === arm ? '✓ ' : ''}${arm === 'la' ? 'Left Arm' : 'Right Arm'}</button>`).join('')}</div>` : '';
