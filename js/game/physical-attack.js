@@ -71,7 +71,7 @@ function physicalComponentState(mech, location, label) {
 
 function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandidates(type)[0]) {
   const physicalWeapon = physicalWeaponRule(type);
-  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.shutdown || (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious') || attacker.owner === target.owner) {
+  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.prone || attacker.shutdown || (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious') || attacker.owner === target.owner) {
     return { valid: false, reason: 'Choose a valid enemy target.' };
   }
   if (axialDistance(attacker.col, attacker.row, target.col, target.row) !== 1) {
@@ -146,9 +146,29 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
   };
 }
 
+function physicalAttackTypesFor(mech) {
+  return ['punch', 'kick', 'push', ...availablePhysicalWeapons(mech).map(weapon => weapon.type)];
+}
+
+function legalPhysicalTargets(attacker) {
+  if (!attacker || attacker.destroyed || attacker.prone || attacker.shutdown ||
+      (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious')) return [];
+  const attackTypes = physicalAttackTypesFor(attacker);
+  return mechInstances.filter(target => target.owner !== attacker.owner && !target.destroyed &&
+    attackTypes.some(type => physicalLimbCandidates(type).some(limb =>
+      evaluatePhysicalAttack(attacker, target, type, limb).valid)));
+}
+
+function hasLegalPhysicalAttack(attacker) {
+  // Movement-declared displacement attacks must still be resolved in this
+  // phase, even if their target was destroyed before resolution.
+  if (attacker?.dfaDeclaration || attacker?.chargeDeclaration) return true;
+  return legalPhysicalTargets(attacker).length > 0;
+}
+
 function selectPhysicalAttacker(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.catalogueUnavailable || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked || mech.shutdown || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious')) return;
+  if (!mech || mech.catalogueUnavailable || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked || !hasLegalPhysicalAttack(mech)) return;
   physicalAttackState = { attackerId: instanceId, targetId: null, attackType: null, limbs: [] };
   selectedInstanceId = instanceId;
   logEvent(`${mechLabel(mech)} selected for physical attack declaration.`, 'system');
@@ -286,8 +306,9 @@ function renderPhysicalAttackPanel() {
   panel.style.display = 'block';
   const activeSeat = getActivePlayerSeat();
   const isMine = activeSeat === mySeatNumber && isMyActiveTurn();
-  const pending = mechInstances.filter(m => m.owner === activeSeat && !m.destroyed && !m.shutdown && !m.hasPhysicalAttacked);
-  const attacker = mechInstances.find(m => m.instanceId === physicalAttackState.attackerId) || mechInstances.find(m => m.instanceId === selectedInstanceId);
+  const pending = mechInstances.filter(m => m.owner === activeSeat && !m.hasPhysicalAttacked && hasLegalPhysicalAttack(m));
+  const selectedAttacker = mechInstances.find(m => m.instanceId === physicalAttackState.attackerId) || mechInstances.find(m => m.instanceId === selectedInstanceId);
+  const attacker = hasLegalPhysicalAttack(selectedAttacker) ? selectedAttacker : null;
   const target = mechInstances.find(m => m.instanceId === physicalAttackState.targetId);
 
   if (!isMine) {
@@ -315,9 +336,9 @@ function renderPhysicalAttackPanel() {
     return;
   }
 
-  const enemies = mechInstances.filter(m => m.owner !== attacker.owner && !m.destroyed);
+  const enemies = legalPhysicalTargets(attacker);
   const physicalWeapons = availablePhysicalWeapons(attacker);
-  const attackTypes = ['punch', 'kick', 'push', ...physicalWeapons.map(weapon => weapon.type)];
+  const attackTypes = physicalAttackTypesFor(attacker);
   const options = attackTypes.map(type => {
     const evaluation = target ? physicalLimbCandidates(type).map(limb => evaluatePhysicalAttack(attacker, target, type, limb)).find(value => value.valid) : null;
     const selected = physicalAttackState.attackType === type;

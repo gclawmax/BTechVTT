@@ -272,7 +272,11 @@ check('#4b different levels allow punches but not kicks against a higher target'
 sandbox.elevationAt = () => 0;
 check('#4b physical attacks reject non-adjacent targets', !sandbox.evaluatePhysicalAttack(physicalAttacker, { ...adjacentTarget, col: 7 }, 'kick', 'll').valid);
 check('#4b destroyed limbs cannot make physical attacks', !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, structure: { ...physicalAttacker.structure, ll: 0 } }, adjacentTarget, 'kick', 'll').valid);
+check('#4b a prone BattleMech has no legal physical attack', !sandbox.evaluatePhysicalAttack({ ...physicalAttacker, prone: true }, adjacentTarget, 'punch', 'la').valid);
+sandbox.mechInstances = [physicalAttacker, { ...adjacentTarget, col: 9, row: 9 }];
+check('#4b a BattleMech with no legal physical target needs no declaration', !sandbox.hasLegalPhysicalAttack(physicalAttacker));
 sandbox.mechInstances = [physicalAttacker, adjacentTarget];
+check('#4b an adjacent legal physical target still requires a declaration', sandbox.hasLegalPhysicalAttack(physicalAttacker));
 check('#4b opposing survivors keep the match open', sandbox.determineMatchResult() === null);
 sandbox.mechInstances = [physicalAttacker, { ...adjacentTarget, destroyed: true }];
 check('#4b destroyed opposing force awards the surviving player victory', sandbox.determineMatchResult()?.winner_seat === 1);
@@ -464,7 +468,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-shutdown-target-19"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260826-auto-physical-pass-20"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -473,7 +477,7 @@ const phasesSource = fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8');
 check('#5 rejoin verifies every saved unit against its pinned catalogue and isolates any unresolved record once', catalogueSource.includes('async function verifyMatchCatalogueUnits') && catalogueSource.includes('loadUnitCatalogue(catalogueVersion, true)') && phasesSource.includes('verifyMatchCatalogueUnits(game.catalogue_version, gameState.mech_instances)') && phasesSource.includes('could not be loaded from this match') && panelSource.includes('CATALOGUE UNAVAILABLE'));
 const scenarioRepairMigration = fs.readFileSync(`${ROOT}/SQL/80_repair_scenario_catalogue_unit_ids.sql`, 'utf8');
 check('#5 scenarios persist exact pinned-catalogue IDs and repair untouched historical scenarios safely', scenarioRepairMigration.includes('repair_btech_match_catalogue_unit_ids') && scenarioRepairMigration.includes("g.current_round<>1 OR g.current_phase<>'initiative'") && scenarioRepairMigration.includes("replace(u.unit_id,'-','')") && createGameSource.includes('const resolvedRosters') && catalogueSource.includes('repairScenarioCatalogueUnitIds'));
-check('#5 scenario catalogue repair has a visible, cache-busting build marker', indexSource.includes('20260826-shutdown-target-19'));
+check('#5 scenario catalogue repair has a visible, cache-busting build marker', indexSource.includes('20260826-auto-physical-pass-20'));
 check('#5 initiative waits for every player to commit Round 1 ammunition without breaking later phase refreshes', phasesSource.includes('const unconfiguredAmmo') && phasesSource.includes('currentGameState.round === 1') && phasesSource.includes(': [];') && phasesSource.includes('const ownAmmoSetupPending') && phasesSource.includes('Waiting for the other player to declare their specialised ammunition.'));
 const individualAmmoMigration = fs.readFileSync(`${ROOT}/SQL/81_allow_individual_ammunition_bin_confirmation.sql`, 'utf8');
 check('#5 each Round 1 ammunition button commits only its own physical bin', individualAmmoMigration.includes('IF load_type IS NOT NULL THEN') && individualAmmoMigration.includes('IF provided=0') && phasesSource.includes('submitRoundOneAmmoLoadout(binKey = null)') && phasesSource.includes('pendingEntries.filter') && panelSource.includes("Confirm this ammunition bin"));
@@ -507,6 +511,8 @@ check('#5 arm flipping is authoritative, rear-only, and mutually exclusive with 
 check('#5 arm-flip migration patches the maintained simultaneous-fire snapshot', armClubMigration.includes("coalesce((attacker_start->>''torsoFacing'')::int,(attacker_start->>''facing'')::int") && !armClubMigration.includes("coalesce((attacker->>''torsoFacing'')::int,(attacker->>''facing'')::int"));
 check('#5 improvised clubs are found in Weapon Attacks and swung with both arms in Physical Attacks', armClubMigration.includes('find_improvised_club') && armClubMigration.includes("terrain_name IN ('light_woods','heavy_woods')") && armClubMigration.includes("physical_key=''club''") && weaponAttackSource.includes('findImprovisedClub') && fs.readFileSync(`${ROOT}/js/game/physical-attack.js`, 'utf8').includes('bothArms: true'));
 check('#5 the detail panel identifies a carried improvised club', panelSource.includes('inst.improvisedClub') && panelSource.includes('uses both arms'));
+const physicalAttackSource = fs.readFileSync(`${ROOT}/js/game/physical-attack.js`, 'utf8');
+check('#5 units without legal physical targets are passed automatically and hidden from the picker', phasesSource.includes('autoPassIneligiblePhysicalAttackers') && phasesSource.includes("p_attack_type: 'pass'") && physicalAttackSource.includes('pending = mechInstances.filter') && physicalAttackSource.includes('hasLegalPhysicalAttack(m)') && physicalAttackSource.includes('const enemies = legalPhysicalTargets(attacker)'));
 check('#5 live regression targets SVG deployment hexes and SQL 87 terrain interactions', humanBattleSource.includes('.deployment-hex[aria-label^=') && fs.readFileSync(`${ROOT}/tools/test-human-vs-human-rules.mjs`, 'utf8').includes('magma crust adds transit heat'));
 check('#5 realtime subscription catches phase changes missed while connecting', lobbySource.includes("status === 'SUBSCRIBED'") && lobbySource.includes('loadGameState()'));
 const scenarioEditorSource = fs.readFileSync(`${ROOT}/js/game/scenario-editor.js`, 'utf8');

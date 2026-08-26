@@ -16,6 +16,7 @@ let scheduledAiTurnKey = null;
 let myInitiativePlayerId = null;
 const roundOneAmmoChoices = {};
 const roundOneAmmoPrompted = new Set();
+let autoPassingIneligiblePhysicalAttacks = false;
 
 let currentGameState = {
   round: 1,
@@ -162,6 +163,11 @@ async function loadGameState() {
     renderRoster();
     renderDetail();
   }
+  // A unit with no legal physical target has no decision to make. Record its
+  // pass within the current activation allowance and immediately refresh the
+  // authoritative turn state, without making the player select every unit.
+  if (!vsAiMode && currentGameState.phase === 'physical_attack' && isMyActiveTurn() &&
+      await autoPassIneligiblePhysicalAttackers()) return loadGameState();
   await loadWeaponCombatEvents();
   await loadResolvedPhysicalEvents();
 
@@ -715,17 +721,39 @@ function resetHeatManagementForRound() {
 
 function activePlayerHasLegalPhysicalAttack() {
   const attackers = getPhaseUnitsForActivePlayer().filter(m => !m.hasPhysicalAttacked);
-  return attackers.some(attacker => mechInstances.some(target =>
-    target.owner !== attacker.owner && !target.destroyed && ['punch', 'kick', 'push'].some(type =>
-      physicalLimbCandidates(type).some(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid))
-  ));
+  return attackers.some(hasLegalPhysicalAttack);
 }
 
 function anyLegalPhysicalAttackExists() {
-  return mechInstances.some(attacker => !attacker.destroyed && mechInstances.some(target =>
-    target.owner !== attacker.owner && !target.destroyed &&
-    ['punch', 'kick', 'push'].some(type => physicalLimbCandidates(type).some(limb => evaluatePhysicalAttack(attacker, target, type, limb).valid))
-  ));
+  return mechInstances.some(hasLegalPhysicalAttack);
+}
+
+async function autoPassIneligiblePhysicalAttackers() {
+  if (autoPassingIneligiblePhysicalAttacks || !currentGameId || currentGameState.phase !== 'physical_attack' || !isMyActiveTurn()) return false;
+  const pending = getPhaseUnitsForActivePlayer().filter(mech =>
+    !mech.hasPhysicalAttacked && !mech.shutdown &&
+    (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious'));
+  const unavoidablePasses = pending.filter(mech => !hasLegalPhysicalAttack(mech))
+    .slice(0, Math.min(currentActivationAllowance('physical_attack'), pending.length));
+  if (!unavoidablePasses.length) return false;
+
+  autoPassingIneligiblePhysicalAttacks = true;
+  try {
+    for (const mech of unavoidablePasses) {
+      const { error } = await db.rpc('submit_simultaneous_physical_declaration', {
+        p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId,
+        p_target_instance_id: null, p_attack_type: 'pass', p_limbs: []
+      });
+      if (error) {
+        logEvent(`Could not automatically complete ${mechLabel(mech)}'s unavailable Physical Attack: ${error.message}`, 'error');
+        return false;
+      }
+      logEvent(`${mechLabel(mech)} has no legal physical target — declaration completed automatically.`, 'phase');
+    }
+    return true;
+  } finally {
+    autoPassingIneligiblePhysicalAttacks = false;
+  }
 }
 
 async function skipEmptyPhysicalPhase() {
