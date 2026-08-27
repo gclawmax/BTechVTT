@@ -386,6 +386,10 @@ async function submitAuthoritativeMovement(mech, mode, path) {
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
   await loadGameState();
   logEvent(`${summary}${mode === 'stand' ? '' : ` (${data?.hexes_moved || 0} hex${data?.hexes_moved === 1 ? '' : 'es'}, ${data?.mp_used || 0}/${data?.mp_max || 0} MP)`}.`, 'move');
+  if (data?.hidden_contact) {
+    const contact = mechInstances.find(candidate => candidate.instanceId === data.hidden_contact);
+    logEvent(`${mechLabel(mech)} encountered concealed ${mechLabel(contact)} and stopped in the preceding hex. The hidden unit is now revealed.`, 'move');
+  }
   if (data?.terrain_heat) logEvent(`${mechLabel(mech)} gained ${data.terrain_heat} heat from burning terrain.`, 'phase');
   for (const crust of data?.magma_crust_checks || []) {
     const damage = (crust.damage || []).map(hit => `${hitLocationLabel(hit.location)} ${hit.damage}`).join(', ');
@@ -560,11 +564,11 @@ function renderMovementPanel() {
   if (moveState.active && moveState.instanceId === mech.instanceId) {
     const mpLeft = moveState.mpMax - moveState.mpUsed;
     const dfaTargets = moveState.mode === 'jump' && !vsAiMode
-      ? mechInstances.filter(candidate => candidate.owner !== mech.owner && !candidate.destroyed && candidate.hasMoved && axialDistance(mech.col, mech.row, candidate.col, candidate.row) === 1)
+      ? mechInstances.filter(candidate => candidate.owner !== mech.owner && !candidate.destroyed && !isEnemyHiddenUnit(candidate) && candidate.hasMoved && axialDistance(mech.col, mech.row, candidate.col, candidate.row) === 1)
       : [];
     const dfaPicker = dfaTargets.length ? `<div style="margin:0 0 7px;font-size:10px;color:var(--amber);">Death From Above — declare against a completed enemy movement. The jump costs MP to the target hex; your 'Mech remains one hex short until Physical Attacks.<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${dfaTargets.map(target => `<button onclick="declareDeathFromAbove('${target.instanceId}')" style="padding:6px;border:1px solid var(--amber);background:rgba(212,128,10,.12);color:var(--paper);font:9px var(--mono);cursor:pointer;">DFA: ${mechLabel(target)}</button>`).join('')}</div></div>` : '';
     const chargeTargets = ['walk', 'run'].includes(moveState.mode) && !vsAiMode && moveState.hexesMoved > 0
-      ? mechInstances.filter(candidate => candidate.owner !== mech.owner && !candidate.destroyed && !candidate.prone && candidate.hasMoved && !candidate.dfaDeclaration && !candidate.chargeDeclaration && axialDistance(mech.col, mech.row, candidate.col, candidate.row) === 1 && directionBetween(mech.col, mech.row, candidate.col, candidate.row) === mech.facing)
+      ? mechInstances.filter(candidate => candidate.owner !== mech.owner && !candidate.destroyed && !isEnemyHiddenUnit(candidate) && !candidate.prone && candidate.hasMoved && !candidate.dfaDeclaration && !candidate.chargeDeclaration && axialDistance(mech.col, mech.row, candidate.col, candidate.row) === 1 && directionBetween(mech.col, mech.row, candidate.col, candidate.row) === mech.facing)
       : [];
     const chargePicker = chargeTargets.length ? `<div style="margin:0 0 7px;font-size:10px;color:var(--amber);">Charge — declare against a standing enemy that has completed movement. No weapons may be fired this turn.<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${chargeTargets.map(target => `<button onclick="declareChargeAttack('${target.instanceId}')" style="padding:6px;border:1px solid var(--amber);background:rgba(212,128,10,.12);color:var(--paper);font:9px var(--mono);cursor:pointer;">Charge: ${mechLabel(target)}</button>`).join('')}</div></div>` : '';
     panel.innerHTML = `

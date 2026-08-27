@@ -43,7 +43,7 @@ function axialDistance(aCol, aRow, bCol, bRow) {
 }
 
 function isHexOccupied(col, row, excludeInstanceId) {
-  return mechInstances.some(m => m.instanceId !== excludeInstanceId && m.col === col && m.row === row);
+  return mechInstances.some(m => m.instanceId !== excludeInstanceId && !isEnemyHiddenUnit(m) && m.col === col && m.row === row);
 }
 
 function resetMapPan() {
@@ -141,7 +141,7 @@ function initGame() {
     resizeCanvas();
     renderRoster();
     renderDetail();
-    document.getElementById('status-readout').textContent = `${mechInstances.length} UNITS ON FIELD`;
+    document.getElementById('status-readout').textContent = `${mechInstances.filter(mech => !isEnemyHiddenUnit(mech)).length} UNITS ON FIELD`;
 
     if (document.fonts && document.fonts.ready) {
       document.fonts.ready.then(() => { resizeCanvas(); });
@@ -224,8 +224,22 @@ function draw() {
   // Highlight legal movement destinations for the 'Mech currently being moved
   drawMovementHighlights();
 
+  // Minefields remain invisible to the opposing player until an Active Probe
+  // detects them or a unit triggers them. Owners always see their own fields.
+  if (typeof visibleMinefields === 'function') for (const field of visibleMinefields()) {
+    const { x, y } = hexToPixel(Number(field.col), Number(field.row));
+    const px = x + gridOffsetX + mapPanX, py = y + gridOffsetY + mapPanY;
+    ctx.save();
+    ctx.strokeStyle = Number(field.owner) === Number(mySeatNumber) ? '#d4800a' : '#a32832';
+    ctx.fillStyle = 'rgba(48,38,24,.72)';ctx.lineWidth = 2;
+    ctx.beginPath();ctx.arc(px, py, HEX_SIZE * .24, 0, Math.PI * 2);ctx.fill();ctx.stroke();
+    ctx.fillStyle = '#f0d7a0';ctx.font = '700 8px "IBM Plex Mono", monospace';ctx.textAlign = 'center';ctx.textBaseline = 'middle';ctx.fillText('M', px, py);
+    ctx.restore();
+  }
+
   // Draw mechs
   for (const inst of mechInstances) {
+    if (isEnemyHiddenUnit(inst)) continue;
     const { x, y } = hexToPixel(inst.col, inst.row);
     const px = x + gridOffsetX + mapPanX;
     const py = y + gridOffsetY + mapPanY;
@@ -578,6 +592,8 @@ canvas.addEventListener('click', (e) => {
 });
 
 function selectInstance(instanceId) {
+  const candidate = mechInstances.find(mech => mech.instanceId === instanceId);
+  if (candidate && isEnemyHiddenUnit(candidate)) return;
   selectedInstanceId = instanceId;
   renderRoster();
   renderDetail();

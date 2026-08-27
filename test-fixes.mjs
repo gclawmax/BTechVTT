@@ -54,6 +54,8 @@ const sandbox = {
   currentGameId: 'test-game',
   vsAiMode: false,
   selectedInstanceId: null,
+  isEnemyHiddenUnit: (mech, viewerSeat = 1) => Boolean(mech?.hidden && Number(mech.owner) !== Number(viewerSeat)),
+  visibleMinefields: () => [],
   // render / ui no-ops
   draw: () => {}, renderRoster: () => {}, renderDetail: () => {},
   renderMovementPanel: () => {}, renderReactionPanel: () => {},
@@ -569,7 +571,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260827-los-cover-30"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260827-hidden-mines-31"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -605,7 +607,7 @@ const electronicWarfareMigration = fs.readFileSync(`${ROOT}/SQL/77_electronic_wa
 const phaseSource = fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8');
 const weaponAttackSource = fs.readFileSync(`${ROOT}/js/game/weapon-attack.js`, 'utf8');
 check('#5 electronic warfare suppresses guidance at an ECM-protected target', electronicWarfareMigration.includes('btech_target_guidance_ecm') && electronicWarfareMigration.includes('guided_ammunition_v1') && electronicWarfareMigration.includes('narc_guided:=narc_guided AND NOT ecm_guidance') && electronicWarfareMigration.includes('artemis_guided:=artemis_guided AND NOT ecm_guidance'));
-check('#5 TAG-assisted semi-guided LRM ammunition is selectable and authoritative', electronicWarfareMigration.includes("ARRAY['standard','semi_guided']") && electronicWarfareMigration.includes("ammo_load_type=''semi_guided''") && phaseSource.includes("['standard', 'semi_guided']") && weaponAttackSource.includes('tagGuided'));
+check('#5 TAG-assisted semi-guided LRM ammunition is selectable and authoritative', electronicWarfareMigration.includes("ARRAY['standard','semi_guided']") && electronicWarfareMigration.includes("ammo_load_type=''semi_guided''") && phaseSource.includes("'semi_guided'") && weaponAttackSource.includes('tagGuided'));
 check('#5 client reports operational ECM and Beagle probe equipment honestly', weaponAttackSource.includes('hasOperationalEcm') && weaponAttackSource.includes('hasOperationalActiveProbe') && weaponAttackSource.includes('ECM suppressed Narc/Artemis guidance'));
 const targetingNetworkMigration = fs.readFileSync(`${ROOT}/SQL/90_targeting_computers_and_c3_networks.sql`, 'utf8');
 const declaredNetworkMigration = fs.readFileSync(`${ROOT}/SQL/91_electronic_construction_and_declared_c3.sql`, 'utf8');
@@ -645,6 +647,16 @@ check('#5 scenario editor saves drafts and supports JSON import/export', scenari
 check('#5 custom scenarios launch through the normal human lobby', scenarioEditorSource.includes("db.rpc('save_btech_custom_scenario'") && scenarioEditorSource.includes('createHumanGame({') && createGameSource.includes('custom_scenario: customScenario') && lobbySource.includes('gameState.custom_scenario'));
 check('#5 custom terrain, elevation and deployment zones are authoritative', customScenarioMigration.includes('CREATE OR REPLACE FUNCTION public.btech_terrain') && customScenarioMigration.includes('CREATE OR REPLACE FUNCTION public.btech_elevation') && customScenarioMigration.includes('btech_scenario_zone_contains') && customScenarioMigration.includes('btech_state_terrain(st'));
 check('#5 custom breakthrough uses the opponent authored deployment zone', customScenarioMigration.includes("CASE WHEN unit_owner=1 THEN 2 ELSE 1 END") && customScenarioMigration.includes("mode='breakthrough'"));
+const hiddenMineMigration = fs.readFileSync(`${ROOT}/SQL/93_hidden_units_minefields_and_special_munitions.sql`, 'utf8');
+check('#5 concealed enemy units cannot be selected as weapon targets', !sandbox.canBeWeaponTarget({ instanceId: 'hidden-enemy', owner: 2, hidden: true, destroyed: false }) && sandbox.canBeWeaponTarget({ instanceId: 'revealed-enemy', owner: 2, hidden: false, destroyed: false }));
+check('#5 deployment supports legal hidden units and configurable private conventional or vibrabomb minefields', lobbySource.includes('toggleLobbyHiddenDeployment') && lobbySource.includes('placeLobbyMinefield') && lobbySource.includes('lobbyMinefieldDensity') && lobbySource.includes('lobbyVibrabombSensitivity') && hiddenMineMigration.includes('CREATE OR REPLACE FUNCTION public.set_match_minefields'));
+check('#5 hidden contacts stop authoritative movement before illegal stacking', hiddenMineMigration.includes('hidden_contact jsonb') && hiddenMineMigration.includes('IF hidden_contact IS NOT NULL') && hiddenMineMigration.includes('hidden_contact->>'));
+check('#5 minefields check every traversed movement hex and lose density after detonation', hiddenMineMigration.includes('traversed_hexes') && hiddenMineMigration.includes("action->>'action' IN ('step','jump')") && hiddenMineMigration.includes('greatest(0,mine_damage-5)'));
+check('#5 active probes reveal hidden units, detect minefields, and respect hostile ECM', hiddenMineMigration.includes('btech_active_probe_range') && hiddenMineMigration.includes('THEN 5 WHEN btech_equipment_operational') && hiddenMineMigration.includes('THEN 7 ELSE 10 END') && hiddenMineMigration.includes('btech_ecm_interferes_line'));
+check('#5 specialist ammunition is bin-specific and authoritative', phasesSource.includes("'armor_piercing'") && phasesSource.includes("'flechette'") && phasesSource.includes("'fragmentation'") && hiddenMineMigration.includes('btech_set_ammo_load_type') && hiddenMineMigration.includes('armor_piercing'));
+check('#5 specialist AC and missile consequences are applied by the server', hiddenMineMigration.includes('flechette') && hiddenMineMigration.includes('weapon_damage:=floor') && hiddenMineMigration.includes('fragmentation') && hiddenMineMigration.includes('weapon_damage:=0') && hiddenMineMigration.includes("p_load_type='armor_piercing'"));
+check('#5 plasma specialist weapons are constructible and add their BattleMech heat effects', hiddenMineMigration.includes('specialist_plasma_construction_v1') && hiddenMineMigration.includes('specialist_plasma_ammo_v1') && hiddenMineMigration.includes('specialist_plasma_v1') && fs.readFileSync(`${ROOT}/js/game/mech-designer.js`, 'utf8').includes("plasma_cannon:{name:'Clan Plasma Cannon'"));
+check('#5 underwater concealment and sea mines remain explicitly excluded', hiddenMineMigration.includes('Underwater concealment, sea mines and underwater weapon fire are excluded') && hiddenMineMigration.includes("'shallow_water','deep_water'") && howToPlaySource.includes('minefields'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

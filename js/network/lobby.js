@@ -18,6 +18,9 @@ const expandedLobbyChassis = new Set();
 let favouritesLoadedForUserId = null;
 let skirmishAvatarEnsureInFlight = false;
 let lobbyDeploymentIndex = 0;
+let lobbyMinefieldMode = null;
+let lobbyMinefieldDensity = 20;
+let lobbyVibrabombSensitivity = 50;
 
 async function loadProfileUnitFavourites() {
   if (!currentUser?.id || favouritesLoadedForUserId === currentUser.id) return;
@@ -668,6 +671,9 @@ function renderLobbyDeployment(gameState) {
   section.hidden = false;
   const roster = gameState.rosters?.[String(mySeatNumber)] || [];
   const positions = gameState.deployment_positions?.[String(mySeatNumber)] || [];
+  const minefields = gameState.minefields || [];
+  const myMinefields = minefields.filter(field => Number(field.owner) === Number(mySeatNumber));
+  const minefieldAllowance = Number(gameState.minefield_allowance?.[String(mySeatNumber)] ?? 2);
   if (lobbyDeploymentIndex >= roster.length) lobbyDeploymentIndex = 0;
   const units = roster.map((id, index) => {
     const unit = getSupportedUnit(id);
@@ -683,16 +689,41 @@ function renderLobbyDeployment(gameState) {
     const terrain = terrainAt(col, row);
     const level = elevationAt(col, row);
     const description = `${hexCode(col,row)} · ${terrain.replace('_',' ')}${level ? ` · level ${level}` : ''}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : enemy ? ' · opponent deployment zone' : ' · neutral ground'}`;
-    const canPlace = mine && !owner && !terrainMovementBlocked(col, row);
-    const action = canPlace ? `onclick="placeLobbyDeployment(${col},${row})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();placeLobbyDeployment(${col},${row})}"` : '';
-    cells.push(`<polygon class="deployment-hex ${mine ? 'zone' : enemy ? 'enemy-zone' : 'neutral-zone'} ${owner ? 'occupied' : ''} ${terrain}" points="${deploymentHexPoints(col,row)}" role="button" tabindex="${canPlace ? '0' : '-1'}" aria-label="${description}" ${action}><title>${description}</title></polygon>`);
+    const canPlaceMech = mine && !owner && !terrainMovementBlocked(col, row);
+    const canPlaceMine = lobbyMinefieldMode && myMinefields.length < minefieldAllowance && mine && !owner && !['deep_water','shallow_water','building','impassable','magma_liquid'].includes(terrain);
+    const handler = lobbyMinefieldMode ? `placeLobbyMinefield(${col},${row})` : `placeLobbyDeployment(${col},${row})`;
+    const canPlace = Boolean(lobbyMinefieldMode ? canPlaceMine : canPlaceMech);
+    const field = myMinefields.find(candidate => Number(candidate.col) === col && Number(candidate.row) === row);
+    const action = canPlace ? `onclick="${handler}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${handler}}"` : '';
+    cells.push(`<polygon class="deployment-hex ${mine ? 'zone' : enemy ? 'enemy-zone' : 'neutral-zone'} ${owner ? 'occupied' : ''} ${field ? 'minefield' : ''} ${terrain}" points="${deploymentHexPoints(col,row)}" role="button" tabindex="${canPlace ? '0' : '-1'}" aria-label="${description}${field ? ` · your ${field.type} minefield` : ''}" ${action}><title>${description}${field ? ` · your ${field.type} minefield` : ''}</title></polygon>`);
   }
   const selected = positions[lobbyDeploymentIndex];
   const facingButtons = selected ? HEX_DIR_LABELS.map((label, facing) => `<button class="${selected.facing === facing ? 'selected' : ''}" onclick="setLobbyDeploymentFacing(${facing})">${label}</button>`).join('') : '';
   const mapWidth = Math.sqrt(3) * (GRID_COLS + 0.5);
   const mapHeight = (GRID_ROWS - 1) * 1.5 + 2;
-  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Amber hexes are occupied; the tooltip identifies terrain and elevation.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}</div>` : ''}<svg class="deployment-map" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" aria-label="Battlefield deployment hexes">${cells.join('')}</svg><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
+  const hiddenTerrain = selected && !['clear','pavement','bridge','shallow_water','deep_water'].includes(terrainAt(selected.col,selected.row));
+  const hiddenControl = selected ? `<button ${hiddenTerrain ? '' : 'disabled'} onclick="toggleLobbyHiddenDeployment()" title="Hidden BattleMechs must begin in legal non-clear, non-paved terrain.">${selected.hidden ? '✓ Hidden' : 'Hide Unit'}</button>` : '';
+  const mineControls = minefieldAllowance ? `<div class="deployment-unit-row"><span class="deployment-help">Minefields ${myMinefields.length}/${minefieldAllowance}:</span><button class="${lobbyMinefieldMode==='conventional'?'selected':''}" onclick="setLobbyMinefieldMode('conventional')" title="Triggers when an enemy ground unit enters the hex.">Conventional</button><button class="${lobbyMinefieldMode==='vibrabomb'?'selected':''}" onclick="setLobbyMinefieldMode('vibrabomb')" title="Triggers only for an enemy at or above the selected weight.">Vibrabomb</button><label class="deployment-help">Density <select onchange="lobbyMinefieldDensity=Number(this.value)"><option ${lobbyMinefieldDensity===10?'selected':''}>10</option><option ${lobbyMinefieldDensity===20?'selected':''}>20</option><option ${lobbyMinefieldDensity===30?'selected':''}>30</option></select></label>${lobbyMinefieldMode==='vibrabomb'?`<label class="deployment-help">Weight <select onchange="lobbyVibrabombSensitivity=Number(this.value)">${[20,30,40,50,60,70,80,90,100].map(value=>`<option ${lobbyVibrabombSensitivity===value?'selected':''}>${value}</option>`).join('')}</select> t</label>`:''}<button onclick="resetLobbyMinefields()">Clear Minefields</button></div>` : '';
+  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Hidden units require concealing terrain. Select a minefield type, then a legal unoccupied hex; enemy fields remain concealed.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}${hiddenControl}</div>` : ''}${mineControls}<svg class="deployment-map" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" aria-label="Battlefield deployment hexes">${cells.join('')}</svg><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
 }
+
+function setLobbyMinefieldMode(type) { lobbyMinefieldMode = lobbyMinefieldMode === type ? null : type; loadLobbyUI(); }
+
+async function toggleLobbyHiddenDeployment() {
+  const { data: game } = await db.from('btech_games').select('state').eq('id',currentGameId).single();
+  const state=game?.state ? (typeof game.state==='string'?JSON.parse(game.state):game.state):{};
+  const positions=[...(state.deployment_positions?.[String(mySeatNumber)]||[])], selected=positions[lobbyDeploymentIndex];if(!selected)return;
+  positions[lobbyDeploymentIndex]={...selected,hidden:!selected.hidden};
+  const {error}=await db.rpc('set_match_deployment',{p_game_id:currentGameId,p_positions:positions});if(error){document.getElementById('lobby-status').textContent=`Hidden deployment rejected: ${error.message}`;return;}await loadLobbyUI();
+}
+
+async function placeLobbyMinefield(col,row) {
+  if(!lobbyMinefieldMode)return;
+  const {error}=await db.rpc('set_match_minefields',{p_game_id:currentGameId,p_minefields:[{col,row,type:lobbyMinefieldMode,density:lobbyMinefieldDensity,sensitivity:lobbyVibrabombSensitivity}]});
+  if(error){document.getElementById('lobby-status').textContent=`Minefield rejected: ${error.message}`;return;}lobbyMinefieldMode=null;await loadLobbyUI();
+}
+
+async function resetLobbyMinefields(){const {error}=await db.rpc('set_match_minefields',{p_game_id:currentGameId,p_minefields:[]});if(error){document.getElementById('lobby-status').textContent=`Minefield reset rejected: ${error.message}`;return;}lobbyMinefieldMode=null;await loadLobbyUI();}
 
 async function selectLobbyDeploymentUnit(index) {
   const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
@@ -711,7 +742,7 @@ async function placeLobbyDeployment(col, row) {
   const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   if (!deploymentZoneContains(mySeatNumber, col, row, state)) return;
   const positions = [...(state.deployment_positions?.[String(mySeatNumber)] || [])];
-  positions[lobbyDeploymentIndex] = { col, row, facing: mySeatNumber === 1 ? 0 : 3 };
+  positions[lobbyDeploymentIndex] = { col, row, facing: mySeatNumber === 1 ? 0 : 3, hidden: false };
   const { error } = await db.rpc('set_match_deployment', { p_game_id: currentGameId, p_positions: positions });
   if (error) { document.getElementById('lobby-status').textContent = `Deployment rejected: ${error.message}`; return; }
   await loadLobbyUI();
@@ -892,7 +923,7 @@ function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions
     return {
       instanceId,
       unitId, owner: seat, col: position.col, row: position.row,
-      facing: position.facing, torsoFacing: position.facing,
+      facing: position.facing, torsoFacing: position.facing, hidden: Boolean(position.hidden),
       // The server is authoritative for damage and movement. Save the full
       // starting record here rather than relying on the browser-only display
       // hydrator, which would otherwise make absent legs look destroyed.

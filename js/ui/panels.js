@@ -3,6 +3,7 @@ function renderRoster() {
   const list = document.getElementById('roster-list');
   list.innerHTML = '';
   mechInstances.forEach(inst => {
+    if (isEnemyHiddenUnit(inst)) return;
     const unit = displayUnitFor(inst.unitId);
     const row = document.createElement('div');
     const isActiveUnit = getActivePlayerSeat() === inst.owner && !inst.destroyed;
@@ -51,6 +52,7 @@ function renderRoster() {
     const conditionBadges = [
       inst.catalogueUnavailable ? '<span class="roster-badge damage">CATALOGUE UNAVAILABLE</span>' : '',
       inst.destroyed ? '<span class="roster-badge damage">DESTROYED</span>' : '',
+      inst.hidden && inst.owner === mySeatNumber ? '<span class="roster-badge">HIDDEN</span>' : '',
       !inst.destroyed && damaged ? '<span class="roster-badge damage">DAMAGED</span>' : '',
       !inst.destroyed && Number(inst.heat || 0) >= 14 ? `<span class="roster-badge ${Number(inst.heat) >= 20 ? 'heat-hot' : 'heat-warm'}">HEAT ${inst.heat}</span>` : ''
     ].join('');
@@ -94,7 +96,7 @@ function roundOneAmmoControl(inst, bin) {
   }
   const key = `${inst.instanceId}:${bin.id}`;
   const selected = roundOneAmmoChoices[key] || choices[0];
-  const labels = { slug: 'Slug', cluster: 'Cluster', standard: 'Standard', inferno: 'Inferno', precision: 'Precision', semi_guided: 'Semi-guided' };
+  const labels = { slug: 'Slug', cluster: 'Cluster', standard: 'Standard', inferno: 'Inferno', precision: 'Precision', semi_guided: 'Semi-guided', armor_piercing: 'Armor-piercing', flechette: 'Flechette', fragmentation: 'Fragmentation' };
   return `<div style="grid-column:1 / -1;margin:3px 0 8px;padding:8px;border:1px solid var(--amber);background:rgba(181,107,0,.08);">
     <div style="color:var(--amber);font-size:10px;margin-bottom:6px;">ROUND 1 AMMUNITION — required before Initiative</div>
     <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;">Load type

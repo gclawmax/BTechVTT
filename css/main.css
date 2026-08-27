@@ -200,7 +200,7 @@ html, body {
 .deployment-hex.rough { stroke:#78634b; stroke-width:.2; }.deployment-hex.shallow_water { stroke:#5a9db5; stroke-width:.2; }
 .deployment-hex.deep_water { stroke:#29697f; stroke-width:.2; }.deployment-hex.rubble { stroke:#76594b; stroke-width:.2; }
 .deployment-hex.building,.deployment-hex.impassable { fill:#42494c; }.deployment-hex.fire { stroke:#b9431f; stroke-width:.2; }
-.deployment-hex.occupied { fill:var(--amber); stroke:#7d4b00; stroke-width:.16; }.deployment-help { color:var(--phosphor-dim); font:10px/1.45 var(--mono); }
+.deployment-hex.occupied { fill:var(--amber); stroke:#7d4b00; stroke-width:.16; }.deployment-hex.minefield { stroke:#d4800a;stroke-width:.14;stroke-dasharray:.25 .14; }.deployment-help { color:var(--phosphor-dim); font:10px/1.45 var(--mono); }
 .setup-actions { display:flex; gap:8px; margin-top:24px; }
 .setup-actions button { flex:1; padding:10px 14px; border:1px solid var(--phosphor); background:var(--phosphor); color:#fff; font:11px var(--display); letter-spacing:.1em; text-transform:uppercase; cursor:pointer; }
 .setup-actions button.secondary { background:transparent; color:var(--phosphor); }

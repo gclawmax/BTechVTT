@@ -60,7 +60,7 @@ function canFireFromWeaponPhaseStart(mech) {
 // targets. Destruction is checked against the phase-start snapshot so that
 // simultaneous weapon declarations remain valid until resolution.
 function canBeWeaponTarget(mech) {
-  return Boolean(mech && !weaponPhaseStartMech(mech)?.destroyed);
+  return Boolean(mech && !isEnemyHiddenUnit(mech) && !weaponPhaseStartMech(mech)?.destroyed);
 }
 
 function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
@@ -86,7 +86,8 @@ function weaponShotsForMode(mountId, weaponEntry) {
 }
 
 function ammoBinLabel(bin) {
-  const loadout = bin.loadType ? ` · ${bin.loadType === 'semi_guided' ? 'Semi-guided' : `${bin.loadType[0].toUpperCase()}${bin.loadType.slice(1)}`}` : '';
+  const loadoutLabels = { semi_guided:'Semi-guided',armor_piercing:'Armor-piercing',fragmentation:'Fragmentation',flechette:'Flechette' };
+  const loadout = bin.loadType ? ` · ${loadoutLabels[bin.loadType] || `${bin.loadType[0].toUpperCase()}${bin.loadType.slice(1)}`}` : '';
   const guidance = bin.artemisCapable ? ' · Artemis IV' : bin.narcCapable ? ' · Narc-capable' : '';
   return `${bin.location}${loadout}${guidance} · ${bin.shots}/${bin.maxShots} shots`;
 }
@@ -335,7 +336,7 @@ function targetingComputerCanAim(attacker, weaponEntry, mountId) {
 function electronicWarfareReadout(attacker, target) {
   const notices = [];
   if (hasOperationalEcm(attacker)) notices.push('Guardian ECM active (6 hexes)');
-  if (hasOperationalActiveProbe(attacker)) notices.push(ecmInterferesLine(attacker.owner, attacker) ? 'Active Probe is inside hostile ECM' : 'Active Probe operational (hidden-unit detection is not enabled)');
+  if (hasOperationalActiveProbe(attacker)) notices.push(ecmInterferesLine(attacker.owner, attacker) ? 'Active Probe is inside hostile ECM' : 'Active Probe operational: hidden units and minefields are checked after Movement');
   if (hasOperationalTargetingComputer(attacker)) notices.push('Targeting Computer operational: eligible direct fire receives −1 or may make an aimed shot');
   const c3 = target ? c3NetworkSupport(attacker, target) : null;
   if (c3?.jammed) notices.push('C3 link is cut by hostile ECM');
@@ -539,8 +540,11 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   const ammoLoadType = selectedAmmoLoadType(attacker, weaponEntry);
   const tagGuided = ammoLoadType === 'semi_guided' && Number(eligibleTarget.taggedRound) === Number(currentGameState.round);
   const guidanceEcm = targetGuidanceEcm(eligibleAttacker, eligibleTarget);
+  const indirectModifier = indirect ? 1 : 0;
+  const spotterMovement = indirect ? movementToHitModifier(spotter) : 0;
   const precisionModifier = ammoLoadType === 'precision' ? -Math.min(2, targetMove) : 0;
-  const semiGuidedModifier = tagGuided ? (indirect ? -1 : -Math.min(2, woods)) : 0;
+  const armorPiercingModifier = ammoLoadType === 'armor_piercing' ? 1 : 0;
+  const semiGuidedModifier = tagGuided ? -(targetMove + (indirect ? indirectModifier + spotterMovement + woods : 0)) : 0;
   const accuracyModifier = Number(weapon.toHitModifier || 0);
   const aimedLocation = weaponAttackState.aimLocationsByMount?.[mountId] || null;
   const targetingComputerModifier = targetingComputerEligibleWeapon(eligibleAttacker, weaponEntry)
@@ -548,8 +552,6 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
     : 0;
   if (aimedLocation && !targetingComputerCanAim(eligibleAttacker, weaponEntry, mountId)) return { valid: false, reason: `${weapon.name} cannot make a Targeting Computer aimed shot in this firing mode.` };
   if (aimedLocation && (!['ct', 'lt', 'rt', 'la', 'ra', 'll', 'rl'].includes(aimedLocation) || Number(eligibleTarget.structure?.[aimedLocation] || 0) <= 0)) return { valid: false, reason: 'Choose an intact non-head location for the aimed shot.' };
-  const indirectModifier = indirect ? 1 : 0;
-  const spotterMovement = indirect ? movementToHitModifier(spotter) : 0;
   const partialCover = sight.partialCover ? 1 : 0;
   const secondaryTarget = Boolean(options.secondaryTarget);
   const targetDirection = weaponDirectionTo(attacker, target);
@@ -560,12 +562,12 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
     weapon,
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + semiGuidedModifier + accuracyModifier + targetingComputerModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + armorPiercingModifier + semiGuidedModifier + accuracyModifier + targetingComputerModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
     attackAngle: attackDirection(attacker, target),
     multipleTargets,
     aimedLocation,
     c3,
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier}${c3.source && c3.source.instanceId !== attacker.instanceId && c3.distance < distance ? ` (C3 ${c3.distance} hexes via ${mechLabel(c3.source)})` : ''} + terrain ${woods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${targetingComputerModifier === -1 ? ' - Targeting Computer 1' : targetingComputerModifier === 3 ? ` + Targeting Computer aimed ${aimedLocation} 3` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier}${c3.source && c3.source.instanceId !== attacker.instanceId && c3.distance < distance ? ` (C3 ${c3.distance} hexes via ${mechLabel(c3.source)})` : ''} + terrain ${woods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${armorPiercingModifier ? ' + armor-piercing 1' : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${targetingComputerModifier === -1 ? ' - Targeting Computer 1' : targetingComputerModifier === 3 ? ` + Targeting Computer aimed ${aimedLocation} 3` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
   };
 }
 
@@ -798,7 +800,8 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const targetNumberExplanation = formatAuthoritativeTargetNumber(roll);
   const modeSuffix = result.fire_mode === 'rapid' ? ' (rapid fire)' : result.fire_mode === 'cluster' ? ' (cluster ammunition)'
     : result.ammo_load_type === 'inferno' ? ' (Inferno ammunition)' : result.ammo_load_type === 'precision' ? ' (Precision ammunition)'
-      : result.ammo_load_type === 'semi_guided' ? ' (semi-guided ammunition)' : '';
+      : result.ammo_load_type === 'semi_guided' ? ' (semi-guided ammunition)' : result.ammo_load_type === 'armor_piercing' ? ' (armour-piercing ammunition)'
+        : result.ammo_load_type === 'flechette' ? ' (flechette ammunition)' : result.ammo_load_type === 'fragmentation' ? ' (fragmentation ammunition)' : '';
   const aimed = result.aimed_location
     ? result.aimed_roll
       ? ` Targeting Computer aimed at ${hitLocationLabel(result.aimed_location)}; location roll ${result.aimed_roll.die_a} + ${result.aimed_roll.die_b} = ${result.aimed_roll.total}${result.aimed_success ? ': designated location acquired.' : ': normal hit location used.'}`
@@ -821,10 +824,13 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
     return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: hit. ${clusterText}: ${result.missiles_hit} ${pellets}${result.missiles_hit === 1 ? '' : 's'} hit in ${result.groups?.length || 0} group${result.groups?.length === 1 ? '' : 's'} — ${groups}.${defence}`;
   }
   const criticals = formatAuthoritativeCriticals(result.critical_checks);
+  const armourPiercing = result.armor_piercing_critical
+    ? ` Armour-piercing critical check ${result.armor_piercing_critical.roll >= 8 ? 'succeeded' : 'failed'} on ${result.armor_piercing_critical.roll}; ${(result.armor_piercing_critical.events || []).length} critical effect${(result.armor_piercing_critical.events || []).length === 1 ? '' : 's'} resolved.`
+    : '';
   const gaussExplosion = result.gauss_explosion ? ` Gauss rifle exploded for ${result.gauss_explosion.damage} internal damage in ${hitLocationLabel(result.gauss_explosion.location)}.` : '';
   const flamerHeat = result.heat_inflicted ? ` ${mechLabel(target)} gains ${result.heat_inflicted} heat.` : '';
   if (result.partial_cover) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${hitLocationLabel(result.location)} hit absorbed by partial cover.${aimed}`;
-  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${aimed}${flamerHeat}${criticals}${gaussExplosion}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${aimed}${flamerHeat}${criticals}${armourPiercing}${gaussExplosion}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function formatAuthoritativeTargetNumber(roll) {

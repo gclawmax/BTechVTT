@@ -8,6 +8,14 @@ const GRID_ROWS = 12;
 function terrainAt(col, row) { return terrainStatusAt(col, row).terrain; }
 function terrainMovementBlocked(col, row) { return ['impassable', 'building', 'magma_liquid'].includes(terrainAt(col, row)); }
 
+function isEnemyHiddenUnit(mech, viewerSeat = mySeatNumber) {
+  return Boolean(mech?.hidden && Number(mech.owner) !== Number(viewerSeat));
+}
+
+function visibleMinefields(viewerSeat = mySeatNumber) {
+  return (currentMatchConfig.minefields || []).filter(field => Number(field.owner) === Number(viewerSeat) || (field.revealed_to || []).map(Number).includes(Number(viewerSeat)));
+}
+
 function unavailableUnitRecord(unitId) {
   return {
     chassis: 'Unavailable BattleMech', variant: unitId, tonnage: 0, color: '#6d6d6d',

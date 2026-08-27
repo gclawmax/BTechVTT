@@ -17,6 +17,7 @@ let myInitiativePlayerId = null;
 const roundOneAmmoChoices = {};
 const roundOneAmmoPrompted = new Set();
 let autoPassingIneligiblePhysicalAttacks = false;
+const seenDetectionEvents = new Set();
 
 let currentGameState = {
   round: 1,
@@ -101,6 +102,9 @@ async function loadGameState() {
     ...(gameState.terrain_advanced_after_round != null ? { terrain_advanced_after_round: gameState.terrain_advanced_after_round } : {}),
     ...(gameState.wind_direction != null ? { wind_direction: gameState.wind_direction } : {}),
     ...(gameState.terrain_events ? { terrain_events: gameState.terrain_events } : {}),
+    ...(gameState.minefields ? { minefields: gameState.minefields } : {}),
+    ...(gameState.minefield_allowance ? { minefield_allowance: gameState.minefield_allowance } : {}),
+    ...(gameState.detection_events ? { detection_events: gameState.detection_events } : {}),
     ...(gameState.victory_mode ? { victory_mode: gameState.victory_mode } : {}),
     ...(gameState.objective_hexes ? { objective_hexes: gameState.objective_hexes } : {}),
     ...(gameState.objective_scores ? { objective_scores: gameState.objective_scores } : {}),
@@ -150,6 +154,12 @@ async function loadGameState() {
   }
 
   mergeRemoteLog(gameState.log);
+  for (const event of gameState.detection_events || []) {
+    const key=`${game.current_round}:${JSON.stringify(event)}`;if(seenDetectionEvents.has(key))continue;seenDetectionEvents.add(key);
+    if(event.type==='unit_revealed') logEvent(`${event.instance_id} was revealed (${event.reason}).`,'system');
+    else if(event.type==='minefield_detected') logEvent(`Active Probe detected a minefield in ${event.hex} (rolled ${event.roll}).`,'system');
+    else if(event.type==='minefield_triggered') logEvent(`${event.instance_id} triggered a ${event.mine_type} minefield in ${event.hex}: rolled ${event.roll} against ${event.target}, taking ${event.damage} damage.`,'combat');
+  }
   await loadPersistentGameLog();
   if (gameLog.length === 0) logEvent(`Game loaded — Round ${currentGameState.round}, ${PHASE_LABELS[currentGameState.phase] || currentGameState.phase} phase.`, 'system');
   if (unavailableCatalogueUnits.length) logEvent(`Catalogue warning: ${unavailableCatalogueUnits.join(', ')} could not be loaded from this match's pinned release. Those units are shown but cannot be controlled.`, 'error');
@@ -401,9 +411,9 @@ function logRoundOneAmmoPrompt(unloadedBins, isOwner) {
 function specialAmmoLoadTypes(bin) {
   if (!bin) return [];
   if (bin.type === 'lb10x') return ['slug', 'cluster'];
-  if (['srm2', 'srm4', 'srm6'].includes(bin.type)) return ['standard', 'inferno'];
-  if (['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type)) return ['standard', 'precision'];
-  if (['lrm5', 'lrm10', 'lrm15', 'lrm20'].includes(bin.type)) return ['standard', 'semi_guided'];
+  if (['srm2', 'srm4', 'srm6'].includes(bin.type)) return ['standard', 'inferno', 'fragmentation'];
+  if (['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type)) return ['standard', 'precision', 'armor_piercing', 'flechette'];
+  if (['lrm5', 'lrm10', 'lrm15', 'lrm20'].includes(bin.type)) return ['standard', 'semi_guided', 'fragmentation'];
   return [];
 }
 
@@ -412,7 +422,7 @@ function ammoSetupRequiredForBin(bin) {
 }
 
 function setRoundOneAmmoChoice(key, loadType) {
-  if (['slug', 'cluster', 'standard', 'inferno', 'precision', 'semi_guided'].includes(loadType)) {
+  if (['slug', 'cluster', 'standard', 'inferno', 'precision', 'semi_guided', 'armor_piercing', 'flechette', 'fragmentation'].includes(loadType)) {
     roundOneAmmoChoices[key] = loadType;
     renderDetail();
   }

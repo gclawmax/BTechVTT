@@ -9,17 +9,17 @@ const CUSTOM_STRUCTURE_TABLE = Object.freeze({
 const CUSTOM_ENGINE_WEIGHTS = Object.freeze([.5,.5,.5,.5,.5,1,1,1,1,1.5,1.5,1.5,2,2,2,2.5,2.5,3,3,3,3.5,3.5,4,4,4,4.5,4.5,5,5,5.5,5.5,6,6,6,7,7,7.5,7.5,8,8.5,8.5,9,9.5,10,10,10.5,11,11.5,12,12.5,13,13.5,14,14.5,15.5,16,16.5,17.5,18,19,19.5,20.5,21.5,22.5,23.5,24.5,25.5,27,28.5,29.5,31.5,33,34.5,36.5,38.5,41,43.5,46,49,52.5]);
 const CUSTOM_EQUIPMENT = Object.freeze({
   small_laser:{name:'Small Laser',weight:.5,slots:1,heat:1}, med_laser:{name:'Medium Laser',weight:1,slots:1,heat:3}, large_laser:{name:'Large Laser',weight:5,slots:2,heat:8},
-  ppc:{name:'PPC',weight:7,slots:3,heat:10}, flamer:{name:'Flamer',weight:1,slots:1,heat:3},
+  ppc:{name:'PPC',weight:7,slots:3,heat:10}, flamer:{name:'Flamer',weight:1,slots:1,heat:3}, plasma_rifle:{name:'Plasma Rifle',weight:6,slots:2,heat:10,ammo:'plasma_rifle'},
   ac2:{name:'Autocannon/2',weight:6,slots:1,heat:1,ammo:'ac2'}, ac5:{name:'Autocannon/5',weight:8,slots:4,heat:1,ammo:'ac5'}, ac10:{name:'Autocannon/10',weight:12,slots:7,heat:3,ammo:'ac10'}, ac20:{name:'Autocannon/20',weight:14,slots:10,heat:7,ammo:'ac20'},
   machine_gun:{name:'Machine Gun',weight:.5,slots:1,heat:0,ammo:'machine_gun'},
   lrm5:{name:'LRM 5',weight:2,slots:1,heat:2,ammo:'lrm5'}, lrm10:{name:'LRM 10',weight:5,slots:2,heat:4,ammo:'lrm10'}, lrm15:{name:'LRM 15',weight:7,slots:3,heat:5,ammo:'lrm15'}, lrm20:{name:'LRM 20',weight:10,slots:5,heat:6,ammo:'lrm20'},
   srm2:{name:'SRM 2',weight:1,slots:1,heat:2,ammo:'srm2'}, srm4:{name:'SRM 4',weight:2,slots:1,heat:3,ammo:'srm4'}, srm6:{name:'SRM 6',weight:3,slots:2,heat:4,ammo:'srm6'},
-  clan_er_small_laser:{name:'Clan ER Small Laser',weight:.5,slots:1,heat:2,clan:true}, clan_er_medium_laser:{name:'Clan ER Medium Laser',weight:1,slots:1,heat:5,clan:true}, clan_er_large_laser:{name:'Clan ER Large Laser',weight:4,slots:1,heat:12,clan:true}, clan_er_ppc:{name:'Clan ER PPC',weight:6,slots:2,heat:15,clan:true}, clan_large_pulse_laser:{name:'Clan Large Pulse Laser',weight:6,slots:2,heat:10,clan:true},
+  clan_er_small_laser:{name:'Clan ER Small Laser',weight:.5,slots:1,heat:2,clan:true}, clan_er_medium_laser:{name:'Clan ER Medium Laser',weight:1,slots:1,heat:5,clan:true}, clan_er_large_laser:{name:'Clan ER Large Laser',weight:4,slots:1,heat:12,clan:true}, clan_er_ppc:{name:'Clan ER PPC',weight:6,slots:2,heat:15,clan:true}, clan_large_pulse_laser:{name:'Clan Large Pulse Laser',weight:6,slots:2,heat:10,clan:true}, plasma_cannon:{name:'Clan Plasma Cannon',weight:3,slots:1,heat:7,ammo:'plasma_cannon',clan:true},
   lrm5_clan:{name:'Clan LRM 5',weight:1,slots:1,heat:2,ammo:'cl_lrm5',clan:true}, lrm10_clan:{name:'Clan LRM 10',weight:2.5,slots:1,heat:4,ammo:'cl_lrm10',clan:true}, lrm15_clan:{name:'Clan LRM 15',weight:3.5,slots:1,heat:5,ammo:'cl_lrm15',clan:true}, lrm20_clan:{name:'Clan LRM 20',weight:5,slots:1,heat:6,ammo:'cl_lrm20',clan:true},
   srm2_clan:{name:'Clan SRM 2',weight:.5,slots:1,heat:2,ammo:'cl_srm2',clan:true}, srm4_clan:{name:'Clan SRM 4',weight:1,slots:1,heat:3,ammo:'cl_srm4',clan:true}, srm6_clan:{name:'Clan SRM 6',weight:1.5,slots:1,heat:4,ammo:'cl_srm6',clan:true}
 });
 const CUSTOM_AMMO = Object.freeze({
-  ac2:{name:'AC/2',shots:45},ac5:{name:'AC/5',shots:20},ac10:{name:'AC/10',shots:10},ac20:{name:'AC/20',shots:5},machine_gun:{name:'Machine Gun',shots:200},
+  ac2:{name:'AC/2',shots:45},ac5:{name:'AC/5',shots:20},ac10:{name:'AC/10',shots:10},ac20:{name:'AC/20',shots:5},machine_gun:{name:'Machine Gun',shots:200},plasma_rifle:{name:'Plasma Rifle',shots:10},plasma_cannon:{name:'Clan Plasma Cannon',shots:10,clan:true},
   lrm5:{name:'LRM 5',shots:24},lrm10:{name:'LRM 10',shots:12},lrm15:{name:'LRM 15',shots:8},lrm20:{name:'LRM 20',shots:6},srm2:{name:'SRM 2',shots:50},srm4:{name:'SRM 4',shots:25},srm6:{name:'SRM 6',shots:15},
   cl_lrm5:{name:'Clan LRM 5',shots:24,clan:true},cl_lrm10:{name:'Clan LRM 10',shots:12,clan:true},cl_lrm15:{name:'Clan LRM 15',shots:8,clan:true},cl_lrm20:{name:'Clan LRM 20',shots:6,clan:true},cl_srm2:{name:'Clan SRM 2',shots:50,clan:true},cl_srm4:{name:'Clan SRM 4',shots:25,clan:true},cl_srm6:{name:'Clan SRM 6',shots:15,clan:true}
 });

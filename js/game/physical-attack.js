@@ -154,7 +154,7 @@ function legalPhysicalTargets(attacker) {
   if (!attacker || attacker.destroyed || attacker.prone || attacker.shutdown ||
       (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious')) return [];
   const attackTypes = physicalAttackTypesFor(attacker);
-  return mechInstances.filter(target => target.owner !== attacker.owner && !target.destroyed &&
+  return mechInstances.filter(target => target.owner !== attacker.owner && !target.destroyed && !isEnemyHiddenUnit(target) &&
     attackTypes.some(type => physicalLimbCandidates(type).some(limb =>
       evaluatePhysicalAttack(attacker, target, type, limb).valid)));
 }
