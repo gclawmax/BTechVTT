@@ -104,7 +104,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.set_match_c3_assignments(p_game_id uuid,p_assignments jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE g btech_games%ROWTYPE;player btech_players%ROWTYPE;st jsonb;roster jsonb;entry record;assignment jsonb;idx int;unit_id text;role text;network_id text;parent_idx int;parent_role text;cursor_idx int;depth int;child_roles int;root_count int;
+DECLARE g btech_games%ROWTYPE;player btech_players%ROWTYPE;st jsonb;roster jsonb;entry record;assignment jsonb;idx int;unit_id text;role text;network_id text;parent_idx int;parent_role text;cursor_idx int;depth int;child_roles int;root_count int;network_count int;network_limit int;
 BEGIN
  SELECT * INTO g FROM btech_games WHERE id=p_game_id FOR UPDATE;IF NOT FOUND OR g.status<>'lobby' THEN RAISE EXCEPTION 'C3 networks may only be assigned in the lobby';END IF;
  SELECT * INTO player FROM btech_players WHERE game_id=p_game_id AND user_id=auth.uid() AND role='player';IF NOT FOUND THEN RAISE EXCEPTION 'Only a seated player may assign this network';END IF;
@@ -120,7 +120,9 @@ BEGIN
  END LOOP;
  FOR network_id IN SELECT DISTINCT upper(value->>'network') FROM jsonb_each(p_assignments) WHERE coalesce(value->>'network','')<>'' LOOP
   IF EXISTS(SELECT 1 FROM jsonb_each(p_assignments) a WHERE upper(a.value->>'network')=network_id AND btech_catalogue_c3_role(g.catalogue_version,roster->>(a.key::int))='c3i') AND EXISTS(SELECT 1 FROM jsonb_each(p_assignments) a WHERE upper(a.value->>'network')=network_id AND btech_catalogue_c3_role(g.catalogue_version,roster->>(a.key::int))<>'c3i') THEN RAISE EXCEPTION 'Standard C3 and C3i cannot share a network';END IF;
-  IF (SELECT count(*) FROM jsonb_each(p_assignments) a WHERE upper(a.value->>'network')=network_id) > CASE WHEN EXISTS(SELECT 1 FROM jsonb_each(p_assignments) a WHERE upper(a.value->>'network')=network_id AND btech_catalogue_c3_role(g.catalogue_version,roster->>(a.key::int))='c3i') THEN 6 ELSE 12 END THEN RAISE EXCEPTION 'C3 network % exceeds its unit limit',network_id;END IF;
+  SELECT count(*)::int INTO network_count FROM jsonb_each(p_assignments) a WHERE upper(a.value->>'network')=network_id;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM jsonb_each(p_assignments) a WHERE upper(a.value->>'network')=network_id AND btech_catalogue_c3_role(g.catalogue_version,roster->>(a.key::int))='c3i') THEN 6 ELSE 12 END INTO network_limit;
+  IF network_count>network_limit THEN RAISE EXCEPTION 'C3 network % exceeds its unit limit',network_id;END IF;
   IF NOT EXISTS(SELECT 1 FROM jsonb_each(p_assignments) a WHERE upper(a.value->>'network')=network_id AND btech_catalogue_c3_role(g.catalogue_version,roster->>(a.key::int))<>'c3i') THEN CONTINUE;END IF;
   SELECT count(*) INTO root_count FROM jsonb_each(p_assignments) a WHERE upper(a.value->>'network')=network_id AND btech_catalogue_c3_role(g.catalogue_version,roster->>(a.key::int))='master' AND (NOT (a.value ? 'parent') OR a.value->'parent'='null'::jsonb);
   IF root_count<>1 THEN RAISE EXCEPTION 'Standard C3 network % requires exactly one root Master',network_id;END IF;
