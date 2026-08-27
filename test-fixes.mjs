@@ -156,14 +156,35 @@ const waterCoverShot = sandbox.evaluateWeaponAttack(aDefault, t3, wpn);
 check('#3 a standing target in shallow water receives partial cover', waterCoverShot.targetNumber === tnDefault + 1 && waterCoverShot.breakdown.includes('partial cover 1'), waterCoverShot.breakdown);
 sandbox.terrainAt = originalTerrainAt;
 
+const levelByHex = new Map([['2,0', 1]]);
+sandbox.elevationAt = (col, row) => levelByHex.get(`${col},${row}`) || 0;
+const hillCoverShot = sandbox.evaluateWeaponAttack(aDefault, t3, wpn);
+check('#3 target-adjacent Level 1 terrain gives a standing BattleMech partial cover', hillCoverShot.valid && hillCoverShot.targetNumber === tnDefault + 1 && hillCoverShot.breakdown.includes('partial cover 1'), hillCoverShot.breakdown);
+levelByHex.clear();
+sandbox.terrainAt = (col, row) => col === 2 && row === 0 ? 'building' : 'clear';
+check('#3 a target-adjacent Level 1 building provides partial cover', sandbox.analyseWeaponLineOfSight(aDefault, t3).partialCover);
+sandbox.terrainAt = originalTerrainAt;
+const downhillAttacker = { ...aDefault, col: 0, row: 0 };
+levelByHex.set('2,0', 1);
+levelByHex.set('0,0', 2);
+check('#3 an attacker above the target sight height negates terrain partial cover', !sandbox.analyseWeaponLineOfSight(downhillAttacker, t3).partialCover);
+levelByHex.clear();
+const highTarget = { ...t3, col: 4, row: 0 };
+levelByHex.set('4,0', 4);
+sandbox.terrainAt = (col, row) => col === 2 && row === 0 ? 'heavy_woods' : 'clear';
+const belowSightLine = sandbox.analyseWeaponLineOfSight(aDefault, highTarget);
+check('#3 woods below both units sight line neither block nor modify the shot', belowSightLine.valid && belowSightLine.terrainModifier === 0, JSON.stringify(belowSightLine));
+sandbox.terrainAt = originalTerrainAt;
+sandbox.elevationAt = () => 0;
+
 // A valid range is not enough: a blocked shot and a destroyed target must
 // never become selectable in the attack panel.
-sandbox.woodsBetween = () => 3;
+const realLosAnalysis = sandbox.analyseWeaponLineOfSight;
+sandbox.analyseWeaponLineOfSight = () => ({ valid: false, reason: 'Line of sight is blocked by intervening woods or smoke.', terrainModifier: 3, interveningModifier: 3, partialCover: false });
 check('#3 line of sight blocks dense intervening woods', !sandbox.evaluateWeaponAttack(aDefault, t3, wpn).valid && /line of sight/i.test(sandbox.evaluateWeaponAttack(aDefault, t3, wpn).reason));
-sandbox.woodsBetween = () => 0;
-sandbox.elevationBlocksLineOfSight = () => true;
-check('#3 line of sight blocks an intervening ridge', !sandbox.evaluateWeaponAttack(aDefault, t3, wpn).valid && /ridge/i.test(sandbox.evaluateWeaponAttack(aDefault, t3, wpn).reason));
-sandbox.elevationBlocksLineOfSight = () => false;
+sandbox.analyseWeaponLineOfSight = () => ({ valid: false, reason: 'Line of sight is blocked by intervening terrain.', terrainModifier: 0, interveningModifier: 0, partialCover: false });
+check('#3 line of sight blocks an intervening ridge', !sandbox.evaluateWeaponAttack(aDefault, t3, wpn).valid && /terrain/i.test(sandbox.evaluateWeaponAttack(aDefault, t3, wpn).reason));
+sandbox.analyseWeaponLineOfSight = realLosAnalysis;
 const destroyedTarget = { ...t3, destroyed: true };
 check('#3 destroyed targets cannot be selected for weapon attacks', !sandbox.evaluateWeaponAttack(aDefault, destroyedTarget, wpn).valid);
 const shutdownTarget = { ...t3, shutdown: true };
@@ -201,10 +222,12 @@ sandbox.BT_UNITS.ecmmech = { name: 'ECM TestMech', movement: { walk: 4, run: 7, 
 sandbox.mechInstances = [c3Attacker, c3Source, c3Target];
 const c3Shot = sandbox.evaluateWeaponAttack(c3Attacker, c3Target, c3Weapon);
 check('#3 C3 uses the closest linked unit with LOS for the range bracket', c3Shot.valid && c3Shot.c3.distance === 2 && c3Shot.c3.source.instanceId === 'c3-source' && c3Shot.range.label === 'Short', c3Shot.breakdown);
-const clearWoodsBetween = sandbox.woodsBetween;
-sandbox.woodsBetween = observer => observer.instanceId === 'c3-source' ? 3 : 0;
+const clearLosAnalysis = sandbox.analyseWeaponLineOfSight;
+sandbox.analyseWeaponLineOfSight = (observer) => observer.instanceId === 'c3-source'
+  ? ({ valid: false, reason: 'blocked', terrainModifier: 3, interveningModifier: 3, partialCover: false })
+  : ({ valid: true, reason: '', terrainModifier: 0, interveningModifier: 0, partialCover: false });
 check('#3 a C3 member without LOS cannot supply range', sandbox.c3NetworkSupport(c3Attacker, c3Target).distance === 12);
-sandbox.woodsBetween = clearWoodsBetween;
+sandbox.analyseWeaponLineOfSight = clearLosAnalysis;
 const ecmMech = { ...t3, instanceId: 'ecm', unitId: 'ecmmech', col: 5, row: 0 };
 sandbox.mechInstances = [c3Attacker, c3Source, c3Target, ecmMech];
 check('#3 hostile ECM crossing the link restores physical C3 range', sandbox.c3NetworkSupport(c3Attacker, c3Target).distance === 12 && sandbox.targetGuidanceEcm(c3Attacker, c3Target));
@@ -217,7 +240,9 @@ sandbox.mechInstances = [];
 const lrm = { key: 'lrm10', name: 'LRM 10', location: 'Left Torso', weapon: { key: 'lrm10', name: 'LRM 10', damage: 10, heat: 4, range: [7, 14, 21], minimumRange: 6 } };
 const spotter = { ...mkMech(4), instanceId: 's', col: 2, row: 1, movementMode: 'walk' };
 sandbox.mechInstances = [aDefault, spotter, t3];
-sandbox.elevationBlocksLineOfSight = observer => observer.instanceId === 'a';
+sandbox.analyseWeaponLineOfSight = observer => observer.instanceId === 'a'
+  ? ({ valid: false, reason: 'Line of sight is blocked by intervening terrain.', terrainModifier: 0, interveningModifier: 0, partialCover: false })
+  : ({ valid: true, reason: '', terrainModifier: 0, interveningModifier: 0, partialCover: false });
 const indirect = sandbox.evaluateWeaponAttack(aDefault, t3, lrm, { indirect: true, spotter });
 check('#3 indirect LRM accepts a valid spotter when attacker LOS is blocked', indirect.valid, indirect.reason || indirect.breakdown);
 check('#3 indirect LRM includes indirect and spotter movement modifiers', indirect.targetNumber === 10, `tn=${indirect.targetNumber}`);
@@ -227,7 +252,7 @@ const offArcPrimary = sandbox.evaluateWeaponAttack(aDefault, offArcTarget, lrm, 
 const offArcSecondary = sandbox.evaluateWeaponAttack(aDefault, offArcTarget, lrm, { indirect: true, spotter, secondaryTarget: true });
 check('#3 a secondary target outside the forward arc adds +2', offArcSecondary.multipleTargets === 2 && offArcSecondary.targetNumber === offArcPrimary.targetNumber + 2, `tn=${offArcSecondary.targetNumber}`);
 check('#3 non-LRM weapons cannot use indirect fire', !sandbox.evaluateWeaponAttack(aDefault, t3, wpn, { indirect: true, spotter }).valid);
-sandbox.elevationBlocksLineOfSight = () => false;
+sandbox.analyseWeaponLineOfSight = realLosAnalysis;
 sandbox.mechInstances = [];
 
 const proneShooter = { ...aDefault, prone: true, proneSupportArm: 'la' };
@@ -496,6 +521,11 @@ check('#5 dynamic terrain overlays are shared by movement and weapon LOS', terra
 check('#5 failed pavement checks resolve full skid movement and damage', terrainInteractionsMigration.includes('btech_apply_skid') && terrainInteractionsMigration.includes('hexes_required') && terrainInteractionsMigration.includes('damage_groups'));
 check('#5 skids damage buildings and collapse exhausted CF into rubble', terrainInteractionsMigration.includes('construction_factor_after') && terrainInteractionsMigration.includes("'\"rubble\"'::jsonb"));
 check('#5 fire advances smoke and building damage once per completed round', terrainInteractionsMigration.includes('btech_advance_terrain_round') && terrainInteractionsMigration.includes('generated_smoke_hexes') && terrainInteractionsMigration.includes('terrain_advanced_after_round'));
+const losCoverMigration = fs.readFileSync(`${ROOT}/SQL/92_complete_line_of_sight_and_cover.sql`, 'utf8');
+check('#5 authoritative LOS uses standing/prone unit heights and stateful elevation', losCoverMigration.includes('btech_state_elevation') && losCoverMigration.includes("THEN 1 ELSE 2 END") && losCoverMigration.includes('feature_intervenes'));
+check('#5 terrain and depth-one water partial cover share leg-hit absorption', losCoverMigration.includes('btech_target_has_partial_cover') && losCoverMigration.includes("terrain='shallow_water' OR terrain_cover") && losCoverMigration.includes('shallow_water_cover:=btech_target_has_partial_cover'));
+check('#5 indirect fire derives terrain cover from its spotter', losCoverMigration.includes("spotter_start->>''col''") && losCoverMigration.includes('shallow_cover_mod:=CASE WHEN shallow_water_cover'));
+check('#5 C3 and weapon fire consume the same completed LOS blocker', losCoverMigration.includes('c3_complete_los_v1') && losCoverMigration.includes('btech_state_elevation_blocks_los'));
 const weatheredTerrainMigration = fs.readFileSync(`${ROOT}/SQL/87_weathered_advanced_terrain.sql`, 'utf8');
 const mapCatalogueSource = fs.readFileSync(`${ROOT}/js/game/maps.js`, 'utf8');
 const weatheredRulesSource = fs.readFileSync(`${ROOT}/js/movement/rules.js`, 'utf8');
@@ -539,7 +569,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260827-c3-sql-fix-29"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260827-los-cover-30"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');

@@ -9,9 +9,8 @@ function emptyWeaponAttackState() {
 let weaponAttackState = emptyWeaponAttackState();
 
 function weaponLineOfSight(observer, target) {
-  const woods = woodsBetween(observer, target);
-  const targetWoods = terrainLosPoints(terrainAt(target.col, target.row), false);
-  return { valid: woods < 3 && !elevationBlocksLineOfSight(observer, target), woods: woods + targetWoods };
+  const sight = analyseWeaponLineOfSight(observer, target);
+  return { valid: sight.valid, woods: sight.terrainModifier, reason: sight.reason, partialCover: sight.partialCover };
 }
 
 function eligibleIndirectSpotters(attacker, target) {
@@ -104,6 +103,77 @@ function terrainLosPoints(terrain, intervening = true) {
   if (terrain === 'light_woods' || terrain === 'light_smoke' || terrain === 'fire') return 1;
   if (intervening && terrain === 'building') return 3;
   return 0;
+}
+
+function battleMechLosHeight(mech) {
+  return elevationAt(mech.col, mech.row) + (mech.prone ? 1 : 2);
+}
+
+function losFeatureHeight(terrain, col, row) {
+  const level = elevationAt(col, row);
+  if (['light_woods', 'heavy_woods', 'light_smoke', 'heavy_smoke'].includes(terrain)) return level + 2;
+  // The current map format has no separate building-height field, so a
+  // building hex represents a Level 1 building.
+  if (terrain === 'building') return level + 1;
+  if (terrain === 'fire') return level + 1;
+  return level;
+}
+
+function interveningHexes(attacker, target) {
+  const hexes = [];
+  let current = { col: attacker.col, row: attacker.row };
+  let remaining = axialDistance(current.col, current.row, target.col, target.row);
+  while (remaining > 1 && hexes.length < 40) {
+    current = hexNeighbor(current.col, current.row, weaponDirectionTo(current, target));
+    hexes.push(current);
+    remaining = axialDistance(current.col, current.row, target.col, target.row);
+  }
+  return hexes;
+}
+
+// Total Warfare LOS for the currently supported ground BattleMechs. Terrain
+// only intervenes when its top reaches the sight line. A target-adjacent
+// Level-1 rise gives a standing target partial cover unless the attacker is
+// looking down from above; depth-one water always gives that cover.
+function analyseWeaponLineOfSight(observer, target) {
+  const observerTerrain = terrainAt(observer.col, observer.row);
+  const targetTerrain = terrainAt(target.col, target.row);
+  if (observerTerrain === 'deep_water' || targetTerrain === 'deep_water') {
+    return { valid: false, reason: 'Line of sight is blocked by water depth.', terrainModifier: 0, partialCover: false };
+  }
+  const observerHeight = battleMechLosHeight(observer);
+  const targetHeight = battleMechLosHeight(target);
+  let obscuration = 0;
+  let blockedByTerrain = false;
+  let terrainCover = false;
+  const hexes = interveningHexes(observer, target);
+  hexes.forEach((hex, index) => {
+    const terrain = terrainAt(hex.col, hex.row);
+    const level = elevationAt(hex.col, hex.row);
+    const featureHeight = losFeatureHeight(terrain, hex.col, hex.row);
+    const adjacentObserver = index === 0;
+    const adjacentTarget = index === hexes.length - 1;
+    const levelIntervenes = level >= Math.max(observerHeight, targetHeight)
+      || (adjacentObserver && level >= observerHeight)
+      || (adjacentTarget && level >= targetHeight);
+    const featureIntervenes = featureHeight >= Math.max(observerHeight, targetHeight)
+      || (adjacentObserver && featureHeight >= observerHeight)
+      || (adjacentTarget && featureHeight >= targetHeight);
+    if (levelIntervenes || (terrain === 'building' && featureIntervenes)) blockedByTerrain = true;
+    if (featureIntervenes) obscuration += terrainLosPoints(terrain, false);
+    const coverHeight = terrain === 'building' ? featureHeight : level;
+    if (adjacentTarget && !target.prone && observerHeight <= targetHeight && !['light_woods', 'heavy_woods'].includes(terrain) && coverHeight === elevationAt(target.col, target.row) + 1) terrainCover = true;
+  });
+  const targetModifier = terrainLosPoints(targetTerrain, false);
+  const partialCover = !target.prone && (targetTerrain === 'shallow_water' || terrainCover);
+  const blocked = blockedByTerrain || obscuration >= 3;
+  return {
+    valid: !blocked,
+    reason: blockedByTerrain ? 'Line of sight is blocked by intervening terrain.' : obscuration >= 3 ? 'Line of sight is blocked by intervening woods or smoke.' : '',
+    terrainModifier: obscuration + targetModifier,
+    interveningModifier: obscuration,
+    partialCover
+  };
 }
 
 function weaponDirectionTo(attacker, target) {
@@ -407,33 +477,13 @@ function axialRound(q, r) {
 }
 
 function woodsBetween(attacker, target) {
-  const a = offsetToAxial(attacker.col, attacker.row), b = offsetToAxial(target.col, target.row);
-  const distance = axialDistance(attacker.col, attacker.row, target.col, target.row);
-  let points = 0;
-  for (let step = 1; step < distance; step++) {
-    const axial = axialRound(a.q + (b.q - a.q) * step / distance, a.r + (b.r - a.r) * step / distance);
-    const hex = axialToOffset(axial.q, axial.r);
-    points += terrainLosPoints(terrainAt(hex.col, hex.row));
-  }
-  return points;
+  return analyseWeaponLineOfSight(attacker, target).interveningModifier || 0;
 }
 
-// Keep this deliberately aligned with the database resolver: walk the same
-// deterministic shortest path (the first direction that reduces range) and
-// test only intervening hexes. A ridge blocks this introductory elevation-LOS
-// layer when it rises above both BattleMechs.
+// Compatibility wrapper retained for C3 and older callers.
 function elevationBlocksLineOfSight(attacker, target) {
-  if ((terrainAt(attacker.col, attacker.row) === 'deep_water') !== (terrainAt(target.col, target.row) === 'deep_water')) return true;
-  const attackerElevation = elevationAt(attacker.col, attacker.row);
-  const targetElevation = elevationAt(target.col, target.row);
-  let current = { col: attacker.col, row: attacker.row };
-  let remaining = axialDistance(current.col, current.row, target.col, target.row);
-  while (remaining > 1) {
-    current = hexNeighbor(current.col, current.row, weaponDirectionTo(current, target));
-    if (elevationAt(current.col, current.row) > Math.max(attackerElevation, targetElevation)) return true;
-    remaining = axialDistance(current.col, current.row, target.col, target.row);
-  }
-  return false;
+  const sight = analyseWeaponLineOfSight(attacker, target);
+  return !sight.valid && /terrain|water depth/i.test(sight.reason);
 }
 
 function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
@@ -478,10 +528,9 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   const attackerMove = movementToHitModifier(attacker);
   const targetMove = targetMovementModifier(target);
   const observer = indirect ? spotter : attacker;
-  const woods = woodsBetween(observer, target);
-  if (!indirect && woods >= 3) return { valid: false, reason: 'Line of sight is blocked by intervening woods.' };
-  if (!indirect && elevationBlocksLineOfSight(attacker, target)) return { valid: false, reason: 'Line of sight is blocked by an intervening ridge.' };
-  const targetWoods = terrainLosPoints(terrainAt(target.col, target.row), false);
+  const sight = analyseWeaponLineOfSight(observer, eligibleTarget);
+  if (!indirect && !sight.valid) return { valid: false, reason: sight.reason };
+  const woods = sight.terrainModifier;
   const sensorCritical = typeof criticalToHitModifier === 'function' ? criticalToHitModifier(eligibleAttacker) : 0;
   const critical = sensorCritical + weaponComponentToHitModifier(eligibleAttacker, weaponEntry);
   const heat = weaponHeatToHitModifier(eligibleAttacker);
@@ -501,7 +550,7 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   if (aimedLocation && (!['ct', 'lt', 'rt', 'la', 'ra', 'll', 'rl'].includes(aimedLocation) || Number(eligibleTarget.structure?.[aimedLocation] || 0) <= 0)) return { valid: false, reason: 'Choose an intact non-head location for the aimed shot.' };
   const indirectModifier = indirect ? 1 : 0;
   const spotterMovement = indirect ? movementToHitModifier(spotter) : 0;
-  const partialCover = terrainAt(target.col, target.row) === 'shallow_water' && !eligibleTarget.prone ? 1 : 0;
+  const partialCover = sight.partialCover ? 1 : 0;
   const secondaryTarget = Boolean(options.secondaryTarget);
   const targetDirection = weaponDirectionTo(attacker, target);
   const torsoFacing = attacker.torsoFacing == null ? attacker.facing : attacker.torsoFacing;
@@ -511,12 +560,12 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
     weapon,
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + targetWoods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + semiGuidedModifier + accuracyModifier + targetingComputerModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + semiGuidedModifier + accuracyModifier + targetingComputerModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
     attackAngle: attackDirection(attacker, target),
     multipleTargets,
     aimedLocation,
     c3,
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier}${c3.source && c3.source.instanceId !== attacker.instanceId && c3.distance < distance ? ` (C3 ${c3.distance} hexes via ${mechLabel(c3.source)})` : ''} + terrain ${woods + targetWoods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${targetingComputerModifier === -1 ? ' - Targeting Computer 1' : targetingComputerModifier === 3 ? ` + Targeting Computer aimed ${aimedLocation} 3` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier}${c3.source && c3.source.instanceId !== attacker.instanceId && c3.distance < distance ? ` (C3 ${c3.distance} hexes via ${mechLabel(c3.source)})` : ''} + terrain ${woods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${targetingComputerModifier === -1 ? ' - Targeting Computer 1' : targetingComputerModifier === 3 ? ` + Targeting Computer aimed ${aimedLocation} 3` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
   };
 }
 
