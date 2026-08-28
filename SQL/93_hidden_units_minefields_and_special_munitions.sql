@@ -53,7 +53,7 @@ REVOKE ALL ON FUNCTION public.btech_active_probe_range(text,jsonb) FROM PUBLIC;
 
 CREATE OR REPLACE FUNCTION public.btech_resolve_hidden_mines(p_game_id uuid,p_catalogue_version text,p_moved_id text,p_path jsonb)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE g btech_games%ROWTYPE;st jsonb;units jsonb;moved jsonb;candidate jsonb;field jsonb;action jsonb;updated_fields jsonb:='[]'::jsonb;events jsonb:='[]'::jsonb;probe_range int;distance int;roll int;trigger int;mass int;damage_left int;mine_damage int;group_damage int;location_roll jsonb;damage_result jsonb;hit boolean;seen_ids text[]:=ARRAY[]::text[];traversed_hexes text[]:=ARRAY[]::text[];
+DECLARE g btech_games%ROWTYPE;st jsonb;units jsonb;moved jsonb;candidate jsonb;field jsonb;action jsonb;updated_fields jsonb:='[]'::jsonb;events jsonb:='[]'::jsonb;probe_range int;distance int;roll int;detection_target int;trigger int;mass int;damage_left int;mine_damage int;group_damage int;location_roll jsonb;damage_result jsonb;hit boolean;seen_ids text[]:=ARRAY[]::text[];traversed_hexes text[]:=ARRAY[]::text[];
 BEGIN
  SELECT * INTO g FROM btech_games WHERE id=p_game_id FOR UPDATE;IF NOT FOUND THEN RETURN;END IF;st:=CASE jsonb_typeof(g.state) WHEN 'string' THEN (g.state#>>'{}')::jsonb ELSE g.state END;units:=coalesce(st->'mech_instances','[]'::jsonb);
  SELECT value INTO moved FROM jsonb_array_elements(units) value WHERE value->>'instanceId'=p_moved_id;IF moved IS NULL THEN RETURN;END IF;
@@ -72,7 +72,22 @@ BEGIN
  FOR field IN SELECT value FROM jsonb_array_elements(coalesce(st->'minefields','[]'::jsonb)) value LOOP
   IF (field->>'owner')::int=(moved->>'owner')::int THEN updated_fields:=updated_fields||jsonb_build_array(field);CONTINUE;END IF;
   distance:=btech_hex_distance((moved->>'col')::int,(moved->>'row')::int,(field->>'col')::int,(field->>'row')::int);
-  IF probe_range>0 AND distance<=probe_range AND NOT btech_ecm_interferes_line(p_catalogue_version,st,(moved->>'owner')::int,(moved->>'col')::int,(moved->>'row')::int,(field->>'col')::int,(field->>'row')::int) AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text(coalesce(field->'revealed_to','[]'::jsonb)) revealed(seat) WHERE revealed.seat=(moved->>'owner')) THEN roll:=floor(random()*6+1)+floor(random()*6+1);IF roll>=CASE WHEN coalesce((field->>'weapon_delivered')::boolean,false) THEN 7 ELSE 10 END THEN field:=jsonb_set(field,'{revealed_to}',coalesce(field->'revealed_to','[]'::jsonb)||to_jsonb((moved->>'owner')::int),true);events:=events||jsonb_build_array(jsonb_build_object('type','minefield_detected','hex',lpad(field->>'col',2,'0')||lpad(field->>'row',2,'0'),'roll',roll));END IF;END IF;
+  IF probe_range>0
+   AND distance<=probe_range
+   AND NOT btech_ecm_interferes_line(p_catalogue_version,st,(moved->>'owner')::int,(moved->>'col')::int,(moved->>'row')::int,(field->>'col')::int,(field->>'row')::int)
+   AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements_text(coalesce(field->'revealed_to','[]'::jsonb)) AS revealed(seat)
+    WHERE revealed.seat=(moved->>'owner')
+   )
+  THEN
+   roll:=floor(random()*6+1)+floor(random()*6+1);
+   detection_target:=CASE WHEN coalesce((field->>'weapon_delivered')::boolean,false) THEN 7 ELSE 10 END;
+   IF roll>=detection_target THEN
+    field:=jsonb_set(field,'{revealed_to}',coalesce(field->'revealed_to','[]'::jsonb)||to_jsonb((moved->>'owner')::int),true);
+    events:=events||jsonb_build_array(jsonb_build_object('type','minefield_detected','hex',lpad(field->>'col',2,'0')||lpad(field->>'row',2,'0'),'roll',roll,'target',detection_target));
+   END IF;
+  END IF;
   hit:=(lpad(field->>'col',2,'0')||lpad(field->>'row',2,'0'))=ANY(traversed_hexes) AND (field->>'type'='conventional' OR (field->>'type'='vibrabomb' AND mass>=coalesce((field->>'sensitivity')::int,50)));
   IF hit THEN trigger:=CASE WHEN (field->>'density')::int<15 THEN 9 WHEN (field->>'density')::int<25 THEN 8 ELSE 7 END;roll:=floor(random()*6+1)+floor(random()*6+1);hit:=roll>=trigger;END IF;
   IF hit THEN mine_damage:=(field->>'density')::int;damage_left:=mine_damage;WHILE damage_left>0 AND NOT coalesce((moved->>'destroyed')::boolean,false) LOOP group_damage:=least(5,damage_left);damage_left:=damage_left-group_damage;location_roll:=btech_roll_physical_location('kick','front');damage_result:=btech_apply_direct_damage(moved,group_damage,location_roll->>'location',false);moved:=damage_result->'mech';END LOOP;field:=jsonb_set(field,'{density}',to_jsonb(greatest(0,mine_damage-5)),true);field:=jsonb_set(field,'{revealed_to}','[1,2]'::jsonb,true);events:=events||jsonb_build_array(jsonb_build_object('type','minefield_triggered','instance_id',p_moved_id,'hex',lpad(field->>'col',2,'0')||lpad(field->>'row',2,'0'),'mine_type',field->>'type','roll',roll,'target',trigger,'damage',mine_damage));END IF;
