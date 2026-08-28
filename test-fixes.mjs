@@ -571,7 +571,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260828-hidden-mines-32"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260828-catalogue-33"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');

@@ -30,5 +30,23 @@ supported LRM/SRM mount definitions. Install its generated content pack before
 testing authoritative missile attacks; new lobbies automatically choose it as
 the latest release.
 
+## Current expanded release
+
+`megamek-2026-08-curated-04` contains 72 playable BattleMechs. It adds the
+Grand Dragon DRG-5K and five other supported Dragon-family records alongside
+the existing DRG-1N, plus a balanced expansion of 15 Inner Sphere and 15 Clan
+BattleMechs. The release is
+installed from `SQL/94_expanded_72_unit_catalogue.sql.parts`: run numbered
+parts 001 through 003 in order, then run `004_verify.sql`.
+
+The Dragon-family records in this release are Dragon DRG-1C, Dragon DRG-1N,
+Grand Dragon DRG-1G, Dragon DRG-5N, Grand Dragon DRG-5K-DC, Grand Dragon
+DRG-5K and Grand Dragon DRG-C. Later variants whose core weapons are not yet
+implemented by the VTT remain outside the playable allowlist.
+
+New matches pin this release after installation. Existing matches deliberately
+retain their original immutable catalogue so saved record sheets cannot change
+underneath an active game.
+
 Prototype ID aliases remain only as inexpensive developer diagnostics; they do
 not make old matches supported gameplay data.
