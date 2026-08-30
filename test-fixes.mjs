@@ -571,7 +571,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260830-masc-34"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260830-masc-35"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -671,6 +671,7 @@ const mascTargets = [
 check('#5 MASC doubles current Walking MP and uses the standard escalating targets', sandbox.mascRunMP(mascUnit) === 8 && mascTargets.join(',') === '3,5,7,11,13', mascTargets.join(','));
 check('#5 unused turns progressively recover MASC risk', sandbox.mascTargetNumber({ mascLastRound: 5, mascUseLevel: 4 }, 7) === 7 && sandbox.mascTargetNumber({ mascLastRound: 5, mascUseLevel: 4 }, 8) === 5 && sandbox.mascTargetNumber({ mascLastRound: 5, mascUseLevel: 4 }, 9) === 3);
 check('#5 authoritative MASC validates equipment, rolls before movement and damages both legs on failure', mascMigration.includes("ARRAY[''masc'']") && mascMigration.includes("coalesce((mobility->>''walk'')::int,0)*2") && mascMigration.includes('btech_resolve_masc_activation') && mascMigration.includes("ARRAY['ll','rl']") && mascMigration.includes('btech_resolve_displacement_psr'));
+check('#5 MASC migration tolerates accumulated resolver whitespace and declaration order', mascMigration.includes("regexp_replace(source,'DECLARE[[:space:]]+'"));
 check('#5 MASC failure permits a standing replot but consumes Movement after a fall', mascMigration.includes("IF coalesce((mech->>''prone'')::boolean,false) THEN") && mascMigration.includes("''mp_used'',0") && mascMigration.includes('MASC has already been attempted this round'));
 check('#5 advanced AI weighs MASC risk and resolves the same failure consequences', mascAiSource.includes('riskAcceptable') && mascAiSource.includes('mascTarget <= 7') && mascAiSource.includes('resolveLocalMASCActivation(mech)'));
 check('#5 How to Play documents MASC speed, escalating risk and failure consequences', howToPlaySource.includes('<td>MASC Run</td>') && howToPlaySource.includes('3+, 5+, 7+, 11+, then 13+') && howToPlaySource.includes('critical hit in each leg'));

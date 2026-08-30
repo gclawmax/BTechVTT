@@ -54,34 +54,54 @@ END $$;
 REVOKE ALL ON FUNCTION public.btech_resolve_masc_activation(text,jsonb,int) FROM PUBLIC;
 
 DO $$
-DECLARE fn regprocedure;source text;patched text;
+DECLARE fn regprocedure;source text;patched text;previous text;
 BEGIN
  fn:=to_regprocedure('public.submit_battlemech_movement(uuid,text,text,jsonb)');
  IF fn IS NULL THEN RAISE EXCEPTION 'Movement resolver is missing';END IF;
  SELECT pg_get_functiondef(fn) INTO source;
  IF position('authoritative_masc_movement_v1' IN source)>0 THEN RETURN;END IF;
 
- patched:=replace(source,'check_payload jsonb:=NULL;hidden_contact jsonb:=NULL;',
-  'check_payload jsonb:=NULL;hidden_contact jsonb:=NULL;masc_requested boolean:=false;masc_result jsonb:=NULL; /* authoritative_masc_movement_v1 */');
- patched:=replace(patched,'path_length:=jsonb_array_length(p_path);IF path_length>40 THEN',
-  'path_length:=jsonb_array_length(p_path);SELECT coalesce(bool_or(coalesce((value->>''masc'')::boolean,false)),false) INTO masc_requested FROM jsonb_array_elements(p_path) value;IF path_length>40 THEN');
- patched:=replace(patched,'mobility:=btech_critical_movement_profile(g.catalogue_version,mech);',
-  'mobility:=btech_critical_movement_profile(g.catalogue_version,mech);IF masc_requested THEN IF p_mode<>''run'' THEN RAISE EXCEPTION ''MASC may only boost a running movement'';END IF;IF coalesce((mech->>''mascLastRound'')::int,-99)=g.current_round THEN RAISE EXCEPTION ''MASC has already been attempted this round'';END IF;IF NOT btech_equipment_operational(g.catalogue_version,mech,ARRAY[''masc'']) THEN RAISE EXCEPTION ''This BattleMech has no operational MASC system'';END IF;END IF;');
- patched:=replace(patched,'mp_max:=greatest(0,coalesce((mobility->>p_mode)::int,0)-heat_penalty);',
-  'mp_max:=greatest(0,CASE WHEN masc_requested THEN coalesce((mobility->>''walk'')::int,0)*2 ELSE coalesce((mobility->>p_mode)::int,0) END-heat_penalty);');
- patched:=replace(patched,' FOR action IN SELECT value FROM jsonb_array_elements(p_path) value LOOP',
-  E' IF masc_requested THEN masc_result:=btech_resolve_masc_activation(g.catalogue_version,mech,g.current_round);mech:=masc_result->''mech'';IF NOT coalesce((masc_result->>''passed'')::boolean,false) THEN IF coalesce((mech->>''prone'')::boolean,false) THEN mech:=jsonb_set(mech,''{hasMoved}'',''true''::jsonb,true);mech:=jsonb_set(mech,''{movementMode}'',''"run"''::jsonb,true);mech:=jsonb_set(mech,''{movementHeat}'',''2''::jsonb,true);END IF;SELECT jsonb_agg(CASE WHEN value->>''instanceId''=p_instance_id THEN mech ELSE value END) INTO units FROM jsonb_array_elements(before_units) value;PERFORM submit_phase_state_nonphysical_core(p_game_id,units);RETURN (masc_result-''mech'')||jsonb_build_object(''instance_id'',p_instance_id,''mode'',p_mode,''col'',current_col,''row'',current_row,''mp_used'',0,''mp_max'',mp_max,''hexes_moved'',0,''masc'',masc_result-''mech'');END IF;END IF;\n FOR action IN SELECT value FROM jsonb_array_elements(p_path) value LOOP');
- patched:=replace(patched,'mech:=jsonb_set(mech,''{movementMode}'',to_jsonb(p_mode),true);',
-  'mech:=jsonb_set(mech,''{movementMode}'',to_jsonb(p_mode),true);mech:=jsonb_set(mech,''{mascUsedThisRound}'',to_jsonb(masc_requested),true);');
- patched:=replace(patched,'''movement_profile'',mobility',
-  '''masc'',CASE WHEN masc_result IS NULL THEN NULL ELSE masc_result-''mech'' END,''movement_profile'',mobility');
- patched:=replace(patched,'''movement_profile'', mobility',
-  '''masc'',CASE WHEN masc_result IS NULL THEN NULL ELSE masc_result-''mech'' END,''movement_profile'', mobility');
+ -- Add private locals at the function's single DECLARE boundary instead of
+ -- depending on the order in which earlier terrain migrations added theirs.
+ patched:=regexp_replace(source,'DECLARE[[:space:]]+',
+  'DECLARE masc_requested boolean:=false;masc_result jsonb:=NULL; /* authoritative_masc_movement_v1 */ ','i');
+ IF patched=source THEN RAISE EXCEPTION 'Could not locate the movement declaration boundary for MASC';END IF;
 
- IF patched=source OR position('authoritative_masc_movement_v1' IN patched)=0 OR position('btech_resolve_masc_activation' IN patched)=0
-  OR position('mobility->>''walk'')::int,0)*2' IN patched)=0 OR position('masc_result-''mech''' IN patched)=0 THEN
-  RAISE EXCEPTION 'Could not safely install authoritative BattleMech MASC movement';
- END IF;
+ previous:=patched;
+ patched:=regexp_replace(patched,E'path_length[[:space:]]*:=[[:space:]]*jsonb_array_length\\(p_path\\);',
+  'path_length:=jsonb_array_length(p_path);SELECT coalesce(bool_or(coalesce((value->>''masc'')::boolean,false)),false) INTO masc_requested FROM jsonb_array_elements(p_path) value;','i');
+ IF patched=previous THEN RAISE EXCEPTION 'Could not locate movement path initialisation for MASC';END IF;
+
+ previous:=patched;
+ patched:=regexp_replace(patched,E'mobility[[:space:]]*:=[[:space:]]*btech_critical_movement_profile\\(g\\.catalogue_version[[:space:]]*,[[:space:]]*mech\\);',
+  'mobility:=btech_critical_movement_profile(g.catalogue_version,mech);IF masc_requested THEN IF p_mode<>''run'' THEN RAISE EXCEPTION ''MASC may only boost a running movement'';END IF;IF coalesce((mech->>''mascLastRound'')::int,-99)=g.current_round THEN RAISE EXCEPTION ''MASC has already been attempted this round'';END IF;IF NOT btech_equipment_operational(g.catalogue_version,mech,ARRAY[''masc'']) THEN RAISE EXCEPTION ''This BattleMech has no operational MASC system'';END IF;END IF;','i');
+ IF patched=previous THEN RAISE EXCEPTION 'Could not locate the critical movement profile for MASC';END IF;
+
+ previous:=patched;
+ patched:=regexp_replace(patched,E'mp_max[[:space:]]*:=[[:space:]]*greatest\\(0[[:space:]]*,[[:space:]]*coalesce\\(\\(mobility[[:space:]]*->>[[:space:]]*p_mode\\)::(int|integer)[[:space:]]*,[[:space:]]*0\\)[[:space:]]*-[[:space:]]*heat_penalty\\);',
+  'mp_max:=greatest(0,CASE WHEN masc_requested THEN coalesce((mobility->>''walk'')::int,0)*2 ELSE coalesce((mobility->>p_mode)::int,0) END-heat_penalty);','i');
+ IF patched=previous THEN RAISE EXCEPTION 'Could not locate the movement-point calculation for MASC';END IF;
+
+ -- Add the ordinary-success response before introducing the failure response,
+ -- so only the resolver's existing final return can match.
+ previous:=patched;
+ patched:=regexp_replace(patched,E'RETURN[[:space:]]+jsonb_build_object\\([[:space:]]*''instance_id''',
+  'RETURN jsonb_build_object(''masc'',CASE WHEN masc_result IS NULL THEN NULL ELSE masc_result-''mech'' END,''instance_id''','i');
+ IF patched=previous THEN RAISE EXCEPTION 'Could not locate the movement result for MASC';END IF;
+
+ previous:=patched;
+ patched:=regexp_replace(patched,E'FOR[[:space:]]+action[[:space:]]+IN[[:space:]]+SELECT[[:space:]]+value[[:space:]]+FROM[[:space:]]+jsonb_array_elements\\(p_path\\)[[:space:]]+value[[:space:]]+LOOP',
+  E'IF masc_requested THEN masc_result:=btech_resolve_masc_activation(g.catalogue_version,mech,g.current_round);mech:=masc_result->''mech'';IF NOT coalesce((masc_result->>''passed'')::boolean,false) THEN IF coalesce((mech->>''prone'')::boolean,false) THEN mech:=jsonb_set(mech,''{hasMoved}'',''true''::jsonb,true);mech:=jsonb_set(mech,''{movementMode}'',''"run"''::jsonb,true);mech:=jsonb_set(mech,''{movementHeat}'',''2''::jsonb,true);END IF;SELECT jsonb_agg(CASE WHEN value->>''instanceId''=p_instance_id THEN mech ELSE value END) INTO units FROM jsonb_array_elements(before_units) value;PERFORM submit_phase_state_nonphysical_core(p_game_id,units);RETURN (masc_result-''mech'')||jsonb_build_object(''instance_id'',p_instance_id,''mode'',p_mode,''col'',current_col,''row'',current_row,''mp_used'',0,''mp_max'',mp_max,''hexes_moved'',0,''masc'',masc_result-''mech'');END IF;END IF;\n FOR action IN SELECT value FROM jsonb_array_elements(p_path) value LOOP','i');
+ IF patched=previous THEN RAISE EXCEPTION 'Could not locate the movement path loop for MASC';END IF;
+
+ previous:=patched;
+ patched:=regexp_replace(patched,E'mech[[:space:]]*:=[[:space:]]*jsonb_set\\(mech[[:space:]]*,[[:space:]]*''\\{movementMode\\}''[[:space:]]*,[[:space:]]*to_jsonb\\(p_mode\\)[[:space:]]*,[[:space:]]*true\\);',
+  'mech:=jsonb_set(mech,''{movementMode}'',to_jsonb(p_mode),true);mech:=jsonb_set(mech,''{mascUsedThisRound}'',to_jsonb(masc_requested),true);','i');
+ IF patched=previous THEN RAISE EXCEPTION 'Could not locate movement completion state for MASC';END IF;
+
+ IF position('authoritative_masc_movement_v1' IN patched)=0 OR position('btech_resolve_masc_activation' IN patched)=0
+  OR position('mascUsedThisRound' IN patched)=0 OR position('masc_result-''mech''' IN patched)=0 THEN
+  RAISE EXCEPTION 'The completed MASC resolver failed its integrity check';END IF;
  EXECUTE patched;
 END $$;
 
