@@ -116,7 +116,7 @@ function generateAIReactionAction(mech, playerMechs) {
 // Generate a movement action for AI mech
 function generateAIMoveAction(mech, playerMechs, settings) {
   const unit = BT_UNITS[mech.unitId];
-  const maxMove = unit.movement.walk * settings.movementRange;
+  if (!unit) return null;
   
   // Simple AI: move toward nearest player mech
   let targetHex = null;
@@ -132,31 +132,44 @@ function generateAIMoveAction(mech, playerMechs, settings) {
   
   if (!targetHex) return null;
   
-  // Calculate desired direction
-  const colDelta = targetHex.col - mech.col;
-  const rowDelta = targetHex.row - mech.row;
-  
-  // Simple movement - move toward target in one or two axes
-  const newCol = Math.max(0, Math.min(GRID_COLS - 1, mech.col + Math.sign(colDelta)));
-  const newRow = Math.max(0, Math.min(GRID_ROWS - 1, mech.row + Math.sign(rowDelta)));
-  
-  // Check if hex is empty
-  const occupied = mechInstances.some(inst => 
-    inst.instanceId !== mech.instanceId && 
-    inst.col === newCol && 
-    inst.row === newRow
-  );
-  
-  if (occupied) return null;
+  const mobility = criticalMovementProfile(mech);
+  const ordinaryBudget = Math.min(mobility.run, Math.max(1, Number(settings.movementRange) || 1));
+  const mascTarget = typeof mascTargetNumber === 'function' ? mascTargetNumber(mech) : 13;
+  const riskAcceptable = ['strongest', 'optimal'].includes(settings.targetPriority) && mascTarget <= 7;
+  const useMASC = typeof hasOperationalMASC === 'function' && hasOperationalMASC(mech) &&
+    Number(mech.mascLastRound) !== Number(currentGameState.round) && riskAcceptable && minDistance > ordinaryBudget + 1;
+  const maxMove = useMASC ? Math.min(typeof mascRunMP === 'function' ? mascRunMP(mech) : mobility.run, ordinaryBudget + mobility.walk) : ordinaryBudget;
+
+  // Build a deterministic legal route that reduces true hex distance. MASC is
+  // considered only by advanced AI and only while its failure target is 7+ or
+  // easier; it is never treated as a free, automatic speed bonus.
+  const path = [];
+  let current = { col: mech.col, row: mech.row };
+  for (let step = 0; step < maxMove; step++) {
+    const choices = Array.from({ length: 6 }, (_, direction) => ({ ...hexNeighbor(current.col, current.row, direction), direction }))
+      .filter(hex => hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS)
+      .filter(hex => !terrainMovementBlocked(hex.col, hex.row))
+      .filter(hex => !mechInstances.some(inst => inst.instanceId !== mech.instanceId && !inst.destroyed && inst.col === hex.col && inst.row === hex.row))
+      .sort((a, b) => axialDistance(a.col, a.row, targetHex.col, targetHex.row) - axialDistance(b.col, b.row, targetHex.col, targetHex.row));
+    const next = choices[0];
+    if (!next || axialDistance(next.col, next.row, targetHex.col, targetHex.row) >= axialDistance(current.col, current.row, targetHex.col, targetHex.row)) break;
+    path.push({ col: next.col, row: next.row, direction: next.direction });
+    current = next;
+    if (axialDistance(current.col, current.row, targetHex.col, targetHex.row) <= 1) break;
+  }
+  if (!path.length) return null;
   
   return {
     type: 'move',
     instanceId: mech.instanceId,
     fromCol: mech.col,
     fromRow: mech.row,
-    toCol: newCol,
-    toRow: newRow,
-    facing: mech.facing // Keep current facing for now
+    toCol: current.col,
+    toRow: current.row,
+    path,
+    useMASC,
+    mascTarget,
+    facing: path.at(-1)?.direction ?? mech.facing
   };
 }
 
@@ -358,7 +371,20 @@ async function executeAIMove(action) {
   const mech = mechInstances.find(m => m.instanceId === action.instanceId);
   if (!mech) return;
 
-  const dir = directionBetween(action.fromCol, action.fromRow, action.toCol, action.toRow);
+  if (action.useMASC) {
+    const result = resolveLocalMASCActivation(mech);
+    logEvent(`${mechLabel(mech)} (AI) activated MASC — need ${result.target}+, rolled ${format2d6(result)}: ${result.passed ? 'success' : 'failure'}.`, 'roll');
+    if (!result.passed) {
+      const damaged = result.criticals.map(hit => `${hitLocationLabel(hit.location)} ${hit.label}`).join(', ');
+      logEvent(`${mechLabel(mech)} (AI) suffered MASC failure damage to ${damaged || 'no remaining leg component'}${result.fallDamage ? ` and fell for ${result.fallDamage} damage` : ''}.`, 'roll');
+      if (!mech.hasMoved) {
+        mech.hasMoved = true; mech.movementMode = 'stand'; mech.mpUsed = 0; mech.hexesMoved = 0; mech.movementHeat = 0;
+      }
+      await syncMechInstances(); draw(); renderRoster(); renderDetail(); renderMovementPanel(); updateAdvanceButtonState();
+      return;
+    }
+  }
+  const dir = action.path?.at(-1)?.direction ?? directionBetween(action.fromCol, action.fromRow, action.toCol, action.toRow);
 
   // Update mech position
   mech.col = action.toCol;
@@ -368,11 +394,12 @@ async function executeAIMove(action) {
   if (dir !== -1) mech.facing = dir;
 
   // Simplified bookkeeping so the Movement Panel reflects the AI's move too.
-  mech.movementMode = 'walk';
-  mech.hexesMoved = (mech.hexesMoved || 0) + 1;
-  mech.mpUsed = (mech.mpUsed || 0) + 1;
+  mech.movementMode = action.useMASC ? 'run' : 'walk';
+  mech.mascUsedThisRound = Boolean(action.useMASC);
+  mech.hexesMoved = action.path?.length || 1;
+  mech.mpUsed = action.path?.length || 1;
   mech.hasMoved = true;
-  mech.movementHeat = MOVEMENT_HEAT.walk;
+  mech.movementHeat = action.useMASC ? MOVEMENT_HEAT.run : MOVEMENT_HEAT.walk;
   mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
 
   // Update UI
@@ -381,7 +408,7 @@ async function executeAIMove(action) {
   renderDetail();
   renderMovementPanel();
   await syncMechInstances();
-  logEvent(`${mechLabel(mech)} (AI) moved to ${hexCode(action.toCol, action.toRow)}.`, 'move');
+  logEvent(`${mechLabel(mech)} (AI) ${action.useMASC ? 'used MASC and ran' : 'moved'} ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} to ${hexCode(action.toCol, action.toRow)}.`, 'move');
 }
 
 // Execute AI attack

@@ -34,6 +34,84 @@ function heatMovementPenalty(mech) {
   return heat >= 25 ? 4 : heat >= 20 ? 3 : heat >= 15 ? 2 : heat >= 10 ? 1 : 0;
 }
 
+const MASC_TARGETS = Object.freeze([3, 5, 7, 11, 13]);
+
+function operationalMASCSlots(mech) {
+  const layout = BT_CRITICAL_LAYOUTS[mech?.unitId] || {};
+  return Object.entries(layout).flatMap(([location, slots]) => (slots || []).map((slot, index) => ({
+    location, index, key: criticalEquipmentKey(slot), damaged: (mech?.criticalSlotDamage?.[location] || []).includes(index)
+  }))).filter(slot => slot.key === 'masc');
+}
+
+function hasOperationalMASC(mech) {
+  const slots = operationalMASCSlots(mech);
+  return Boolean(mech && !mech.destroyed && !mech.shutdown && slots.length && slots.every(slot => !slot.damaged));
+}
+
+function mascUseLevel(mech, round = currentGameState.round) {
+  const previousLevel = Math.max(0, Number(mech?.mascUseLevel ?? mech?.mascConsecutiveUses) || 0);
+  const roundsSinceUse = Number(round) - Number(mech?.mascLastRound);
+  if (!previousLevel || !Number.isFinite(roundsSinceUse) || roundsSinceUse <= 0) return 1;
+  if (roundsSinceUse === 1) return previousLevel + 1;
+  // MegaMek/TW recovery: the first full turn without MASC drops the next
+  // check by two table steps; each additional unused turn drops one more.
+  return Math.max(1, previousLevel - roundsSinceUse + 1);
+}
+
+function mascTargetNumber(mech, round = currentGameState.round) {
+  return MASC_TARGETS[Math.min(MASC_TARGETS.length, mascUseLevel(mech, round)) - 1];
+}
+
+function mascRunMP(mech) {
+  const mobility = criticalMovementProfile(mech);
+  return mobility.destroyedLegs ? 0 : mobility.walk * 2;
+}
+
+// Local AI games do not use the multiplayer movement RPC. Mirror its MASC
+// check so the same equipment is never a risk-free speed increase offline.
+function resolveLocalMASCActivation(mech, round = currentGameState.round) {
+  const useLevel = mascUseLevel(mech, round);
+  const target = mascTargetNumber(mech, round);
+  const roll = roll2d6Detailed();
+  const passed = roll.total >= target;
+  mech.mascLastRound = Number(round);
+  mech.mascUseLevel = useLevel;
+  mech.mascUsedThisRound = true;
+  const criticals = [];
+  let piloting = null;
+  let fallDamage = 0;
+  if (!passed) {
+    for (const location of ['ll', 'rl']) {
+      const choices = availableCriticalSlots(mech, location);
+      if (!choices.length) continue;
+      const index = choices[Math.floor(Math.random() * choices.length)];
+      const label = criticalSlotName(BT_CRITICAL_LAYOUTS[mech.unitId]?.[location]?.[index]);
+      markCriticalSlot(mech, location, index);
+      mech.criticalHits = (mech.criticalHits || 0) + 1;
+      criticals.push({ location, index, label });
+    }
+    const mobility = criticalMovementProfile(mech);
+    const pilotingTarget = Number(mech.pilot?.piloting ?? mech.pilotingSkill ?? 5) + mobility.pilotingModifier;
+    const pilotingRoll = roll2d6Detailed();
+    const pilotingPassed = pilotingTarget <= 2 || (pilotingTarget <= 12 && pilotingRoll.total >= pilotingTarget);
+    piloting = { target: pilotingTarget, ...pilotingRoll, passed: pilotingPassed };
+    if (!pilotingPassed) {
+      mech.prone = true;
+      const fallDirection = criticalDie() - 1;
+      mech.facing = (Number(mech.facing || 0) + fallDirection) % 6;
+      mech.torsoFacing = mech.facing;
+      fallDamage = Math.ceil(Number(BT_UNITS[mech.unitId]?.mass || 0) / 10);
+      for (let remaining = fallDamage; remaining > 0 && !mech.destroyed; remaining -= Math.min(5, remaining)) {
+        applyWeaponDamage(mech, Math.min(5, remaining), 'front');
+      }
+      mech.hasMoved = true;
+      mech.movementMode = 'run';
+      mech.movementHeat = MOVEMENT_HEAT.run;
+    }
+  }
+  return { requested: true, useLevel, target, ...roll, passed, criticals, piloting, fallDamage };
+}
+
 async function attemptStartup(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
   const reason = !mech ? 'BattleMech is no longer available.'
@@ -128,6 +206,7 @@ function resetMovementForRound() {
     m.externalHeat = 0;
     m.heatDissipated = 0;
     m.hasManagedHeat = false;
+    m.mascUsedThisRound = false;
   });
 }
 
@@ -188,13 +267,20 @@ async function startMovementMode(instanceId, mode) {
     flashMoveWarning("A destroyed gyro prevents this 'Mech from moving.");
     return;
   }
-  if (mode === 'run' && criticalMovement.destroyedLegs) {
+  const useMASC = mode === 'masc';
+  const effectiveMode = useMASC ? 'run' : mode;
+  if (effectiveMode === 'run' && criticalMovement.destroyedLegs) {
     flashMoveWarning("A 'Mech standing on one leg cannot run.");
     return;
   }
   const unit = BT_UNITS[mech.unitId];
 
-  if (mode === 'stand') {
+  if (useMASC && (!hasOperationalMASC(mech) || Number(mech.mascLastRound) === Number(currentGameState.round))) {
+    flashMoveWarning(Number(mech.mascLastRound) === Number(currentGameState.round) ? 'MASC has already been attempted this round.' : 'This BattleMech has no operational MASC system.');
+    return;
+  }
+
+  if (effectiveMode === 'stand') {
     if (!vsAiMode) {
       await submitAuthoritativeMovement(mech, mode, []);
       return;
@@ -215,18 +301,20 @@ async function startMovementMode(instanceId, mode) {
     return;
   }
 
-  if (mode === 'jump' && terrainAt(mech.col, mech.row) === 'deep_water') {
+  if (effectiveMode === 'jump' && terrainAt(mech.col, mech.row) === 'deep_water') {
     flashMoveWarning("A submerged 'Mech cannot use its jump jets.");
     return;
   }
-  const waterJetPenalty = mode === 'jump' ? submergedLegJumpJets(mech) : 0;
-  const mpMax = Math.max(0, (criticalMovement[mode] || 0) - heatMovementPenalty(mech) - waterJetPenalty);
+  const waterJetPenalty = effectiveMode === 'jump' ? submergedLegJumpJets(mech) : 0;
+  const movementRating = useMASC ? criticalMovement.walk * 2 : criticalMovement[effectiveMode] || 0;
+  const mpMax = Math.max(0, movementRating - heatMovementPenalty(mech) - waterJetPenalty);
   if (mpMax <= 0) return;
 
   moveState = {
     active: true,
     instanceId,
-    mode,
+    mode: effectiveMode,
+    mascActive: useMASC,
     mpMax,
     mpUsed: 0,
     hexesMoved: 0,
@@ -338,7 +426,21 @@ async function confirmMove() {
       await submitAuthoritativeMovement(mech, moveState.mode, moveState.path || []);
       return;
     }
+    if (moveState.mascActive) {
+      const result = resolveLocalMASCActivation(mech);
+      logEvent(`${mechLabel(mech)} activated MASC at risk level ${result.useLevel} — need ${result.target}+, rolled ${format2d6(result)}: ${result.passed ? 'success' : 'failure'}.`, 'roll');
+      if (!result.passed) {
+        mech.col = moveState.origCol; mech.row = moveState.origRow; mech.facing = moveState.origFacing; mech.torsoFacing = moveState.origTorsoFacing;
+        const damaged = result.criticals.map(hit => `${hitLocationLabel(hit.location)} ${hit.label}`).join(', ');
+        logEvent(`MASC failure damaged ${damaged || 'no remaining leg component'}${result.piloting ? `; Piloting ${result.piloting.passed ? 'passed' : 'failed'} on ${result.piloting.target}+ with ${format2d6(result.piloting)}${result.fallDamage ? `; fell for ${result.fallDamage} damage` : ''}` : ''}.`, 'roll');
+        moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
+        renderMovementPanel(); renderReactionPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
+        await syncMechInstances();
+        return;
+      }
+    }
     mech.movementMode = moveState.mode;
+    if (!moveState.mascActive) mech.mascUsedThisRound = false;
     mech.mpUsed = moveState.mpUsed;
     mech.hexesMoved = moveState.hexesMoved;
     mech.hasMoved = true;
@@ -366,12 +468,13 @@ async function confirmMove() {
 }
 
 async function submitAuthoritativeMovement(mech, mode, path) {
-  const summary = `${mechLabel(mech)} ${mode === 'jump' ? 'jumped' : mode === 'run' ? 'ran' : mode === 'walk' ? 'walked' : 'stood still'}${mode === 'stand' ? '' : ` to ${hexCode(mech.col, mech.row)}`}`;
+  const summary = `${mechLabel(mech)} ${mode === 'jump' ? 'jumped' : mode === 'run' ? `${moveState.mascActive ? 'used MASC and ' : ''}ran` : mode === 'walk' ? 'walked' : 'stood still'}${mode === 'stand' ? '' : ` to ${hexCode(mech.col, mech.row)}`}`;
   // For a jump, attach the player's chosen landing facing so the server honours it
   // (the 'Mech faces travel direction by default, but the player may rotate freely).
-  const submitPath = (mode === 'jump' && Array.isArray(path) && path.length === 1 && path[0].action === 'jump')
+  let submitPath = (mode === 'jump' && Array.isArray(path) && path.length === 1 && path[0].action === 'jump')
     ? [{ ...path[0], facing: mech.facing }]
     : path;
+  if (moveState.mascActive && Array.isArray(submitPath) && submitPath.length) submitPath = submitPath.map((step, index) => index === 0 ? { ...step, masc: true } : step);
   const { data, error } = await db.rpc('submit_battlemech_movement', {
     p_game_id: currentGameId,
     p_instance_id: mech.instanceId,
@@ -385,6 +488,16 @@ async function submitAuthoritativeMovement(mech, mode, path) {
   }
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
   await loadGameState();
+  if (data?.masc?.requested) {
+    const masc = data.masc;
+    logEvent(`${mechLabel(mech)} activated MASC at risk level ${masc.use_level} — need ${masc.target}+, rolled ${masc.die_a} + ${masc.die_b} = ${masc.total}: ${masc.passed ? 'success' : 'failure'}.`, 'roll');
+    if (!masc.passed) {
+      const damaged = (masc.failure?.critical_hits || []).map(hit => `${hitLocationLabel(hit.location)} ${hit.label}`).join(', ');
+      const psr = masc.failure?.piloting_check;
+      logEvent(`MASC failure damaged ${damaged || 'no remaining leg component'}${psr ? `; Piloting ${psr.passed ? 'passed' : 'failed'} on ${psr.target}+${psr.total == null ? '' : ` with ${psr.die_a} + ${psr.die_b} = ${psr.total}`}${masc.failure?.fall_damage ? `; fell for ${masc.failure.fall_damage} damage` : ''}` : ''}. Choose a normal movement mode if the BattleMech remains standing.`, 'roll');
+      return;
+    }
+  }
   logEvent(`${summary}${mode === 'stand' ? '' : ` (${data?.hexes_moved || 0} hex${data?.hexes_moved === 1 ? '' : 'es'}, ${data?.mp_used || 0}/${data?.mp_max || 0} MP)`}.`, 'move');
   if (data?.hidden_contact) {
     const contact = mechInstances.find(candidate => candidate.instanceId === data.hidden_contact);
@@ -538,7 +651,7 @@ function renderMovementPanel() {
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement</div>
       <div style="font-size:11px;color:var(--phosphor-dim);line-height:1.5;">
-        ${titleCaseMode(mech.movementMode)} — ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} moved, ${mech.mpUsed} MP spent.
+        ${titleCaseMode(mech.movementMode)}${mech.mascUsedThisRound ? ' with MASC' : ''} — ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} moved, ${mech.mpUsed} MP spent.
       </div>`;
     return;
   }
@@ -572,7 +685,7 @@ function renderMovementPanel() {
       : [];
     const chargePicker = chargeTargets.length ? `<div style="margin:0 0 7px;font-size:10px;color:var(--amber);">Charge — declare against a standing enemy that has completed movement. No weapons may be fired this turn.<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${chargeTargets.map(target => `<button onclick="declareChargeAttack('${target.instanceId}')" style="padding:6px;border:1px solid var(--amber);background:rgba(212,128,10,.12);color:var(--paper);font:9px var(--mono);cursor:pointer;">Charge: ${mechLabel(target)}</button>`).join('')}</div></div>` : '';
     panel.innerHTML = `
-      <div class="panel-eyebrow">Movement — ${titleCaseMode(moveState.mode)}</div>
+      <div class="panel-eyebrow">Movement — ${moveState.mascActive ? 'MASC Run' : titleCaseMode(moveState.mode)}</div>
       <div style="font-size:11px;color:var(--paper);margin-bottom:6px;">
         MP ${moveState.mpUsed}/${moveState.mpMax} used (${mpLeft} left) · ${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'} moved
       </div>
@@ -595,6 +708,9 @@ function renderMovementPanel() {
   const heatPenalty = heatMovementPenalty(mech);
   if (mobility.walk > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','walk')" style="${MOVE_BTN_STYLE}">Walk (${mobility.walk - heatPenalty} MP)</button>`);
   if (mobility.run > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','run')" style="${MOVE_BTN_STYLE}">Run (${mobility.run - heatPenalty} MP)</button>`);
+  if (hasOperationalMASC(mech) && Number(mech.mascLastRound) !== Number(currentGameState.round) && mascRunMP(mech) > heatPenalty) {
+    modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','masc')" title="Double Walking MP; roll ${mascTargetNumber(mech)}+ to avoid a MASC failure." style="${MOVE_BTN_STYLE}">Use MASC (${mascRunMP(mech) - heatPenalty} MP · ${mascTargetNumber(mech)}+)</button>`);
+  }
   if (mobility.jump > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','jump')" style="${MOVE_BTN_STYLE}">Jump (${mobility.jump - heatPenalty} MP)</button>`);
 
   panel.innerHTML = `

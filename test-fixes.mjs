@@ -571,7 +571,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260828-catalogue-33"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260830-masc-34"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');
@@ -658,6 +658,22 @@ check('#5 specialist ammunition is bin-specific and authoritative', phasesSource
 check('#5 specialist AC and missile consequences are applied by the server', hiddenMineMigration.includes('flechette') && hiddenMineMigration.includes('weapon_damage:=floor') && hiddenMineMigration.includes('fragmentation') && hiddenMineMigration.includes('weapon_damage:=0') && hiddenMineMigration.includes("p_load_type='armor_piercing'"));
 check('#5 plasma specialist weapons are constructible and add their BattleMech heat effects', hiddenMineMigration.includes('specialist_plasma_construction_v1') && hiddenMineMigration.includes('specialist_plasma_ammo_v1') && hiddenMineMigration.includes('specialist_plasma_v1') && fs.readFileSync(`${ROOT}/js/game/mech-designer.js`, 'utf8').includes("plasma_cannon:{name:'Clan Plasma Cannon'"));
 check('#5 underwater concealment and sea mines remain explicitly excluded', hiddenMineMigration.includes('Underwater concealment, sea mines and underwater weapon fire are excluded') && hiddenMineMigration.includes("'shallow_water','deep_water'") && howToPlaySource.includes('minefields'));
+const mascMigration = fs.readFileSync(`${ROOT}/SQL/95_authoritative_masc_movement.sql`, 'utf8');
+const mascAiSource = fs.readFileSync(`${ROOT}/js/ai/opponent.js`, 'utf8');
+const mascUnit = { unitId: 'testmech', criticalSlotDamage: {}, structure: { ll: 10, rl: 10 }, destroyed: false, shutdown: false };
+sandbox.BT_CRITICAL_LAYOUTS.testmech = { ct: ['Engine', 'CLMASC', 'CLMASC'], ll: ['Hip'], rl: ['Hip'] };
+check('#5 operational MASC is discovered from catalogue critical slots and disabled by one damaged slot', sandbox.hasOperationalMASC(mascUnit) && !sandbox.hasOperationalMASC({ ...mascUnit, criticalSlotDamage: { ct: [1] } }));
+const mascTargets = [
+  sandbox.mascTargetNumber({}, 5), sandbox.mascTargetNumber({ mascLastRound: 4, mascUseLevel: 1 }, 5),
+  sandbox.mascTargetNumber({ mascLastRound: 4, mascUseLevel: 2 }, 5), sandbox.mascTargetNumber({ mascLastRound: 4, mascUseLevel: 3 }, 5),
+  sandbox.mascTargetNumber({ mascLastRound: 4, mascUseLevel: 4 }, 5)
+];
+check('#5 MASC doubles current Walking MP and uses the standard escalating targets', sandbox.mascRunMP(mascUnit) === 8 && mascTargets.join(',') === '3,5,7,11,13', mascTargets.join(','));
+check('#5 unused turns progressively recover MASC risk', sandbox.mascTargetNumber({ mascLastRound: 5, mascUseLevel: 4 }, 7) === 7 && sandbox.mascTargetNumber({ mascLastRound: 5, mascUseLevel: 4 }, 8) === 5 && sandbox.mascTargetNumber({ mascLastRound: 5, mascUseLevel: 4 }, 9) === 3);
+check('#5 authoritative MASC validates equipment, rolls before movement and damages both legs on failure', mascMigration.includes("ARRAY[''masc'']") && mascMigration.includes("coalesce((mobility->>''walk'')::int,0)*2") && mascMigration.includes('btech_resolve_masc_activation') && mascMigration.includes("ARRAY['ll','rl']") && mascMigration.includes('btech_resolve_displacement_psr'));
+check('#5 MASC failure permits a standing replot but consumes Movement after a fall', mascMigration.includes("IF coalesce((mech->>''prone'')::boolean,false) THEN") && mascMigration.includes("''mp_used'',0") && mascMigration.includes('MASC has already been attempted this round'));
+check('#5 advanced AI weighs MASC risk and resolves the same failure consequences', mascAiSource.includes('riskAcceptable') && mascAiSource.includes('mascTarget <= 7') && mascAiSource.includes('resolveLocalMASCActivation(mech)'));
+check('#5 How to Play documents MASC speed, escalating risk and failure consequences', howToPlaySource.includes('<td>MASC Run</td>') && howToPlaySource.includes('3+, 5+, 7+, 11+, then 13+') && howToPlaySource.includes('critical hit in each leg'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);
