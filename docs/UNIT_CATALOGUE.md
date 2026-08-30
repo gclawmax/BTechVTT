@@ -32,17 +32,17 @@ the latest release.
 
 ## Current expanded release
 
-`megamek-2026-08-curated-04` contains 72 playable BattleMechs. It adds the
-Grand Dragon DRG-5K and five other supported Dragon-family records alongside
-the existing DRG-1N, plus a balanced expansion of 15 Inner Sphere and 15 Clan
-BattleMechs. The release is
-installed from `SQL/94_expanded_72_unit_catalogue.sql.parts`: run numbered
-parts 001 through 003 in order, then run `004_verify.sql`.
+`megamek-2026-08-curated-05` contains 75 playable BattleMechs. It retains the
+balanced expansion of 15 Inner Sphere and 15 Clan BattleMechs, and adds the
+Dragon DRG-7N, Grand Dragon DRG-7K and Grand Dragon DRG-9KC. The release is
+installed from `SQL/97_expanded_75_unit_catalogue.sql.parts`: run numbered
+parts 001 through 004 in order, then run `005_verify.sql`.
 
 The Dragon-family records in this release are Dragon DRG-1C, Dragon DRG-1N,
 Grand Dragon DRG-1G, Dragon DRG-5N, Grand Dragon DRG-5K-DC, Grand Dragon
-DRG-5K and Grand Dragon DRG-C. Later variants whose core weapons are not yet
-implemented by the VTT remain outside the playable allowlist.
+DRG-5K, Grand Dragon DRG-C, Dragon DRG-7N, Grand Dragon DRG-7K and Grand
+Dragon DRG-9KC. MRM, MML, Snub-Nose PPC, C3 Master TAG and rear-mounted weapon
+profiles are included in the playable catalogue.
 
 New matches pin this release after installation. Existing matches deliberately
 retain their original immutable catalogue so saved record sheets cannot change

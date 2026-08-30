@@ -414,6 +414,7 @@ function specialAmmoLoadTypes(bin) {
   if (['srm2', 'srm4', 'srm6'].includes(bin.type)) return ['standard', 'inferno', 'fragmentation'];
   if (['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type)) return ['standard', 'precision', 'armor_piercing', 'flechette'];
   if (['lrm5', 'lrm10', 'lrm15', 'lrm20'].includes(bin.type)) return ['standard', 'semi_guided', 'fragmentation'];
+  if (/^mml(3|5|7|9)$/.test(bin.type)) return ['lrm', 'srm'];
   return [];
 }
 
@@ -422,7 +423,7 @@ function ammoSetupRequiredForBin(bin) {
 }
 
 function setRoundOneAmmoChoice(key, loadType) {
-  if (['slug', 'cluster', 'standard', 'inferno', 'precision', 'semi_guided', 'armor_piercing', 'flechette', 'fragmentation'].includes(loadType)) {
+  if (['slug', 'cluster', 'standard', 'inferno', 'precision', 'semi_guided', 'armor_piercing', 'flechette', 'fragmentation', 'lrm', 'srm'].includes(loadType)) {
     roundOneAmmoChoices[key] = loadType;
     renderDetail();
   }
@@ -442,7 +443,11 @@ async function submitRoundOneAmmoLoadout(binKey = null) {
       const binId = key.slice(separator + 1);
       const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
       const bin = mech?.ammoBins?.find(candidate => candidate.id === binId);
-      if (bin) bin.loadType = loadType;
+      if (bin) {
+        bin.loadType = loadType;
+        const rack = /^mml(3|5|7|9)$/.test(bin.type) ? Number(bin.type.slice(3)) : 0;
+        if (rack) bin.shots = bin.maxShots = loadType === 'srm' ? Math.floor(100 / rack) : Math.floor(120 / rack);
+      }
     });
     await syncMechInstances();
     await loadGameState();

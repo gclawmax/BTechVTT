@@ -50,6 +50,16 @@ const WEAPONS = {
   'Large Pulse Laser': { key: 'large_pulse_laser', damage: 9, heat: 10, range: [3, 7, 10], toHitModifier: -2 },
   'Gauss Rifle': { key: 'gauss_rifle', damage: 15, heat: 1, range: [7, 15, 22], minimumRange: 2, ammoType: 'gauss' },
   'Streak SRM 2': { key: 'streak_srm2', damage: 4, heat: 2, range: [3, 6, 9], ammoType: 'streak_srm2', clusterSize: 2, damagePerMissile: 2, streak: true, missileWeapon: true },
+  'MRM 10': { key: 'mrm10', damage: 10, heat: 4, range: [3, 8, 15], ammoType: 'mrm10', clusterSize: 10, damagePerMissile: 1, missileWeapon: true, toHitModifier: 1 },
+  'MRM 20': { key: 'mrm20', damage: 20, heat: 6, range: [3, 8, 15], ammoType: 'mrm20', clusterSize: 20, damagePerMissile: 1, missileWeapon: true, toHitModifier: 1 },
+  'MRM 30': { key: 'mrm30', damage: 30, heat: 10, range: [3, 8, 15], ammoType: 'mrm30', clusterSize: 30, damagePerMissile: 1, missileWeapon: true, toHitModifier: 1 },
+  'MRM 40': { key: 'mrm40', damage: 40, heat: 12, range: [3, 8, 15], ammoType: 'mrm40', clusterSize: 40, damagePerMissile: 1, missileWeapon: true, toHitModifier: 1 },
+  'MML 3': { key: 'mml3', damage: 3, heat: 2, range: [7, 14, 21], minimumRange: 6, ammoType: 'mml3', clusterSize: 3, damagePerMissile: 1, missileWeapon: true, mml: true },
+  'MML 5': { key: 'mml5', damage: 5, heat: 3, range: [7, 14, 21], minimumRange: 6, ammoType: 'mml5', clusterSize: 5, damagePerMissile: 1, missileWeapon: true, mml: true },
+  'MML 7': { key: 'mml7', damage: 7, heat: 4, range: [7, 14, 21], minimumRange: 6, ammoType: 'mml7', clusterSize: 7, damagePerMissile: 1, missileWeapon: true, mml: true },
+  'MML 9': { key: 'mml9', damage: 9, heat: 5, range: [7, 14, 21], minimumRange: 6, ammoType: 'mml9', clusterSize: 9, damagePerMissile: 1, missileWeapon: true, mml: true },
+  'Snub-Nose PPC': { key: 'snub_ppc', damage: 10, damageByRange: [10, 8, 5], heat: 10, range: [9, 13, 15] },
+  'C3 Computer (Master)': { key: 'c3_master_tag', damage: 0, heat: 0, range: [5, 9, 15], supportOnly: true },
   'Anti-Missile System': { key: 'ams', damage: 0, heat: 1, range: [1, 1, 1], ammoType: 'ams', supportOnly: true },
   Narc: { key: 'narc', damage: 0, heat: 0, range: [3, 6, 9], ammoType: 'narc' },
   TAG: { key: 'tag', damage: 0, heat: 0, range: [5, 10, 15] }
@@ -70,6 +80,8 @@ const AMMO = [
   [/Ammo AC\/20/i, 'ac20', 5], [/Ammo AC\/10/i, 'ac10', 10], [/Ammo AC\/5/i, 'ac5', 20], [/Ammo AC\/2/i, 'ac2', 45],
   [/Ultra AC\/5 Ammo/i, 'uac5', 20], [/LB 10-X AC Ammo/i, 'lb10x', 10],
   [/Gauss Ammo/i, 'gauss', 8], [/Streak SRM 2 Ammo/i, 'streak_srm2', 50], [/Narc Pods/i, 'narc', 6], [/AMS Ammo/i, 'ams', 12],
+  [/MRM 10 Ammo/i, 'mrm10', 24], [/MRM 20 Ammo/i, 'mrm20', 12], [/MRM 30 Ammo/i, 'mrm30', 8], [/MRM 40 Ammo/i, 'mrm40', 6],
+  [/MML-3 (?:LRM|SRM)/i, 'mml3', 40], [/MML-5 (?:LRM|SRM)/i, 'mml5', 24], [/MML-7 (?:LRM|SRM)/i, 'mml7', 17], [/MML-9 (?:LRM|SRM)/i, 'mml9', 13],
   [/Ammo LRM-20/i, 'lrm20', 6], [/Ammo LRM-15/i, 'lrm15', 8], [/Ammo LRM-10/i, 'lrm10', 12], [/Ammo LRM-5/i, 'lrm5', 24],
   [/Ammo SRM-6/i, 'srm6', 15], [/Ammo SRM-4/i, 'srm4', 25], [/Ammo SRM-2/i, 'srm2', 50],
   [/Ammo MG/i, 'machine_gun', 200], [/Machine Gun Ammo/i, 'machine_gun', 200]
@@ -140,11 +152,24 @@ function weaponsFrom(lines, techBase) {
     };
   });
 }
+function markRearMountedWeapons(mounts, criticals) {
+  const normalize = value => String(value || '').toLowerCase().replace(/\s*\(r\)\s*$/, '').replace(/^(is|clan|cl)/, '').replace(/[^a-z0-9]/g, '');
+  for (const mount of mounts) {
+    const rearSlots = (criticals[mount.location] || []).filter(label => /\(R\)\s*$/i.test(label || '') && normalize(label) === normalize(mount.raw_name));
+    const sameMounts = mounts.filter(candidate => candidate.location === mount.location && normalize(candidate.raw_name) === normalize(mount.raw_name));
+    if (rearSlots.length && rearSlots.length >= sameMounts.indexOf(mount) + 1 && mount.definition) mount.definition.rearMounted = true;
+  }
+}
 function ammoFrom(criticals, techBase) {
   const bins = [];
   for (const [location, slots] of Object.entries(criticals)) slots.forEach((label, slotIndex) => {
     const definition = AMMO.find(([pattern]) => pattern.test(label || ''));
-    if (definition) bins.push({ bin_id:`${location}:${slotIndex}`, ammo_type:definition[1], raw_name:label, location, shots:definition[1] === 'ams' && /clan/i.test(techBase || '') ? 24 : definition[2] });
+    if (definition) {
+      const mmlRack = definition[1].startsWith('mml') ? integer(definition[1].slice(3)) : null;
+      const shots = mmlRack && /SRM/i.test(label) ? Math.floor(100 / mmlRack)
+        : definition[1] === 'ams' && /clan/i.test(techBase || '') ? 24 : definition[2];
+      bins.push({ bin_id:`${location}:${slotIndex}`, ammo_type:definition[1], raw_name:label, location, shots });
+    }
   });
   return bins;
 }
@@ -162,6 +187,7 @@ function parseMtf(text, entry) {
   const techBase = headers.get('techbase');
   const criticals = criticalsFrom(lines);
   const mounts = weaponsFrom(lines, techBase);
+  markRearMountedWeapons(mounts, criticals);
   const ammoBins = ammoFrom(criticals, techBase);
   const definition = {
     id: entry.id,

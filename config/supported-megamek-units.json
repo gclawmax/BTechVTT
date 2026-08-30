@@ -1,5 +1,5 @@
 {
-  "catalogue_version": "megamek-2026-08-curated-04",
+  "catalogue_version": "megamek-2026-08-curated-05",
   "units": [
     { "id": "atlas-as7-d", "source": "data/mekfiles/meks/3039u/Atlas AS7-D.mtf" },
     { "id": "hunchback-hbk-4g", "source": "data/mekfiles/meks/3039u/Hunchback HBK-4G.mtf" },
@@ -30,6 +30,9 @@
     { "id": "grand-dragon-drg-5k-dc", "source": "data/mekfiles/meks/3050U/Grand Dragon DRG-5K-DC.mtf" },
     { "id": "grand-dragon-drg-5k", "source": "data/mekfiles/meks/3050U/Grand Dragon DRG-5K.mtf" },
     { "id": "grand-dragon-drg-c", "source": "data/mekfiles/meks/3050U/Grand Dragon DRG-C.mtf" },
+    { "id": "dragon-drg-7n", "source": "data/mekfiles/meks/3050U/Dragon DRG-7N.mtf" },
+    { "id": "grand-dragon-drg-7k", "source": "data/mekfiles/meks/3050U/Grand Dragon DRG-7K.mtf" },
+    { "id": "grand-dragon-drg-9kc", "source": "data/mekfiles/meks/3050U/Grand Dragon DRG-9KC.mtf" },
     { "id": "rifleman-rfl-3n", "source": "data/mekfiles/meks/3039u/Rifleman RFL-3N.mtf" },
     { "id": "thunderbolt-tdr-5s", "source": "data/mekfiles/meks/3039u/Thunderbolt TDR-5S.mtf" },
     { "id": "warhammer-whm-6r", "source": "data/mekfiles/meks/3039u/Warhammer WHM-6R.mtf" },

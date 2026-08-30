@@ -14,6 +14,9 @@ const CUSTOM_EQUIPMENT = Object.freeze({
   machine_gun:{name:'Machine Gun',weight:.5,slots:1,heat:0,ammo:'machine_gun'},
   lrm5:{name:'LRM 5',weight:2,slots:1,heat:2,ammo:'lrm5'}, lrm10:{name:'LRM 10',weight:5,slots:2,heat:4,ammo:'lrm10'}, lrm15:{name:'LRM 15',weight:7,slots:3,heat:5,ammo:'lrm15'}, lrm20:{name:'LRM 20',weight:10,slots:5,heat:6,ammo:'lrm20'},
   srm2:{name:'SRM 2',weight:1,slots:1,heat:2,ammo:'srm2'}, srm4:{name:'SRM 4',weight:2,slots:1,heat:3,ammo:'srm4'}, srm6:{name:'SRM 6',weight:3,slots:2,heat:4,ammo:'srm6'},
+  mrm10:{name:'MRM 10',weight:3,slots:2,heat:4,ammo:'mrm10'}, mrm20:{name:'MRM 20',weight:7,slots:3,heat:6,ammo:'mrm20'}, mrm30:{name:'MRM 30',weight:10,slots:5,heat:10,ammo:'mrm30'}, mrm40:{name:'MRM 40',weight:12,slots:7,heat:12,ammo:'mrm40'},
+  mml3:{name:'MML 3',weight:1.5,slots:2,heat:2,ammo:'mml3'}, mml5:{name:'MML 5',weight:3,slots:3,heat:3,ammo:'mml5'}, mml7:{name:'MML 7',weight:4.5,slots:4,heat:4,ammo:'mml7'}, mml9:{name:'MML 9',weight:6,slots:5,heat:5,ammo:'mml9'},
+  snub_ppc:{name:'Snub-Nose PPC',weight:6,slots:2,heat:10},
   clan_er_small_laser:{name:'Clan ER Small Laser',weight:.5,slots:1,heat:2,clan:true}, clan_er_medium_laser:{name:'Clan ER Medium Laser',weight:1,slots:1,heat:5,clan:true}, clan_er_large_laser:{name:'Clan ER Large Laser',weight:4,slots:1,heat:12,clan:true}, clan_er_ppc:{name:'Clan ER PPC',weight:6,slots:2,heat:15,clan:true}, clan_large_pulse_laser:{name:'Clan Large Pulse Laser',weight:6,slots:2,heat:10,clan:true}, plasma_cannon:{name:'Clan Plasma Cannon',weight:3,slots:1,heat:7,ammo:'plasma_cannon',clan:true},
   lrm5_clan:{name:'Clan LRM 5',weight:1,slots:1,heat:2,ammo:'cl_lrm5',clan:true}, lrm10_clan:{name:'Clan LRM 10',weight:2.5,slots:1,heat:4,ammo:'cl_lrm10',clan:true}, lrm15_clan:{name:'Clan LRM 15',weight:3.5,slots:1,heat:5,ammo:'cl_lrm15',clan:true}, lrm20_clan:{name:'Clan LRM 20',weight:5,slots:1,heat:6,ammo:'cl_lrm20',clan:true},
   srm2_clan:{name:'Clan SRM 2',weight:.5,slots:1,heat:2,ammo:'cl_srm2',clan:true}, srm4_clan:{name:'Clan SRM 4',weight:1,slots:1,heat:3,ammo:'cl_srm4',clan:true}, srm6_clan:{name:'Clan SRM 6',weight:1.5,slots:1,heat:4,ammo:'cl_srm6',clan:true}
@@ -21,6 +24,7 @@ const CUSTOM_EQUIPMENT = Object.freeze({
 const CUSTOM_AMMO = Object.freeze({
   ac2:{name:'AC/2',shots:45},ac5:{name:'AC/5',shots:20},ac10:{name:'AC/10',shots:10},ac20:{name:'AC/20',shots:5},machine_gun:{name:'Machine Gun',shots:200},plasma_rifle:{name:'Plasma Rifle',shots:10},plasma_cannon:{name:'Clan Plasma Cannon',shots:10,clan:true},
   lrm5:{name:'LRM 5',shots:24},lrm10:{name:'LRM 10',shots:12},lrm15:{name:'LRM 15',shots:8},lrm20:{name:'LRM 20',shots:6},srm2:{name:'SRM 2',shots:50},srm4:{name:'SRM 4',shots:25},srm6:{name:'SRM 6',shots:15},
+  mrm10:{name:'MRM 10',shots:24},mrm20:{name:'MRM 20',shots:12},mrm30:{name:'MRM 30',shots:8},mrm40:{name:'MRM 40',shots:6},mml3:{name:'MML 3',shots:40},mml5:{name:'MML 5',shots:24},mml7:{name:'MML 7',shots:17},mml9:{name:'MML 9',shots:13},
   cl_lrm5:{name:'Clan LRM 5',shots:24,clan:true},cl_lrm10:{name:'Clan LRM 10',shots:12,clan:true},cl_lrm15:{name:'Clan LRM 15',shots:8,clan:true},cl_lrm20:{name:'Clan LRM 20',shots:6,clan:true},cl_srm2:{name:'Clan SRM 2',shots:50,clan:true},cl_srm4:{name:'Clan SRM 4',shots:25,clan:true},cl_srm6:{name:'Clan SRM 6',shots:15,clan:true}
 });
 const CUSTOM_ELECTRONICS = Object.freeze({
@@ -68,7 +72,7 @@ function customEngineWeight(rating) {
 function customTargetingComputerSize(design) {
   const directFireTons = (design.weapons || []).reduce((total, item) => {
     const profile = CUSTOM_EQUIPMENT[item.key];
-    return profile && !profile.ammo?.startsWith('lrm') && !profile.ammo?.startsWith('srm') && !profile.ammo?.startsWith('cl_lrm') && !profile.ammo?.startsWith('cl_srm') ? total + profile.weight : total;
+    return profile && !['lrm','srm','mrm','mml','cl_lrm','cl_srm'].some(prefix => profile.ammo?.startsWith(prefix)) ? total + profile.weight : total;
   }, 0);
   const divisor = design.tech_base === 'clan' ? 5 : 4;
   const tons = Math.ceil(directFireTons / divisor);

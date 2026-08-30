@@ -64,6 +64,8 @@ function criticalWeaponLabel(key) {
     srm6: 'SRM 6', srm4: 'SRM 4', srm2: 'SRM 2', sr6: 'SRM 6', sr4: 'SRM 4', sr2: 'SRM 2',
     med_laser: 'Medium Laser', small_laser: 'Small Laser', large_laser: 'Large Laser',
     erl: 'ER Large Laser', ppc: 'PPC', machine_gun: 'Machine Gun', streak_sr4: 'Streak SRM 4'
+    , mrm10: 'MRM 10', mrm20: 'MRM 20', mrm30: 'MRM 30', mrm40: 'MRM 40'
+    , mml3: 'MML 3', mml5: 'MML 5', mml7: 'MML 7', mml9: 'MML 9', snub_ppc: 'Snub-Nose PPC'
   })[key] || key;
 }
 
@@ -77,6 +79,9 @@ function criticalAmmoType(slot) {
   if (label.includes('lrm-20')) return 'lrm20';
   if (label.includes('lrm-10')) return 'lrm10';
   if (label.includes('srm-6')) return 'srm6';
+  for (const family of ['mrm', 'mml']) for (const rack of [3, 5, 7, 9, 10, 20, 30, 40]) {
+    if (label.includes(`${family}-${rack}`) || label.includes(`${family} ${rack}`)) return `${family}${rack}`;
+  }
   if (label.includes('ammo mg')) return 'machine_gun';
   return null;
 }
@@ -92,7 +97,9 @@ function criticalAmmoExplosion(mech, location, slot) {
   bin.destroyed = true;
   bin.shots = 0;
   if (!shots) return `${criticalSlotName(slot)} destroyed empty.`;
-  const damage = (BT_WEAPONS[type]?.damage || 0) * shots;
+  const rackDamage = /^(?:mrm|mml)\d+$/.test(type) ? Number(type.match(/\d+/)?.[0] || 0) : 0;
+  const perShot = type.startsWith('mml') && bin.loadType === 'srm' ? rackDamage * 2 : rackDamage || (BT_WEAPONS[type]?.damage || 0);
+  const damage = perShot * shots;
   const result = applyCriticalInternalDamage(mech, location, damage);
   return `${criticalSlotName(slot)} explodes for ${damage} internal damage${result.destroyed ? '; target destroyed' : ''}.`;
 }

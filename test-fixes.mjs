@@ -299,6 +299,27 @@ check('#3b per-mount profile overrides shared weapon key', sandbox.weaponProfile
 check('#3b explicit combat-log team takes precedence over target label', sandbox.logTeamClass({ team: 2, msg: 'Dire Wolf (P2) fired at Summoner (P1).' }) === 'team-p2');
 check('#3b authoritative target breakdown is readable', sandbox.formatAuthoritativeTargetNumber({ breakdown: { gunnery: 4, attacker_movement: 3, lb_x_cluster: -1 } }) === ' (Gunnery 4 + attacker movement 3 − LB-X cluster 1)');
 
+// ── #3c MRM, MML, Snub PPC and rear-mounted weapons ──────────────────────
+const mrmMount = { key:'mrm10', location:'Left Torso', weapon:{ name:'MRM 10', damage:10, heat:4, range:[3,8,15], ammoType:'mrm10', clusterSize:10, damagePerMissile:1, missileWeapon:true, toHitModifier:1 } };
+sandbox.BT_UNITS.testmech.weapons = [mrmMount];
+check('#3c MRM fire includes its +1 target-number modifier', sandbox.evaluateWeaponAttack(aDefault, t3, mrmMount).targetNumber === 5);
+
+const mmlMount = { key:'mml5', location:'Right Torso', mountId:'mml5:rt:0', weapon:{ name:'MML 5', damage:5, heat:3, range:[7,14,21], minimumRange:6, ammoType:'mml5', clusterSize:5, damagePerMissile:1, missileWeapon:true, mml:true } };
+sandbox.BT_UNITS.testmech.weapons = [mmlMount];
+const mmlMech = { ...mkMech(4), ammoBins:[{ id:'rt:8', type:'mml5', loadType:'lrm', shots:24, maxShots:24 },{ id:'rt:9', type:'mml5', loadType:'srm', shots:20, maxShots:20 }] };
+vm.runInContext("weaponAttackState={attackerId:'a',targetId:'t',primaryTargetId:null,targetAssignments:{},weaponKeys:[],ammoBinsByMount:{'mml5:rt:0':'rt:8'},fireModesByMount:{},aimLocationsByMount:{}}", sandbox);
+const mmlLrm = sandbox.effectiveWeaponProfile(mmlMech, mmlMount);
+check('#3c MML LRM mode uses 7/14/21 ranges, minimum 6 and one-point missiles', JSON.stringify(mmlLrm.range) === JSON.stringify([7,14,21]) && mmlLrm.minimumRange === 6 && mmlLrm.damagePerMissile === 1 && sandbox.isIndirectCapableWeapon(mmlMech, mmlMount));
+vm.runInContext("weaponAttackState.ammoBinsByMount['mml5:rt:0']='rt:9'", sandbox);
+const mmlSrm = sandbox.effectiveWeaponProfile(mmlMech, mmlMount);
+check('#3c MML SRM mode uses 3/6/9 ranges, ten maximum damage and no indirect fire', JSON.stringify(mmlSrm.range) === JSON.stringify([3,6,9]) && mmlSrm.damage === 10 && mmlSrm.damagePerMissile === 2 && !sandbox.isIndirectCapableWeapon(mmlMech, mmlMount));
+
+const snub = { name:'Snub-Nose PPC', damage:10, damageByRange:[10,8,5], heat:10, range:[9,13,15] };
+check('#3c Snub-Nose PPC damage steps down by range bracket', sandbox.effectiveWeaponDamage(snub,9) === 10 && sandbox.effectiveWeaponDamage(snub,13) === 8 && sandbox.effectiveWeaponDamage(snub,15) === 5);
+const rearLaser = { key:'med_laser', location:'Left Torso', weapon:{ name:'Medium Laser (R)', damage:5, heat:3, range:[3,6,9], rearMounted:true } };
+check('#3c rear-mounted weapons fire only through the rear three-hex arc', sandbox.isWeaponTargetInArc(rearLaser,aDefault,3) && !sandbox.isWeaponTargetInArc(rearLaser,aDefault,0));
+check('#3c complete cluster tables cover every MRM and MML rack size', [[3,2],[5,3],[7,4],[9,5],[10,6],[20,12],[30,18],[40,24]].every(([rack,hits]) => sandbox.clusterHitsForRoll(rack,7) === hits));
+
 // ── #4 Jump landing free facing ────────────────────────────────────────────
 sandbox.mechInstances = [{ instanceId: 'j1', unitId: 'testmech', owner: 1, col: 2, row: 2, facing: 0, torsoFacing: 0,
   structure: { ...STRUCT }, armor: {}, jumpMP: 5, hexesMoved: 0, mpUsed: 0, hasMoved: false, hasFired: false, shutdown: false, destroyed: false,
@@ -435,6 +456,8 @@ const clanCustomCalculation = sandbox.calculateCustomDesign(clanCustomDesign);
 check('#4d Clan construction uses Clan slot savings and equipment', clanCustomCalculation.valid && clanCustomCalculation.weights.engine === 4.25 && clanCustomCalculation.weights.armor === 9 && clanCustomCalculation.weaponHeat === 5, JSON.stringify(clanCustomCalculation));
 const mixedTechCustomDesign = { ...structuredClone(baseCustomDesign), engine_type:'clan_xl' };
 check('#4d mixed Inner Sphere and Clan construction is rejected', !sandbox.calculateCustomDesign(mixedTechCustomDesign).valid && sandbox.calculateCustomDesign(mixedTechCustomDesign).errors.some(error => /tech base/i.test(error)));
+const specialistComputerDesign = { ...structuredClone(baseCustomDesign), weapons:[{key:'snub_ppc',location:'ra'},{key:'mrm10',location:'lt'}], ammo:[{type:'mrm10',location:'lt',bins:1}] };
+check('#4d Targeting Computer size includes the Snub PPC but excludes MRM/MML launchers', sandbox.customTargetingComputerSize(specialistComputerDesign).directFireTons === 6 && sandbox.customTargetingComputerSize(specialistComputerDesign).tons === 2);
 
 // ── #5 Release migration guardrails ───────────────────────────────────────
 const migration = fs.readFileSync(`${ROOT}/SQL/45_preserve_current_rules_fixes.sql`, 'utf8');
@@ -446,6 +469,11 @@ check('#5 migration validates jump facing', migration.includes("Jump landing fac
 check('#5 migration tolerates live resolver formatting', (migration.match(/regexp_replace\(patched|regexp_replace\(source/g) || []).length >= 3);
 check('#5 migration preserves extra live to-hit modifiers', migration.includes("'base_tn[[:space:]]*:=[[:space:]]*4'"));
 check('#5 migration patches the jump assignment directly', migration.includes("'current_facing[[:space:]]*:=[[:space:]]*btech_direction_to"));
+const specialistWeaponMigration = fs.readFileSync(`${ROOT}/SQL/96_mrm_mml_and_snub_nose_ppc.sql`, 'utf8');
+check('#5 MRM, MML and Snub-Nose PPC profiles are constructible and authoritative', ['mrm10','mrm20','mrm30','mrm40','mml3','mml5','mml7','mml9','snub_ppc'].every(key => specialistWeaponMigration.includes(`''${key}''`)) && specialistWeaponMigration.includes('specialist_mrm_mml_snub_v1'));
+check('#5 MML bins lock mode-specific capacity, range, damage grouping and indirect eligibility', specialistWeaponMigration.includes("p_load_type='lrm' THEN floor(120.0/rack_size)") && specialistWeaponMigration.includes("p_load_type='srm' THEN floor(100.0/rack_size)") && specialistWeaponMigration.includes("ammo_load_type=''lrm''") && specialistWeaponMigration.includes('MML launchers loaded with LRMs'));
+check('#5 rear-mounted catalogue weapons receive authoritative rear arcs', specialistWeaponMigration.includes('p_rear_mounted') && specialistWeaponMigration.includes("(weapon->>''rearMounted'')"));
+check('#5 authoritative cluster tables cover every MRM and MML rack size', [3,5,7,9,10,20,30,40].every(rack => specialistWeaponMigration.includes(`WHEN ${rack} THEN (ARRAY[`)));
 const clusterMigration = fs.readFileSync(`${ROOT}/SQL/47_lb_x_cluster_target_number.sql`, 'utf8');
 check('#5 Cluster migration patches the authoritative target number', clusterMigration.includes('lb_x_cluster_tn_v1') && clusterMigration.includes("THEN tn:=tn-1"));
 check('#5 Cluster migration records target-number breakdowns', clusterMigration.includes("''breakdown'',jsonb_build_object"));
@@ -571,7 +599,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260830-masc-35"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260831-special-weapons-36"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');

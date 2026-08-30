@@ -193,8 +193,9 @@ function estimatedKillBonus(target, attack) {
   const remainingArmor = Object.values(target.armor || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
   const remainingStructure = Object.values(target.structure || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
   const totalRemaining = remainingArmor + remainingStructure;
-  if (totalRemaining <= attack.weapon.damage) return attack.weapon.damage * 1.5;
-  if (totalRemaining <= attack.weapon.damage * 2) return attack.weapon.damage * 0.5;
+  const damage = attack.damage ?? attack.weapon.damage;
+  if (totalRemaining <= damage) return damage * 1.5;
+  if (totalRemaining <= damage * 2) return damage * 0.5;
   return 0;
 }
 
@@ -202,7 +203,7 @@ function scoreWeaponAttack(mech, target, weaponEntry) {
   const attack = evaluateWeaponAttack(mech, target, weaponEntry);
   if (!attack.valid) return null;
   const hitChance = toHitProbability(attack.targetNumber);
-  const expectedDamage = hitChance * attack.weapon.damage;
+  const expectedDamage = hitChance * (attack.damage ?? attack.weapon.damage);
   const killBonus = hitChance * estimatedKillBonus(target, attack);
   return { target, weaponEntry, attack, hitChance, expectedDamage, score: expectedDamage + killBonus };
 }
@@ -430,13 +431,14 @@ async function executeAIAttack(action) {
   const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);
   let message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: miss.`;
   if (hit) {
-    const damage = applyWeaponDamage(target, attack.weapon.damage, attack.attackAngle);
+    const shotDamage = attack.damage ?? attack.weapon.damage;
+    const damage = applyWeaponDamage(target, shotDamage, attack.attackAngle);
     const flamerHeat = weaponEntry.key === 'flamer' ? 2 : 0;
     if (flamerHeat) {
       target.externalHeat = (target.externalHeat || 0) + flamerHeat;
       target.heat = (target.heat || 0) + flamerHeat;
     }
-    message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${attack.weapon.damage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
+    message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${shotDamage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
   }
   await syncMechInstances();
   await checkForMatchEnd();
