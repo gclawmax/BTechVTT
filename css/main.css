@@ -485,6 +485,20 @@ html, body {
   color: #7c9;
 }
 
+#active-games-list .game-entry-finished {
+  border-left: 3px solid var(--phosphor-dim);
+  color: var(--phosphor-dim);
+}
+
+#active-games-list .game-entry-finished .game-finished-result { color: var(--amber); }
+
+#active-games-list .game-entry-finished small {
+  display: block;
+  margin-top: 3px;
+  color: #777;
+  font-size: 9px;
+}
+
 #active-games-list .game-entry .close-btn {
   display: inline-flex;
   align-items: center;

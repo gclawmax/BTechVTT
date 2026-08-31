@@ -61,7 +61,7 @@ async function populateActiveGames() {
 
   const { data: players } = await db
     .from('btech_players')
-    .select('game_id, btech_games!btech_players_game_id_fkey(game_code, status)')
+    .select('game_id, seat_number, btech_games!btech_players_game_id_fkey(game_code, status, match_type, completed_at, state)')
     .eq('user_id', currentUser.id);
 
   if (!players || players.length === 0) {
@@ -69,17 +69,34 @@ async function populateActiveGames() {
     return;
   }
 
+  const retainedAfter = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const games = players
-    .map(p => p.btech_games)
-    .filter(g => g && (g.status === 'lobby' || g.status === 'in-progress'));
+    .map(p => ({ ...p.btech_games, seat_number: Number(p.seat_number) }))
+    .filter(g => g && (g.status === 'lobby' || g.status === 'in-progress' ||
+      (g.status === 'finished' && g.match_type === 'skirmish' &&
+       Number.isFinite(new Date(g.completed_at).getTime()) && new Date(g.completed_at).getTime() >= retainedAfter)));
 
   if (games.length === 0) {
     listEl.innerHTML = '';
     return;
   }
 
-  listEl.innerHTML = '<div class="game-label">Active Games</div>' +
-    games.map(g => `<div class="game-entry" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span style="color:#666">[${g.status}]</span><button class="close-btn" onclick="event.stopPropagation(); handleConcedeGame('${g.game_code}')" title="Concede game">&times;</button></div>`).join('');
+  const activeGames = games.filter(g => g.status !== 'finished');
+  const finishedGames = games.filter(g => g.status === 'finished');
+  const resultLabel = game => {
+    let state = {};
+    try { state = typeof game.state === 'string' ? JSON.parse(game.state) : (game.state || {}); } catch (_) { /* legacy state */ }
+    const winner = state.match_result?.winner_seat;
+    if (winner == null) return 'Finished — Draw';
+    return Number(winner) === game.seat_number ? 'Finished — Win' : 'Finished — Loss';
+  };
+  const activeHtml = activeGames.length
+    ? '<div class="game-label">Active Games</div>' + activeGames.map(g => `<div class="game-entry" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span style="color:#666">[${g.status}]</span><button class="close-btn" onclick="event.stopPropagation(); handleConcedeGame('${g.game_code}')" title="Concede game">&times;</button></div>`).join('')
+    : '';
+  const finishedHtml = finishedGames.length
+    ? '<div class="game-label">Recent Finished Games</div>' + finishedGames.map(g => `<div class="game-entry game-entry-finished" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span class="game-finished-result">${resultLabel(g)}</span><small>Report &amp; replay available for 30 days</small></div>`).join('')
+    : '';
+  listEl.innerHTML = activeHtml + finishedHtml;
 }
 
 async function handleRejoinGame(code) {
@@ -143,7 +160,7 @@ async function handleRejoinGame(code) {
         await loadLobby();
         showScreen('lobby-screen');
       }
-    } else if (game.status === 'in-progress') {
+    } else if (game.status === 'in-progress' || game.status === 'finished') {
       // Join as spectator
       const { data: existingPlayer } = await db
         .from('btech_players')
@@ -155,7 +172,7 @@ async function handleRejoinGame(code) {
       if (existingPlayer) {
         isHost = game.host_id === currentUser.id;
         mySeatNumber = existingPlayer.seat_number; // null if spectator
-      } else {
+      } else if (game.status === 'in-progress') {
         await db.from('btech_players').insert({
           game_id: currentGameId,
           user_id: currentUser.id,
@@ -165,6 +182,9 @@ async function handleRejoinGame(code) {
           ready: true
         });
         mySeatNumber = null;
+      } else {
+        alert('This completed battle is not available to this account.');
+        return;
       }
 
       // Keep the loading state in place until the saved game snapshot has
