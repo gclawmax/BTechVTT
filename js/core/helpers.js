@@ -8,6 +8,11 @@ function escapeHtml(value) {
   return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 }
 
+// Available before match restoration, unlike combat-only helpers.
+function criticalSlotName(slot) {
+  return String(slot || '').replace(/\s*\([A-Z]\)$/, '').trim();
+}
+
 // Matches made before catalogue pinning can still be active. Repair only such
 // a match; the server verifies the caller and requires one catalogue release
 // to contain every already-deployed unit before committing the permanent pin.

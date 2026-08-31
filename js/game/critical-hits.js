@@ -11,10 +11,6 @@ function criticalLocationKey(location) {
   return ({ head: 'head', centertorso: 'ct', lefttorso: 'lt', righttorso: 'rt', leftarm: 'la', rightarm: 'ra', leftleg: 'll', rightleg: 'rl' })[text] || text;
 }
 
-function criticalSlotName(slot) {
-  return String(slot || '').replace(/\s*\([A-Z]\)$/, '').trim();
-}
-
 function criticalEquipmentKey(label) {
   return criticalSlotName(label).toLowerCase().replace(/^(is|clan|cl)/, '').replace(/[^a-z0-9]/g, '');
 }
