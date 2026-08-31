@@ -744,6 +744,10 @@ check('#5 MASC migration tolerates accumulated resolver whitespace and declarati
 check('#5 MASC failure permits a standing replot but consumes Movement after a fall', mascMigration.includes("IF coalesce((mech->>''prone'')::boolean,false) THEN") && mascMigration.includes("''mp_used'',0") && mascMigration.includes('MASC has already been attempted this round'));
 check('#5 advanced AI weighs MASC risk and resolves the same failure consequences', mascAiSource.includes('riskAcceptable') && mascAiSource.includes('mascTarget <= 7') && mascAiSource.includes('resolveLocalMASCActivation(mech)'));
 check('#5 How to Play documents MASC speed, escalating risk and failure consequences', howToPlaySource.includes('<td>MASC Run</td>') && howToPlaySource.includes('3+, 5+, 7+, 11+, then 13+') && howToPlaySource.includes('critical hit in each leg'));
+const dragonAcceptanceSource = fs.readFileSync(`${ROOT}/tools/test-dragon-level2-live.mjs`, 'utf8');
+const duelSoakSource = fs.readFileSync(`${ROOT}/tools/run-battlemech-duel-soak.mjs`, 'utf8');
+check('#5 Level 2 Dragon acceptance fires each advanced Dragon system through the authoritative weapon RPC', ['grand-dragon-drg-5k','dragon-drg-5n','dragon-drg-7n','grand-dragon-drg-7k','grand-dragon-drg-9kc','er_ppc','uac5','gauss_rifle','mrm10','snub_ppc','mml5','c3_master_tag'].every(value => dragonAcceptanceSource.includes(value)) && dragonAcceptanceSource.includes("db.rpc('submit_simultaneous_weapon_declaration'"));
+check('#5 duel soak repeats browser battles, focused rules and Dragon acceptance while retaining failed diagnostics', duelSoakSource.includes('BT_SOAK_RUNS') && duelSoakSource.includes("tools/test-human-vs-human.mjs") && duelSoakSource.includes("tools/test-human-vs-human-rules.mjs") && duelSoakSource.includes("tools/test-dragon-level2-live.mjs") && duelSoakSource.includes('BT_SOAK_CLEANUP') && duelSoakSource.includes('BT_FOCUSED_REPORT'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

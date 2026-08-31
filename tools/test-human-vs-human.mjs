@@ -21,6 +21,7 @@ const BASE = process.env.SHOT_URL || 'http://127.0.0.1:8790/index.html';
 const HOST = { user: process.env.BT_H2H_HOST || 'h2h-regression-host', pass: process.env.BT_H2H_HOST_PASS || 'H2H!Host01' };
 const GUEST = { user: process.env.BT_H2H_GUEST || 'h2h-regression-guest', pass: process.env.BT_H2H_GUEST_PASS || 'H2H!Guest01' };
 const REPORT_PATH = process.env.BT_H2H_REPORT || null;
+let gameCode = null;
 const failures = [];
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -276,6 +277,7 @@ try {
   await host.getByRole('button', { name: 'Create Lobby', exact: true }).click();
   check('host creates a lobby', await waitForScreen(host, 'lobby-screen'));
   const code = (await host.locator('#lobby-code').innerText()).trim();
+  gameCode = code;
   check('lobby provides a shareable code', /^BT-[A-Z0-9]{4}$/.test(code), code || 'missing code');
 
   await guest.fill('#join-code', code);
@@ -361,9 +363,9 @@ try {
 }
 
 if (failures.length) {
-  if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: false, failures, errors }, null, 2));
+  if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: false, gameCode, failures, errors }, null, 2));
   console.log(`\n${failures.length} human-vs-human regression failure(s)`);
   process.exit(1);
 }
-if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: true, failures: [], errors }, null, 2));
+if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: true, gameCode, failures: [], errors }, null, 2));
 console.log('\nHuman-vs-human regression smoke test passed');

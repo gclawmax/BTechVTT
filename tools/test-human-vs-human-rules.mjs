@@ -5,13 +5,16 @@
 // by the game.
 
 import { createRequire } from 'module';
+import { writeFile } from 'node:fs/promises';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('/Users/mattperkins/.hermes/hermes-agent/node_modules/playwright');
 const BASE = process.env.SHOT_URL || 'http://127.0.0.1:8790/index.html';
 const HOST = { user: process.env.BT_H2H_HOST || 'h2h-regression-host', pass: process.env.BT_H2H_HOST_PASS || 'H2H!Host01' };
 const GUEST = { user: process.env.BT_H2H_GUEST || 'h2h-regression-guest', pass: process.env.BT_H2H_GUEST_PASS || 'H2H!Guest01' };
+const REPORT_PATH = process.env.BT_FOCUSED_REPORT || null;
 const failures = [];
+let gameCode = null;
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function check(name, condition, detail = '') {
@@ -150,6 +153,7 @@ for (const page of [host, guest]) {
 try {
   await Promise.all([signIn(host, HOST), signIn(guest, GUEST)]);
   const { game, players } = await latestHostMatch(host);
+  gameCode = game.game_code;
   const roundBase = 100000 + Math.floor(Date.now() / 1000) % 100000;
   check('focused regression found the disposable two-player match', players.length === 2, game.game_code);
 
@@ -451,13 +455,14 @@ try {
 } catch (error) {
   check('focused live rules regression completed without a fatal error', false, error.message);
 } finally {
+  if (REPORT_PATH && failures.length) await writeFile(REPORT_PATH, JSON.stringify({ passed:false, gameCode, failures, errors }, null, 2));
   console.log('\n--- console/page errors ---');
   console.log(errors.join('\n') || '(none)');
   await browser.close();
 }
 
 if (failures.length) {
-  console.log(`\n${failures.length} focused human-vs-human rules regression failure(s)`);
+  console.log(`\n${failures.length} focused human-vs-human rules regression failure(s). Match ${gameCode || 'unknown'} was retained.`);
   process.exit(1);
 }
 console.log('\nFocused human-vs-human rules regression passed');
