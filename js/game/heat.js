@@ -7,13 +7,21 @@ let heatSinksPreviewRound = null;
 function heatLedger(mech) {
   ensureMechCombatState(mech);
   const engineHeat = engineCriticalHeat(mech);
-  const before = (mech.heat || 0) + engineHeat;
+  // The round ledger is the source of truth.  Do not trust a stale aggregate
+  // heat value: older builds could double-count a declared weapon alpha.
+  const starting = Number(mech.roundStartingHeat || 0);
+  const movement = Number(mech.movementHeat || 0);
+  const weapons = Number(mech.weaponHeat || 0) + Number(mech.externalHeat || 0);
+  const expectedHeat = starting + movement + weapons;
+  const before = expectedHeat + engineHeat + Number(mech.pendingTerrainHeat || 0);
   const sinks = Math.max(0, (BT_UNITS[mech.unitId].heat_sink_capacity || BT_UNITS[mech.unitId].heat_sinks) - destroyedHeatSinkCapacity(mech));
   const dissipated = Math.min(before, sinks);
   return {
-    starting: mech.roundStartingHeat || 0,
-    movement: mech.movementHeat || 0,
-    weapons: (mech.weaponHeat || 0) + (mech.externalHeat || 0),
+    starting,
+    movement,
+    weapons,
+    expectedHeat,
+    recordedHeat: Number(mech.heat || 0),
     engineHeat,
     before,
     sinks,
@@ -130,6 +138,7 @@ function renderHeatPanel() {
     return `<div style="padding:7px 0;border-top:1px solid var(--panel-line);font-size:10px;line-height:1.55;">
       <div style="color:var(--paper);">${mechLabel(mech)}${mech.hasManagedHeat ? ' · resolved' : ''}</div>
       <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
+      ${ledger.recordedHeat !== ledger.expectedHeat ? `<div style="color:var(--amber);">Heat ledger correction: recorded ${ledger.recordedHeat}, calculated ${ledger.expectedHeat} before engine/terrain effects.</div>` : ''}
       <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : sinksPreviewed ? `dissipates ${ledger.dissipated}, remaining Heat Level ${ledger.after}` : `will dissipate ${ledger.dissipated}`}${mech.shutdown && !mech.hasManagedHeat ? ' · SHUT DOWN' : ''}${sinksPreviewed ? overrideStatus : ''}</div>
       ${canOverride && !mech.shutdownOverrideRequested ? `<button onclick="declareShutdownOverride('${mech.instanceId}')" style="margin-top:5px;${MOVE_BTN_STYLE}">Declare Post-Sink Shutdown Override (need ${predictedShutdownTarget})</button>` : ''}
     </div>`;
