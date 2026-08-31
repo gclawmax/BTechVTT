@@ -82,8 +82,10 @@ function armorCell(loc, label, armor, armorMax, structure, structureMax) {
     Number.isFinite(armor) && Number.isFinite(armorMax) && armorMax > 0 ? armor / armorMax : 1,
     Number.isFinite(structure) && Number.isFinite(structureMax) && structureMax > 0 ? structure / structureMax : 1
   );
-  const background = `hsla(${Math.round(Math.max(0, Math.min(1, ratio)) * 120)} 62% 45% / .10)`;
-  return `<div class="armor-cell" style="background:${background}" title="Armour ${armor ?? '—'} / ${armorMax ?? '—'} · Internal structure ${structure ?? '—'} / ${structureMax ?? '—'}"><span class="loc">${label}</span><span class="val"><span style="color:${armorColour}">A ${armor ?? '—'} / ${armorMax ?? '—'}</span><br><span style="color:${structureColour}">I ${structure ?? '—'} / ${structureMax ?? '—'}</span></span></div>`;
+  const hue = Math.round(Math.max(0, Math.min(1, ratio)) * 120);
+  const background = `hsl(${hue} 58% 87%)`;
+  const border = `hsl(${hue} 52% 42%)`;
+  return `<div class="armor-cell" style="background:${background};border-color:${border}" title="Armour ${armor ?? '—'} / ${armorMax ?? '—'} · Internal structure ${structure ?? '—'} / ${structureMax ?? '—'}"><span class="loc">${label}</span><span class="val"><span style="color:${armorColour}">A <strong>${armor ?? '—'}</strong> / ${armorMax ?? '—'}</span><span style="color:${structureColour}">I <strong>${structure ?? '—'}</strong> / ${structureMax ?? '—'}</span></span></div>`;
 }
 
 function roundOneAmmoControl(inst, bin) {
@@ -141,10 +143,7 @@ function renderDetail() {
     <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:12px;">
       ${unit.tonnage} TONS · PLAYER ${inst.owner}
     </div>
-    <div class="stat-grid">
-      <div class="k">Hex</div><div class="v">${hexCode(inst.col, inst.row)} (q${axial.q} r${axial.r})</div>
-      <div class="k">Leg Facing</div><div class="v">${HEX_DIR_LABELS[inst.facing || 0]}</div>
-      <div class="k">Torso Facing</div><div class="v">${HEX_DIR_LABELS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing]}</div>
+    <div class="stat-grid mech-summary-grid">
       <div class="k">Walk / Run / Jump</div><div class="v">${unit.movement.walk} / ${unit.movement.run} / ${unit.movement.jump}</div>
       <div class="k">Heat Sinks</div><div class="v">${unit.heat_sinks} (${unit.heat_sink_type})</div>
       <div class="k">Heat Level</div><div class="v">${inst.heat || 0}</div>
@@ -165,5 +164,13 @@ function renderDetail() {
       ${armorCell('lt','LT', inst.armor.lt, unit.armor.lt, inst.structure.lt, unit.structure.lt)}${armorCell('ct','CT', inst.armor.ct, unit.armor.ct, inst.structure.ct, unit.structure.ct)}${armorCell('rt','RT', inst.armor.rt, unit.armor.rt, inst.structure.rt, unit.structure.rt)}
       ${armorCell('ll','LL', inst.armor.ll, unit.armor.ll, inst.structure.ll, unit.structure.ll)}${armorCell('','', null, null, null, null)}${armorCell('rl','RL', inst.armor.rl, unit.armor.rl, inst.structure.rl, unit.structure.rl)}
     </div>
+    <details class="mech-technical-details">
+      <summary>Position &amp; facing</summary>
+      <div class="stat-grid">
+        <div class="k">Hex coordinates</div><div class="v">${hexCode(inst.col, inst.row)} (q${axial.q} r${axial.r})</div>
+        <div class="k">Leg facing</div><div class="v">${HEX_DIR_LABELS[inst.facing || 0]}</div>
+        <div class="k">Torso facing</div><div class="v">${HEX_DIR_LABELS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing]}</div>
+      </div>
+    </details>
   `;
 }

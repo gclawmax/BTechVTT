@@ -973,12 +973,47 @@ html, body {
 /* ── Side panel ── */
 #mech-panel {
   grid-area: 2 / 1 / 3 / 2;
+  position: relative;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
   background: var(--panel);
   border-right: 1px solid var(--panel-line);
 }
+
+/* The selected-'Mech sheet can be widened locally by dragging its right edge. */
+#mech-panel::after {
+  content: '';
+  position: absolute;
+  z-index: 8;
+  top: 0;
+  right: 0;
+  width: 9px;
+  min-height: 100%;
+  height: max(100%, 100vh);
+  cursor: col-resize;
+}
+
+.mech-panel-toggle {
+  position: sticky;
+  z-index: 10;
+  top: 7px;
+  float: right;
+  margin: 7px 7px -31px 0;
+  width: 25px;
+  height: 25px;
+  border: 1px solid var(--panel-line);
+  background: rgba(255,255,255,.94);
+  color: var(--phosphor);
+  font: 18px/20px var(--mono);
+  cursor: pointer;
+}
+.mech-panel-toggle:hover { border-color:var(--amber); color:var(--amber); }
+#game-screen.mech-panel-collapsed { --detail-panel-width:38px !important; }
+#game-screen.mech-panel-collapsed #mech-panel { overflow:hidden; }
+#game-screen.mech-panel-collapsed #mech-panel::after,
+#game-screen.mech-panel-collapsed #detail-body { display:none; }
+#game-screen.mech-panel-collapsed .mech-panel-toggle { float:none; display:block; margin:7px auto; transform:rotate(180deg); }
 
 #detail-body {
   padding: 14px 16px;
@@ -1198,6 +1233,8 @@ body.resizing-side-panel, body.resizing-side-panel * {
 
 .stat-grid .k { color: var(--phosphor-dim); }
 .stat-grid .v { color: var(--paper); text-align: right; }
+.mech-summary-grid { grid-template-columns:max-content minmax(0, 1fr); column-gap:10px; line-height:1.35; }
+.mech-summary-grid .k { white-space:nowrap; }
 
 .no-selection {
   font-size: 11px;
@@ -1214,15 +1251,36 @@ body.resizing-side-panel, body.resizing-side-panel * {
 }
 
 .armor-cell {
-  background: #f7f7f4;
   border: 1px solid var(--panel-line);
-  padding: 4px 3px;
+  min-height: 58px;
+  padding: 6px 4px;
   text-align: center;
-  line-height: 1.4;
+  line-height: 1.25;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
 }
 
-.armor-cell .loc { color: var(--phosphor-dim); display: block; letter-spacing: 0.06em; }
-.armor-cell .val { color: var(--phosphor); font-family: var(--mono); font-size: 10px; }
+.armor-cell .loc { color:#243229; display:block; margin-bottom:3px; font-weight:bold; letter-spacing:.10em; }
+.armor-cell .val { display:grid; gap:1px; font-family:var(--mono); font-size:12px; font-weight:600; white-space:nowrap; }
+.armor-cell .val strong { font-size:14px; }
+
+.mech-technical-details {
+  margin-top:15px;
+  border-top:1px solid var(--panel-line);
+  color:var(--phosphor-dim);
+}
+.mech-technical-details summary {
+  padding:9px 2px;
+  font:9px var(--display);
+  letter-spacing:.10em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+.mech-technical-details[open] summary { color:var(--amber); }
+.mech-technical-details .stat-grid { padding:2px 2px 5px; font-size:10px; }
+
+body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !important; user-select:none !important; }
 
 /* ── FULL RECORD SHEET ─────────────────────────────────── */
 .record-sheet-modal { position:fixed; inset:0; z-index:60; background:rgba(12,15,15,.76); display:flex; justify-content:center; align-items:center; padding:20px; }
