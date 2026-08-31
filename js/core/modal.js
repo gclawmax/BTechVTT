@@ -74,6 +74,7 @@ async function handleLogout() {
     await db.auth.signOut();
     currentUser = null;
     currentGameId = null;
+    currentGameCode = null;
     showScreen('login-screen');
   } catch (err) {
     console.error('Logout error:', err);

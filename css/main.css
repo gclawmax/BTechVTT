@@ -836,6 +836,19 @@ html, body {
   font-size: 11px;
 }
 
+#header .game-code-readout {
+  flex:0 0 auto;
+  padding:4px 7px;
+  border:1px solid #b8b8af;
+  border-radius:2px;
+  background:#f4f4ef;
+  color:#34342f;
+  font:600 10px/1.2 var(--mono);
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+
 #header .status {
   font-size: 11px;
   color: var(--amber);

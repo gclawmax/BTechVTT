@@ -42,6 +42,7 @@ async function handleBackToDropship() {
   if (playersSubscription) { playersSubscription.unsubscribe(); playersSubscription = null; }
   if (gameStateSubscription) { gameStateSubscription.unsubscribe(); gameStateSubscription = null; }
   currentGameId = null;
+  currentGameCode = null;
   isHost = false;
   isReady = false;
   mySeatNumber = null;

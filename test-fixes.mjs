@@ -114,12 +114,14 @@ check('#1 front roll 11 → la', sandbox.hitLocationForRoll(11, 'front') === 'la
 check('#1 front roll 2 → ct', sandbox.hitLocationForRoll(2, 'front') === 'ct');
 
 // ── #2 Mirrored side tables ────────────────────────────────────────────────
-check('#2 side-right roll 3 → ra', sandbox.hitLocationForRoll(3, 'side-right') === 'ra', `got ${sandbox.hitLocationForRoll(3, 'side-right')}`);
-check('#2 side-right roll 6 → rt', sandbox.hitLocationForRoll(6, 'side-right') === 'rt');
-check('#2 side-left roll 3 → la (mirrored)', sandbox.hitLocationForRoll(3, 'side-left') === 'la', `got ${sandbox.hitLocationForRoll(3, 'side-left')}`);
-check('#2 side-left roll 6 → lt (mirrored)', sandbox.hitLocationForRoll(6, 'side-left') === 'lt', `got ${sandbox.hitLocationForRoll(6, 'side-left')}`);
+check('#2 side-right roll 2 → rt TAC location', sandbox.hitLocationForRoll(2, 'side-right') === 'rt', `got ${sandbox.hitLocationForRoll(2, 'side-right')}`);
+check('#2 side-right roll 3 → rl', sandbox.hitLocationForRoll(3, 'side-right') === 'rl', `got ${sandbox.hitLocationForRoll(3, 'side-right')}`);
+check('#2 side-right roll 6 → rl', sandbox.hitLocationForRoll(6, 'side-right') === 'rl');
+check('#2 side-left roll 2 → lt TAC location', sandbox.hitLocationForRoll(2, 'side-left') === 'lt', `got ${sandbox.hitLocationForRoll(2, 'side-left')}`);
+check('#2 side-left roll 3 → ll (mirrored)', sandbox.hitLocationForRoll(3, 'side-left') === 'll', `got ${sandbox.hitLocationForRoll(3, 'side-left')}`);
+check('#2 side-left roll 6 → ll (mirrored)', sandbox.hitLocationForRoll(6, 'side-left') === 'll', `got ${sandbox.hitLocationForRoll(6, 'side-left')}`);
 check('#2 side-left roll 9 → rt (mirrored)', sandbox.hitLocationForRoll(9, 'side-left') === 'rt', `got ${sandbox.hitLocationForRoll(9, 'side-left')}`);
-check('#2 side-left roll 11 → ra (mirrored)', sandbox.hitLocationForRoll(11, 'side-left') === 'ra', `got ${sandbox.hitLocationForRoll(11, 'side-left')}`);
+check('#2 side-left roll 11 → rl (mirrored)', sandbox.hitLocationForRoll(11, 'side-left') === 'rl', `got ${sandbox.hitLocationForRoll(11, 'side-left')}`);
 check('#2 rear unchanged roll 12 → head', sandbox.hitLocationForRoll(12, 'rear') === 'head');
 
 // attackDirection returns side-left / side-right
@@ -599,7 +601,11 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260831-heat-ledger-38"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260831-hit-location-diagnostics-39"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+const hitLocationMigration = fs.readFileSync(`${ROOT}/SQL/99_correct_hit_locations_and_through_armour_criticals.sql`, 'utf8');
+check('#5 standard side hit-location tables and roll-2 TACs are authoritative', hitLocationMigration.includes("WHEN 'side-right' THEN CASE roll_total WHEN 2 THEN 'rt'") && hitLocationMigration.includes("WHEN 'side-left' THEN CASE roll_total WHEN 2 THEN 'lt'") && hitLocationMigration.includes("'through_armor_critical',roll_total=2"));
+check('#5 through-armour criticals preserve normal armour-first damage', hitLocationMigration.indexOf('btech_apply_special_ammo_damage') < hitLocationMigration.indexOf("p_location_roll->>'through_armor_critical'") && hitLocationMigration.includes("'through_armor',true"));
+check('#5 combat diagnostics expose game code and hit-location dice', indexSource.includes('id="game-code-readout"') && fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8').includes(".select('game_code, current_round") && multiTargetClient.includes('formatAuthoritativeLocationRoll') && multiTargetClient.includes('Through-armour critical check'));
 const catalogueSource = fs.readFileSync(`${ROOT}/js/game/unit-catalogue.js`, 'utf8');
 const boardSource = fs.readFileSync(`${ROOT}/js/game/board.js`, 'utf8');
 const panelSource = fs.readFileSync(`${ROOT}/js/ui/panels.js`, 'utf8');

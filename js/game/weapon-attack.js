@@ -765,10 +765,10 @@ function clusterHitsForRoll(size, total) {
 
 function hitLocationForRoll(roll, angle = 'front') {
   if (angle === 'rear') return ({ 2:'ct',3:'ra',4:'ra',5:'rl',6:'rt',7:'ct',8:'lt',9:'ll',10:'la',11:'la',12:'head' })[roll];
-  // Mirrored side tables: attacking the target's right flank favors RA/RT,
-  // attacking the left flank favors LA/LT (Total Warfare side hit-location tables).
-  if (angle === 'side-right') return ({ 2:'ct',3:'ra',4:'ra',5:'rl',6:'rt',7:'rt',8:'ct',9:'lt',10:'ll',11:'la',12:'head' })[roll];
-  if (angle === 'side-left') return ({ 2:'ct',3:'la',4:'la',5:'ll',6:'lt',7:'lt',8:'ct',9:'rt',10:'rl',11:'ra',12:'head' })[roll];
+  // Total Warfare side tables. A natural 2 names the side torso where the
+  // authoritative resolver also applies the separate through-armour critical.
+  if (angle === 'side-right') return ({ 2:'rt',3:'rl',4:'ra',5:'ra',6:'rl',7:'rt',8:'ct',9:'lt',10:'la',11:'ll',12:'head' })[roll];
+  if (angle === 'side-left') return ({ 2:'lt',3:'ll',4:'la',5:'la',6:'ll',7:'lt',8:'ct',9:'rt',10:'ra',11:'rl',12:'head' })[roll];
   if (roll === 2) return 'ct';
   if (roll === 3 || roll === 4) return 'ra';
   if (roll === 5) return 'rl';
@@ -820,12 +820,19 @@ function applyWeaponDamage(target, damage, angle = 'front') {
 
 function formatAuthoritativeCriticals(checks) {
   return (checks || []).map(check =>
-    ` Critical check ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.${(check.events || []).map(event =>
+    ` ${check.through_armor ? 'Through-armour critical check' : 'Critical check'} ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.${(check.events || []).map(event =>
       event.special === 'blown_off' ? ` ${hitLocationLabel(event.location)} blown off.` :
         event.ammo_explosion ? ` ${event.ammo_explosion} ammunition exploded for ${event.damage} damage.${event.case_protected ? ` CASE vented ${event.vented_damage || 0} excess damage.` : ''}${(event.pilot_checks || []).map(formatAuthoritativePilotCheck).join('')}` :
           event.label ? ` ${hitLocationLabel(event.location)} slot ${event.slot_index + 1}: ${event.label} destroyed.` : ''
     ).join('')}`
   ).join('');
+}
+
+function formatAuthoritativeLocationRoll(locationRoll, angle) {
+  if (!locationRoll || !Number.isFinite(Number(locationRoll.total))) return '';
+  const angleLabel = ({ front: 'front', rear: 'rear', 'side-left': 'left-side', 'side-right': 'right-side' })[angle] || angle || 'normal';
+  const tac = locationRoll.through_armor_critical ? ' — through-armour critical' : '';
+  return `${angleLabel} location ${locationRoll.die_a} + ${locationRoll.die_b} = ${locationRoll.total} → ${hitLocationLabel(locationRoll.location)}${tac}`;
 }
 
 function formatAuthoritativePilotCheck(check) {
@@ -855,7 +862,8 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
     const cluster = result.cluster_roll;
     const groups = (result.groups || []).map(group => {
       const gauss = group.gauss_explosion ? `; Gauss rifle exploded for ${group.gauss_explosion.damage} internal damage in ${hitLocationLabel(group.gauss_explosion.location)}` : '';
-      return group.partial_cover ? `${hitLocationLabel(group.location)} — absorbed by partial cover` : `${hitLocationLabel(group.location)} ${group.damage}${formatAuthoritativeCriticals(group.critical_checks)}${gauss}${formatAuthoritativePilotCheck(group.pilot_check)}`;
+      const location = formatAuthoritativeLocationRoll(group.location_roll, result.angle) || hitLocationLabel(group.location);
+      return group.partial_cover ? `${location} — absorbed by partial cover` : `${location}: ${group.damage} damage${formatAuthoritativeCriticals(group.critical_checks)}${gauss}${formatAuthoritativePilotCheck(group.pilot_check)}`;
     }).join('; ');
     const pellets = result.cluster_kind === 'lb_x' ? 'pellet' : 'missile';
     const clusterText = result.streak_lock ? 'Streak lock confirmed' : `Cluster roll ${cluster.die_a} + ${cluster.die_b} = ${cluster.total}${cluster.modified_total && cluster.modified_total !== cluster.total ? `, modified to ${cluster.modified_total}` : ''}`;
@@ -870,7 +878,8 @@ function authoritativeWeaponResultMessage(attacker, target, result) {
   const gaussExplosion = result.gauss_explosion ? ` Gauss rifle exploded for ${result.gauss_explosion.damage} internal damage in ${hitLocationLabel(result.gauss_explosion.location)}.` : '';
   const flamerHeat = result.heat_inflicted ? ` ${mechLabel(target)} gains ${result.heat_inflicted} heat.` : '';
   if (result.partial_cover) return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${hitLocationLabel(result.location)} hit absorbed by partial cover.${aimed}`;
-  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${result.angle} hit ${hitLocationLabel(result.location)} for ${result.damage} damage.${aimed}${flamerHeat}${criticals}${armourPiercing}${gaussExplosion}${formatAuthoritativePilotCheck(result.pilot_check)}`;
+  const location = formatAuthoritativeLocationRoll(result.location_roll, result.angle) || `${result.angle} hit ${hitLocationLabel(result.location)}`;
+  return `${mechLabel(attacker)} fired ${result.weapon}${modeSuffix} at ${mechLabel(target)} — need ${roll.target}${targetNumberExplanation}, rolled ${rolled}: ${location} for ${result.damage} damage.${aimed}${flamerHeat}${criticals}${armourPiercing}${gaussExplosion}${formatAuthoritativePilotCheck(result.pilot_check)}`;
 }
 
 function formatAuthoritativeTargetNumber(roll) {

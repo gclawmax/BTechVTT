@@ -385,6 +385,7 @@ async function handleLobbyClosed() {
   lobbyClosureInProgress = true;
   stopLobbySubscriptions();
   currentGameId = null;
+  currentGameCode = null;
   isHost = false;
   isReady = false;
   mySeatNumber = null;
@@ -1079,6 +1080,7 @@ async function handleLeaveLobby() {
   }
 
   currentGameId = null;
+  currentGameCode = null;
   isHost = false;
   isReady = false;
   mySeatNumber = null;

@@ -62,13 +62,19 @@ async function loadGameState() {
 
   const { data: loadedGame } = await db
     .from('btech_games')
-    .select('current_round, current_phase, active_player_id, initiative_winner, state, catalogue_version')
+    .select('game_code, current_round, current_phase, active_player_id, initiative_winner, state, catalogue_version')
     .eq('id', currentGameId)
     .single();
 
   if (!loadedGame) return;
 
   const game = await repairLegacyMatchCatalogue(loadedGame);
+  currentGameCode = game.game_code || currentGameCode;
+  const gameCodeReadout = document.getElementById('game-code-readout');
+  if (gameCodeReadout) {
+    gameCodeReadout.textContent = currentGameCode ? `Game ${currentGameCode}` : '';
+    gameCodeReadout.hidden = !currentGameCode;
+  }
 
   if (game.catalogue_version) await loadUnitCatalogue(game.catalogue_version);
 
