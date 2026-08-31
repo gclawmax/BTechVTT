@@ -166,6 +166,25 @@ rules from the local Total Warfare reference. It deliberately excludes vehicles,
 infantry, aerospace, artillery, underwater combat and sea mines: those are
 separate game modes, not additions to the Human-versus-human BattleMech core.
 
+### Target rules era and acceptance force
+
+The intended play baseline is **Level 2 / circa 3060 BattleTech**: standard
+BattleMech duels should support the technologies commonly encountered in that
+era before later or niche systems are prioritised. The Dragon family is the
+standing acceptance force because it crosses the eras without requiring a
+separate game mode:
+
+- Grand Dragon DRG-5K: ER PPC, rear-mounted lasers and LRM;
+- Dragon DRG-5N: Ultra AC/5;
+- Dragon DRG-7N: Gauss Rifle and MRM 10;
+- Grand Dragon DRG-7K: ER lasers, ER PPC and MRM 10; and
+- Grand Dragon DRG-9KC: Snub-Nose PPC, MML 5, rear-mounted laser and C3
+  Master TAG.
+
+These variants are already imported. Each catalogue or rules change affecting
+one of their systems must be checked against a live Dragon acceptance battle,
+not merely verified as loadable catalogue data.
+
 ### Already supported
 
 Do not re-open these as speculative rule work. They need ordinary regression and
@@ -191,6 +210,25 @@ Every slice must be catalogue-led and release together with:
 
 No unsupported MegaMek record should be selectable merely because its static
 weapon profile resembles a supported weapon.
+
+### Quality slice Q-1 — Repeatable BattleMech duel regression
+
+Before SR-1 expands the equipment catalogue, extend the existing test facility
+into a repeatable **duel soak harness**. It will create isolated disposable
+two-player matches, run bounded turns through the real browser and public
+authoritative RPC paths, and retain the game code/report only when a run fails.
+
+The harness must cover standing, walking, running and jumping; weapon fire and
+ammunition expenditure; Heat Management; physical attacks where legal;
+destruction/end conditions; rejoin; and a Dragon acceptance matrix. It must
+assert phase termination, no uncaught browser or server error, non-negative
+armour/structure/ammunition, valid heat-ledger reconciliation and a sealed
+report at battle end. Random dice are expected; rule invariants, not a
+particular roll result, determine success.
+
+Run the fast deterministic tests on every change, the one-pass live battle
+suite before release, and the repeated soak suite against dedicated disposable
+test accounts before importing a specialist equipment batch.
 
 ### Slice SR-1 — Rotary AC and ballistic fire modes
 
