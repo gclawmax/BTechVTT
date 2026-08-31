@@ -48,12 +48,17 @@ BEGIN
  IF fn IS NULL THEN RAISE EXCEPTION 'Weapon resolver is missing';END IF;
  SELECT pg_get_functiondef(fn) INTO source;
  IF position('hit_location_tac_v1' IN source)>0 THEN RETURN;END IF;
- patched:=replace(source,
-  'btech_apply_special_ammo_damage(target,weapon_damage,location_roll->>''location'',angle=''rear'',ammo_load_type,selected_weapon_key)',
-  'btech_apply_resolved_weapon_damage(target,weapon_damage,location_roll,angle=''rear'',ammo_load_type,selected_weapon_key) /* hit_location_tac_v1 */');
- patched:=replace(patched,
-  'btech_apply_special_ammo_damage(target,group_damage,location_roll->>''location'',angle=''rear'',ammo_load_type,selected_weapon_key)',
-  'btech_apply_resolved_weapon_damage(target,group_damage,location_roll,angle=''rear'',ammo_load_type,selected_weapon_key)');
+ -- pg_get_functiondef may retain the compact historical body or return a
+ -- body that has been reformatted by a later live repair. Match both forms
+ -- without weakening the checks on the function and arguments being changed.
+ patched:=regexp_replace(source,
+  $pattern$btech_apply_special_ammo_damage[[:space:]]*\([[:space:]]*target[[:space:]]*,[[:space:]]*weapon_damage[[:space:]]*,[[:space:]]*location_roll[[:space:]]*->>[[:space:]]*'location'[[:space:]]*,[[:space:]]*angle[[:space:]]*=[[:space:]]*'rear'[[:space:]]*,[[:space:]]*ammo_load_type[[:space:]]*,[[:space:]]*selected_weapon_key[[:space:]]*\)$pattern$,
+  $replacement$btech_apply_resolved_weapon_damage(target,weapon_damage,location_roll,angle='rear',ammo_load_type,selected_weapon_key) /* hit_location_tac_v1 */$replacement$,
+  'g');
+ patched:=regexp_replace(patched,
+  $pattern$btech_apply_special_ammo_damage[[:space:]]*\([[:space:]]*target[[:space:]]*,[[:space:]]*group_damage[[:space:]]*,[[:space:]]*location_roll[[:space:]]*->>[[:space:]]*'location'[[:space:]]*,[[:space:]]*angle[[:space:]]*=[[:space:]]*'rear'[[:space:]]*,[[:space:]]*ammo_load_type[[:space:]]*,[[:space:]]*selected_weapon_key[[:space:]]*\)$pattern$,
+  $replacement$btech_apply_resolved_weapon_damage(target,group_damage,location_roll,angle='rear',ammo_load_type,selected_weapon_key)$replacement$,
+  'g');
  IF patched=source OR position('hit_location_tac_v1' IN patched)=0
     OR position('btech_apply_resolved_weapon_damage(target,group_damage,location_roll' IN patched)=0 THEN
   RAISE EXCEPTION 'Could not safely install corrected weapon hit-location resolution';
