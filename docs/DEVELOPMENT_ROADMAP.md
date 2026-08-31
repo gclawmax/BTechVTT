@@ -42,6 +42,12 @@ but must never apply those outcomes to a persistent player record.
 
 ### 1. Authoritative match telemetry
 
+Implementation status: **foundation implemented in SQL 100; live migration and
+battle validation pending**. The first version records ordered combat results,
+purpose-labelled dice, damage attribution, unit state changes, phase changes,
+round checkpoints and a sealed report envelope. Detailed statistical
+aggregation is the next step after live validation.
+
 - Record every dice result with its owner, purpose, target number and outcome.
 - Record movement, facing, reaction, heat and pilot-state changes as structured
   events rather than relying on prose log parsing.

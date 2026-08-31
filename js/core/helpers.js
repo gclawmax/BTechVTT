@@ -43,6 +43,7 @@ async function handleBackToDropship() {
   if (gameStateSubscription) { gameStateSubscription.unsubscribe(); gameStateSubscription = null; }
   currentGameId = null;
   currentGameCode = null;
+  if (typeof currentSealedMatchReport !== 'undefined') currentSealedMatchReport = null;
   isHost = false;
   isReady = false;
   mySeatNumber = null;

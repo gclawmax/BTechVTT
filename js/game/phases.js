@@ -142,6 +142,7 @@ async function loadGameState() {
     phase_activation: gameState.phase_activation || null,
     match_result: gameState.match_result || null
   };
+  if (currentGameState.match_result && typeof loadSealedMatchReport === 'function') await loadSealedMatchReport();
   // A Physical Attack phase exists only when opposing 'Mechs are adjacent.
   // The server rechecks this for human games; this call merely requests the
   // safe automatic transition after the prior phase has completed.
