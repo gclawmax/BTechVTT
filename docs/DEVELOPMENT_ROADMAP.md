@@ -152,11 +152,115 @@ and skirmish isolation tests are complete.
 
 ## Later work
 
-- Expand remaining specialist equipment and catalogue-led rule batches.
+- Expand remaining specialist equipment and catalogue-led rule batches (see
+  **BattleMech specialist-rules programme** below).
 - Improve AI decision-making without delaying Human-versus-human rules work.
 - Production hosting, observability, backups and deployment beyond the current
   GitHub Pages/Supabase development setup.
 - Further visual, audio, accessibility and mobile polish.
+
+## BattleMech specialist-rules programme
+
+This is the authoritative plan for completing the remaining **BattleMech duel**
+rules from the local Total Warfare reference. It deliberately excludes vehicles,
+infantry, aerospace, artillery, underwater combat and sea mines: those are
+separate game modes, not additions to the Human-versus-human BattleMech core.
+
+### Already supported
+
+Do not re-open these as speculative rule work. They need ordinary regression and
+live-battle validation, but their core rules are already in the authoritative
+engine: MASC; arm flipping and improvised clubs; Charge, Push and Death From
+Above; critical effects, falling and displacement; AMS; ECM, Active Probe,
+Targeting Computers and C3/C3i; TAG, Narc and Artemis guidance; LB-X cluster
+fire; Ultra AC rapid fire; Streak missiles; MRM, MML and Snub-Nose PPCs; plasma
+weapons; Inferno, Precision, armour-piercing, flechette, fragmentation and
+semi-guided ammunition; indirect LRM fire; advanced terrain, concealment and
+minefields.
+
+### Rules delivery standard
+
+Every slice must be catalogue-led and release together with:
+
+1. server-authoritative declaration and resolution rules;
+2. critical-slot destruction, ammunition, heat, arcs, range and terrain
+   interactions where applicable;
+3. MechLab construction support only after the rules resolve correctly;
+4. a small curated set of affected BattleMech variants; and
+5. focused automated rules regressions plus a two-player live smoke battle.
+
+No unsupported MegaMek record should be selectable merely because its static
+weapon profile resembles a supported weapon.
+
+### Slice SR-1 — Rotary AC and ballistic fire modes
+
+Add Rotary Autocannon 2/5/10/20 with selectable firing rates, ammunition use,
+the correct hit and jam behaviour, and destruction/jam state that persists for
+the battle. Finish any remaining standard ballistic fire-mode edge cases at the
+same time, but do not broaden this into vehicle flak or anti-infantry rules.
+
+**Why first:** it is a self-contained declaration/resolution problem and opens
+many classic Inner Sphere variants without changing movement or targeting.
+
+### Slice SR-2 — Advanced missile families
+
+Add ATM ammunition bands and payload choices, Thunderbolt missiles, and
+Streak-LRM behaviour, including their ranges, cluster/damage grouping,
+ammunition capacity, indirect-fire eligibility and AMS interaction. Extend only
+the guidance interactions that these launchers actually need; TAG, Narc,
+Artemis and conventional LRM/SRM support remain the shared base.
+
+**Boundary:** do not add artillery missiles, vehicle-only launchers or aerospace
+interception in this slice.
+
+### Slice SR-3 — Advanced direct-fire weapons
+
+Add the remaining BattleMech-relevant Gauss and laser/PPC families in a curated
+batch: Light and Heavy Gauss Rifles, relevant pulse/ER variants, and specialised
+direct-fire weapons whose range, damage, heat, explosion or to-hit behaviour is
+not already expressible by a normal profile. Each weapon is added only alongside
+a canonical variant that exercises it.
+
+**Boundary:** a simple canon stat variation can be imported as data; a new
+special rule must have its own resolution test before it appears in the hangar.
+
+### Slice SR-4 — Heat and mobility equipment
+
+Add Superchargers and Triple-Strength Myomer. This covers activation timing,
+movement changes, failure/critical consequences, heat thresholds, physical-damage
+modifiers and interactions with existing MASC, shutdown and piloting checks.
+
+**Why isolated:** this is the highest-risk slice because it spans Movement,
+Physical Attacks, Heat Management and critical damage.
+
+### Slice SR-5 — Signature and advanced electronic defence
+
+Add the BattleMech-facing stealth/signature systems and the remaining electronic
+variants only where the Total Warfare rules give them a meaningful duel effect.
+They must share the existing authoritative ECM/LOS/heat framework, display their
+current state clearly and fail safely when damaged. This includes any supported
+advanced ECM or signature equipment, not a new generic modifier system.
+
+### Slice SR-6 — Remaining physical equipment and specialist defensive gear
+
+Complete the curated BattleMech physical-equipment table and defensive equipment
+that affects a duel: for example, remaining melee implements or shields where
+their published rules differ from the existing hatchet/sword/club framework.
+Each item must state its required actuators, usable arc, attack phase, damage and
+critical-slot failure behaviour.
+
+### Slice SR-7 — Catalogue completion and rules audit
+
+After the preceding slices, run an import audit against the desired Inner
+Sphere/Clan roster. Categorise every excluded BattleMech as either:
+
+- now fully supported and safe to import;
+- blocked by one named future BattleMech rule; or
+- blocked because it belongs to an excluded non-BattleMech subsystem.
+
+The output is a small, reviewed import batch rather than a large untestable
+catalogue dump. Re-run the Human-versus-human battle regression with at least
+one representative unit from every specialist family.
 
 ## Supporting documents
 
