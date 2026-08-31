@@ -151,7 +151,8 @@ function renderEndPanel() {
       <div class="panel-eyebrow">Match Complete</div>
       <div style="font:16px var(--display);letter-spacing:.06em;color:var(--amber);margin-bottom:7px;">${result.winner_seat == null ? 'DRAW' : `PLAYER ${result.winner_seat} VICTORY`}</div>
       <div style="font-size:11px;color:var(--paper);line-height:1.6;">The battle is complete. Return to the Dropship to review or leave the game.</div>
-      <div style="font-size:10px;color:var(--phosphor-dim);line-height:1.5;margin-top:8px;">${typeof sealedTelemetryStatusText === 'function' ? sealedTelemetryStatusText() : ''}</div>`;
+      <div style="font-size:10px;color:var(--phosphor-dim);line-height:1.5;margin-top:8px;">${typeof sealedTelemetryStatusText === 'function' ? sealedTelemetryStatusText() : ''}</div>
+      <button onclick="openVictoryReport()" style="width:100%;margin-top:10px;${MOVE_BTN_STYLE}text-align:center;">Open Battle Report</button>`;
     return;
   }
   const units = mechInstances.filter(m => !m.destroyed);

@@ -9,10 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260831-hit-location-diagnostics-39">
+  <link rel="stylesheet" href="css/main.css?v=20260831-battle-report-41">
 </head>
-<body data-build="20260831-authoritative-telemetry-40">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260831-authoritative-telemetry-40</div>
+<body data-build="20260831-battle-report-41">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260831-battle-report-41</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 <div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
   <section class="game-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
@@ -29,6 +29,16 @@
     <input id="sound-effects-volume" type="range" min="0" max="100" step="1" value="55" oninput="setSoundEffectsVolume(this.value)" title="Set weapon sound-effect volume">
     <button id="sound-effects-mute" class="settings-mute" onclick="toggleSoundEffectsMuted()" aria-pressed="false" title="Mute or restore weapon sound effects">Sound Effects On</button>
     <p class="settings-local-note">These settings are stored only in this browser and do not affect the other player.</p>
+  </section>
+</div>
+
+<div id="victory-report-overlay" class="victory-report-overlay" hidden onclick="if(event.target===this)closeVictoryReport()">
+  <section class="victory-report-dialog" role="dialog" aria-modal="true" aria-labelledby="victory-report-title">
+    <header class="victory-report-header">
+      <div><span class="eyebrow">Authoritative after-action report</span><h2 id="victory-report-title">Battle Report</h2></div>
+      <button class="victory-report-close" onclick="closeVictoryReport()" title="Close battle report" aria-label="Close battle report">×</button>
+    </header>
+    <div id="victory-report-content" class="victory-report-content" aria-live="polite"></div>
   </section>
 </div>
 
@@ -234,7 +244,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260831-authoritative-telemetry-40</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260831-battle-report-41</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -282,8 +292,8 @@
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
 <script src="js/network/lobby.js?v=20260827-hidden-mines-31"></script>
-<script src="js/game/telemetry.js?v=20260831-authoritative-telemetry-40"></script>
-<script src="js/game/phases.js?v=20260831-authoritative-telemetry-40"></script>
+<script src="js/game/telemetry.js?v=20260831-battle-report-41"></script>
+<script src="js/game/phases.js?v=20260831-battle-report-41"></script>
 <script src="js/game/board.js?v=20260827-hidden-mines-31"></script>
 <script src="js/game/unit-artwork.js?v=20260820-01"></script>
 <script src="js/movement/rules.js?v=20260827-hidden-mines-31"></script>
@@ -294,7 +304,7 @@
 <script src="js/game/reaction.js?v=20260817-authoritative-reaction-01"></script>
 <script src="js/game/weapon-attack.js?v=20260831-hit-location-diagnostics-39"></script>
 <script src="js/game/physical-attack.js?v=20260827-hidden-mines-31"></script>
-<script src="js/game/heat.js?v=20260831-authoritative-telemetry-40"></script>
+<script src="js/game/heat.js?v=20260831-battle-report-41"></script>
 <script src="js/app.js?v=20260813-reaction-ui-01"></script>
 <script src="js/ai/opponent.js?v=20260831-special-weapons-36"></script>
 </body>
