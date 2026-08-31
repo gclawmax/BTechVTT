@@ -2,9 +2,9 @@
 
 A BattleTech tabletop simulator built as a browser-based VTT (Virtual Tabletop).
 
-> **Note:** This file (`README2.md`) supersedes the roadmap section of `README.md`,
-> which still lists Phases 2–6 as unimplemented. Everything in Phases 1–6 below is
-> built and in use; see `SKILL_ROADMAP2.md` for the full status table.
+> **Note:** This file describes the implemented product and supersedes the stale
+> feature summary in `README.md`. See `docs/DEVELOPMENT_ROADMAP.md` for the one
+> authoritative development plan.
 
 ## Architecture
 
@@ -111,11 +111,10 @@ profiles. For example, Clan ER Medium Lasers use 7 damage and 5/10/15 range.
 
 ## Remaining work
 
-- Expand remaining specialist equipment and scenario rules in catalogue-led batches
-- Phase 7 polish: sound effects, campaign mode, production deployment
-  beyond GitHub Pages
-- Documentation refresh (this file and `SKILL_ROADMAP2.md` replace the stale
-  roadmap in `README.md`)
+The active priorities and their acceptance criteria are maintained only in
+`docs/DEVELOPMENT_ROADMAP.md`. The current slice is the After-Action Report and
+Replay Foundation, followed by the Battle Replay Viewer and persistent Career
+settlement.
 
 ## Tech stack
 

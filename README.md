@@ -2,6 +2,10 @@
 
 A BattleTech tabletop simulator built as a browser-based VTT (Virtual Tabletop).
 
+> This is the legacy project overview. Its roadmap below is obsolete. See
+> `README2.md` for the implemented product and `docs/DEVELOPMENT_ROADMAP.md`
+> for the authoritative development plan.
+
 ## Architecture
 
 - **Frontend:** Vanilla HTML/CSS/JS — single-page canvas game

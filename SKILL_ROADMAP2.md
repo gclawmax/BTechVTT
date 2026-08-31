@@ -1,8 +1,8 @@
-# BTechVTT — Roadmap (current)
+# BTechVTT — Roadmap (historical)
 
-> Supersedes the roadmap in `README.md` and the roadmap table in the `bttech-vtt`
-> skill, both of which predate the completion of Phases 2–6.
-> Last updated: 2026-08-24.
+> Retained for historical phase context. It is superseded by
+> `docs/DEVELOPMENT_ROADMAP.md`, the single authoritative development plan.
+> Last authoritative update: 2026-08-24.
 
 ## Phase status
 
