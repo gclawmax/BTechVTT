@@ -546,9 +546,10 @@ async function declareDeathFromAbove(targetId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === moveState.instanceId);
   const target = mechInstances.find(candidate => candidate.instanceId === targetId);
   if (!mech || !target || vsAiMode || moveState.mode !== 'jump' || axialDistance(mech.col, mech.row, target.col, target.row) !== 1) return;
+  const path = (moveState.path || []).map((step, index) => index === 0 && step.action === 'jump' ? { ...step, facing: mech.facing } : step);
   const { data, error } = await db.rpc('declare_death_from_above', {
     p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId, p_target_instance_id: target.instanceId,
-    p_staging_col: mech.col, p_staging_row: mech.row, p_staging_facing: mech.facing
+    p_staging_col: mech.col, p_staging_row: mech.row, p_staging_facing: mech.facing, p_path: path
   });
   if (error) { flashMoveWarning(error.message); logEvent(`Server rejected Death From Above: ${error.message}`, 'error'); return; }
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
@@ -564,7 +565,7 @@ async function declareChargeAttack(targetId) {
   const { data, error } = await db.rpc('declare_charge_attack', {
     p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId, p_target_instance_id: target.instanceId,
     p_staging_col: mech.col, p_staging_row: mech.row, p_staging_facing: mech.facing,
-    p_mode: moveState.mode, p_hexes_moved: moveState.hexesMoved, p_mp_used: moveState.mpUsed
+    p_mode: moveState.mode, p_hexes_moved: moveState.hexesMoved, p_mp_used: moveState.mpUsed, p_path: moveState.path || []
   });
   if (error) { flashMoveWarning(error.message); logEvent(`Server rejected Charge: ${error.message}`, 'error'); return; }
   moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
