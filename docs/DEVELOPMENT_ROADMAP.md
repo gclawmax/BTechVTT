@@ -42,12 +42,11 @@ but must never apply those outcomes to a persistent player record.
 
 ### 1. Authoritative match telemetry
 
-Implementation status: **telemetry foundation in SQL 100 and authoritative
-statistics/report presentation in SQL 101; live migration and battle validation
-pending**. The first version records ordered combat results, purpose-labelled
-dice, damage attribution, unit state changes, phase changes, round checkpoints
-and a sealed report envelope. SQL 101 upgrades completed reports and calculates
-their statistics from that immutable timeline.
+Implementation status: **implemented through SQL 103; live migration and
+battle validation pending**. Telemetry records ordered combat results,
+purpose-labelled dice, damage attribution, unit state changes, phase changes,
+round checkpoints and a sealed report envelope. SQL 101 calculates statistics,
+and SQL 103 adds the isolated preview, portable exports and skirmish retention.
 
 - Record every dice result with its owner, purpose, target number and outcome.
 - Record movement, facing, reaction, heat and pilot-state changes as structured
@@ -75,6 +74,8 @@ Implementation status: **implemented; live battle validation pending**.
 
 ### 3. Non-persistent Career Preview
 
+Implementation status: **implemented; deliberately read-only**.
+
 - Assess recoverable wrecks and their condition.
 - Estimate repairs, rearming and salvage value.
 - Calculate illustrative pilot experience and possible skill advancement.
@@ -83,6 +84,11 @@ Implementation status: **implemented; live battle validation pending**.
   credit, reputation or salvage records.
 
 ### 4. Export and retention
+
+Implementation status: **implemented; scheduler activation and live cleanup
+validation pending**. SQL 103 schedules the daily cleanup automatically when
+the database has `pg_cron`; otherwise the same server-only function can be
+scheduled by the hosting environment.
 
 - Add **Export Battle Replay** and **Export Battle Report** actions.
 - Use a self-contained, versioned `.btvtt-replay.json` format containing the
