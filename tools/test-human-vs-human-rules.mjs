@@ -125,6 +125,27 @@ async function specialAmmoFixtures(page, catalogueVersion) {
     return { inferno: find(['srm2', 'srm4', 'srm6']), precision: find(['ac2', 'ac5', 'ac10', 'ac20']) };
   }, catalogueVersion);
 }
+async function combatWeaponFixtures(page, catalogueVersion) {
+  return page.evaluate(async version => {
+    await loadUnitCatalogue(version);
+    const matchingBin = (unit, mount, predicate = () => true) => (unit.ammoBins || []).find(bin =>
+      predicate(bin) && (bin.type === mount.weapon?.ammoType || bin.type === mount.weapon?.key || bin.type === mount.key)
+    );
+    const missileFixture = capability => [...databaseSupportedUnitIds].map(unitId => ({ unitId, unit:getSupportedUnit(unitId) }))
+      .map(({ unitId, unit }) => {
+        const mount = (unit?.weapons || []).find(entry => /^lrm\d+$/.test(entry.weapon?.key || entry.key || '') && matchingBin(unit, entry, bin => Boolean(bin[capability])));
+        const bin = mount && matchingBin(unit, mount, candidate => Boolean(candidate[capability]));
+        return mount && bin ? { unitId, mountId:mount.mountId, binId:bin.id } : null;
+      }).find(Boolean) || null;
+    const prone = [...databaseSupportedUnitIds].map(unitId => ({ unitId, unit:getSupportedUnit(unitId) }))
+      .map(({ unitId, unit }) => {
+        const leftArm = (unit?.weapons || []).find(entry => entry.location === 'Left Arm' && !entry.weapon?.ammoType);
+        const torso = (unit?.weapons || []).find(entry => /Torso$/.test(entry.location || '') && !entry.weapon?.ammoType);
+        return leftArm && torso ? { unitId, supportMountId:leftArm.mountId, torsoMountId:torso.mountId } : null;
+      }).find(Boolean) || null;
+    return { indirect:missileFixture('artemisCapable'), narc:missileFixture('narcCapable'), prone };
+  }, catalogueVersion);
+}
 async function submitDesiredAmmoLoadout(page, gameId, ownerSeat, desiredType) {
   return page.evaluate(async ({ gameId, ownerSeat, desiredType }) => {
     const { data: game, error: readError } = await db.from('btech_games').select('state').eq('id', gameId).single();
@@ -174,6 +195,7 @@ try {
     if (!candidate) throw new Error(`Pinned catalogue ${version} has no mobile focused-test fixture.`);
     return candidate.unitId;
   }, game.catalogue_version);
+  const combatFixtures = await combatWeaponFixtures(host, game.catalogue_version);
   const roundBase = 100000 + Math.floor(Date.now() / 1000) % 100000;
   check('focused regression found the disposable two-player match and a catalogue-safe terrain fixture', players.length === 2 && Boolean(baselineUnitId), `${game.game_code} / ${baselineUnitId}`);
 
@@ -190,79 +212,81 @@ try {
   check('walking into shallow water is accepted with complete MP accounting', !terrainMove.error && terrainMove.data?.mp_used === 3, JSON.stringify(terrainMove));
   check('entering water invokes the authoritative terrain Piloting check', terrainMove.data?.terrain_check?.reasons?.includes('entering water'), JSON.stringify(terrainMove.data?.terrain_check));
 
-  // Indirect fire: a ridge blocks the Trebuchet at 0801 from the target in
-  // shallow water at 0605; the Locust at 0000 has LOS and walks while spotting.
+  // Indirect fire: a ridge blocks the launcher at 0801 from the target in
+  // shallow water at 0605; the neutral fixture at 0000 has LOS and walks while spotting.
   const indirectRound = roundBase + 1;
-  await configureScenario(host, game, players, indirectRound, 'weapon_attack',
-    { 1: ['trebuchet-tbt3c', 'locust-lct1e'], 2: ['locust-lct1e'] },
-    { 1: [{ col: 8, row: 1, facing: 0 }, { col: 0, row: 0, facing: 0 }], 2: [{ col: 6, row: 5, facing: 3 }] },
-    { 'locust-lct1e-p1-2': { movementMode: 'walk', hexesMoved: 1 } });
-  const indirectAmmo = { 'lrm15:la:0': 'lt:3', __fire_modes: {}, __indirect: true, __spotter: 'locust-lct1e-p1-2' };
-  const indirectDeclaration = await rpc(host, 'submit_simultaneous_weapon_declaration', {
-    p_game_id: game.id, p_attacker_instance_id: 'trebuchet-tbt3c-p1-1', p_target_instance_id: 'locust-lct1e-p2-1',
-    p_weapon_mounts: ['lrm15:la:0'], p_ammo_bins: indirectAmmo
-  });
-  check('ridge-blocked LRM indirect fire accepts a legal moving spotter', !indirectDeclaration.error, JSON.stringify(indirectDeclaration));
-  const spotterDeclaration = await rpc(host, 'submit_simultaneous_weapon_declaration', {
-    p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p1-2', p_target_instance_id: 'locust-lct1e-p2-1', p_weapon_mounts: [], p_ammo_bins: {}
-  });
-  check('the spotter can declare no fire and hand play to the opponent', !spotterDeclaration.error, JSON.stringify(spotterDeclaration));
-  const guestDeclaration = await rpc(guest, 'submit_simultaneous_weapon_declaration', {
-    p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p2-1', p_target_instance_id: 'trebuchet-tbt3c-p1-1', p_weapon_mounts: [], p_ammo_bins: {}
-  });
-  check('the final declaration resolves the simultaneous indirect attack', !guestDeclaration.error && guestDeclaration.data?.status === 'resolved', JSON.stringify(guestDeclaration));
-  const indirectEvent = await weaponEvent(host, game.id, indirectRound, 'trebuchet-tbt3c-p1-1');
-  const indirectResult = indirectEvent.data?.resolution?.results?.[0];
-  const indirectBreakdown = indirectResult?.to_hit?.breakdown;
-  check('server result records indirect, moving-spotter and shallow-water modifiers', indirectBreakdown?.indirect_fire === 1 && indirectBreakdown?.spotter_movement === 1 && indirectBreakdown?.partial_cover === 1, JSON.stringify(indirectBreakdown));
-  check('Artemis-capable ammunition applies its cluster-table guidance', indirectResult?.hit && indirectResult?.artemis_guided === true && indirectResult?.cluster_roll?.modified_total >= indirectResult?.cluster_roll?.total, JSON.stringify(indirectResult));
+  if (!combatFixtures.indirect) {
+    console.log('SKIP  indirect Artemis fixture — this pinned catalogue has no Artemis-capable LRM bin.');
+  } else {
+    const indirectAttackerId = `${combatFixtures.indirect.unitId}-p1-1`;
+    await configureScenario(host, game, players, indirectRound, 'weapon_attack',
+      { 1: [combatFixtures.indirect.unitId, 'locust-lct1e'], 2: ['locust-lct1e'] },
+      { 1: [{ col: 8, row: 1, facing: 0 }, { col: 0, row: 0, facing: 0 }], 2: [{ col: 6, row: 5, facing: 3 }] },
+      { 'locust-lct1e-p1-2': { movementMode: 'walk', hexesMoved: 1 } });
+    const indirectAmmo = { [combatFixtures.indirect.mountId]: combatFixtures.indirect.binId, __fire_modes: {}, __indirect: true, __spotter: 'locust-lct1e-p1-2' };
+    const indirectDeclaration = await rpc(host, 'submit_simultaneous_weapon_declaration', {
+      p_game_id: game.id, p_attacker_instance_id: indirectAttackerId, p_target_instance_id: 'locust-lct1e-p2-1', p_weapon_mounts: [combatFixtures.indirect.mountId], p_ammo_bins: indirectAmmo
+    });
+    check('ridge-blocked LRM indirect fire accepts a legal moving spotter', !indirectDeclaration.error, JSON.stringify(indirectDeclaration));
+    const spotterDeclaration = await rpc(host, 'submit_simultaneous_weapon_declaration', { p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p1-2', p_target_instance_id: 'locust-lct1e-p2-1', p_weapon_mounts: [], p_ammo_bins: {} });
+    check('the spotter can declare no fire and hand play to the opponent', !spotterDeclaration.error, JSON.stringify(spotterDeclaration));
+    const guestDeclaration = await rpc(guest, 'submit_simultaneous_weapon_declaration', { p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p2-1', p_target_instance_id: indirectAttackerId, p_weapon_mounts: [], p_ammo_bins: {} });
+    check('the final declaration resolves the simultaneous indirect attack', !guestDeclaration.error && guestDeclaration.data?.status === 'resolved', JSON.stringify(guestDeclaration));
+    const indirectResult = (await weaponEvent(host, game.id, indirectRound, indirectAttackerId)).data?.resolution?.results?.[0];
+    const indirectBreakdown = indirectResult?.to_hit?.breakdown;
+    check('server result records indirect, moving-spotter and shallow-water modifiers', indirectBreakdown?.indirect_fire === 1 && indirectBreakdown?.spotter_movement === 1 && indirectBreakdown?.partial_cover === 1, JSON.stringify(indirectBreakdown));
+    check('Artemis-capable ammunition applies its cluster-table guidance', indirectResult?.hit && indirectResult?.artemis_guided === true && indirectResult?.cluster_roll?.modified_total >= indirectResult?.cluster_roll?.total, JSON.stringify(indirectResult));
+  }
 
   // Narc-capable ammunition receives the same cluster-table bonus when the
   // target has an attached pod. The pod is part of the authoritative snapshot.
   const narcRound = roundBase + 2;
-  await configureScenario(host, game, players, narcRound, 'weapon_attack',
-    { 1: ['kintaro-kto19'], 2: ['locust-lct1e'] },
-    { 1: [{ col: 0, row: 0, facing: 0 }], 2: [{ col: 4, row: 0, facing: 3 }] },
-    { 'locust-lct1e-p2-1': { narcPod: { round: narcRound, source: 'test-narc-pod' } } });
-  const narcFire = await rpc(host, 'submit_simultaneous_weapon_declaration', {
-    p_game_id: game.id, p_attacker_instance_id: 'kintaro-kto19-p1-1', p_target_instance_id: 'locust-lct1e-p2-1',
-    p_weapon_mounts: ['lrm5:la:0'], p_ammo_bins: { 'lrm5:la:0': 'lt:0', __fire_modes: {} }
-  });
-  check('Narc-capable missile fire accepts an attached target pod', !narcFire.error, JSON.stringify(narcFire));
-  const narcGuest = await rpc(guest, 'submit_simultaneous_weapon_declaration', {
-    p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p2-1', p_target_instance_id: 'kintaro-kto19-p1-1', p_weapon_mounts: [], p_ammo_bins: {}
-  });
-  check('the Narc-guided phase resolves normally for both players', !narcGuest.error && narcGuest.data?.status === 'resolved', JSON.stringify(narcGuest));
-  const narcEvent = await weaponEvent(host, game.id, narcRound, 'kintaro-kto19-p1-1');
-  const narcResult = narcEvent.data?.resolution?.results?.[0];
-  check('Narc-capable ammunition applies its cluster-table guidance', narcResult?.hit && narcResult?.narc_guided === true && narcResult?.cluster_roll?.modified_total >= narcResult?.cluster_roll?.total, JSON.stringify(narcResult));
+  if (!combatFixtures.narc) {
+    console.log('SKIP  Narc fixture — this pinned catalogue has no Narc-capable LRM bin.');
+  } else {
+    const narcAttackerId = `${combatFixtures.narc.unitId}-p1-1`;
+    await configureScenario(host, game, players, narcRound, 'weapon_attack',
+      { 1: [combatFixtures.narc.unitId], 2: ['locust-lct1e'] },
+      { 1: [{ col: 0, row: 0, facing: 0 }], 2: [{ col: 4, row: 0, facing: 3 }] },
+      { 'locust-lct1e-p2-1': { narcPod: { round: narcRound, source: 'test-narc-pod' } } });
+    const narcFire = await rpc(host, 'submit_simultaneous_weapon_declaration', {
+      p_game_id: game.id, p_attacker_instance_id: narcAttackerId, p_target_instance_id: 'locust-lct1e-p2-1',
+      p_weapon_mounts: [combatFixtures.narc.mountId], p_ammo_bins: { [combatFixtures.narc.mountId]: combatFixtures.narc.binId, __fire_modes: {} }
+    });
+    check('Narc-capable missile fire accepts an attached target pod', !narcFire.error, JSON.stringify(narcFire));
+    const narcGuest = await rpc(guest, 'submit_simultaneous_weapon_declaration', { p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p2-1', p_target_instance_id: narcAttackerId, p_weapon_mounts: [], p_ammo_bins: {} });
+    check('the Narc-guided phase resolves normally for both players', !narcGuest.error && narcGuest.data?.status === 'resolved', JSON.stringify(narcGuest));
+    const narcResult = (await weaponEvent(host, game.id, narcRound, narcAttackerId)).data?.resolution?.results?.[0];
+    check('Narc-capable ammunition applies its cluster-table guidance', narcResult?.hit && narcResult?.narc_guided === true && narcResult?.cluster_roll?.modified_total >= narcResult?.cluster_roll?.total, JSON.stringify(narcResult));
+  }
 
   // Prone fire: support the left arm, prove its LRM is rejected, then fire the
   // torso-mounted LRM legally and verify the +2 prone modifier.
   const proneRound = roundBase + 3;
-  await configureScenario(host, game, players, proneRound, 'weapon_attack',
-    { 1: ['trebuchet-tbt3c'], 2: ['locust-lct1e'] },
-    { 1: [{ col: 0, row: 0, facing: 0 }], 2: [{ col: 4, row: 0, facing: 3 }] },
-    { 'trebuchet-tbt3c-p1-1': { prone: true } });
-  const support = await rpc(host, 'set_prone_weapon_support_arm', { p_game_id: game.id, p_instance_id: 'trebuchet-tbt3c-p1-1', p_arm: 'la' });
-  check('a prone BattleMech can authoritatively choose its supporting arm', !support.error, JSON.stringify(support));
-  expectedHttp400++;
-  const blockedSupportWeapon = await rpc(host, 'submit_simultaneous_weapon_declaration', {
-    p_game_id: game.id, p_attacker_instance_id: 'trebuchet-tbt3c-p1-1', p_target_instance_id: 'locust-lct1e-p2-1',
-    p_weapon_mounts: ['lrm15:la:0'], p_ammo_bins: { 'lrm15:la:0': 'lt:3', __fire_modes: {} }
-  });
-  check('the server rejects a weapon mounted in the supporting arm', /Supporting-arm weapons cannot fire while prone/i.test(blockedSupportWeapon.error?.message || ''), JSON.stringify(blockedSupportWeapon));
-  const proneFire = await rpc(host, 'submit_simultaneous_weapon_declaration', {
-    p_game_id: game.id, p_attacker_instance_id: 'trebuchet-tbt3c-p1-1', p_target_instance_id: 'locust-lct1e-p2-1',
-    p_weapon_mounts: ['lrm15:rt:4'], p_ammo_bins: { 'lrm15:rt:4': 'rt:7', __fire_modes: {} }
-  });
-  check('a non-supporting torso weapon remains legal while prone', !proneFire.error, JSON.stringify(proneFire));
-  const proneGuest = await rpc(guest, 'submit_simultaneous_weapon_declaration', {
-    p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p2-1', p_target_instance_id: 'trebuchet-tbt3c-p1-1', p_weapon_mounts: [], p_ammo_bins: {}
-  });
-  check('the prone-fire phase resolves normally for both players', !proneGuest.error && proneGuest.data?.status === 'resolved', JSON.stringify(proneGuest));
-  const proneEvent = await weaponEvent(host, game.id, proneRound, 'trebuchet-tbt3c-p1-1');
-  check('resolved prone fire records the +2 target-number modifier', proneEvent.data?.resolution?.results?.[0]?.to_hit?.breakdown?.prone === 2, JSON.stringify(proneEvent.data?.resolution?.results?.[0]?.to_hit?.breakdown));
+  if (!combatFixtures.prone) {
+    console.log('SKIP  prone-fire fixture — this pinned catalogue has no left-arm and torso energy-weapon pairing.');
+  } else {
+    const proneAttackerId = `${combatFixtures.prone.unitId}-p1-1`;
+    await configureScenario(host, game, players, proneRound, 'weapon_attack',
+      { 1: [combatFixtures.prone.unitId], 2: ['locust-lct1e'] },
+      { 1: [{ col: 0, row: 0, facing: 0 }], 2: [{ col: 4, row: 0, facing: 3 }] },
+      { [proneAttackerId]: { prone: true } });
+    const support = await rpc(host, 'set_prone_weapon_support_arm', { p_game_id: game.id, p_instance_id: proneAttackerId, p_arm: 'la' });
+    check('a prone BattleMech can authoritatively choose its supporting arm', !support.error, JSON.stringify(support));
+    expectedHttp400++;
+    const blockedSupportWeapon = await rpc(host, 'submit_simultaneous_weapon_declaration', {
+      p_game_id: game.id, p_attacker_instance_id: proneAttackerId, p_target_instance_id: 'locust-lct1e-p2-1', p_weapon_mounts: [combatFixtures.prone.supportMountId], p_ammo_bins: { __fire_modes: {} }
+    });
+    check('the server rejects a weapon mounted in the supporting arm', /Supporting-arm weapons cannot fire while prone/i.test(blockedSupportWeapon.error?.message || ''), JSON.stringify(blockedSupportWeapon));
+    const proneFire = await rpc(host, 'submit_simultaneous_weapon_declaration', {
+      p_game_id: game.id, p_attacker_instance_id: proneAttackerId, p_target_instance_id: 'locust-lct1e-p2-1', p_weapon_mounts: [combatFixtures.prone.torsoMountId], p_ammo_bins: { __fire_modes: {} }
+    });
+    check('a non-supporting torso weapon remains legal while prone', !proneFire.error, JSON.stringify(proneFire));
+    const proneGuest = await rpc(guest, 'submit_simultaneous_weapon_declaration', { p_game_id: game.id, p_attacker_instance_id: 'locust-lct1e-p2-1', p_target_instance_id: proneAttackerId, p_weapon_mounts: [], p_ammo_bins: {} });
+    check('the prone-fire phase resolves normally for both players', !proneGuest.error && proneGuest.data?.status === 'resolved', JSON.stringify(proneGuest));
+    const proneBreakdown = (await weaponEvent(host, game.id, proneRound, proneAttackerId)).data?.resolution?.results?.[0]?.to_hit?.breakdown;
+    check('resolved prone fire records the +2 target-number modifier', proneBreakdown?.prone === 2, JSON.stringify(proneBreakdown));
+  }
 
   // SQL 70 advanced terrain: solid buildings, burning terrain, pavement
   // control, smoke/building LOS, and deep-water weapon restrictions.
