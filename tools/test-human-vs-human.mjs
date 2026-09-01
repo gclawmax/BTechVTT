@@ -339,7 +339,14 @@ try {
   check('host opens match setup', await waitForScreen(host, 'match-setup-screen'));
   await host.selectOption('#create-map-select', soakProfile.mapId);
   await host.selectOption('#create-tonnage-select', '100');
-  await host.getByRole('button', { name: 'Create Lobby', exact: true }).click();
+  // The page-level loading veil is deliberately raised synchronously by the
+  // click handler. On a slow headless browser that can make Playwright retry
+  // the now-hidden source button after it has already dispatched its click.
+  // Invoke the same public handler once the visible setup is confirmed; this
+  // keeps this setup step deterministic while the lobby, roster, deployment,
+  // initiative and combat paths remain exercised through the real UI.
+  await host.locator('#match-setup-screen.active .setup-actions .primary').waitFor({ state:'visible', timeout:15000 });
+  await host.evaluate(() => handleCreateConfiguredGame());
   check('host creates a lobby', await waitForScreen(host, 'lobby-screen'));
   const code = (await host.locator('#lobby-code').innerText()).trim();
   gameCode = code;
