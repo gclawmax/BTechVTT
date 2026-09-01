@@ -292,7 +292,9 @@ try {
     const proneAttackerId = `${combatFixtures.prone.unitId}-p1-1`;
     await configureScenario(host, game, players, proneRound, 'weapon_attack',
       { 1: [combatFixtures.prone.unitId], 2: ['locust-lct1e'] },
-      { 1: [{ col: 0, row: 0, facing: 0 }], 2: [{ col: 4, row: 0, facing: 3 }] },
+      // The catalogue can select a torso Flamer. Keep this test at point
+      // blank range so any legal torso energy weapon is a valid declaration.
+      { 1: [{ col: 0, row: 0, facing: 0 }], 2: [{ col: 1, row: 0, facing: 3 }] },
       { [proneAttackerId]: { prone: true } });
     const support = await rpc(host, 'set_prone_weapon_support_arm', { p_game_id: game.id, p_instance_id: proneAttackerId, p_arm: 'la' });
     check('a prone BattleMech can authoritatively choose its supporting arm', !support.error, JSON.stringify(support));

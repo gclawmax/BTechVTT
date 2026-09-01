@@ -191,12 +191,17 @@ async function rollUntilResolved(host, guest) {
       const snapshot = await state(page);
       if (snapshot.phase !== 'initiative') continue;
       const button = page.locator('#btn-roll-initiative');
-      if (await button.isVisible().catch(() => false) && await button.isEnabled().catch(() => false)) await button.click().catch(() => {});
+      if (await button.isVisible().catch(() => false) && await button.isEnabled().catch(() => false)) {
+        // Await the same public handler the button calls. A click dispatches
+        // its async work in the background, allowing this tight soak loop to
+        // submit duplicate initiative rolls before the first response lands.
+        await page.evaluate(async () => { await rollInitiative(); }).catch(() => {});
+      }
     }
     const hostState = await state(host);
     const guestState = await state(guest);
     if (hostState.phase === 'movement' && guestState.phase === 'movement') return { resolved:true, host:await initiativeDiagnostics(host), guest:await initiativeDiagnostics(guest) };
-    await sleep(750);
+    await sleep(350);
   }
   return { resolved:false, host:await initiativeDiagnostics(host), guest:await initiativeDiagnostics(guest) };
 }
