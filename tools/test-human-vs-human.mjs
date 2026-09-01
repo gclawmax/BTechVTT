@@ -136,7 +136,9 @@ async function state(page) {
     ownUnmoved: (mechInstances || []).filter(mech => mech.owner === mySeatNumber && !mech.hasMoved).length,
     ownFired: (mechInstances || []).filter(mech => mech.owner === mySeatNumber && mech.hasFired).length,
     ownPositions: (mechInstances || []).filter(mech => mech.owner === mySeatNumber).map(mech => `${hexCode(mech.col, mech.row)}:${HEX_DIR_LABELS[mech.facing]}`).sort(),
-    mapId: currentGameState?.map_id || null,
+    // Map configuration lives outside the phase snapshot so it survives a
+    // rejoin without duplicating static match data in currentGameState.
+    mapId: currentMatchConfig?.map_id || null,
     guidance: document.getElementById('turn-guidance')?.textContent || ''
   }));
 }

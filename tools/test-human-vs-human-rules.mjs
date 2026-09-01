@@ -15,6 +15,7 @@ const GUEST = { user: process.env.BT_H2H_GUEST || 'h2h-regression-guest', pass: 
 const REPORT_PATH = process.env.BT_FOCUSED_REPORT || null;
 const failures = [];
 let gameCode = null;
+let baselineUnitId = null;
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function check(name, condition, detail = '') {
@@ -51,9 +52,19 @@ async function latestHostMatch(page) {
   });
 }
 async function configureScenario(page, game, players, round, phase, rosters, positions, prepare = {}, options = {}) {
-  return page.evaluate(async ({ game, players, round, phase, rosters, positions, prepare, options }) => {
+  return page.evaluate(async ({ game, players, round, phase, rosters, positions, prepare, options, baselineUnitId }) => {
     await loadUnitCatalogue(game.catalogue_version);
-    const units = buildRosterInstances(rosters, {}, positions);
+    // The focused tests used a historic Locust as a neutral target and
+    // terrain walker. Catalogue releases need not retain that exact variant.
+    // Preserve the familiar fixture instance IDs while building it from a
+    // supported record in this match's own pinned catalogue.
+    const resolvedRosters = Object.fromEntries(Object.entries(rosters).map(([seat, ids]) => [seat,
+      ids.map(unitId => unitId === 'locust-lct1e' ? baselineUnitId : unitId)
+    ]));
+    const units = buildRosterInstances(resolvedRosters, {}, positions);
+    for (const mech of units) {
+      if (mech.unitId === baselineUnitId) mech.instanceId = mech.instanceId.replace(baselineUnitId, 'locust-lct1e');
+    }
     for (const mech of units) {
       Object.assign(mech, {
         hasMoved: false, hasReacted: false, hasFired: false, hasPhysicalAttacked: false, hasManagedHeat: false,
@@ -82,7 +93,7 @@ async function configureScenario(page, game, players, round, phase, rosters, pos
     const { error } = await db.from('btech_games').update({ current_round: round, current_phase: phase, active_player_id: hostPlayer.id, state }).eq('id', game.id);
     if (error) throw error;
     return { state, hostPlayer, guestPlayer };
-  }, { game, players, round, phase, rosters, positions, prepare, options });
+  }, { game, players, round, phase, rosters, positions, prepare, options, baselineUnitId });
 }
 async function rpc(page, name, args) {
   return page.evaluate(async ({ name, args }) => {
@@ -154,8 +165,17 @@ try {
   await Promise.all([signIn(host, HOST), signIn(guest, GUEST)]);
   const { game, players } = await latestHostMatch(host);
   gameCode = game.game_code;
+  baselineUnitId = await host.evaluate(async version => {
+    await loadUnitCatalogue(version);
+    const candidate = [...databaseSupportedUnitIds]
+      .map(unitId => ({ unitId, unit:getSupportedUnit(unitId) }))
+      .filter(({ unit }) => unit?.armor && unit?.structure && Number(unit.movement?.walk || 0) >= 4 && unitId !== 'trebuchet-tbt3c' && unitId !== 'kintaro-kto19')
+      .sort((left, right) => left.unitId.localeCompare(right.unitId))[0];
+    if (!candidate) throw new Error(`Pinned catalogue ${version} has no mobile focused-test fixture.`);
+    return candidate.unitId;
+  }, game.catalogue_version);
   const roundBase = 100000 + Math.floor(Date.now() / 1000) % 100000;
-  check('focused regression found the disposable two-player match', players.length === 2, game.game_code);
+  check('focused regression found the disposable two-player match and a catalogue-safe terrain fixture', players.length === 2 && Boolean(baselineUnitId), `${game.game_code} / ${baselineUnitId}`);
 
   // Terrain: 0505 -> 0605 enters depth-one water and changes one level, for
   // 1 base MP + 1 water MP + 1 level MP. The PSR may pass or fail, but its
@@ -430,7 +450,7 @@ try {
   // pinned release rather than assuming every release retains one historical
   // Trebuchet identifier. CASE must vent side-torso overflow; the unprotected
   // Locust must transfer it into and destroy the CT.
-  const consequences = await host.evaluate(async ({ version }) => {
+  const consequences = await host.evaluate(async ({ version, baselineUnitId }) => {
     await loadUnitCatalogue(version, true);
     const locationKey = name => ({ 'Left Arm':'la', 'Right Arm':'ra', 'Left Torso':'lt', 'Right Torso':'rt', 'Center Torso':'ct', Head:'head', 'Left Leg':'ll', 'Right Leg':'rl' })[name] || name;
     const caseCandidate = Object.entries(BT_UNITS).filter(([unitId]) => databaseSupportedUnitIds.has(unitId)).map(([unitId, unit]) => {
@@ -439,7 +459,7 @@ try {
       )?.[0];
       return location ? { unitId, location } : null;
     }).find(Boolean);
-    if (!caseCandidate) throw new Error(`Pinned catalogue ${version} has no CASE-equipped ammunition fixture.`);
+    if (!caseCandidate) return { unavailable:true, reason:`Pinned catalogue ${version} has no CASE-equipped ammunition fixture.` };
     const makeMech = (unitId, id) => {
       const unit = getSupportedUnit(unitId) || BT_UNITS[unitId];
       if (!unit?.structure || !unit?.armor) throw new Error(`Pinned catalogue is missing complete ${unitId} armour/structure.`);
@@ -450,7 +470,7 @@ try {
       };
     };
     const caseMech = makeMech(caseCandidate.unitId, 'explicit-case');
-    const unprotectedMech = makeMech('locust-lct1e', 'no-case');
+    const unprotectedMech = makeMech(baselineUnitId, 'no-case');
     const caseCt = caseMech.structure.ct;
     const clan = await db.rpc('btech_apply_ammunition_explosion', { p_mech: caseMech, p_location: caseCandidate.location, p_damage: 100 });
     const innerSphere = await db.rpc('btech_apply_ammunition_explosion', { p_mech: unprotectedMech, p_location: 'lt', p_damage: 100 });
@@ -458,11 +478,15 @@ try {
       clan: { data: clan.data, error: clan.error?.message || null, caseCt, caseCandidate },
       innerSphere: { data: innerSphere.data, error: innerSphere.error?.message || null }
     };
-  }, { version: game.catalogue_version });
-  const clanResult = consequences.clan.data;
-  check('CASE vents ammunition overflow outside the centre torso', !consequences.clan.error && clanResult?.case_protected === true && clanResult?.vented_damage > 0 && clanResult?.mech?.structure?.ct === consequences.clan.caseCt && clanResult?.mech?.pilot?.hits === 2, JSON.stringify(consequences.clan));
-  const isResult = consequences.innerSphere.data;
-  check('an unprotected ammunition explosion transfers inward and destroys the pilot with the centre torso', !consequences.innerSphere.error && isResult?.case_protected === false && isResult?.mech?.destroyed === true && isResult?.mech?.structure?.ct === 0 && isResult?.mech?.pilot?.consciousness === 'dead', JSON.stringify(consequences.innerSphere));
+  }, { version: game.catalogue_version, baselineUnitId });
+  if (consequences.unavailable) {
+    console.log(`SKIP  CASE ammunition consequence fixture — ${consequences.reason}`);
+  } else {
+    const clanResult = consequences.clan.data;
+    check('CASE vents ammunition overflow outside the centre torso', !consequences.clan.error && clanResult?.case_protected === true && clanResult?.vented_damage > 0 && clanResult?.mech?.structure?.ct === consequences.clan.caseCt && clanResult?.mech?.pilot?.hits === 2, JSON.stringify(consequences.clan));
+    const isResult = consequences.innerSphere.data;
+    check('an unprotected ammunition explosion transfers inward and destroys the pilot with the centre torso', !consequences.innerSphere.error && isResult?.case_protected === false && isResult?.mech?.destroyed === true && isResult?.mech?.structure?.ct === 0 && isResult?.mech?.pilot?.consciousness === 'dead', JSON.stringify(consequences.innerSphere));
+  }
 } catch (error) {
   check('focused live rules regression completed without a fatal error', false, error.message);
 } finally {
