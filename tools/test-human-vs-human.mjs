@@ -22,6 +22,7 @@ const HOST = { user: process.env.BT_H2H_HOST || 'h2h-regression-host', pass: pro
 const GUEST = { user: process.env.BT_H2H_GUEST || 'h2h-regression-guest', pass: process.env.BT_H2H_GUEST_PASS || 'H2H!Guest01' };
 const REPORT_PATH = process.env.BT_H2H_REPORT || null;
 let gameCode = null;
+let soakSelections = null;
 const failures = [];
 
 // Each soak iteration selects one safe, single-BattleMech custom skirmish.
@@ -29,14 +30,16 @@ const failures = [];
 // physical-contact assertions below, while exercising genuinely different
 // supported equipment and map data through the normal lobby UI.
 const SOAK_MATRIX = Object.freeze([
-  { name:'Training Locust duel', mapId:'training-grounds', hostSearch:'locust', guestSearch:'locust' },
-  { name:'Woodland Wolverine versus Panther', mapId:'woodland-approach', hostSearch:'wolverine', guestSearch:'panther' },
-  { name:'Open Griffin versus Blackjack', mapId:'open-engagement', hostSearch:'griffin', guestSearch:'blackjack' },
-  { name:'Flatlands Dragon versus Panther', mapId:'flatlands-open-terrain', hostSearch:'dragon drg-5n', guestSearch:'panther' },
-  { name:'Ridge Kintaro versus Dervish', mapId:'ridge-and-ford', hostSearch:'kintaro', guestSearch:'dervish' }
+  { name:'Training Grounds', mapId:'training-grounds', fallback:['locust','locust'] },
+  { name:'Woodland Approach', mapId:'woodland-approach', fallback:['wolverine','panther'] },
+  { name:'Open Engagement', mapId:'open-engagement', fallback:['griffin','blackjack'] },
+  { name:'Flatlands', mapId:'flatlands-open-terrain', fallback:['dragon drg-5n','panther'] },
+  { name:'Ridge and Ford', mapId:'ridge-and-ford', fallback:['kintaro','dervish'] }
 ]);
 const soakProfileIndex = Math.max(0, Number(process.env.BT_SOAK_PROFILE || 0) || 0);
 const soakProfile = SOAK_MATRIX[soakProfileIndex % SOAK_MATRIX.length];
+const soakSeed = String(process.env.BT_SOAK_SEED || `local-${soakProfileIndex}`);
+const fixedForces = process.env.BT_SOAK_FORCE_MODE === 'fixed';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function check(name, condition, detail = '') {
@@ -86,15 +89,35 @@ async function signIn(page, credentials) {
   await page.click('#btn-signup').catch(() => {});
   if (!await waitForScreen(page, 'menu-screen', 20000)) throw new Error(`Could not sign in as ${credentials.user}`);
 }
-async function addAndDeployBattleMech(page, search) {
+async function addAndDeployBattleMech(page, selection) {
   await page.waitForSelector('#lobby-roster-search', { timeout: 20000 });
-  await page.fill('#lobby-roster-search', search);
-  const option = page.locator('.roster-option-wrap:not([hidden]) .roster-option').first();
+  await page.fill('#lobby-roster-search', selection.search);
+  const option = page.locator(`.roster-option-wrap[data-unit-id="${selection.unitId}"] .roster-option`).first();
   await option.waitFor({ state: 'visible', timeout: 45000 });
   await option.click();
   await page.waitForSelector('.hangar-entry', { timeout: 15000 });
   await page.getByRole('button', { name: 'Deploy', exact: true }).first().click();
   await page.waitForFunction(() => /Deployment:\s*[1-9]/.test(document.querySelector('.roster-summary')?.textContent || ''), null, { timeout: 15000 });
+}
+async function chooseSoakForce(page) {
+  if (fixedForces) return {
+    host: { unitId:null, search:soakProfile.fallback[0] }, guest: { unitId:null, search:soakProfile.fallback[1] },
+    seed:soakSeed, mode:'fixed fallback'
+  };
+  return page.evaluate(({ seed }) => {
+    let value = 2166136261;
+    for (const character of seed) value = Math.imul(value ^ character.charCodeAt(0), 16777619) >>> 0;
+    const next = () => { value = (Math.imul(value, 1664525) + 1013904223) >>> 0; return value / 4294967296; };
+    const candidates = [...databaseSupportedUnitIds].map(unitId => ({ unitId, unit:getSupportedUnit(unitId) }))
+      .filter(({ unit }) => unit && !unit.customDesign && Number(unit.tonnage) <= 100 && Number(unit.movement?.run || 0) >= 6 && (unit.weapons || []).some(weapon => !weapon.weapon?.supportOnly))
+      .sort((left, right) => left.unitId.localeCompare(right.unitId));
+    if (candidates.length < 2) throw new Error('The pinned catalogue has fewer than two eligible supported soak BattleMechs.');
+    const host = candidates[Math.floor(next() * candidates.length)];
+    const guestChoices = candidates.filter(candidate => candidate.unitId !== host.unitId);
+    const guest = guestChoices[Math.floor(next() * guestChoices.length)];
+    const selection = candidate => ({ unitId:candidate.unitId, search:`${candidate.unit.chassis} ${candidate.unit.variant}` });
+    return { host:selection(host), guest:selection(guest), seed, mode:'seeded random', eligible:candidates.length };
+  }, { seed:soakSeed });
 }
 async function placeBattlefieldDeployment(page, hex, facing) {
   await page.locator('#lobby-deployment .deployment-map').waitFor({ state: 'visible', timeout: 20000 });
@@ -300,8 +323,22 @@ try {
   await guest.locator('#menu-screen .join-row button').click();
   check('guest joins the lobby by code', await waitForScreen(guest, 'lobby-screen'));
 
-  await Promise.all([addAndDeployBattleMech(host, soakProfile.hostSearch), addAndDeployBattleMech(guest, soakProfile.guestSearch)]);
-  check(`both players deploy the ${soakProfile.name} roster`, /Deployment:\s*[1-9]/.test(await host.locator('.roster-summary').innerText()) && /Deployment:\s*[1-9]/.test(await guest.locator('.roster-summary').innerText()));
+  const selections = await chooseSoakForce(host);
+  // Fixed mode remains an escape hatch for isolating a failure; normal soak
+  // runs always choose catalogue-backed BattleMechs from the supplied seed.
+  if (!selections.host.unitId) {
+    const resolve = async (page, search) => page.evaluate(searchText => {
+      const card = [...document.querySelectorAll('.roster-option-wrap[data-unit-id]')].find(entry => (entry.dataset.search || '').includes(searchText));
+      if (!card) throw new Error(`No fixed soak card matches ${searchText}.`);
+      return { unitId:card.dataset.unitId, search:searchText };
+    }, search);
+    selections.host = await resolve(host, selections.host.search);
+    selections.guest = await resolve(guest, selections.guest.search);
+  }
+  soakSelections = selections;
+  console.log(`SOAK FORCE: ${selections.host.unitId} versus ${selections.guest.unitId} (${selections.mode}, seed ${selections.seed})`);
+  await Promise.all([addAndDeployBattleMech(host, selections.host), addAndDeployBattleMech(guest, selections.guest)]);
+  check(`both players deploy the ${selections.mode} ${soakProfile.name} roster`, /Deployment:\s*[1-9]/.test(await host.locator('.roster-summary').innerText()) && /Deployment:\s*[1-9]/.test(await guest.locator('.roster-summary').innerText()));
   await Promise.all([placeBattlefieldDeployment(host, '0405', 'E'), placeBattlefieldDeployment(guest, '1105', 'W')]);
   check('both players choose deployment hexes and facings', /1\/1 placed/.test(await host.locator('#lobby-deployment > .deployment-help').innerText()) && /1\/1 placed/.test(await guest.locator('#lobby-deployment > .deployment-help').innerText()));
 
@@ -380,9 +417,9 @@ try {
 }
 
 if (failures.length) {
-  if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: false, gameCode, soakProfile, failures, errors }, null, 2));
+  if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: false, gameCode, soakProfile, soakSeed, fixedForces, soakSelections, failures, errors }, null, 2));
   console.log(`\n${failures.length} human-vs-human regression failure(s)`);
   process.exit(1);
 }
-if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: true, gameCode, soakProfile, failures: [], errors }, null, 2));
+if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: true, gameCode, soakProfile, soakSeed, fixedForces, soakSelections, failures: [], errors }, null, 2));
 console.log('\nHuman-vs-human regression smoke test passed');

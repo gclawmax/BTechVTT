@@ -18,6 +18,7 @@ const suppliedUrl = process.env.SHOT_URL;
 const baseUrl = suppliedUrl || `http://127.0.0.1:${port}/index.html`;
 const keepPassed = process.env.BT_SOAK_KEEP_PASSED === '1';
 const reportDir = join(tmpdir(), 'btechvtt-duel-soak');
+const seedBase = String(process.env.BT_SOAK_SEED || Date.now());
 
 function run(command, args, env, label) {
   return new Promise((resolve, reject) => {
@@ -38,6 +39,7 @@ async function waitForServer(url) {
 
 if (process.env.BT_SOAK_LIST === '1') {
   console.log(`BattleMech duel soak: ${runs} iteration(s), ${keepPassed ? 'preserving' : 'removing'} passing disposable matches.`);
+  console.log(`Seed base: ${seedBase} (reuse with BT_SOAK_SEED to reproduce a force selection).`);
   console.log('Per iteration: two-player UI battle → focused authoritative rules → Dragon Level 2 acceptance.');
   process.exit(0);
 }
@@ -53,6 +55,7 @@ try {
   for (let index = 1; index <= runs; index++) {
     const env = { BT_H2H_REPORT:join(reportDir, `human-${index}.json`), BT_FOCUSED_REPORT:join(reportDir, `focused-${index}.json`), BT_DRAGON_REPORT:join(reportDir, `dragon-${index}.json`),
       BT_SOAK_PROFILE:String(index - 1),
+      BT_SOAK_SEED:`${seedBase}-${index}`,
       ...(keepPassed ? {} : { BT_SOAK_CLEANUP:'1' }) };
     await run('node', ['tools/test-human-vs-human.mjs'], env, `Duel soak ${index}/${runs}: two-player UI battle`);
     await run('node', ['tools/test-human-vs-human-rules.mjs'], env, `Duel soak ${index}/${runs}: focused rules`);

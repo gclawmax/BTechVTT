@@ -220,8 +220,11 @@ authoritative RPC paths, and retain the game code/report only when a run fails.
 
 The harness must rotate supported one-on-one custom skirmishes across the
 Training Grounds, Woodland Approach, Open Engagement, Flatlands and Ridge and
-Ford maps, with a curated force matrix including Locust, Wolverine, Panther,
-Griffin, Blackjack, Dragon, Kintaro and Dervish matchups. It must cover
+Ford maps. Each normal iteration chooses a seeded-random pair from the pinned
+catalogue's fully supported, non-custom BattleMechs that fit the test force
+limit and movement path; the seed is reported so a failure is reproducible. A
+small fixed force matrix remains available only for isolating a known failure.
+It must cover
 standing, walking, running and jumping; weapon fire and ammunition expenditure;
 Heat Management; physical attacks where legal;
 destruction/end conditions; rejoin; and a Dragon acceptance matrix. It must
