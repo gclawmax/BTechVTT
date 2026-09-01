@@ -87,6 +87,7 @@ async function configureScenario(page, game, players, round, phase, rosters, pos
     const state = {
       map_id: options.mapId || 'ridge-and-ford', catalogue_version: game.catalogue_version,
       ...(options.specialAmmo ? { special_ammo_setup_v1: true } : {}),
+      ...(options.terrainOverrides ? { terrain_overrides: options.terrainOverrides } : {}),
       mech_instances: units, initiative_order: initiative,
       active_player_player_id: hostPlayer.id, round
     };
@@ -212,8 +213,10 @@ try {
   check('walking into shallow water is accepted with complete MP accounting', !terrainMove.error && terrainMove.data?.mp_used === 3, JSON.stringify(terrainMove));
   check('entering water invokes the authoritative terrain Piloting check', terrainMove.data?.terrain_check?.reasons?.includes('entering water'), JSON.stringify(terrainMove.data?.terrain_check));
 
-  // Indirect fire: a ridge blocks the launcher at 0801 from the target in
-  // shallow water at 0605; the neutral fixture at 0000 has LOS and walks while spotting.
+  // Indirect fire: two heavy-woods hexes block the launcher while the target
+  // remains in shallow water; the neutral fixture has a clear LOS and walks
+  // while spotting. The explicit stateful terrain makes this independent of
+  // a bundled map's future art/layout revisions.
   const indirectRound = roundBase + 1;
   if (!combatFixtures.indirect) {
     console.log('SKIP  indirect Artemis fixture — this pinned catalogue has no Artemis-capable LRM bin.');
@@ -221,8 +224,9 @@ try {
     const indirectAttackerId = `${combatFixtures.indirect.unitId}-p1-1`;
     await configureScenario(host, game, players, indirectRound, 'weapon_attack',
       { 1: [combatFixtures.indirect.unitId, 'locust-lct1e'], 2: ['locust-lct1e'] },
-      { 1: [{ col: 8, row: 1, facing: 0 }, { col: 0, row: 0, facing: 0 }], 2: [{ col: 6, row: 5, facing: 3 }] },
-      { 'locust-lct1e-p1-2': { movementMode: 'walk', hexesMoved: 1 } });
+      { 1: [{ col: 4, row: 4, facing: 0 }, { col: 8, row: 0, facing: 0 }], 2: [{ col: 8, row: 4, facing: 3 }] },
+      { 'locust-lct1e-p1-2': { movementMode: 'walk', hexesMoved: 1 } },
+      { mapId:'training-grounds', terrainOverrides:{ '0504':'heavy_woods', '0604':'heavy_woods', '0804':'shallow_water' } });
     const indirectAmmo = { [combatFixtures.indirect.mountId]: combatFixtures.indirect.binId, __fire_modes: {}, __indirect: true, __spotter: 'locust-lct1e-p1-2' };
     const indirectDeclaration = await rpc(host, 'submit_simultaneous_weapon_declaration', {
       p_game_id: game.id, p_attacker_instance_id: indirectAttackerId, p_target_instance_id: 'locust-lct1e-p2-1', p_weapon_mounts: [combatFixtures.indirect.mountId], p_ammo_bins: indirectAmmo
