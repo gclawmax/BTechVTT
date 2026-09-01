@@ -169,7 +169,7 @@ try {
     await loadUnitCatalogue(version);
     const candidate = [...databaseSupportedUnitIds]
       .map(unitId => ({ unitId, unit:getSupportedUnit(unitId) }))
-      .filter(({ unit }) => unit?.armor && unit?.structure && Number(unit.movement?.walk || 0) >= 4 && unitId !== 'trebuchet-tbt3c' && unitId !== 'kintaro-kto19')
+      .filter(({ unitId, unit }) => unit?.armor && unit?.structure && Number(unit.movement?.walk || 0) >= 4 && unitId !== 'trebuchet-tbt3c' && unitId !== 'kintaro-kto19')
       .sort((left, right) => left.unitId.localeCompare(right.unitId))[0];
     if (!candidate) throw new Error(`Pinned catalogue ${version} has no mobile focused-test fixture.`);
     return candidate.unitId;
