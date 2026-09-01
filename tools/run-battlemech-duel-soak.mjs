@@ -6,7 +6,7 @@
 //   BT_SOAK_RUNS=20 BT_SOAK_KEEP_PASSED=1 node tools/run-battlemech-duel-soak.mjs
 
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -17,6 +17,7 @@ const port = Number(process.env.BT_TEST_PORT || 8790);
 const suppliedUrl = process.env.SHOT_URL;
 const baseUrl = suppliedUrl || `http://127.0.0.1:${port}/index.html`;
 const keepPassed = process.env.BT_SOAK_KEEP_PASSED === '1';
+const continueAfterFailure = process.env.BT_SOAK_CONTINUE === '1';
 const reportDir = join(tmpdir(), 'btechvtt-duel-soak');
 const seedBase = String(process.env.BT_SOAK_SEED || Date.now());
 
@@ -39,6 +40,7 @@ async function waitForServer(url) {
 
 if (process.env.BT_SOAK_LIST === '1') {
   console.log(`BattleMech duel soak: ${runs} iteration(s), ${keepPassed ? 'preserving' : 'removing'} passing disposable matches.`);
+  console.log(`Failure handling: ${continueAfterFailure ? 'collect every iteration and write one summary' : 'stop at the first failure'}.`);
   console.log(`Seed base: ${seedBase} (reuse with BT_SOAK_SEED to reproduce a force selection).`);
   console.log('Per iteration: two-player UI battle → focused authoritative rules → Dragon Level 2 acceptance.');
   process.exit(0);
@@ -52,16 +54,39 @@ try {
     server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
     await waitForServer(baseUrl);
   }
+  const failedStages = [];
   for (let index = 1; index <= runs; index++) {
     const env = { BT_H2H_REPORT:join(reportDir, `human-${index}.json`), BT_FOCUSED_REPORT:join(reportDir, `focused-${index}.json`), BT_DRAGON_REPORT:join(reportDir, `dragon-${index}.json`),
       BT_SOAK_PROFILE:String(index - 1),
       BT_SOAK_SEED:`${seedBase}-${index}`,
       ...(keepPassed ? {} : { BT_SOAK_CLEANUP:'1' }) };
-    await run('node', ['tools/test-human-vs-human.mjs'], env, `Duel soak ${index}/${runs}: two-player UI battle`);
-    await run('node', ['tools/test-human-vs-human-rules.mjs'], env, `Duel soak ${index}/${runs}: focused rules`);
-    await run('node', ['tools/test-dragon-level2-live.mjs'], env, `Duel soak ${index}/${runs}: Dragon Level 2 acceptance`);
+    const stages = [
+      { label:'two-player UI battle', script:'tools/test-human-vs-human.mjs' },
+      { label:'focused rules', script:'tools/test-human-vs-human-rules.mjs' },
+      { label:'Dragon Level 2 acceptance', script:'tools/test-dragon-level2-live.mjs' }
+    ];
+    for (const stage of stages) {
+      try {
+        await run('node', [stage.script], env, `Duel soak ${index}/${runs}: ${stage.label}`);
+      } catch (error) {
+        failedStages.push({ iteration:index, stage:stage.label, message:error.message, reports:{ human:env.BT_H2H_REPORT, focused:env.BT_FOCUSED_REPORT, dragon:env.BT_DRAGON_REPORT } });
+        console.error(`COLLECTED FAILURE: iteration ${index}, ${stage.label} — ${error.message}`);
+        if (!continueAfterFailure) throw error;
+        // The later stages depend on a usable match state. A failed stage
+        // invalidates the remaining stages for this iteration only.
+        break;
+      }
+    }
   }
-  console.log(`\nBATTLEMECH DUEL SOAK PASSED (${runs} iteration${runs === 1 ? '' : 's'})`);
+  if (failedStages.length) {
+    const summaryPath = join(reportDir, 'soak-summary.json');
+    await writeFile(summaryPath, JSON.stringify({ runs, seedBase, failedStages }, null, 2));
+    console.error(`\nBATTLEMECH DUEL SOAK COMPLETED WITH ${failedStages.length} FAILURE(S)`);
+    console.error(`Consolidated summary: ${summaryPath}`);
+    process.exitCode = 1;
+  } else {
+    console.log(`\nBATTLEMECH DUEL SOAK PASSED (${runs} iteration${runs === 1 ? '' : 's'})`);
+  }
 } catch (error) {
   console.error(`\nBATTLEMECH DUEL SOAK FAILED: ${error.message}`);
   console.error(`Failure reports, when available, are in ${reportDir}`);
