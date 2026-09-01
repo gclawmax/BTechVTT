@@ -142,6 +142,30 @@ async function state(page) {
     guidance: document.getElementById('turn-guidance')?.textContent || ''
   }));
 }
+async function initiativeDiagnostics(page) {
+  return page.evaluate(() => {
+    const button = document.getElementById('btn-roll-initiative');
+    return {
+      phase: currentGameState?.phase || null,
+      round: currentGameState?.round || null,
+      initiativePending: currentGameState?.initiative_pending || [],
+      initiativeRolls: currentGameState?.initiative_rolls || [],
+      button: button ? { hidden:button.hidden, disabled:button.disabled, title:button.title || '' } : null,
+      ownAmmo: (mechInstances || []).filter(mech => mech.owner === mySeatNumber).flatMap(mech => (mech.ammoBins || []).map(bin => ({
+        mech:mech.instanceId, bin:bin.id, type:bin.type, loadType:bin.loadType || null,
+        needsChoice: typeof ammoSetupRequiredForBin === 'function' && ammoSetupRequiredForBin(bin)
+      }))),
+      recentLog: (gameLog || []).slice(-8).map(entry => entry.text || entry.message || String(entry))
+    };
+  });
+}
+async function saveRequiredRoundOneAmmo(page) {
+  return page.evaluate(async () => {
+    const pending = (mechInstances || []).some(mech => mech.owner === mySeatNumber && (mech.ammoBins || []).some(bin => ammoSetupRequiredForBin(bin)));
+    if (pending) await submitRoundOneAmmoLoadout();
+    return { pending, after: (mechInstances || []).filter(mech => mech.owner === mySeatNumber).flatMap(mech => (mech.ammoBins || []).filter(bin => ammoSetupRequiredForBin(bin)).map(bin => `${mech.instanceId}:${bin.id}`)) };
+  });
+}
 async function rollUntilResolved(host, guest) {
   const deadline = Date.now() + 45000;
   while (Date.now() < deadline) {
@@ -153,10 +177,10 @@ async function rollUntilResolved(host, guest) {
     }
     const hostState = await state(host);
     const guestState = await state(guest);
-    if (hostState.phase === 'movement' && guestState.phase === 'movement') return true;
+    if (hostState.phase === 'movement' && guestState.phase === 'movement') return { resolved:true, host:await initiativeDiagnostics(host), guest:await initiativeDiagnostics(guest) };
     await sleep(750);
   }
-  return false;
+  return { resolved:false, host:await initiativeDiagnostics(host), guest:await initiativeDiagnostics(guest) };
 }
 async function completeAlternatingMovement(host, guest) {
   const deadline = Date.now() + 60000;
@@ -356,9 +380,11 @@ try {
     deployedBoard.host.ownPositions.includes('0405:E') && deployedBoard.guest.ownPositions.includes('1105:W'), JSON.stringify(deployedBoard));
   check(`custom skirmish uses the selected ${soakProfile.mapId} battlefield`, deployedBoard.host.mapId === soakProfile.mapId && deployedBoard.guest.mapId === soakProfile.mapId, JSON.stringify(deployedBoard));
 
-  const initiativeResolved = await rollUntilResolved(host, guest);
+  const ammoSave = await Promise.all([saveRequiredRoundOneAmmo(host), saveRequiredRoundOneAmmo(guest)]);
+  check('both players save any specialised Round 1 ammunition required by the selected BattleMechs', ammoSave.every(result => result.after.length === 0), JSON.stringify(ammoSave));
+  const initiativeResolution = await rollUntilResolved(host, guest);
   const initiativeState = { host: await state(host), guest: await state(guest) };
-  check('separate initiative rolls resolve into movement', initiativeResolved, JSON.stringify(initiativeState));
+  check('separate initiative rolls resolve into movement', initiativeResolution.resolved, JSON.stringify({ initiativeState, diagnostics:{ host:initiativeResolution.host, guest:initiativeResolution.guest } }));
   check('turn guidance explains the active player’s next action', Boolean(initiativeState.host.guidance) && Boolean(initiativeState.guest.guidance));
   const afterMovement = await completeAlternatingMovement(host, guest);
   check('both players advance beyond movement', afterMovement.hostState.phase !== 'movement' && afterMovement.guestState.phase !== 'movement', `${afterMovement.hostState.phase}/${afterMovement.guestState.phase}`);
@@ -420,6 +446,10 @@ try {
 
 if (failures.length) {
   if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: false, gameCode, soakProfile, soakSeed, fixedForces, soakSelections, failures, errors }, null, 2));
+  console.log('\n--- failure hand-off ---');
+  console.log(`Game: ${gameCode || 'not created'} | Force: ${soakSelections ? `${soakSelections.host.unitId} vs ${soakSelections.guest.unitId}` : 'not selected'} | Seed: ${soakSeed}`);
+  console.log(`First failure: ${failures[0] || 'unknown'}`);
+  console.log(REPORT_PATH ? `Report: ${REPORT_PATH}` : 'Report: not requested (the soak runner always requests one).');
   console.log(`\n${failures.length} human-vs-human regression failure(s)`);
   process.exit(1);
 }
