@@ -6,7 +6,7 @@
 //   BT_SOAK_RUNS=20 BT_SOAK_KEEP_PASSED=1 node tools/run-battlemech-duel-soak.mjs
 
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -49,6 +49,7 @@ if (process.env.BT_SOAK_LIST === '1') {
 let server = null;
 try {
   await mkdir(reportDir, { recursive:true });
+  await rm(join(reportDir, 'soak-summary.json'), { force:true });
   await run('node', ['test-fixes.mjs'], {}, 'Static rules regression');
   if (!suppliedUrl) {
     server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
@@ -60,6 +61,10 @@ try {
       BT_SOAK_PROFILE:String(index - 1),
       BT_SOAK_SEED:`${seedBase}-${index}`,
       ...(keepPassed ? {} : { BT_SOAK_CLEANUP:'1' }) };
+    // A later stage may not run after an earlier failure. Delete any report
+    // left by a previous collection so the summary can never point at stale
+    // Dragon/focused diagnostics.
+    await Promise.all([env.BT_H2H_REPORT, env.BT_FOCUSED_REPORT, env.BT_DRAGON_REPORT].map(path => rm(path, { force:true })));
     const stages = [
       { label:'two-player UI battle', script:'tools/test-human-vs-human.mjs' },
       { label:'focused rules', script:'tools/test-human-vs-human-rules.mjs' },

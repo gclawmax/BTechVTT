@@ -67,8 +67,16 @@ async function configureScenario(page, game, players, round, phase, rosters, pos
       ids.map(unitId => unitId === 'locust-lct1e' ? baselineUnitId : unitId)
     ]));
     const units = buildRosterInstances(resolvedRosters, {}, positions);
-    for (const mech of units) {
-      if (mech.unitId === baselineUnitId) mech.instanceId = mech.instanceId.replace(baselineUnitId, 'locust-lct1e');
+    // Rename only the historical Locust placeholders. A real fixture may
+    // legitimately select the same catalogue unit as the baseline; renaming
+    // every matching record made its prepare data target a non-existent ID.
+    for (const [seat, unitIds] of Object.entries(rosters)) {
+      unitIds.forEach((unitId, index) => {
+        if (unitId !== 'locust-lct1e') return;
+        const generatedId = `${baselineUnitId}-p${seat}-${index + 1}`;
+        const placeholder = units.find(mech => mech.instanceId === generatedId);
+        if (placeholder) placeholder.instanceId = `locust-lct1e-p${seat}-${index + 1}`;
+      });
     }
     for (const mech of units) {
       Object.assign(mech, {
@@ -84,6 +92,12 @@ async function configureScenario(page, game, players, round, phase, rosters, pos
         Object.assign(mech, recordChanges);
         if (ammoLoadTypes) mech.ammoBins = (mech.ammoBins || []).map(bin => ammoLoadTypes[bin.id] ? { ...bin, loadType: ammoLoadTypes[bin.id] } : bin);
       }
+    }
+    if (phase === 'weapon_attack') {
+      // The live phase transition captures immutable start-of-phase records.
+      // Focused fixtures enter Weapon Attack directly, so build that same
+      // snapshot before invoking its public declarations/support-arm RPCs.
+      for (const mech of units) mech.weaponPhaseStart = { round, mech: JSON.parse(JSON.stringify(mech)) };
     }
     const hostPlayer = players.find(player => player.seat_number === 1);
     const guestPlayer = players.find(player => player.seat_number === 2);
@@ -329,7 +343,9 @@ try {
   const pavementRound = roundBase + 6;
   await configureScenario(host, game, players, pavementRound, 'movement',
     { 1: ['locust-lct1e'], 2: ['locust-lct1e'] },
-    { 1: [{ col: 7, row: 5, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] }, {}, { mapId: 'industrial-crossing' });
+    { 1: [{ col: 7, row: 5, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] },
+    { 'locust-lct1e-p1-1': { pilot: { gunnery:-6, piloting:-6, hits:0, consciousness:'conscious' }, pilotingSkill:-6 } },
+    { mapId: 'industrial-crossing' });
   const pavementTurn = await rpc(host, 'submit_battlemech_movement', {
     p_game_id: game.id, p_instance_id: 'locust-lct1e-p1-1', p_mode: 'run',
     // A turn by itself is not a complete Movement activation. Take the
@@ -508,8 +524,12 @@ try {
         criticalSlotDamage: {}, pilot: { hits: 0, consciousness: 'conscious', piloting: 5 }, destroyed: false
       };
     };
+    const unprotectedCandidate = Object.entries(BT_UNITS).filter(([unitId]) => databaseSupportedUnitIds.has(unitId)).find(([unitId]) =>
+      !Object.values(BT_CRITICAL_LAYOUTS[unitId] || {}).flat().some(slot => /case/i.test(String(slot || '').replace(/[^a-z0-9]/gi, '')))
+    );
+    if (!unprotectedCandidate) return { unavailable:true, reason:`Pinned catalogue ${version} has no unprotected ammunition-explosion fixture.` };
     const caseMech = makeMech(caseCandidate.unitId, 'explicit-case');
-    const unprotectedMech = makeMech(baselineUnitId, 'no-case');
+    const unprotectedMech = makeMech(unprotectedCandidate[0], 'no-case');
     const caseCt = caseMech.structure.ct;
     const clan = await db.rpc('btech_apply_ammunition_explosion', { p_mech: caseMech, p_location: caseCandidate.location, p_damage: 100 });
     const innerSphere = await db.rpc('btech_apply_ammunition_explosion', { p_mech: unprotectedMech, p_location: 'lt', p_damage: 100 });
