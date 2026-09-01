@@ -426,25 +426,36 @@ try {
   check('Initiative unlocks only after both specialised loadouts are saved', !loadedHostRoll.error && !loadedGuestRoll.error && loadedGuestRoll.data?.status === 'resolved', JSON.stringify({ loadedHostRoll, loadedGuestRoll }));
 
   // Destruction consequences use pure authoritative functions with real
-  // catalogue records. The Trebuchet's explicit CASE must vent side-torso
-  // overflow; the unprotected Locust must transfer it into and destroy the CT.
+  // catalogue records. Find a CASE-equipped ammunition location in the match's
+  // pinned release rather than assuming every release retains one historical
+  // Trebuchet identifier. CASE must vent side-torso overflow; the unprotected
+  // Locust must transfer it into and destroy the CT.
   const consequences = await host.evaluate(async ({ version }) => {
-    await loadUnitCatalogue(version);
+    await loadUnitCatalogue(version, true);
+    const locationKey = name => ({ 'Left Arm':'la', 'Right Arm':'ra', 'Left Torso':'lt', 'Right Torso':'rt', 'Center Torso':'ct', Head:'head', 'Left Leg':'ll', 'Right Leg':'rl' })[name] || name;
+    const caseCandidate = Object.entries(BT_UNITS).filter(([unitId]) => databaseSupportedUnitIds.has(unitId)).map(([unitId, unit]) => {
+      const location = Object.entries(BT_CRITICAL_LAYOUTS[unitId] || {}).find(([key, slots]) =>
+        slots.some(slot => /\bcase\b/i.test(slot || '')) && (unit.ammoBins || []).some(bin => locationKey(bin.location) === key)
+      )?.[0];
+      return location ? { unitId, location } : null;
+    }).find(Boolean);
+    if (!caseCandidate) throw new Error(`Pinned catalogue ${version} has no CASE-equipped ammunition fixture.`);
     const makeMech = (unitId, id) => {
-      const unit = BT_UNITS[unitId];
+      const unit = getSupportedUnit(unitId) || BT_UNITS[unitId];
+      if (!unit?.structure || !unit?.armor) throw new Error(`Pinned catalogue is missing complete ${unitId} armour/structure.`);
       return {
         instanceId: id, unitId, catalogueVersion: version, owner: 1,
         structure: { ...unit.structure }, armor: { ...unit.armor },
         criticalSlotDamage: {}, pilot: { hits: 0, consciousness: 'conscious', piloting: 5 }, destroyed: false
       };
     };
-    const caseMech = makeMech('trebuchet-tbt3c', 'explicit-case');
+    const caseMech = makeMech(caseCandidate.unitId, 'explicit-case');
     const unprotectedMech = makeMech('locust-lct1e', 'no-case');
     const caseCt = caseMech.structure.ct;
-    const clan = await db.rpc('btech_apply_ammunition_explosion', { p_mech: caseMech, p_location: 'lt', p_damage: 100 });
+    const clan = await db.rpc('btech_apply_ammunition_explosion', { p_mech: caseMech, p_location: caseCandidate.location, p_damage: 100 });
     const innerSphere = await db.rpc('btech_apply_ammunition_explosion', { p_mech: unprotectedMech, p_location: 'lt', p_damage: 100 });
     return {
-      clan: { data: clan.data, error: clan.error?.message || null, caseCt },
+      clan: { data: clan.data, error: clan.error?.message || null, caseCt, caseCandidate },
       innerSphere: { data: innerSphere.data, error: innerSphere.error?.message || null }
     };
   }, { version: game.catalogue_version });
