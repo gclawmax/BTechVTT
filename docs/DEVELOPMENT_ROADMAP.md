@@ -211,15 +211,19 @@ Every slice must be catalogue-led and release together with:
 No unsupported MegaMek record should be selectable merely because its static
 weapon profile resembles a supported weapon.
 
-### Quality slice Q-1 — Repeatable BattleMech duel regression
+### Quality slice Q-1.1 — Repeatable BattleMech duel regression
 
 Before SR-1 expands the equipment catalogue, extend the existing test facility
 into a repeatable **duel soak harness**. It will create isolated disposable
 two-player matches, run bounded turns through the real browser and public
 authoritative RPC paths, and retain the game code/report only when a run fails.
 
-The harness must cover standing, walking, running and jumping; weapon fire and
-ammunition expenditure; Heat Management; physical attacks where legal;
+The harness must rotate supported one-on-one custom skirmishes across the
+Training Grounds, Woodland Approach, Open Engagement, Flatlands and Ridge and
+Ford maps, with a curated force matrix including Locust, Wolverine, Panther,
+Griffin, Blackjack, Dragon, Kintaro and Dervish matchups. It must cover
+standing, walking, running and jumping; weapon fire and ammunition expenditure;
+Heat Management; physical attacks where legal;
 destruction/end conditions; rejoin; and a Dragon acceptance matrix. It must
 assert phase termination, no uncaught browser or server error, non-negative
 armour/structure/ammunition, valid heat-ledger reconciliation and a sealed

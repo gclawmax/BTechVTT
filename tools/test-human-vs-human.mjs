@@ -24,6 +24,20 @@ const REPORT_PATH = process.env.BT_H2H_REPORT || null;
 let gameCode = null;
 const failures = [];
 
+// Each soak iteration selects one safe, single-BattleMech custom skirmish.
+// Keeping forces to one per side preserves the alternating-activation and
+// physical-contact assertions below, while exercising genuinely different
+// supported equipment and map data through the normal lobby UI.
+const SOAK_MATRIX = Object.freeze([
+  { name:'Training Locust duel', mapId:'training-grounds', hostSearch:'locust', guestSearch:'locust' },
+  { name:'Woodland Wolverine versus Panther', mapId:'woodland-approach', hostSearch:'wolverine', guestSearch:'panther' },
+  { name:'Open Griffin versus Blackjack', mapId:'open-engagement', hostSearch:'griffin', guestSearch:'blackjack' },
+  { name:'Flatlands Dragon versus Panther', mapId:'flatlands-open-terrain', hostSearch:'dragon drg-5n', guestSearch:'panther' },
+  { name:'Ridge Kintaro versus Dervish', mapId:'ridge-and-ford', hostSearch:'kintaro', guestSearch:'dervish' }
+]);
+const soakProfileIndex = Math.max(0, Number(process.env.BT_SOAK_PROFILE || 0) || 0);
+const soakProfile = SOAK_MATRIX[soakProfileIndex % SOAK_MATRIX.length];
+
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function check(name, condition, detail = '') {
   const ok = Boolean(condition);
@@ -72,9 +86,9 @@ async function signIn(page, credentials) {
   await page.click('#btn-signup').catch(() => {});
   if (!await waitForScreen(page, 'menu-screen', 20000)) throw new Error(`Could not sign in as ${credentials.user}`);
 }
-async function addAndDeployLocust(page) {
+async function addAndDeployBattleMech(page, search) {
   await page.waitForSelector('#lobby-roster-search', { timeout: 20000 });
-  await page.fill('#lobby-roster-search', 'locust');
+  await page.fill('#lobby-roster-search', search);
   const option = page.locator('.roster-option-wrap:not([hidden]) .roster-option').first();
   await option.waitFor({ state: 'visible', timeout: 45000 });
   await option.click();
@@ -99,6 +113,7 @@ async function state(page) {
     ownUnmoved: (mechInstances || []).filter(mech => mech.owner === mySeatNumber && !mech.hasMoved).length,
     ownFired: (mechInstances || []).filter(mech => mech.owner === mySeatNumber && mech.hasFired).length,
     ownPositions: (mechInstances || []).filter(mech => mech.owner === mySeatNumber).map(mech => `${hexCode(mech.col, mech.row)}:${HEX_DIR_LABELS[mech.facing]}`).sort(),
+    mapId: currentGameState?.map_id || null,
     guidance: document.getElementById('turn-guidance')?.textContent || ''
   }));
 }
@@ -273,6 +288,7 @@ try {
 
   await host.getByRole('button', { name: 'Create Custom Skirmish', exact: true }).click();
   check('host opens match setup', await waitForScreen(host, 'match-setup-screen'));
+  await host.selectOption('#create-map-select', soakProfile.mapId);
   await host.selectOption('#create-tonnage-select', '100');
   await host.getByRole('button', { name: 'Create Lobby', exact: true }).click();
   check('host creates a lobby', await waitForScreen(host, 'lobby-screen'));
@@ -284,8 +300,8 @@ try {
   await guest.locator('#menu-screen .join-row button').click();
   check('guest joins the lobby by code', await waitForScreen(guest, 'lobby-screen'));
 
-  await Promise.all([addAndDeployLocust(host), addAndDeployLocust(guest)]);
-  check('both players deploy a legal roster', /Deployment:\s*[1-9]/.test(await host.locator('.roster-summary').innerText()) && /Deployment:\s*[1-9]/.test(await guest.locator('.roster-summary').innerText()));
+  await Promise.all([addAndDeployBattleMech(host, soakProfile.hostSearch), addAndDeployBattleMech(guest, soakProfile.guestSearch)]);
+  check(`both players deploy the ${soakProfile.name} roster`, /Deployment:\s*[1-9]/.test(await host.locator('.roster-summary').innerText()) && /Deployment:\s*[1-9]/.test(await guest.locator('.roster-summary').innerText()));
   await Promise.all([placeBattlefieldDeployment(host, '0405', 'E'), placeBattlefieldDeployment(guest, '1105', 'W')]);
   check('both players choose deployment hexes and facings', /1\/1 placed/.test(await host.locator('#lobby-deployment > .deployment-help').innerText()) && /1\/1 placed/.test(await guest.locator('#lobby-deployment > .deployment-help').innerText()));
 
@@ -299,6 +315,7 @@ try {
   const deployedBoard = { host: await state(host), guest: await state(guest) };
   check('shared battlefield uses the selected deployment positions and facings',
     deployedBoard.host.ownPositions.includes('0405:E') && deployedBoard.guest.ownPositions.includes('1105:W'), JSON.stringify(deployedBoard));
+  check(`custom skirmish uses the selected ${soakProfile.mapId} battlefield`, deployedBoard.host.mapId === soakProfile.mapId && deployedBoard.guest.mapId === soakProfile.mapId, JSON.stringify(deployedBoard));
 
   const initiativeResolved = await rollUntilResolved(host, guest);
   const initiativeState = { host: await state(host), guest: await state(guest) };
@@ -363,9 +380,9 @@ try {
 }
 
 if (failures.length) {
-  if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: false, gameCode, failures, errors }, null, 2));
+  if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: false, gameCode, soakProfile, failures, errors }, null, 2));
   console.log(`\n${failures.length} human-vs-human regression failure(s)`);
   process.exit(1);
 }
-if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: true, gameCode, failures: [], errors }, null, 2));
+if (REPORT_PATH) await writeFile(REPORT_PATH, JSON.stringify({ passed: true, gameCode, soakProfile, failures: [], errors }, null, 2));
 console.log('\nHuman-vs-human regression smoke test passed');

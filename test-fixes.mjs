@@ -750,6 +750,7 @@ check('#5 Level 2 Dragon acceptance fires each advanced Dragon system through th
 check('#5 duel soak repeats browser battles, focused rules and Dragon acceptance while retaining failed diagnostics', duelSoakSource.includes('BT_SOAK_RUNS') && duelSoakSource.includes("tools/test-human-vs-human.mjs") && duelSoakSource.includes("tools/test-human-vs-human-rules.mjs") && duelSoakSource.includes("tools/test-dragon-level2-live.mjs") && duelSoakSource.includes('BT_SOAK_CLEANUP') && duelSoakSource.includes('BT_FOCUSED_REPORT'));
 check('#5 live Human-versus-Human smoke uses the current Create Custom Skirmish control', fs.readFileSync(`${ROOT}/tools/test-human-vs-human.mjs`, 'utf8').includes("name: 'Create Custom Skirmish'"));
 check('#5 focused live rules resolve CASE ammunition fixtures from the pinned catalogue rather than one legacy unit ID', fs.readFileSync(`${ROOT}/tools/test-human-vs-human-rules.mjs`, 'utf8').includes('caseCandidate') && fs.readFileSync(`${ROOT}/tools/test-human-vs-human-rules.mjs`, 'utf8').includes('loadUnitCatalogue(version, true)'));
+check('#5 duel soak rotates supported custom-skirmish forces and maps through the real lobby', ['woodland-approach','open-engagement','flatlands-open-terrain','ridge-and-ford','dragon drg-5n','kintaro','dervish'].every(value => humanBattleSource.includes(value)) && humanBattleSource.includes('BT_SOAK_PROFILE') && duelSoakSource.includes('BT_SOAK_PROFILE'));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

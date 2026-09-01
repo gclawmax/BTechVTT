@@ -52,6 +52,7 @@ try {
   }
   for (let index = 1; index <= runs; index++) {
     const env = { BT_H2H_REPORT:join(reportDir, `human-${index}.json`), BT_FOCUSED_REPORT:join(reportDir, `focused-${index}.json`), BT_DRAGON_REPORT:join(reportDir, `dragon-${index}.json`),
+      BT_SOAK_PROFILE:String(index - 1),
       ...(keepPassed ? {} : { BT_SOAK_CLEANUP:'1' }) };
     await run('node', ['tools/test-human-vs-human.mjs'], env, `Duel soak ${index}/${runs}: two-player UI battle`);
     await run('node', ['tools/test-human-vs-human-rules.mjs'], env, `Duel soak ${index}/${runs}: focused rules`);
