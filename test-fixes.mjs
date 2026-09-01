@@ -748,6 +748,7 @@ const dragonAcceptanceSource = fs.readFileSync(`${ROOT}/tools/test-dragon-level2
 const duelSoakSource = fs.readFileSync(`${ROOT}/tools/run-battlemech-duel-soak.mjs`, 'utf8');
 check('#5 Level 2 Dragon acceptance fires each advanced Dragon system through the authoritative weapon RPC', ['grand-dragon-drg-5k','dragon-drg-5n','dragon-drg-7n','grand-dragon-drg-7k','grand-dragon-drg-9kc','er_ppc','uac5','gauss_rifle','mrm10','snub_ppc','mml5','c3_master_tag'].every(value => dragonAcceptanceSource.includes(value)) && dragonAcceptanceSource.includes("db.rpc('submit_simultaneous_weapon_declaration'"));
 check('#5 duel soak repeats browser battles, focused rules and Dragon acceptance while retaining failed diagnostics', duelSoakSource.includes('BT_SOAK_RUNS') && duelSoakSource.includes("tools/test-human-vs-human.mjs") && duelSoakSource.includes("tools/test-human-vs-human-rules.mjs") && duelSoakSource.includes("tools/test-dragon-level2-live.mjs") && duelSoakSource.includes('BT_SOAK_CLEANUP') && duelSoakSource.includes('BT_FOCUSED_REPORT'));
+check('#5 live Human-versus-Human smoke uses the current Create Custom Skirmish control', fs.readFileSync(`${ROOT}/tools/test-human-vs-human.mjs`, 'utf8').includes("name: 'Create Custom Skirmish'"));
 
 // ── Summary ────────────────────────────────────────────────────────────────
 const failed = results.filter(r => !r.ok);

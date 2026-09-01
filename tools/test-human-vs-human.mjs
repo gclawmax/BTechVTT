@@ -271,7 +271,7 @@ try {
   await Promise.all([signIn(host, HOST), signIn(guest, GUEST)]);
   check('both players reach the main menu', await activeScreen(host) === 'menu-screen' && await activeScreen(guest) === 'menu-screen');
 
-  await host.getByRole('button', { name: 'Create Game', exact: true }).click();
+  await host.getByRole('button', { name: 'Create Custom Skirmish', exact: true }).click();
   check('host opens match setup', await waitForScreen(host, 'match-setup-screen'));
   await host.selectOption('#create-tonnage-select', '100');
   await host.getByRole('button', { name: 'Create Lobby', exact: true }).click();
