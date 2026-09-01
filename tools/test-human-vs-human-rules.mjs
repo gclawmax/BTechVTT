@@ -14,6 +14,7 @@ const HOST = { user: process.env.BT_H2H_HOST || 'h2h-regression-host', pass: pro
 const GUEST = { user: process.env.BT_H2H_GUEST || 'h2h-regression-guest', pass: process.env.BT_H2H_GUEST_PASS || 'H2H!Guest01' };
 const REPORT_PATH = process.env.BT_FOCUSED_REPORT || null;
 const failures = [];
+const skippedCoverage = [];
 let gameCode = null;
 let baselineUnitId = null;
 
@@ -22,6 +23,10 @@ function check(name, condition, detail = '') {
   const ok = Boolean(condition);
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failures.push(`${name}${detail ? ` — ${detail}` : ''}`);
+}
+function skipCoverage(label, reason) {
+  skippedCoverage.push({ label, reason });
+  console.log(`SKIP  ${label} — ${reason}`);
 }
 async function activeScreen(page) {
   return page.evaluate(() => Array.from(document.querySelectorAll('.screen')).find(screen => screen.classList.contains('active'))?.id || null);
@@ -219,7 +224,7 @@ try {
   // a bundled map's future art/layout revisions.
   const indirectRound = roundBase + 1;
   if (!combatFixtures.indirect) {
-    console.log('SKIP  indirect Artemis fixture — this pinned catalogue has no Artemis-capable LRM bin.');
+    skipCoverage('indirect Artemis fixture', 'this pinned catalogue has no Artemis-capable LRM bin.');
   } else {
     const indirectAttackerId = `${combatFixtures.indirect.unitId}-p1-1`;
     await configureScenario(host, game, players, indirectRound, 'weapon_attack',
@@ -246,7 +251,7 @@ try {
   // target has an attached pod. The pod is part of the authoritative snapshot.
   const narcRound = roundBase + 2;
   if (!combatFixtures.narc) {
-    console.log('SKIP  Narc fixture — this pinned catalogue has no Narc-capable LRM bin.');
+    skipCoverage('Narc fixture', 'this pinned catalogue has no Narc-capable LRM bin.');
   } else {
     const narcAttackerId = `${combatFixtures.narc.unitId}-p1-1`;
     await configureScenario(host, game, players, narcRound, 'weapon_attack',
@@ -268,7 +273,7 @@ try {
   // torso-mounted LRM legally and verify the +2 prone modifier.
   const proneRound = roundBase + 3;
   if (!combatFixtures.prone) {
-    console.log('SKIP  prone-fire fixture — this pinned catalogue has no left-arm and torso energy-weapon pairing.');
+    skipCoverage('prone-fire fixture', 'this pinned catalogue has no left-arm and torso energy-weapon pairing.');
   } else {
     const proneAttackerId = `${combatFixtures.prone.unitId}-p1-1`;
     await configureScenario(host, game, players, proneRound, 'weapon_attack',
@@ -486,7 +491,10 @@ try {
     const locationKey = name => ({ 'Left Arm':'la', 'Right Arm':'ra', 'Left Torso':'lt', 'Right Torso':'rt', 'Center Torso':'ct', Head:'head', 'Left Leg':'ll', 'Right Leg':'rl' })[name] || name;
     const caseCandidate = Object.entries(BT_UNITS).filter(([unitId]) => databaseSupportedUnitIds.has(unitId)).map(([unitId, unit]) => {
       const location = Object.entries(BT_CRITICAL_LAYOUTS[unitId] || {}).find(([key, slots]) =>
-        slots.some(slot => /\bcase\b/i.test(slot || '')) && (unit.ammoBins || []).some(bin => locationKey(bin.location) === key)
+        // MegaMek frequently labels Inner Sphere CASE as "ISCASE" rather
+        // than the display form "CASE". Normalise labels so both records
+        // exercise the same authoritative ammunition-explosion rules.
+        slots.some(slot => /case/i.test(String(slot || '').replace(/[^a-z0-9]/gi, ''))) && (unit.ammoBins || []).some(bin => locationKey(bin.location) === key)
       )?.[0];
       return location ? { unitId, location } : null;
     }).find(Boolean);
@@ -511,7 +519,7 @@ try {
     };
   }, { version: game.catalogue_version, baselineUnitId });
   if (consequences.unavailable) {
-    console.log(`SKIP  CASE ammunition consequence fixture — ${consequences.reason}`);
+    skipCoverage('CASE ammunition consequence fixture', consequences.reason);
   } else {
     const clanResult = consequences.clan.data;
     check('CASE vents ammunition overflow outside the centre torso', !consequences.clan.error && clanResult?.case_protected === true && clanResult?.vented_damage > 0 && clanResult?.mech?.structure?.ct === consequences.clan.caseCt && clanResult?.mech?.pilot?.hits === 2, JSON.stringify(consequences.clan));
@@ -521,7 +529,7 @@ try {
 } catch (error) {
   check('focused live rules regression completed without a fatal error', false, error.message);
 } finally {
-  if (REPORT_PATH && failures.length) await writeFile(REPORT_PATH, JSON.stringify({ passed:false, gameCode, failures, errors }, null, 2));
+  if (REPORT_PATH && (failures.length || skippedCoverage.length)) await writeFile(REPORT_PATH, JSON.stringify({ passed:failures.length === 0, gameCode, failures, errors, skippedCoverage }, null, 2));
   console.log('\n--- console/page errors ---');
   console.log(errors.join('\n') || '(none)');
   await browser.close();
