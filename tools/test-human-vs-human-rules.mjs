@@ -327,7 +327,10 @@ try {
     { 1: [{ col: 7, row: 5, facing: 0 }], 2: [{ col: 14, row: 9, facing: 3 }] }, {}, { mapId: 'industrial-crossing' });
   const pavementTurn = await rpc(host, 'submit_battlemech_movement', {
     p_game_id: game.id, p_instance_id: 'locust-lct1e-p1-1', p_mode: 'run',
-    p_path: [{ action: 'turn', direction: 'left' }]
+    // A turn by itself is not a complete Movement activation. Take the
+    // following legal pavement step as well, so the fixture both invokes the
+    // control check and satisfies alternating-activation accounting.
+    p_path: [{ action: 'turn', direction: 'left' }, { action: 'step', col: 8, row: 4 }]
   });
   check('a running pavement turn invokes the authoritative control check', !pavementTurn.error && pavementTurn.data?.terrain_check?.reasons?.includes('running turn on pavement'), JSON.stringify(pavementTurn));
 

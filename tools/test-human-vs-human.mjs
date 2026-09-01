@@ -30,11 +30,14 @@ const failures = [];
 // physical-contact assertions below, while exercising genuinely different
 // supported equipment and map data through the normal lobby UI.
 const SOAK_MATRIX = Object.freeze([
-  { name:'Training Grounds', mapId:'training-grounds', fallback:['locust','locust'] },
-  { name:'Woodland Approach', mapId:'woodland-approach', fallback:['wolverine','panther'] },
-  { name:'Open Engagement', mapId:'open-engagement', fallback:['griffin','blackjack'] },
-  { name:'Flatlands', mapId:'flatlands-open-terrain', fallback:['dragon drg-5n','panther'] },
-  { name:'Ridge and Ford', mapId:'ridge-and-ford', fallback:['kintaro','dervish'] }
+  { name:'Training Grounds', mapId:'training-grounds', fallback:['locust','locust'], deployment:{ host:{ hex:'0405', facing:'E' }, guest:{ hex:'1105', facing:'W' } }, contact:{ host:'0705:E', guest:'0805:W' } },
+  { name:'Woodland Approach', mapId:'woodland-approach', fallback:['wolverine','panther'], deployment:{ host:{ hex:'0405', facing:'E' }, guest:{ hex:'1105', facing:'W' } }, contact:{ host:'0705:E', guest:'0805:W' } },
+  { name:'Open Engagement', mapId:'open-engagement', fallback:['griffin','blackjack'], deployment:{ host:{ hex:'0405', facing:'E' }, guest:{ hex:'1105', facing:'W' } }, contact:{ host:'0705:E', guest:'0805:W' } },
+  { name:'Flatlands', mapId:'flatlands-open-terrain', fallback:['dragon drg-5n','panther'], deployment:{ host:{ hex:'0405', facing:'E' }, guest:{ hex:'1105', facing:'W' } }, contact:{ host:'0705:E', guest:'0805:W' } },
+  // The direct centre lane includes impassable hex 0905. This route meets on
+  // the raised ridge instead, exercising rough/pavement costs without asking
+  // either randomly selected BattleMech to enter an illegal hex.
+  { name:'Ridge and Ford', mapId:'ridge-and-ford', fallback:['kintaro','dervish'], deployment:{ host:{ hex:'0404', facing:'E' }, guest:{ hex:'1104', facing:'W' } }, contact:{ host:'0704:E', guest:'0804:W' } }
 ]);
 const soakProfileIndex = Math.max(0, Number(process.env.BT_SOAK_PROFILE || 0) || 0);
 const soakProfile = SOAK_MATRIX[soakProfileIndex % SOAK_MATRIX.length];
@@ -142,6 +145,21 @@ async function state(page) {
     guidance: document.getElementById('turn-guidance')?.textContent || ''
   }));
 }
+async function refreshedState(page) {
+  await page.evaluate(async () => {
+    // Realtime delivery can lag a just-resolved simultaneous action. Re-read
+    // the authoritative match before deciding nobody owns the next turn.
+    if (typeof loadGameState === 'function') await loadGameState();
+  }).catch(() => {});
+  return state(page);
+}
+async function synchronizedStates(host, guest) {
+  let [hostState, guestState] = await Promise.all([state(host), state(guest)]);
+  if (hostState.phase && hostState.phase === guestState.phase && !hostState.myTurn && !guestState.myTurn) {
+    [hostState, guestState] = await Promise.all([refreshedState(host), refreshedState(guest)]);
+  }
+  return { hostState, guestState };
+}
 async function initiativeDiagnostics(page) {
   return page.evaluate(() => {
     const button = document.getElementById('btn-roll-initiative');
@@ -185,8 +203,7 @@ async function rollUntilResolved(host, guest) {
 async function completeAlternatingMovement(host, guest) {
   const deadline = Date.now() + 60000;
   while (Date.now() < deadline) {
-    const hostState = await state(host);
-    const guestState = await state(guest);
+    const { hostState, guestState } = await synchronizedStates(host, guest);
     if (hostState.phase !== 'movement' && guestState.phase !== 'movement') return { hostState, guestState };
     for (const [page, snapshot] of [[host, hostState], [guest, guestState]]) {
       if (snapshot.phase !== 'movement' || !snapshot.myTurn) continue;
@@ -218,8 +235,7 @@ async function completeAlternatingMovement(host, guest) {
 async function advanceThroughNoFireToPhysical(host, guest) {
   const deadline = Date.now() + 90000;
   while (Date.now() < deadline) {
-    const hostState = await state(host);
-    const guestState = await state(guest);
+    const { hostState, guestState } = await synchronizedStates(host, guest);
     if (hostState.phase === 'physical_attack' && guestState.phase === 'physical_attack') return { hostState, guestState };
     for (const [page, snapshot] of [[host, hostState], [guest, guestState]]) {
       if (!snapshot.myTurn) continue;
@@ -247,8 +263,7 @@ async function advanceThroughNoFireToPhysical(host, guest) {
 async function completePhysicalExchange(host, guest) {
   const deadline = Date.now() + 90000;
   while (Date.now() < deadline) {
-    const hostState = await state(host);
-    const guestState = await state(guest);
+    const { hostState, guestState } = await synchronizedStates(host, guest);
     if (hostState.phase === 'heat' && guestState.phase === 'heat') return { hostState, guestState };
     for (const [page, snapshot] of [[host, hostState], [guest, guestState]]) {
       if (snapshot.phase !== 'physical_attack' || !snapshot.myTurn) continue;
@@ -287,8 +302,7 @@ async function sharedCombatSignature(page) {
 async function completePhaseThroughHeat(host, guest) {
   const deadline = Date.now() + 90000;
   while (Date.now() < deadline) {
-    const hostState = await state(host);
-    const guestState = await state(guest);
+    const { hostState, guestState } = await synchronizedStates(host, guest);
     if (hostState.round >= 2 && guestState.round >= 2 && hostState.phase === 'initiative' && guestState.phase === 'initiative') return { hostState, guestState };
     for (const [page, snapshot] of [[host, hostState], [guest, guestState]]) {
       if (!snapshot.myTurn) continue;
@@ -372,7 +386,10 @@ try {
   console.log(`SOAK FORCE: ${selections.host.unitId} versus ${selections.guest.unitId} (${selections.mode}, seed ${selections.seed})`);
   await Promise.all([addAndDeployBattleMech(host, selections.host), addAndDeployBattleMech(guest, selections.guest)]);
   check(`both players deploy the ${selections.mode} ${soakProfile.name} roster`, /Deployment:\s*[1-9]/.test(await host.locator('.roster-summary').innerText()) && /Deployment:\s*[1-9]/.test(await guest.locator('.roster-summary').innerText()));
-  await Promise.all([placeBattlefieldDeployment(host, '0405', 'E'), placeBattlefieldDeployment(guest, '1105', 'W')]);
+  await Promise.all([
+    placeBattlefieldDeployment(host, soakProfile.deployment.host.hex, soakProfile.deployment.host.facing),
+    placeBattlefieldDeployment(guest, soakProfile.deployment.guest.hex, soakProfile.deployment.guest.facing)
+  ]);
   check('both players choose deployment hexes and facings', /1\/1 placed/.test(await host.locator('#lobby-deployment > .deployment-help').innerText()) && /1\/1 placed/.test(await guest.locator('#lobby-deployment > .deployment-help').innerText()));
 
   await host.locator('#btn-ready').click();
@@ -381,10 +398,12 @@ try {
   await host.locator('#btn-start').click();
   check('host starts the shared game', await waitForScreen(host, 'game-screen'));
   check('guest receives the shared game', await waitForScreen(guest, 'game-screen'));
-  await Promise.all([waitForDeploymentState(host, '0405:E'), waitForDeploymentState(guest, '1105:W')]);
+  const deployedHostPosition = `${soakProfile.deployment.host.hex}:${soakProfile.deployment.host.facing}`;
+  const deployedGuestPosition = `${soakProfile.deployment.guest.hex}:${soakProfile.deployment.guest.facing}`;
+  await Promise.all([waitForDeploymentState(host, deployedHostPosition), waitForDeploymentState(guest, deployedGuestPosition)]);
   const deployedBoard = { host: await state(host), guest: await state(guest) };
   check('shared battlefield uses the selected deployment positions and facings',
-    deployedBoard.host.ownPositions.includes('0405:E') && deployedBoard.guest.ownPositions.includes('1105:W'), JSON.stringify(deployedBoard));
+    deployedBoard.host.ownPositions.includes(deployedHostPosition) && deployedBoard.guest.ownPositions.includes(deployedGuestPosition), JSON.stringify(deployedBoard));
   check(`custom skirmish uses the selected ${soakProfile.mapId} battlefield`, deployedBoard.host.mapId === soakProfile.mapId && deployedBoard.guest.mapId === soakProfile.mapId, JSON.stringify(deployedBoard));
 
   const ammoSave = await Promise.all([saveRequiredRoundOneAmmo(host), saveRequiredRoundOneAmmo(guest)]);
@@ -398,7 +417,7 @@ try {
 
   const contact = { host: await state(host), guest: await state(guest) };
   check('both BattleMechs finish movement adjacent and facing one another',
-    contact.host.ownPositions.includes('0705:E') && contact.guest.ownPositions.includes('0805:W'), JSON.stringify(contact));
+    contact.host.ownPositions.includes(soakProfile.contact.host) && contact.guest.ownPositions.includes(soakProfile.contact.guest), JSON.stringify(contact));
 
   const beforePhysical = await advanceThroughNoFireToPhysical(host, guest);
   check('both players reach the shared Physical Attack phase',
@@ -434,6 +453,7 @@ try {
   await rejoiningPage.reload({ waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
   const returnedToMenu = await waitForScreen(rejoiningPage, 'menu-screen');
   const activeMatch = rejoiningPage.locator('#active-games-list .game-entry').filter({ hasText: code });
+  await activeMatch.first().waitFor({ state:'visible', timeout:12000 }).catch(() => {});
   const matchingEntries = await activeMatch.count();
   const menuMatches = await activeMatch.allTextContents();
   const entryVisible = await activeMatch.first().isVisible().catch(() => false);

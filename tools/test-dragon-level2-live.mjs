@@ -22,6 +22,7 @@ const GUEST = { user: process.env.BT_H2H_GUEST || 'h2h-regression-guest', pass: 
 const REPORT_PATH = process.env.BT_DRAGON_REPORT || null;
 const failures = [];
 const errors = [];
+const skippedCases = [];
 let gameCode = null;
 
 const CASES = [
@@ -70,6 +71,11 @@ async function latestHostMatch(page) {
 async function runCase(host, guest, game, players, spec, round) {
   const fixture = await host.evaluate(async ({ game, players, spec, round }) => {
     await loadUnitCatalogue(game.catalogue_version, true);
+    const mount = (BT_UNITS[spec.unitId]?.weapons || []).find(entry => entry.key === spec.weapon);
+    if (!mount) return {
+      unavailable: true,
+      reason: `${spec.unitId} has no ${spec.weapon} mount in catalogue ${game.catalogue_version}`
+    };
     const attackerId = `${spec.unitId}-p1-1`;
     const targetId = 'locust-lct1e-p2-1';
     const units = buildRosterInstances({ 1: [spec.unitId], 2: ['locust-lct1e'] }, {}, {
@@ -84,8 +90,6 @@ async function runCase(host, guest, game, players, spec, round) {
         movementHeat:0, weaponHeat:0, externalHeat:0 });
       unit.pilot = { ...(unit.pilot || {}), gunnery:-6, piloting:5, hits:0, consciousness:'conscious' };
     }
-    const mount = (BT_UNITS[spec.unitId]?.weapons || []).find(entry => entry.key === spec.weapon);
-    if (!mount) throw new Error(`${spec.unitId} has no ${spec.weapon} mount in the pinned catalogue.`);
     if (spec.loadType) {
       const bin = (attacker.ammoBins || []).find(entry => entry.type === mount.weapon?.ammoType);
       if (!bin) throw new Error(`${spec.unitId} has no ammunition bin for ${spec.weapon}.`);
@@ -100,6 +104,11 @@ async function runCase(host, guest, game, players, spec, round) {
     const ammoBin = mount.weapon?.ammoType ? (attacker.ammoBins || []).find(entry => entry.type === mount.weapon.ammoType) : null;
     return { attackerId, targetId, mountId:mount.mountId, ammoBins: ammoBin ? { [mount.mountId]:ammoBin.id, __fire_modes: spec.mode ? { [mount.mountId]:spec.mode } : {} } : { __fire_modes:{} } };
   }, { game, players, spec, round });
+  if (fixture.unavailable) {
+    skippedCases.push({ label:spec.label, reason:fixture.reason });
+    console.log(`SKIP  ${spec.label} — ${fixture.reason}. Apply the newer catalogue release before this acceptance case can run.`);
+    return;
+  }
   const hostFire = await host.evaluate(async ({ gameId, fixture }) => {
     const result = await db.rpc('submit_simultaneous_weapon_declaration', { p_game_id:gameId, p_attacker_instance_id:fixture.attackerId,
       p_target_instance_id:fixture.targetId, p_weapon_mounts:[fixture.mountId], p_ammo_bins:fixture.ammoBins });
@@ -141,6 +150,13 @@ try {
   const { game, players } = await latestHostMatch(host);
   gameCode = game.game_code;
   check('Dragon acceptance finds the disposable two-player match', players.length === 2, gameCode);
+  const catalogue = await host.evaluate(async () => {
+    const { data, error } = await db.from('btech_catalogue_releases').select('version,generated_at').order('generated_at', { ascending:false }).limit(1).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  });
+  check('Dragon acceptance uses the newest installed catalogue for its disposable match', catalogue?.version === game.catalogue_version,
+    JSON.stringify({ match:game.catalogue_version, newestInstalled:catalogue?.version || null }));
   const roundBase = 200000 + Math.floor(Date.now() / 1000) % 100000;
   for (const [index, spec] of CASES.entries()) await runCase(host, guest, game, players, spec, roundBase + index);
   check('Dragon acceptance produces no browser or console errors', errors.length === 0, errors.join('\n'));
@@ -156,8 +172,11 @@ try {
 } catch (error) {
   check('Dragon Level 2 acceptance completed without a fatal error', false, error.message);
 } finally {
-  const report = { passed:failures.length === 0, gameCode, failures, errors, cases:CASES.map(item => item.label) };
-  if (REPORT_PATH && failures.length) await writeFile(REPORT_PATH, JSON.stringify(report, null, 2));
+  const report = { passed:failures.length === 0, gameCode, failures, errors, skippedCases, cases:CASES.map(item => item.label) };
+  // Keep a report for skipped cases as well: an otherwise green run must not
+  // hide that an older installed catalogue left part of this acceptance suite
+  // unexercised.
+  if (REPORT_PATH && (failures.length || skippedCases.length)) await writeFile(REPORT_PATH, JSON.stringify(report, null, 2));
   console.log('\n--- console/page errors ---');
   console.log(errors.join('\n') || '(none)');
   await browser.close();
