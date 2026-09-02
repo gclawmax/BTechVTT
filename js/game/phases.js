@@ -206,7 +206,10 @@ async function loadGameState() {
 function updateGameHeader() {
   const statusEl = document.getElementById('status-readout');
   const guidanceEl = document.getElementById('turn-guidance');
+  const concedeButton = document.getElementById('btn-concede-match');
   if (!statusEl) return;
+
+  if (concedeButton) concedeButton.hidden = mySeatNumber == null || Boolean(currentGameState.match_result);
 
   statusEl.classList.remove('is-my-turn', 'team-p1', 'team-p2');
   guidanceEl?.classList.remove('is-my-turn');
@@ -633,6 +636,37 @@ function determineMatchResult() {
     winner_seat: survivingSeats.length === 1 ? survivingSeats[0] : null,
     resolved_at: new Date().toISOString()
   };
+}
+
+function confirmConcedeCurrentMatch() {
+  if (!currentGameId || mySeatNumber == null || currentGameState.match_result) return;
+  showConfirmModal(
+    'Concede Match?',
+    'This immediately ends the match and awards victory to your opponent. This cannot be undone.',
+    async () => {
+      const concedeButton = document.getElementById('btn-concede-match');
+      if (concedeButton) {
+        concedeButton.disabled = true;
+        concedeButton.textContent = 'Conceding…';
+      }
+      const { data, error } = await db.rpc('concede_btech_match', { p_game_id: currentGameId });
+      if (error) {
+        if (concedeButton) {
+          concedeButton.disabled = false;
+          concedeButton.textContent = 'Concede';
+        }
+        flashMoveWarning(error.message);
+        logEvent(`Server rejected match concession: ${error.message}`, 'error');
+        return;
+      }
+      const winner = data?.result?.winner_seat;
+      logEvent(winner == null ? 'Match conceded — draw recorded.' : `Player ${mySeatNumber} conceded — Player ${winner} wins.`, 'phase');
+      showGameToast('Match conceded. The battle report is ready.', 'success');
+      await loadGameState();
+    },
+    'Concede Match',
+    'Keep Playing'
+  );
 }
 
 // Record a finished match once all of one side's 'Mechs are destroyed. The

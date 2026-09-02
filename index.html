@@ -11,8 +11,8 @@
 
   <link rel="stylesheet" href="css/main.css?v=20260902-map-hardening-51">
 </head>
-<body data-build="20260902-prone-reaction-55">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260902-prone-reaction-55</div>
+<body data-build="20260902-prone-support-concede-56">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260902-prone-support-concede-56</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 <div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
   <section class="game-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
@@ -241,6 +241,7 @@
     <button class="btn-back" onclick="handleBackToDropship()">Back to Dropship</button>
     <a class="header-help-link" href="how-to-play.html" target="_blank" rel="noopener">How to Play</a>
     <button id="btn-game-settings" class="game-settings-cog" onclick="openGameSettings()" title="Open local game settings for combat-log speed and sound effects" aria-label="Open game settings">⚙</button>
+    <button id="btn-concede-match" onclick="confirmConcedeCurrentMatch()" title="Concede the current match" aria-label="Concede the current match" style="background:#4a2020;border:1px solid #8b3a3a;color:#f3b0a8;padding:4px 10px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;" hidden>Concede</button>
     <button id="btn-roll-initiative" class="primary" onclick="rollInitiative()" style="background:#2a4a2a;border-color:#3a6a3a;color:#7c9;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Roll Initiative (2D6)</button>
     <button id="btn-advance-phase" onclick="advancePhase()" disabled title="Roll Initiative before continuing to the Movement Phase." style="background:#2a2a4a;border:1px solid #3a3a6a;color:#99c;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:not-allowed;opacity:0.45;border-radius:2px;">Next Phase</button>
     <label id="auto-ai-phase-control" hidden title="Automatically pass the turn or phase after the AI has completed its choices." style="display:inline-flex;align-items:center;gap:5px;color:#9ab;font:10px var(--mono);cursor:pointer;white-space:nowrap;"><input id="auto-ai-phase-checkbox" type="checkbox" onchange="setAutoAdvanceAfterAi(this.checked)"> Auto-next after AI</label>
@@ -250,7 +251,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260902-prone-reaction-55</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260902-prone-support-concede-56</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -300,7 +301,7 @@
 <script src="js/network/lobby.js?v=20260827-hidden-mines-31"></script>
 <script src="js/game/telemetry.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/replay-viewer.js?v=20260902-replay-viewer-49"></script>
-<script src="js/game/phases.js?v=20260901-finished-games-48"></script>
+<script src="js/game/phases.js?v=20260902-prone-support-concede-56"></script>
 <script src="js/game/board.js?v=20260902-variable-maps-50"></script>
 <script src="js/game/unit-artwork.js?v=20260820-01"></script>
 <script src="js/movement/rules.js?v=20260827-hidden-mines-31"></script>
@@ -309,7 +310,7 @@
 <script src="js/ui/panel-resize.js?v=20260831-readable-record-37"></script>
 <script src="js/movement/movement.js?v=20260902-prone-action-54"></script>
 <script src="js/game/reaction.js?v=20260902-prone-reaction-55"></script>
-<script src="js/game/weapon-attack.js?v=20260902-ultra-ac-mode-52"></script>
+<script src="js/game/weapon-attack.js?v=20260902-prone-support-concede-56"></script>
 <script src="js/game/physical-attack.js?v=20260901-finished-games-48"></script>
 <script src="js/game/heat.js?v=20260901-finished-games-48"></script>
 <script src="js/app.js?v=20260813-reaction-ui-01"></script>
