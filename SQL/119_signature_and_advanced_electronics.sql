@@ -72,7 +72,12 @@ DECLARE fn regprocedure;source text;patched text;
 BEGIN
  fn:=to_regprocedure('public.btech_process_weapon_declaration(text,integer,jsonb,text,text,text[],jsonb,boolean)');IF fn IS NULL THEN RAISE EXCEPTION 'Weapon resolver is missing';END IF;SELECT pg_get_functiondef(fn) INTO source;
  IF position('sr5_signature_targeting_v1' IN source)=0 THEN
-  patched:=replace(source,'tn:=base_tn+range_mod+component_mod+accuracy_mod+special_ammo_mod;','tn:=base_tn+range_mod+component_mod+accuracy_mod+special_ammo_mod+btech_signature_target_modifier(p_catalogue_version,target_start,dist,short_range,medium_range)+CASE WHEN btech_signature_system_active(p_catalogue_version,attacker_start,''void'') THEN 1 ELSE 0 END; /* sr5_signature_targeting_v1 */');
+  -- SQL 90's Targeting Computer extension is already part of the maintained
+  -- resolver, so retain its modifier when inserting the signature terms.
+  patched:=replace(source,'tn:=base_tn+range_mod+component_mod+accuracy_mod+special_ammo_mod+targeting_mod;','tn:=base_tn+range_mod+component_mod+accuracy_mod+special_ammo_mod+targeting_mod+btech_signature_target_modifier(p_catalogue_version,target_start,dist,short_range,medium_range)+CASE WHEN btech_signature_system_active(p_catalogue_version,attacker_start,''void'') THEN 1 ELSE 0 END; /* sr5_signature_targeting_v1 */');
+  IF patched=source THEN
+   patched:=replace(source,'tn:=base_tn+range_mod+component_mod+accuracy_mod+special_ammo_mod;','tn:=base_tn+range_mod+component_mod+accuracy_mod+special_ammo_mod+btech_signature_target_modifier(p_catalogue_version,target_start,dist,short_range,medium_range)+CASE WHEN btech_signature_system_active(p_catalogue_version,attacker_start,''void'') THEN 1 ELSE 0 END; /* sr5_signature_targeting_v1 */');
+  END IF;
   IF patched=source OR position('sr5_signature_targeting_v1' IN patched)=0 THEN RAISE EXCEPTION 'Could not safely install signature targeting';END IF;EXECUTE patched;
  END IF;
 END $$;
