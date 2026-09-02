@@ -316,5 +316,17 @@ const BT_WEAPONS = {
   rac5:       { name: 'Rotary AC/5', damage: 5, heat: 1, range: [5, 10, 15], ammoType: 'rac5', rotary: true },
   rac10:      { name: 'Rotary AC/10', damage: 10, heat: 3, range: [4, 8, 12], ammoType: 'rac10', rotary: true },
   rac20:      { name: 'Rotary AC/20', damage: 20, heat: 7, range: [3, 6, 9], ammoType: 'rac20', rotary: true },
+  atm3:       { name: 'ATM 3', damage: 6, heat: 2, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm3', clusterSize: 3, damagePerMissile: 2, missileWeapon: true, atm: true },
+  atm6:       { name: 'ATM 6', damage: 12, heat: 4, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm6', clusterSize: 6, damagePerMissile: 2, missileWeapon: true, atm: true },
+  atm9:       { name: 'ATM 9', damage: 18, heat: 6, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm9', clusterSize: 9, damagePerMissile: 2, missileWeapon: true, atm: true },
+  atm12:      { name: 'ATM 12', damage: 24, heat: 8, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm12', clusterSize: 12, damagePerMissile: 2, missileWeapon: true, atm: true },
+  tbolt5:     { name: 'Thunderbolt 5', damage: 5, heat: 3, range: [6, 12, 18], ammoType: 'tbolt5', missileWeapon: true, thunderbolt: true },
+  tbolt10:    { name: 'Thunderbolt 10', damage: 10, heat: 5, range: [6, 12, 18], ammoType: 'tbolt10', missileWeapon: true, thunderbolt: true },
+  tbolt15:    { name: 'Thunderbolt 15', damage: 15, heat: 7, range: [6, 12, 18], ammoType: 'tbolt15', missileWeapon: true, thunderbolt: true },
+  tbolt20:    { name: 'Thunderbolt 20', damage: 20, heat: 8, range: [6, 12, 18], ammoType: 'tbolt20', missileWeapon: true, thunderbolt: true },
+  streak_lrm5: { name: 'Streak LRM 5', damage: 5, heat: 2, range: [7, 14, 21], ammoType: 'streak_lrm5', clusterSize: 5, damagePerMissile: 1, missileWeapon: true, streak: true },
+  streak_lrm10:{ name: 'Streak LRM 10', damage: 10, heat: 4, range: [7, 14, 21], ammoType: 'streak_lrm10', clusterSize: 10, damagePerMissile: 1, missileWeapon: true, streak: true },
+  streak_lrm15:{ name: 'Streak LRM 15', damage: 15, heat: 5, range: [7, 14, 21], ammoType: 'streak_lrm15', clusterSize: 15, damagePerMissile: 1, missileWeapon: true, streak: true },
+  streak_lrm20:{ name: 'Streak LRM 20', damage: 20, heat: 6, range: [7, 14, 21], ammoType: 'streak_lrm20', clusterSize: 20, damagePerMissile: 1, missileWeapon: true, streak: true },
   streak_sr4: { name: 'Streak SRM-4', damage: 4, heat: 3, range: [3, 6, 9] }
 };

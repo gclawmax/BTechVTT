@@ -37,6 +37,18 @@ const WEAPONS = {
   'Rotary AC/10': { key: 'rac10', damage: 10, heat: 3, range: [4, 8, 12], ammoType: 'rac10', rotary: true },
   'Rotary AC/20': { key: 'rac20', damage: 20, heat: 7, range: [3, 6, 9], ammoType: 'rac20', rotary: true },
   'LB 10-X AC': { key: 'lb10x', damage: 10, heat: 2, range: [6, 12, 18], ammoType: 'lb10x' },
+  'ATM 3': { key: 'atm3', damage: 6, heat: 2, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm3', clusterSize: 3, damagePerMissile: 2, missileWeapon: true, atm: true },
+  'ATM 6': { key: 'atm6', damage: 12, heat: 4, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm6', clusterSize: 6, damagePerMissile: 2, missileWeapon: true, atm: true },
+  'ATM 9': { key: 'atm9', damage: 18, heat: 6, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm9', clusterSize: 9, damagePerMissile: 2, missileWeapon: true, atm: true },
+  'ATM 12': { key: 'atm12', damage: 24, heat: 8, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm12', clusterSize: 12, damagePerMissile: 2, missileWeapon: true, atm: true },
+  'Thunderbolt 5': { key: 'tbolt5', damage: 5, heat: 3, range: [6, 12, 18], ammoType: 'tbolt5', missileWeapon: true, thunderbolt: true },
+  'Thunderbolt 10': { key: 'tbolt10', damage: 10, heat: 5, range: [6, 12, 18], ammoType: 'tbolt10', missileWeapon: true, thunderbolt: true },
+  'Thunderbolt 15': { key: 'tbolt15', damage: 15, heat: 7, range: [6, 12, 18], ammoType: 'tbolt15', missileWeapon: true, thunderbolt: true },
+  'Thunderbolt 20': { key: 'tbolt20', damage: 20, heat: 8, range: [6, 12, 18], ammoType: 'tbolt20', missileWeapon: true, thunderbolt: true },
+  'Streak LRM 5': { key: 'streak_lrm5', damage: 5, heat: 2, range: [7, 14, 21], ammoType: 'streak_lrm5', clusterSize: 5, damagePerMissile: 1, missileWeapon: true, streak: true },
+  'Streak LRM 10': { key: 'streak_lrm10', damage: 10, heat: 4, range: [7, 14, 21], ammoType: 'streak_lrm10', clusterSize: 10, damagePerMissile: 1, missileWeapon: true, streak: true },
+  'Streak LRM 15': { key: 'streak_lrm15', damage: 15, heat: 5, range: [7, 14, 21], ammoType: 'streak_lrm15', clusterSize: 15, damagePerMissile: 1, missileWeapon: true, streak: true },
+  'Streak LRM 20': { key: 'streak_lrm20', damage: 20, heat: 6, range: [7, 14, 21], ammoType: 'streak_lrm20', clusterSize: 20, damagePerMissile: 1, missileWeapon: true, streak: true },
   'Machine Gun': { key: 'machine_gun', damage: 2, heat: 0, range: [1, 2, 3], ammoType: 'machine_gun' },
   Flamer: { key: 'flamer', damage: 2, heat: 3, range: [1, 2, 3] },
   'LRM 20': { key: 'lrm20', damage: 20, heat: 6, range: [7, 14, 21], minimumRange: 6, ammoType: 'lrm20', clusterSize: 20, damagePerMissile: 1, missileWeapon: true },
@@ -68,6 +80,19 @@ const WEAPONS = {
   Narc: { key: 'narc', damage: 0, heat: 0, range: [3, 6, 9], ammoType: 'narc' },
   TAG: { key: 'tag', damage: 0, heat: 0, range: [5, 10, 15] }
 };
+// MegaMek records use both player-facing and internal Clan launcher names.
+for (const size of [3, 6, 9, 12]) {
+  const profile = WEAPONS[`ATM ${size}`];
+  WEAPONS[`Clan ATM-${size}`] = profile;
+  WEAPONS[`Clan ATM ${size}`] = profile;
+  WEAPONS[`CLATM${size}`] = profile;
+}
+for (const size of [5, 10, 15, 20]) {
+  const profile = WEAPONS[`Streak LRM ${size}`];
+  WEAPONS[`Clan Streak LRM-${size}`] = profile;
+  WEAPONS[`Clan Streak LRM ${size}`] = profile;
+  WEAPONS[`CLStreakLRM${size}`] = profile;
+}
 const CLAN_WEAPON_OVERRIDES = {
   'ER Medium Laser': { damage: 7, range: [5, 10, 15] },
   'ER Large Laser': { damage: 10, range: [8, 15, 25] },
@@ -85,6 +110,9 @@ const AMMO = [
   [/Ultra AC\/5 Ammo/i, 'uac5', 20], [/LB 10-X AC Ammo/i, 'lb10x', 10],
   [/Rotary AC\/2 Ammo/i, 'rac2', 45], [/Rotary AC\/5 Ammo/i, 'rac5', 20],
   [/Rotary AC\/10 Ammo/i, 'rac10', 10], [/Rotary AC\/20 Ammo/i, 'rac20', 5],
+  [/Ammo ATM-?3(?: ER| HE)?/i, 'atm3', 20], [/Ammo ATM-?6(?: ER| HE)?/i, 'atm6', 10], [/Ammo ATM-?9(?: ER| HE)?/i, 'atm9', 7], [/Ammo ATM-?12(?: ER| HE)?/i, 'atm12', 5],
+  [/Ammo Thunderbolt-?5/i, 'tbolt5', 12], [/Ammo Thunderbolt-?10/i, 'tbolt10', 6], [/Ammo Thunderbolt-?15/i, 'tbolt15', 4], [/Ammo Thunderbolt-?20/i, 'tbolt20', 3],
+  [/Streak LRM ?5 Ammo/i, 'streak_lrm5', 24], [/Streak LRM ?10 Ammo/i, 'streak_lrm10', 12], [/Streak LRM ?15 Ammo/i, 'streak_lrm15', 8], [/Streak LRM ?20 Ammo/i, 'streak_lrm20', 6],
   [/Gauss Ammo/i, 'gauss', 8], [/Streak SRM 2 Ammo/i, 'streak_srm2', 50], [/Narc Pods/i, 'narc', 6], [/AMS Ammo/i, 'ams', 12],
   [/MRM 10 Ammo/i, 'mrm10', 24], [/MRM 20 Ammo/i, 'mrm20', 12], [/MRM 30 Ammo/i, 'mrm30', 8], [/MRM 40 Ammo/i, 'mrm40', 6],
   [/MML-3 (?:LRM|SRM)/i, 'mml3', 40], [/MML-5 (?:LRM|SRM)/i, 'mml5', 24], [/MML-7 (?:LRM|SRM)/i, 'mml7', 17], [/MML-9 (?:LRM|SRM)/i, 'mml9', 13],

@@ -90,7 +90,7 @@ function weaponShotsForMode(mountId, weaponEntry) {
 }
 
 function ammoBinLabel(bin) {
-  const loadoutLabels = { semi_guided:'Semi-guided',armor_piercing:'Armor-piercing',fragmentation:'Fragmentation',flechette:'Flechette' };
+  const loadoutLabels = { semi_guided:'Semi-guided',armor_piercing:'Armor-piercing',fragmentation:'Fragmentation',flechette:'Flechette',er:'ATM ER',he:'ATM HE',standard:'Standard' };
   const loadout = bin.loadType ? ` · ${loadoutLabels[bin.loadType] || `${bin.loadType[0].toUpperCase()}${bin.loadType.slice(1)}`}` : '';
   const guidance = bin.artemisCapable ? ' · Artemis IV' : bin.narcCapable ? ' · Narc-capable' : '';
   return `${bin.location}${loadout}${guidance} · ${bin.shots}/${bin.maxShots} shots`;
@@ -116,6 +116,13 @@ function mmlAmmoMode(attacker, weaponEntry) {
 
 function effectiveWeaponProfile(attacker, weaponEntry) {
   const weapon = weaponProfile(weaponEntry);
+  if (weapon?.atm) {
+    const loadType = selectedAmmoLoadType(attacker, weaponEntry);
+    const payload = loadType === 'er' ? { damage: 1, range: [9, 18, 27], minimumRange: 0 }
+      : loadType === 'he' ? { damage: 3, range: [3, 6, 9], minimumRange: 0 }
+        : { damage: 2, range: [5, 10, 15], minimumRange: 4 };
+    return { ...weapon, damage: Number(weapon.clusterSize || 0) * payload.damage, damagePerMissile: payload.damage, range: payload.range, minimumRange: payload.minimumRange, atmMode: loadType };
+  }
   if (!weapon?.mml) return weapon;
   const rack = Number(weapon.clusterSize || String(weaponEntry.key || '').match(/\d+/)?.[0] || 0);
   return mmlAmmoMode(attacker, weaponEntry) === 'srm'
@@ -129,7 +136,8 @@ function effectiveWeaponDamage(weapon, distance) {
 }
 
 function isIndirectCapableWeapon(attacker, weaponEntry) {
-  return weaponEntry?.key?.startsWith('lrm') || (weaponProfile(weaponEntry)?.mml && mmlAmmoMode(attacker, weaponEntry) === 'lrm');
+  const weapon = weaponProfile(weaponEntry);
+  return weaponEntry?.key?.startsWith('lrm') || weapon?.thunderbolt || (weapon?.mml && mmlAmmoMode(attacker, weaponEntry) === 'lrm');
 }
 
 function terrainLosPoints(terrain, intervening = true) {
