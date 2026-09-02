@@ -13,6 +13,6 @@ check('Standard 3060 excludes advanced booster equipment', !status('advanced',{e
 check('Advanced 3060 retains supported advanced equipment', status('advanced',{era:3050},'advanced_3060').allowed);
 check('3060 rulesets exclude later-era units', !status('later',{era:3067},'advanced_3060').allowed);
 check('Void Signature stays Open-only', !status('void',{era:3050},'advanced_3060').allowed && status('void',{era:3070},'open_experimental').allowed);
-for (const marker of ['btech_ruleset_unit_allowed','sr6_ruleset_hangar_v1','update_lobby_roster']) check(`authoritative SQL includes ${marker}`, sql.includes(marker));
+for (const marker of ['btech_ruleset_unit_allowed','update_skirmish_hangar','update_lobby_roster']) check(`authoritative SQL includes ${marker}`, sql.includes(marker));
 if (failures.length) { console.error(`\n${failures.length} ruleset-control regression failure(s).`); process.exit(1); }
 console.log('\nRuleset-control regression checks passed.');
