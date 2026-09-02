@@ -76,8 +76,9 @@ function compatibleAmmoBins(attacker, weaponEntry, shotsRequired = 1) {
 }
 
 function weaponFireMode(mountId, weaponEntry) {
-  if (weaponEntry?.key?.startsWith('uac')) return weaponAttackState.fireModesByMount[mountId] || 'single';
-  if (weaponEntry?.key === 'lb10x') return weaponAttackState.fireModesByMount[mountId] || 'slug';
+  const key = weaponProfile(weaponEntry)?.key || weaponEntry?.key;
+  if (key?.startsWith('uac')) return weaponAttackState.fireModesByMount[mountId] || 'single';
+  if (key === 'lb10x') return weaponAttackState.fireModesByMount[mountId] || 'slug';
   return 'single';
 }
 
@@ -674,7 +675,7 @@ function selectWeaponFireMode(mountId, mode) {
   weaponAttackState.aimLocationsByMount ||= {};
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
-  const validModes = entry?.key?.startsWith('uac') ? ['single', 'rapid'] : [];
+  const validModes = (weaponProfile(entry)?.key || entry?.key)?.startsWith('uac') ? ['single', 'rapid'] : [];
   if (!entry || !validModes.includes(mode)) return;
   const bins = (weaponPhaseStartMech(attacker).ammoBins || []).filter(bin =>
     bin.type === weaponProfile(entry)?.ammoType && bin.shots >= (mode === 'rapid' ? 2 : 1) && !bin.destroyed &&
@@ -707,7 +708,7 @@ function selectAmmoBinForMount(mountId, binId) {
   const entry = attacker && BT_UNITS[attacker.unitId].weapons.find((weapon, index) => weaponMountId(weapon, index) === mountId);
   if (!entry || !compatibleAmmoBins(attacker, entry, weaponShotsForMode(mountId, entry)).some(bin => bin.id === binId)) return;
   weaponAttackState.ammoBinsByMount[mountId] = binId;
-  if (entry.key === 'lb10x') {
+  if ((weaponProfile(entry)?.key || entry.key) === 'lb10x') {
     const bin = (weaponPhaseStartMech(attacker).ammoBins || []).find(candidate => candidate.id === binId);
     weaponAttackState.fireModesByMount[mountId] = bin?.loadType || 'slug';
     if (weaponAttackState.fireModesByMount[mountId] === 'cluster') delete weaponAttackState.aimLocationsByMount[mountId];
@@ -728,7 +729,7 @@ function resolveDeclaredAmmoBins(attacker, selectedWeapons) {
     if (!selected) return { error: `Choose an ammunition bin for ${weapon.name}.` };
     choices[mountId] = selected.id;
   }
-  const fireModes = Object.fromEntries(selectedWeapons.filter(entry => entry.key?.startsWith('uac') || entry.key === 'lb10x').map(entry => {
+  const fireModes = Object.fromEntries(selectedWeapons.filter(entry => { const key = weaponProfile(entry)?.key || entry.key; return key?.startsWith('uac') || key === 'lb10x'; }).map(entry => {
     const mountId = weaponMountId(entry, BT_UNITS[attacker.unitId].weapons.indexOf(entry));
     return [mountId, weaponFireMode(mountId, entry)];
   }));

@@ -601,7 +601,7 @@ check('#5 board redraw restores its device-pixel baseline before applying view t
 const indexSource = fs.readFileSync(`${ROOT}/index.html`, 'utf8');
 const supabaseSource = fs.readFileSync(`${ROOT}/js/network/supabase.js`, 'utf8');
 const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
-check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260902-map-hardening-51"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
+check('#5 dropship and fixed build stamps share the one visible release marker', indexSource.includes('data-build="20260902-ultra-ac-mode-52"') && indexSource.includes('id="map-build-stamp"') && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const hitLocationMigration = fs.readFileSync(`${ROOT}/SQL/99_correct_hit_locations_and_through_armour_criticals.sql`, 'utf8');
 check('#5 standard side hit-location tables and roll-2 TACs are authoritative', hitLocationMigration.includes("WHEN 'side-right' THEN CASE roll_total WHEN 2 THEN 'rt'") && hitLocationMigration.includes("WHEN 'side-left' THEN CASE roll_total WHEN 2 THEN 'lt'") && hitLocationMigration.includes("'through_armor_critical',roll_total=2"));
 check('#5 through-armour criticals preserve normal armour-first damage', hitLocationMigration.indexOf('btech_apply_special_ammo_damage') < hitLocationMigration.indexOf("p_location_roll->>'through_armor_critical'") && hitLocationMigration.includes("'through_armor',true"));
