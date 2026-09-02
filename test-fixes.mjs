@@ -519,9 +519,11 @@ check('#5 SQL 62 patch markers are PostgreSQL string literals, not quoted identi
 const terrainMigration = fs.readFileSync(`${ROOT}/SQL/63_complete_common_terrain.sql`, 'utf8');
 check('#5 terrain rules cover bundled maps, water, rubble and level costs', terrainMigration.includes('flatlands-open-terrain') && terrainMigration.includes('desert-hills') && terrainMigration.includes('entering water') && terrainMigration.includes('entering rubble') && terrainMigration.includes('abs(next_level-current_level)'));
 const proneSupportMigration = fs.readFileSync(`${ROOT}/SQL/113_prone_support_arm_and_concession.sql`, 'utf8');
+const proneReactionMigration = fs.readFileSync(`${ROOT}/SQL/112_prone_battlemech_reaction.sql`, 'utf8');
 const proneWeaponAttackSource = fs.readFileSync(`${ROOT}/js/game/weapon-attack.js`, 'utf8');
 const pronePhaseSource = fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8');
 check('#5 prone fire requires an intact selected support arm and blocks support-arm and leg weapons', proneSupportMigration.includes('Choose an intact supporting arm') && proneSupportMigration.includes('Leg-mounted weapons cannot fire while prone') && proneWeaponAttackSource.includes('intactSupportingArms'));
+check('#5 prone torso-twist restriction tolerates resolver formatting changes', proneReactionMigration.includes('regexp_replace(source') && proneReactionMigration.includes('prone_reaction_no_torso_twist_v1'));
 check('#5 match concessions are confirmed in the client and resolved authoritatively', proneSupportMigration.includes('concede_btech_match') && pronePhaseSource.includes('confirmConcedeCurrentMatch') && pronePhaseSource.includes('Concede Match?'));
 const indirectMigration = fs.readFileSync(`${ROOT}/SQL/65_lrm_indirect_fire.sql`, 'utf8');
 check('#5 indirect LRM resolves spotter movement and simultaneous spotter fire', indirectMigration.includes('spotter_move_mod') && indirectMigration.includes('__spotter_fired') && indirectMigration.includes('A spotter may spot only one target'));
