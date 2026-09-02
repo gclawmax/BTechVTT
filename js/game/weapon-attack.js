@@ -494,9 +494,11 @@ function weaponLocationDestroyed(attacker, weaponEntry) {
 
 function attackDirection(attacker, target) {
   const diff = (weaponDirectionTo(target, attacker) - target.facing + 6) % 6;
-  if (diff === 0) return 'front';
-  if (diff === 1) return 'side-right';
-  if (diff === 5) return 'side-left';
+  // Total Warfare hit-location arcs use all three forward hexes. The two
+  // forward diagonals are not side shots; only the lateral hexes are sides.
+  if ([0, 1, 5].includes(diff)) return 'front';
+  if (diff === 2) return 'side-left';
+  if (diff === 4) return 'side-right';
   return 'rear';
 }
 

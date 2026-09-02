@@ -124,16 +124,13 @@ check('#2 side-left roll 9 → rt (mirrored)', sandbox.hitLocationForRoll(9, 'si
 check('#2 side-left roll 11 → rl (mirrored)', sandbox.hitLocationForRoll(11, 'side-left') === 'rl', `got ${sandbox.hitLocationForRoll(11, 'side-left')}`);
 check('#2 rear unchanged roll 12 → head', sandbox.hitLocationForRoll(12, 'rear') === 'head');
 
-// attackDirection returns side-left / side-right
+// Total Warfare hit-location arcs: all three forward hexes use the front
+// table, then one lateral hex per side and the hex directly behind.
 const tgt = { col: 5, row: 5, facing: 0 };
-// (6,4) is the NE neighbor of (5,5) → direction 1 → side-right; (6,6) is SE → direction 5 → side-left
-const atkRight = { col: 6, row: 4 };
-const atkLeft = { col: 6, row: 6 };
-const dRight = sandbox.attackDirection(atkRight, tgt);
-const dLeft = sandbox.attackDirection(atkLeft, tgt);
-check('#2 attackDirection distinguishes flanks', dRight !== dLeft && (dRight === 'side-right' || dRight === 'side-left'), `right=${dRight} left=${dLeft}`);
-check('#2 attackDirection front', sandbox.attackDirection({ col: 6, row: 5 }, tgt) === 'front');
-check('#2 attackDirection rear', sandbox.attackDirection({ col: 4, row: 5 }, tgt) === 'rear');
+check('#2 attackDirection uses the front table for all three forward hexes', [{ col:6,row:5 },{ col:6,row:4 },{ col:6,row:6 }].every(attacker => sandbox.attackDirection(attacker, tgt) === 'front'));
+check('#2 attackDirection distinguishes the two lateral hit-location arcs', sandbox.attackDirection({ col:5,row:4 }, tgt) === 'side-left' && sandbox.attackDirection({ col:5,row:6 }, tgt) === 'side-right');
+check('#2 attackDirection uses the rear table only for the directly rear hex', sandbox.attackDirection({ col:4,row:5 }, tgt) === 'rear');
+check('#2 a west-facing BattleMech at 1007 hit from 0604 uses the front table', sandbox.attackDirection({ col:6,row:4 }, { col:10,row:7,facing:3 }) === 'front');
 
 // ── #3 Gunnery from pilot ──────────────────────────────────────────────────
 const STRUCT = { head: 3, ct: 10, lt: 8, rt: 8, la: 5, ra: 5, ll: 7, rl: 7 };
@@ -609,7 +606,9 @@ const heatSource = fs.readFileSync(`${ROOT}/js/game/heat.js`, 'utf8');
 const visibleBuildMarker = indexSource.match(/<body data-build="([^"]+)">/)?.[1];
 check('#5 dropship and fixed build stamps share the one visible release marker', Boolean(visibleBuildMarker) && indexSource.includes(`id="map-build-stamp">${visibleBuildMarker}<`) && supabaseSource.includes("document.body.dataset.build") && supabaseSource.includes("#bt-build-stamp, #map-build-stamp"));
 const hitLocationMigration = fs.readFileSync(`${ROOT}/SQL/99_correct_hit_locations_and_through_armour_criticals.sql`, 'utf8');
+const hitArcMigration = fs.readFileSync(`${ROOT}/SQL/114_correct_total_warfare_hit_arcs.sql`, 'utf8');
 check('#5 standard side hit-location tables and roll-2 TACs are authoritative', hitLocationMigration.includes("WHEN 'side-right' THEN CASE roll_total WHEN 2 THEN 'rt'") && hitLocationMigration.includes("WHEN 'side-left' THEN CASE roll_total WHEN 2 THEN 'lt'") && hitLocationMigration.includes("'through_armor_critical',roll_total=2"));
+check('#5 all three forward hexes use the front hit-location table in weapon and physical resolution', hitArcMigration.includes('btech_mech_hit_arc') && hitArcMigration.includes('WHEN 1 THEN \'front\'') && hitArcMigration.includes('WHEN 5 THEN \'front\'') && hitArcMigration.includes('btech_process_weapon_declaration') && hitArcMigration.includes('btech_process_physical_declaration'));
 check('#5 through-armour criticals preserve normal armour-first damage', hitLocationMigration.indexOf('btech_apply_special_ammo_damage') < hitLocationMigration.indexOf("p_location_roll->>'through_armor_critical'") && hitLocationMigration.includes("'through_armor',true"));
 check('#5 combat diagnostics expose game code and hit-location dice', indexSource.includes('id="game-code-readout"') && fs.readFileSync(`${ROOT}/js/game/phases.js`, 'utf8').includes(".select('game_code, current_round") && multiTargetClient.includes('formatAuthoritativeLocationRoll') && multiTargetClient.includes('Through-armour critical check'));
 const telemetryMigration = fs.readFileSync(`${ROOT}/SQL/100_authoritative_match_telemetry.sql`, 'utf8');
