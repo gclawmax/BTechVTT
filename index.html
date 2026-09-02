@@ -9,10 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260901-finished-games-48">
+  <link rel="stylesheet" href="css/main.css?v=20260902-replay-viewer-49">
 </head>
-<body data-build="20260901-finished-games-48">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260901-finished-games-48</div>
+<body data-build="20260902-replay-viewer-49">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260902-replay-viewer-49</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 <div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
   <section class="game-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
@@ -102,6 +102,7 @@
       <div class="dropship-submenu-panel">
         <button class="submenu-action editor-map" onclick="openScenarioEditor()" title="Paint terrain and elevation, mark deployment zones and objectives, then launch the scenario.">Map & Scenario Editor <small>Build a custom battlefield</small></button>
         <button class="submenu-action editor-mech" onclick="openMechDesigner()" title="Design and save a rules-checked custom BattleMech variant.">MechLab <small>Build a custom BattleMech</small></button>
+        <button class="submenu-action" onclick="openReplayViewer()" title="Import a downloaded Battle Replay and step through its authoritative event timeline.">Battle Replay Viewer <small>Review an exported battle offline</small></button>
       </div>
     </details>
 
@@ -179,6 +180,11 @@
 <!-- ── MAP & SCENARIO EDITOR ───────────────────────────── -->
 <div id="scenario-editor-screen" class="screen">
   <div id="scenario-editor-root"></div>
+</div>
+
+<!-- ── BATTLE REPLAY VIEWER ────────────────────────────── -->
+<div id="replay-viewer-screen" class="screen">
+  <div id="replay-viewer-root"></div>
 </div>
 
 <!-- ── CUSTOM BATTLEMECH DESIGNER ─────────────────────── -->
@@ -292,7 +298,8 @@
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
 <script src="js/network/lobby.js?v=20260827-hidden-mines-31"></script>
-<script src="js/game/telemetry.js?v=20260901-finished-games-48"></script>
+<script src="js/game/telemetry.js?v=20260902-replay-viewer-49"></script>
+<script src="js/game/replay-viewer.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/phases.js?v=20260901-finished-games-48"></script>
 <script src="js/game/board.js?v=20260827-hidden-mines-31"></script>
 <script src="js/game/unit-artwork.js?v=20260820-01"></script>
