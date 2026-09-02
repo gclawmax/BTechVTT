@@ -31,12 +31,17 @@ const WEAPONS = {
   'AC/10': { key: 'ac10', damage: 10, heat: 3, range: [5, 10, 15], ammoType: 'ac10' },
   'AC/5': { key: 'ac5', damage: 5, heat: 1, range: [6, 12, 18], ammoType: 'ac5' },
   'AC/2': { key: 'ac2', damage: 2, heat: 1, range: [8, 16, 24], ammoType: 'ac2' },
-  'Ultra AC/5': { key: 'uac5', damage: 5, heat: 1, range: [6, 12, 18], ammoType: 'uac5' },
+  'Ultra AC/2': { key: 'uac2', damage: 2, heat: 1, range: [8, 17, 25], minimumRange: 3, ammoType: 'uac2' },
+  'Ultra AC/5': { key: 'uac5', damage: 5, heat: 1, range: [6, 13, 20], minimumRange: 2, ammoType: 'uac5' },
+  'Ultra AC/10': { key: 'uac10', damage: 10, heat: 4, range: [6, 12, 18], ammoType: 'uac10' },
+  'Ultra AC/20': { key: 'uac20', damage: 20, heat: 8, range: [3, 7, 10], ammoType: 'uac20' },
   'Rotary AC/2': { key: 'rac2', damage: 2, heat: 1, range: [6, 12, 18], ammoType: 'rac2', rotary: true },
   'Rotary AC/5': { key: 'rac5', damage: 5, heat: 1, range: [5, 10, 15], ammoType: 'rac5', rotary: true },
   'Rotary AC/10': { key: 'rac10', damage: 10, heat: 3, range: [4, 8, 12], ammoType: 'rac10', rotary: true },
   'Rotary AC/20': { key: 'rac20', damage: 20, heat: 7, range: [3, 6, 9], ammoType: 'rac20', rotary: true },
   'LB 10-X AC': { key: 'lb10x', damage: 10, heat: 2, range: [6, 12, 18], ammoType: 'lb10x' },
+  'Light Gauss Rifle': { key: 'light_gauss', damage: 8, heat: 1, range: [8, 17, 25], minimumRange: 3, ammoType: 'light_gauss' },
+  'Heavy Gauss Rifle': { key: 'heavy_gauss', damage: 25, damageByRange: [25, 20, 10], heat: 2, range: [6, 13, 20], minimumRange: 4, ammoType: 'heavy_gauss' },
   'ATM 3': { key: 'atm3', damage: 6, heat: 2, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm3', clusterSize: 3, damagePerMissile: 2, missileWeapon: true, atm: true },
   'ATM 6': { key: 'atm6', damage: 12, heat: 4, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm6', clusterSize: 6, damagePerMissile: 2, missileWeapon: true, atm: true },
   'ATM 9': { key: 'atm9', damage: 18, heat: 6, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm9', clusterSize: 9, damagePerMissile: 2, missileWeapon: true, atm: true },
@@ -64,6 +69,10 @@ const WEAPONS = {
   'Medium Pulse Laser': { key: 'med_pulse_laser', damage: 6, heat: 4, range: [2, 4, 6], toHitModifier: -2 },
   'Small Pulse Laser': { key: 'small_pulse_laser', damage: 3, heat: 2, range: [1, 2, 3], toHitModifier: -2 },
   'Large Pulse Laser': { key: 'large_pulse_laser', damage: 9, heat: 10, range: [3, 7, 10], toHitModifier: -2 },
+  'ER Small Laser': { key: 'er_small_laser', damage: 3, heat: 2, range: [2, 4, 5] },
+  'ER Medium Laser': { key: 'er_med_laser', damage: 5, heat: 5, range: [4, 8, 12] },
+  'ER Large Laser': { key: 'er_large_laser', damage: 8, heat: 12, range: [7, 14, 19] },
+  'ER PPC': { key: 'er_ppc', damage: 10, heat: 15, range: [7, 14, 23], minimumRange: 3 },
   'Gauss Rifle': { key: 'gauss_rifle', damage: 15, heat: 1, range: [7, 15, 22], minimumRange: 2, ammoType: 'gauss' },
   'Streak SRM 2': { key: 'streak_srm2', damage: 4, heat: 2, range: [3, 6, 9], ammoType: 'streak_srm2', clusterSize: 2, damagePerMissile: 2, streak: true, missileWeapon: true },
   'MRM 10': { key: 'mrm10', damage: 10, heat: 4, range: [3, 8, 15], ammoType: 'mrm10', clusterSize: 10, damagePerMissile: 1, missileWeapon: true, toHitModifier: 1 },
@@ -93,6 +102,8 @@ for (const size of [5, 10, 15, 20]) {
   WEAPONS[`Clan Streak LRM ${size}`] = profile;
   WEAPONS[`CLStreakLRM${size}`] = profile;
 }
+WEAPONS.ISLightGaussRifle = WEAPONS['Light Gauss Rifle'];
+WEAPONS.ISHeavyGaussRifle = WEAPONS['Heavy Gauss Rifle'];
 const CLAN_WEAPON_OVERRIDES = {
   'ER Medium Laser': { damage: 7, range: [5, 10, 15] },
   'ER Large Laser': { damage: 10, range: [8, 15, 25] },
@@ -108,6 +119,8 @@ const CLAN_WEAPON_OVERRIDES = {
 const AMMO = [
   [/Ammo AC\/20/i, 'ac20', 5], [/Ammo AC\/10/i, 'ac10', 10], [/Ammo AC\/5/i, 'ac5', 20], [/Ammo AC\/2/i, 'ac2', 45],
   [/Ultra AC\/5 Ammo/i, 'uac5', 20], [/LB 10-X AC Ammo/i, 'lb10x', 10],
+  [/Ultra AC\/2 Ammo/i, 'uac2', 45], [/Ultra AC\/10 Ammo/i, 'uac10', 10], [/Ultra AC\/20 Ammo/i, 'uac20', 5],
+  [/Light Gauss Ammo/i, 'light_gauss', 16], [/Heavy Gauss Ammo/i, 'heavy_gauss', 4],
   [/Rotary AC\/2 Ammo/i, 'rac2', 45], [/Rotary AC\/5 Ammo/i, 'rac5', 20],
   [/Rotary AC\/10 Ammo/i, 'rac10', 10], [/Rotary AC\/20 Ammo/i, 'rac20', 5],
   [/Ammo ATM-?3(?: ER| HE)?/i, 'atm3', 20], [/Ammo ATM-?6(?: ER| HE)?/i, 'atm6', 10], [/Ammo ATM-?9(?: ER| HE)?/i, 'atm9', 7], [/Ammo ATM-?12(?: ER| HE)?/i, 'atm12', 5],
