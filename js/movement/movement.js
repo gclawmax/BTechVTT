@@ -135,38 +135,56 @@ async function attemptStartup(instanceId) {
   await loadGameState();
 }
 
+const proneMovementActionsInFlight = new Set();
+
+function setProneMovementActionBusy(instanceId, action, busy) {
+  const button = document.getElementById(`${action}-prone-${instanceId}`);
+  if (!button) return;
+  button.disabled = busy;
+  button.textContent = busy ? 'Submitting…' : action === 'stand' ? button.dataset.label : 'Remain Prone';
+}
+
 async function attemptStand(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
-  if (!mech || !mech.prone || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
-  if (vsAiMode) {
-    const mobility = criticalMovementProfile(mech);
-    if (mobility.destroyedLegs >= 2 || mobility.gyroDestroyed) return;
-    const roll = roll2d6Detailed();
-    const target = Number(mech.pilot?.piloting ?? mech.pilotingSkill ?? 5) + mobility.pilotingModifier;
-    const passed = roll.total >= target;
-    mech.prone = !passed;
-    mech.hasMoved = true;
-    mech.movementMode = mobility.destroyedLegs === 1 ? 'run' : 'stand';
-    mech.mpUsed = mobility.destroyedLegs === 1 ? 1 : 2;
-    mech.hexesMoved = 0;
-    renderMovementPanel(); renderRoster(); renderDetail(); draw();
-    logEvent(`${mechLabel(mech)} ${passed ? 'stood up' : 'failed to stand'} — need ${target}, rolled ${format2d6(roll)}.`, 'roll');
-    await syncMechInstances();
-    return;
+  if (!mech || !mech.prone || mech.hasMoved || proneMovementActionsInFlight.has(instanceId) || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  proneMovementActionsInFlight.add(instanceId);
+  setProneMovementActionBusy(instanceId, 'stand', true);
+  try {
+    if (vsAiMode) {
+      const mobility = criticalMovementProfile(mech);
+      if (mobility.destroyedLegs >= 2 || mobility.gyroDestroyed) return;
+      const roll = roll2d6Detailed();
+      const target = Number(mech.pilot?.piloting ?? mech.pilotingSkill ?? 5) + mobility.pilotingModifier;
+      const passed = roll.total >= target;
+      mech.prone = !passed;
+      mech.hasMoved = true;
+      mech.movementMode = mobility.destroyedLegs === 1 ? 'run' : 'stand';
+      mech.mpUsed = mobility.destroyedLegs === 1 ? 1 : 2;
+      mech.hexesMoved = 0;
+      renderMovementPanel(); renderRoster(); renderDetail(); draw();
+      logEvent(`${mechLabel(mech)} ${passed ? 'stood up' : 'failed to stand'} — need ${target}, rolled ${format2d6(roll)}.`, 'roll');
+      await syncMechInstances();
+      return;
+    }
+    const { data, error } = await db.rpc('attempt_stand_battlemech', {
+      p_game_id: currentGameId, p_instance_id: instanceId
+    });
+    if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the stand attempt: ${error.message}`, 'error'); return; }
+    const roll = data?.to_hit || {};
+    const damage = roll.damage_modifier ? ` (including +${roll.damage_modifier} critical damage)` : '';
+    logEvent(`${mechLabel(mech)} ${data?.passed ? 'stood up' : 'failed to stand'} — need ${roll.target}${damage}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; spent ${data?.movement_points_spent || 2} MP.`, 'roll');
+    await loadGameState();
+  } finally {
+    proneMovementActionsInFlight.delete(instanceId);
   }
-  const { data, error } = await db.rpc('attempt_stand_battlemech', {
-    p_game_id: currentGameId, p_instance_id: instanceId
-  });
-  if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the stand attempt: ${error.message}`, 'error'); return; }
-  const roll = data?.to_hit || {};
-  const damage = roll.damage_modifier ? ` (including +${roll.damage_modifier} critical damage)` : '';
-  logEvent(`${mechLabel(mech)} ${data?.passed ? 'stood up' : 'failed to stand'} — need ${roll.target}${damage}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; spent ${data?.movement_points_spent || 2} MP.`, 'roll');
-  await loadGameState();
 }
 
 async function remainProne(instanceId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
-  if (!mech || !mech.prone || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  if (!mech || !mech.prone || mech.hasMoved || proneMovementActionsInFlight.has(instanceId) || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  proneMovementActionsInFlight.add(instanceId);
+  setProneMovementActionBusy(instanceId, 'remain', true);
+  try {
   if (vsAiMode) {
     mech.hasMoved = true;
     mech.movementMode = 'prone';
@@ -184,6 +202,9 @@ async function remainProne(instanceId) {
   if (error) { flashMoveWarning(error.message); logEvent(`Server rejected remaining prone: ${error.message}`, 'error'); return; }
   logEvent(`${mechLabel(mech)} remained prone.`, 'move');
   await loadGameState();
+  } finally {
+    proneMovementActionsInFlight.delete(instanceId);
+  }
 }
 
 function activationUnitsLeft(seat, phase = currentGameState.phase) {
@@ -693,7 +714,7 @@ function renderMovementPanel() {
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement — Prone</div>
       <div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">${cannotStand ? `This BattleMech cannot stand with ${mobility.gyroDestroyed ? 'a destroyed gyro' : 'both legs destroyed'}. It may remain prone and fire under the prone-fire rules.` : `This BattleMech is prone. A stand attempt costs ${standCost} MP and requires a Piloting Skill Roll${mobility.destroyedLegs === 1 ? ' at +5' : ''}. It may instead remain prone.`}</div>
-      <div style="display:flex;gap:7px;">${cannotStand ? '' : `<button onclick="attemptStand('${mech.instanceId}')" style="flex:1;${MOVE_BTN_STYLE}text-align:center;">Attempt to Stand — ${standCost} MP</button>`}<button onclick="remainProne('${mech.instanceId}')" style="flex:1;padding:9px 10px;border:1px solid var(--panel-line);background:transparent;color:var(--paper);font-family:var(--display);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Remain Prone</button></div>`;
+      <div style="display:flex;gap:7px;">${cannotStand ? '' : `<button id="stand-prone-${mech.instanceId}" data-label="Attempt to Stand — ${standCost} MP" onclick="attemptStand('${mech.instanceId}')" style="flex:1;${MOVE_BTN_STYLE}text-align:center;">Attempt to Stand — ${standCost} MP</button>`}<button id="remain-prone-${mech.instanceId}" onclick="remainProne('${mech.instanceId}')" style="flex:1;padding:9px 10px;border:1px solid var(--panel-line);background:transparent;color:var(--paper);font-family:var(--display);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Remain Prone</button></div>`;
     return;
   }
 
