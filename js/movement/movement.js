@@ -164,6 +164,28 @@ async function attemptStand(instanceId) {
   await loadGameState();
 }
 
+async function remainProne(instanceId) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
+  if (!mech || !mech.prone || mech.hasMoved || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
+  if (vsAiMode) {
+    mech.hasMoved = true;
+    mech.movementMode = 'prone';
+    mech.mpUsed = 0;
+    mech.hexesMoved = 0;
+    mech.movementHeat = 0;
+    renderMovementPanel(); renderRoster(); renderDetail(); draw();
+    logEvent(`${mechLabel(mech)} remained prone.`, 'move');
+    await syncMechInstances();
+    return;
+  }
+  const { error } = await db.rpc('remain_prone_battlemech', {
+    p_game_id: currentGameId, p_instance_id: instanceId
+  });
+  if (error) { flashMoveWarning(error.message); logEvent(`Server rejected remaining prone: ${error.message}`, 'error'); return; }
+  logEvent(`${mechLabel(mech)} remained prone.`, 'move');
+  await loadGameState();
+}
+
 function activationUnitsLeft(seat, phase = currentGameState.phase) {
   const flag = phase === 'movement' ? 'hasMoved' : phase === 'weapon_attack' ? 'hasFired' : 'hasPhysicalAttacked';
   return mechInstances.filter(mech => {
@@ -670,8 +692,8 @@ function renderMovementPanel() {
     const standCost = mobility.destroyedLegs === 1 ? 1 : 2;
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement — Prone</div>
-      <div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">${cannotStand ? `This BattleMech cannot stand with ${mobility.gyroDestroyed ? 'a destroyed gyro' : 'both legs destroyed'}.` : `This BattleMech is prone. A stand attempt costs ${standCost} MP and requires a Piloting Skill Roll${mobility.destroyedLegs === 1 ? ' at +5' : ''}.`}</div>
-      ${cannotStand ? '' : `<button onclick="attemptStand('${mech.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">Attempt to Stand — ${standCost} MP</button>`}`;
+      <div style="font-size:11px;color:#a32832;line-height:1.5;margin-bottom:8px;">${cannotStand ? `This BattleMech cannot stand with ${mobility.gyroDestroyed ? 'a destroyed gyro' : 'both legs destroyed'}. It may remain prone and fire under the prone-fire rules.` : `This BattleMech is prone. A stand attempt costs ${standCost} MP and requires a Piloting Skill Roll${mobility.destroyedLegs === 1 ? ' at +5' : ''}. It may instead remain prone.`}</div>
+      <div style="display:flex;gap:7px;">${cannotStand ? '' : `<button onclick="attemptStand('${mech.instanceId}')" style="flex:1;${MOVE_BTN_STYLE}text-align:center;">Attempt to Stand — ${standCost} MP</button>`}<button onclick="remainProne('${mech.instanceId}')" style="flex:1;padding:9px 10px;border:1px solid var(--panel-line);background:transparent;color:var(--paper);font-family:var(--display);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Remain Prone</button></div>`;
     return;
   }
 
