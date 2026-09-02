@@ -160,7 +160,7 @@ async function combatWeaponFixtures(page, catalogueVersion) {
     const prone = [...databaseSupportedUnitIds].map(unitId => ({ unitId, unit:getSupportedUnit(unitId) }))
       .map(({ unitId, unit }) => {
         const leftArm = (unit?.weapons || []).find(entry => entry.location === 'Left Arm' && !entry.weapon?.ammoType);
-        const torso = (unit?.weapons || []).find(entry => /Torso$/.test(entry.location || '') && !entry.weapon?.ammoType);
+        const torso = (unit?.weapons || []).find(entry => /Torso$/.test(entry.location || '') && !entry.weapon?.ammoType && !weaponProfile(entry)?.rearMounted);
         return leftArm && torso ? { unitId, supportMountId:leftArm.mountId, torsoMountId:torso.mountId } : null;
       }).find(Boolean) || null;
     return { indirect:missileFixture('artemisCapable'), narc:missileFixture('narcCapable'), prone };
