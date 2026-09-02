@@ -217,6 +217,7 @@ html, body {
 .scenario-editor-sidebar label { display:block; margin-bottom:12px; color:#aeb4ad; font:9px var(--mono); letter-spacing:.08em; text-transform:uppercase; }
 .scenario-editor-sidebar input,.scenario-editor-sidebar textarea,.scenario-editor-sidebar select { display:block; width:100%; margin-top:5px; padding:8px; border:1px solid #555d57; background:#151817; color:#f0f0e8; font:11px var(--mono); }
 .scenario-editor-sidebar textarea { min-height:58px; resize:vertical; line-height:1.4; }
+.scenario-editor-size-row { display:grid; grid-template-columns:1fr 1fr auto; gap:6px; align-items:end; margin:-3px 0 12px; }.scenario-editor-size-row label { margin:0 !important; }.scenario-editor-size-row button,.scenario-generate { padding:8px; border:1px solid #717970; background:#161918; color:#e5e5dc; font:9px var(--mono); cursor:pointer; }.scenario-generate { width:100%; margin:-2px 0 12px; border-color:#bf8b1b; background:#5f4610; }
 .scenario-editor-file-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 .scenario-editor-file-actions button,.scenario-import-button,.scenario-launch { padding:8px; border:1px solid #717970; background:transparent; color:#e5e5dc; font:9px var(--mono); text-align:center; cursor:pointer; }
 .scenario-import-button input { display:none; }

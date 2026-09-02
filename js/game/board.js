@@ -2,8 +2,10 @@
 // These are the original BTechVTT game functions, preserved from the Phase 1 prototype.
 
 const HEX_SIZE = 32;
-const GRID_COLS = 16;
-const GRID_ROWS = 12;
+// Standard BattleTech sheet: 16 columns × 17 rows. These remain mutable so a
+// custom or dual-board scenario can use its own authoritative dimensions.
+let GRID_COLS = 16;
+let GRID_ROWS = 17;
 
 function terrainAt(col, row) { return terrainStatusAt(col, row).terrain; }
 function terrainMovementBlocked(col, row) { return ['impassable', 'building', 'magma_liquid'].includes(terrainAt(col, row)); }

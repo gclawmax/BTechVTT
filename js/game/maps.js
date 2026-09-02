@@ -1,6 +1,15 @@
 // Built-in maps use only terrain that the current rules engine understands.
 // Custom-map authoring can add records to this catalogue later.
 const BT_MAPS = Object.freeze({
+  'standard-single-sheet': {
+    name: 'Standard Map Sheet', description: 'A standard BattleTech map sheet: 16 columns by 17 rows.', visual: 'grassland', columns: 16, rows: 17, terrain: {}
+  },
+  'standard-dual-vertical': {
+    name: 'Dual Sheets — End to End', description: 'Two standard sheets joined end-to-end: 16 columns by 34 rows.', visual: 'grassland', columns: 16, rows: 34, terrain: {}
+  },
+  'standard-dual-horizontal': {
+    name: 'Dual Sheets — Side by Side', description: 'Two standard sheets joined side-by-side: 32 columns by 17 rows.', visual: 'grassland', columns: 32, rows: 17, terrain: {}
+  },
   'training-grounds': {
     name: 'Training Grounds',
     description: 'Open ground with scattered light and heavy woods.',
@@ -129,12 +138,26 @@ const DEFAULT_MAP_ID = 'training-grounds';
 let activeMapId = DEFAULT_MAP_ID;
 let activeTerrainState = { overrides: {}, building_cf: {} };
 
+const DEFAULT_MAP_DIMENSIONS = Object.freeze({ cols: 16, rows: 17 });
+function mapDimensions(mapId = activeMapId) {
+  const map = BT_CUSTOM_MAPS[mapId] || BT_MAPS[mapId] || {};
+  const cols = Number(map.columns ?? map.cols ?? DEFAULT_MAP_DIMENSIONS.cols);
+  const rows = Number(map.rows ?? DEFAULT_MAP_DIMENSIONS.rows);
+  return { cols: Number.isInteger(cols) && cols >= 8 && cols <= 48 ? cols : DEFAULT_MAP_DIMENSIONS.cols, rows: Number.isInteger(rows) && rows >= 8 && rows <= 48 ? rows : DEFAULT_MAP_DIMENSIONS.rows };
+}
+function setActiveMapDimensions(mapId = activeMapId) {
+  const dimensions = mapDimensions(mapId);
+  GRID_COLS = dimensions.cols; GRID_ROWS = dimensions.rows;
+  return dimensions;
+}
+
 function getMapDefinition(mapId) {
   return BT_CUSTOM_MAPS[mapId] || BT_MAPS[mapId] || BT_MAPS[DEFAULT_MAP_ID];
 }
 
 function setActiveMap(mapId) {
   activeMapId = BT_MAPS[mapId] || BT_CUSTOM_MAPS[mapId] ? mapId : DEFAULT_MAP_ID;
+  setActiveMapDimensions(activeMapId);
 }
 
 function registerCustomMapDefinition(definition) {
@@ -145,6 +168,8 @@ function registerCustomMapDefinition(definition) {
     name: String(definition.name || 'Custom Battlefield').slice(0, 80),
     description: String(definition.description || 'Player-created battlefield.').slice(0, 240),
     visual: String(definition.visual || 'custom'),
+    columns: Number(definition.columns ?? definition.cols) || DEFAULT_MAP_DIMENSIONS.cols,
+    rows: Number(definition.rows) || DEFAULT_MAP_DIMENSIONS.rows,
     terrain: definition.terrain && typeof definition.terrain === 'object' ? { ...definition.terrain } : {},
     elevation: definition.elevation && typeof definition.elevation === 'object' ? { ...definition.elevation } : {},
     objective_hexes: Array.isArray(definition.objective_hexes) ? [...definition.objective_hexes] : [],

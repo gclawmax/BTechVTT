@@ -24,8 +24,9 @@ function renderCreateMapPreview() {
   const elevation = map.elevation || {};
   const cells = [];
   const counts = {};
-  for (let row = 0; row < GRID_ROWS; row++) {
-    for (let col = 0; col < GRID_COLS; col++) {
+  const dimensions = mapDimensions(mapSelect?.value);
+  for (let row = 0; row < dimensions.rows; row++) {
+    for (let col = 0; col < dimensions.cols; col++) {
       const key = hexCode(col, row);
       const type = terrain[key] || 'clear';
       if (type !== 'clear') counts[type] = (counts[type] || 0) + 1;
@@ -36,9 +37,9 @@ function renderCreateMapPreview() {
   }
   const legend = Object.entries(counts).map(([type, count]) => `${count} ${type.replace('_', ' ')}`).join(' · ') || 'Open ground';
   const levels = Object.values(elevation).filter(level => level > 0);
-  const mapWidth = Math.sqrt(3) * (GRID_COLS + 0.5);
-  const mapHeight = (GRID_ROWS - 1) * 1.5 + 2;
-  preview.innerHTML = `<h3>${map.name}</h3><p>${map.description}</p><svg class="map-preview-grid" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" role="img" aria-label="16 by 12 hex terrain preview">${cells.join('')}</svg><div class="map-preview-legend">${legend}${levels.length ? ` · ${levels.length} elevated hexes (up to level ${Math.max(...levels)})` : ''}</div>`;
+  const mapWidth = Math.sqrt(3) * (dimensions.cols + 0.5);
+  const mapHeight = (dimensions.rows - 1) * 1.5 + 2;
+  preview.innerHTML = `<h3>${map.name}</h3><p>${map.description}</p><svg class="map-preview-grid" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" role="img" aria-label="${dimensions.cols} by ${dimensions.rows} hex terrain preview">${cells.join('')}</svg><div class="map-preview-legend">${dimensions.cols} × ${dimensions.rows} hexes · ${legend}${levels.length ? ` · ${levels.length} elevated hexes (up to level ${Math.max(...levels)})` : ''}</div>`;
 }
 
 function mapPreviewHexPoints(col, row) {
@@ -113,6 +114,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
     // exact ID in the pinned release so the server and browser agree.
     const resolvedRosters = Object.fromEntries(Object.entries(rosters).map(([seat, unitIds]) => [seat, unitIds.map(resolveCatalogueId)]));
     const code = generateGameCode();
+    const dimensions = mapDimensions(mapId);
     const customTerrain = customScenario?.terrain && typeof customScenario.terrain === 'object' ? customScenario.terrain : null;
     const customBuildings = customTerrain ? Object.fromEntries(Object.entries(customTerrain).filter(([, terrain]) => terrain === 'building').map(([code]) => [code, 40])) : null;
     const { data: game, error: gameErr } = await db
@@ -123,7 +125,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
         catalogue_version: catalogueVersion,
         state: JSON.stringify({
           units: [], turn: 0, phase: 'setup', vs_ai_mode: false,
-          map_id: mapId, dropship_tonnage: dropshipTonnage,
+          map_id: mapId, map_dimensions: dimensions, dropship_tonnage: dropshipTonnage,
           catalogue_version: catalogueVersion,
           special_ammo_setup_v1: true,
           hidden_units_v1: true,
