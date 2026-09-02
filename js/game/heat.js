@@ -106,6 +106,15 @@ async function declareShutdownOverride(instanceId) {
   await loadGameState();
 }
 
+async function declareRotaryAutocannonClear(instanceId, mountId) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
+  if (!mech || mech.owner !== mySeatNumber || currentGameState.phase !== 'heat' || !isMyActiveTurn()) return;
+  const { error } = await db.rpc('declare_rotary_autocannon_clear', { p_game_id: currentGameId, p_instance_id: instanceId, p_mount_id: mountId });
+  if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the Rotary AC clear declaration: ${error.message}`, 'error'); return; }
+  logEvent(`${mechLabel(mech)} will attempt to clear its Rotary AC jam next turn. It must stand still or walk, then declare no weapon fire.`, 'phase');
+  await loadGameState();
+}
+
 async function resolveAIHeatManagement() {
   const messages = await resolveHeatForSeat(2);
   renderHeatPanel();
@@ -135,12 +144,18 @@ function renderHeatPanel() {
       : predictedShutdownTarget > 0
         ? mech.shutdownOverrideRequested ? ` · override declared for post-sink Heat Level (need ${predictedShutdownTarget})` : ` · post-sink shutdown target: ${predictedShutdownTarget}`
         : mech.shutdown ? ' · will restart automatically below Heat Level 14' : '';
+    const rotaryJams = (mech.weaponJams || []).filter(mountId => (BT_UNITS[mech.unitId]?.weapons || []).some(entry => entry.mountId === mountId && entry.key?.startsWith('rac')));
+    const clearControl = sinksPreviewed && isMine && !mech.hasManagedHeat && rotaryJams.length
+      ? mech.racClearMount ? `<div style="margin-top:5px;color:var(--amber);">Rotary AC jam-clear attempt declared for ${mech.racClearMount}.</div>`
+        : `<div style="margin-top:5px;color:var(--amber);">ROTARY AC JAM — declare one clear attempt for next turn:</div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;">${rotaryJams.map(mountId => `<button onclick="declareRotaryAutocannonClear('${mech.instanceId}','${mountId}')" style="${MOVE_BTN_STYLE}">Clear ${mountId}</button>`).join('')}</div>`
+      : '';
     return `<div style="padding:7px 0;border-top:1px solid var(--panel-line);font-size:10px;line-height:1.55;">
       <div style="color:var(--paper);">${mechLabel(mech)}${mech.hasManagedHeat ? ' · resolved' : ''}</div>
       <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
       ${ledger.recordedHeat !== ledger.expectedHeat ? `<div style="color:var(--amber);">Heat ledger correction: recorded ${ledger.recordedHeat}, calculated ${ledger.expectedHeat} before engine/terrain effects.</div>` : ''}
       <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : sinksPreviewed ? `dissipates ${ledger.dissipated}, remaining Heat Level ${ledger.after}` : `will dissipate ${ledger.dissipated}`}${mech.shutdown && !mech.hasManagedHeat ? ' · SHUT DOWN' : ''}${sinksPreviewed ? overrideStatus : ''}</div>
       ${canOverride && !mech.shutdownOverrideRequested ? `<button onclick="declareShutdownOverride('${mech.instanceId}')" style="margin-top:5px;${MOVE_BTN_STYLE}">Declare Post-Sink Shutdown Override (need ${predictedShutdownTarget})</button>` : ''}
+      ${clearControl}
     </div>`;
   }).join('');
   panel.innerHTML = `

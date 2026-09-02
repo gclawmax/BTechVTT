@@ -54,7 +54,7 @@ function markCriticalSlot(mech, location, index) {
 function criticalWeaponLabel(key) {
   return ({
     ac20: 'Autocannon/20', ac10: 'Autocannon/10', ac5: 'Autocannon/5', ac2: 'Autocannon/2',
-    uac20: 'Ultra AC/20', uac10: 'Ultra AC/10', uac5: 'Ultra AC/5', uac2: 'Ultra AC/2', lb10x: 'LB 10-X AC',
+    uac20: 'Ultra AC/20', uac10: 'Ultra AC/10', uac5: 'Ultra AC/5', uac2: 'Ultra AC/2', rac20: 'Rotary AC/20', rac10: 'Rotary AC/10', rac5: 'Rotary AC/5', rac2: 'Rotary AC/2', lb10x: 'LB 10-X AC',
     gauss: 'Gauss Rifle', lrm20: 'LRM 20', lrm15: 'LRM 15', lrm10: 'LRM 10', lrm5: 'LRM 5',
     lr20: 'LRM 20', lr15: 'LRM 15', lr10: 'LRM 10', lr5: 'LRM 5',
     srm6: 'SRM 6', srm4: 'SRM 4', srm2: 'SRM 2', sr6: 'SRM 6', sr4: 'SRM 4', sr2: 'SRM 2',

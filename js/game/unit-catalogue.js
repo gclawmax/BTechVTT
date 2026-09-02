@@ -312,5 +312,9 @@ const BT_WEAPONS = {
   erl:        { name: 'ER Large Laser', damage: 8, heat: 12, range: [7, 14, 19] },
   lr6:        { name: 'LRM-6', damage: 6, heat: 2, range: [7, 14, 21] },
   ac2:        { name: 'AC/2', damage: 2, heat: 1, range: [8, 16, 24] },
+  rac2:       { name: 'Rotary AC/2', damage: 2, heat: 1, range: [6, 12, 18], ammoType: 'rac2', rotary: true },
+  rac5:       { name: 'Rotary AC/5', damage: 5, heat: 1, range: [5, 10, 15], ammoType: 'rac5', rotary: true },
+  rac10:      { name: 'Rotary AC/10', damage: 10, heat: 3, range: [4, 8, 12], ammoType: 'rac10', rotary: true },
+  rac20:      { name: 'Rotary AC/20', damage: 20, heat: 7, range: [3, 6, 9], ammoType: 'rac20', rotary: true },
   streak_sr4: { name: 'Streak SRM-4', damage: 4, heat: 3, range: [3, 6, 9] }
 };
