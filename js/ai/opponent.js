@@ -89,6 +89,7 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
 // If the target is outside that arc, the AI deliberately holds its torso
 // facing and still completes the required Reaction action.
 function generateAIReactionAction(mech, playerMechs) {
+  if (mech.prone) return { type: 'complete_reaction', instanceId: mech.instanceId };
   const target = [...playerMechs].sort((a, b) =>
     axialDistance(mech.col, mech.row, a.col, a.row) - axialDistance(mech.col, mech.row, b.col, b.row)
   )[0];

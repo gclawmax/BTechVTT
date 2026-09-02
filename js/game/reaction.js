@@ -10,9 +10,9 @@ function resetReactionState() {
 async function completeReaction(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction') return;
-  const twisted = (mech.torsoFacing == null ? mech.facing : mech.torsoFacing) !== mech.facing;
+  const twisted = !mech.prone && (mech.torsoFacing == null ? mech.facing : mech.torsoFacing) !== mech.facing;
   if (!vsAiMode) {
-    const torsoFacing = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
+    const torsoFacing = mech.prone ? mech.facing : (mech.torsoFacing == null ? mech.facing : mech.torsoFacing);
     const { error } = await db.rpc('submit_torso_twist_reaction', {
       p_game_id: currentGameId,
       p_instance_id: mech.instanceId,
@@ -36,7 +36,7 @@ async function completeReaction(instanceId) {
 
 function torsoTwist(instanceId, direction) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction' || mech.hasReacted) return;
+  if (!mech || mech.prone || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction' || mech.hasReacted) return;
 
   // A 'Mech may twist its torso one hexside during Reaction, then must
   // explicitly complete the Reaction before the phase can move on.
@@ -53,7 +53,7 @@ function torsoTwist(instanceId, direction) {
 
 function undoTorsoTwist(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction' || mech.hasReacted) return;
+  if (!mech || mech.prone || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'reaction' || mech.hasReacted) return;
 
   mech.torsoFacing = mech.facing;
   renderReactionPanel();
@@ -92,18 +92,20 @@ function renderReactionPanel() {
   }
 
   const isMine = mech.owner === mySeatNumber && isMyActiveTurn();
-  const torsoFacing = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
+  const torsoFacing = mech.prone ? mech.facing : (mech.torsoFacing == null ? mech.facing : mech.torsoFacing);
   const torso = HEX_DIR_LABELS[torsoFacing];
-  const hasTwisted = torsoFacing !== mech.facing;
+  const hasTwisted = !mech.prone && torsoFacing !== mech.facing;
   panel.innerHTML = `
-    <div class="panel-eyebrow">Reaction — Torso Twist</div>
+    <div class="panel-eyebrow">Reaction — ${mech.prone ? 'Prone' : 'Torso Twist'}</div>
     <div style="font-size:11px;color:var(--paper);line-height:1.6;margin-bottom:8px;">
-      ${mechLabel(mech)} · Legs: ${HEX_DIR_LABELS[mech.facing]} · Torso: ${torso}
+      ${mechLabel(mech)} · Legs: ${HEX_DIR_LABELS[mech.facing]}${mech.prone ? ' · Prone BattleMechs cannot torso twist.' : ` · Torso: ${torso}`}
     </div>
     ${mech.hasReacted
       ? `<div style="font-size:11px;color:var(--phosphor-dim);">Reaction complete.</div>`
       : isMine
-        ? `${hasTwisted
+        ? mech.prone
+          ? `<button onclick="completeReaction('${mech.instanceId}')" style="width:100%;${MOVE_BTN_STYLE}text-align:center;">Complete Reaction</button>`
+          : `${hasTwisted
             ? `<div style="font-size:11px;color:var(--amber);margin-bottom:6px;">Torso twist selected. Confirm it to keep it through the End Phase.</div>
                <div style="display:flex;gap:6px;margin-bottom:6px;">
                  <button onclick="undoTorsoTwist('${mech.instanceId}')" style="flex:1;padding:8px 6px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:9px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Undo Twist</button>
