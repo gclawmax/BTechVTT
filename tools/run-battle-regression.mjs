@@ -19,6 +19,7 @@ const steps = [
   { label: 'Static rules regression', command: 'node', args: ['test-fixes.mjs'] },
   { label: 'SR-4 heat and mobility regression', command: 'node', args: ['tools/test-heat-mobility-equipment-regression.mjs'] },
   { label: 'SR-5 signature and electronics regression', command: 'node', args: ['tools/test-signature-electronics-regression.mjs'] },
+  { label: 'SR-6 ruleset controls regression', command: 'node', args: ['tools/test-ruleset-controls-regression.mjs'] },
   { label: 'Two-player complete battle', command: 'node', args: ['tools/test-human-vs-human.mjs'] },
   ...(suite === 'quick' ? [] : [{ label: 'Two-player focused rules battle', command: 'node', args: ['tools/test-human-vs-human-rules.mjs'] }]),
   ...(suite === 'quick' ? [] : [{ label: 'Dragon Level 2 live acceptance', command: 'node', args: ['tools/test-dragon-level2-live.mjs'] }]),

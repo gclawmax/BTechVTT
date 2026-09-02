@@ -11,8 +11,8 @@
 
   <link rel="stylesheet" href="css/main.css?v=20260902-map-hardening-51">
 </head>
-<body data-build="20260902-heat-mobility-61">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260902-heat-mobility-61</div>
+<body data-build="20260903-ruleset-controls-63">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260903-ruleset-controls-63</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 <div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
   <section class="game-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
@@ -170,6 +170,12 @@
       <option value="control">Objective Control — first to 5 control points</option>
       <option value="breakthrough">Breakthrough — move 2 BattleMechs into the enemy deployment zone</option>
     </select>
+    <label for="create-ruleset-select">Ruleset</label>
+    <select id="create-ruleset-select" title="Controls which era and equipment tiers may be deployed.">
+      <option value="standard_3060">Standard 3060 — tournament-oriented</option>
+      <option value="advanced_3060" selected>Advanced 3060 — supported advanced equipment</option>
+      <option value="open_experimental">Open / Experimental — all supported equipment</option>
+    </select>
     <div class="setup-actions">
       <button class="primary" onclick="handleCreateConfiguredGame()">Create Lobby</button>
       <button class="secondary" onclick="cancelCreateGameSetup()">Back</button>
@@ -251,7 +257,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260902-heat-mobility-61</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+    <div id="map-caption">BT BUILD <span id="map-build-stamp">20260903-ruleset-controls-63</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -291,14 +297,15 @@
 <script src="js/game/maps.js?v=20260902-variable-maps-50"></script>
 <script src="js/game/unit-catalogue.js?v=20260902-advanced-direct-fire-60"></script>
 <script src="js/game/critical-layouts.js?v=20260816-versioned-catalogue-01"></script>
+<script src="js/game/rulesets.js?v=20260903-ruleset-controls-63"></script>
 <script src="js/game/mech-designer.js?v=20260902-signature-electronics-62"></script>
 <script src="js/game/critical-hits.js?v=20260902-heat-mobility-61"></script>
-<script src="js/network/create-game.js?v=20260827-hidden-mines-31"></script>
+<script src="js/network/create-game.js?v=20260903-ruleset-controls-63"></script>
 <script src="js/game/scenario-editor.js?v=20260902-map-hardening-51"></script>
 <script src="js/game/career-avatar.js?v=20260826-dropship-navigation-22"></script>
 <script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
-<script src="js/network/lobby.js?v=20260827-hidden-mines-31"></script>
+<script src="js/network/lobby.js?v=20260903-ruleset-controls-63"></script>
 <script src="js/game/telemetry.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/replay-viewer.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/phases.js?v=20260902-advanced-missiles-59"></script>

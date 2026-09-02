@@ -295,7 +295,20 @@ validation pending**. Angel ECM, Watchdog CEWS, Clan Light Active Probes, and
 selectable Null Signature, Void Signature and Chameleon LPS modes now share the
 authoritative ECM, weapon-targeting and Heat Management paths.
 
-### Slice SR-6 — Remaining physical equipment and specialist defensive gear
+### Slice SR-6 — Ruleset controls and equipment audit
+
+Add a match-level ruleset choice to make the intended 3060 BattleMech game
+explicit: Standard 3060, Advanced 3060, or Open / Experimental. The client
+must explain the choice and filter the Hangar; the authoritative roster and
+Hangar functions must independently enforce it against the match's pinned
+catalogue.
+
+Implementation status: **implemented in SQL 120; live migration and soak
+validation pending**. Standard 3060 excludes custom designs and the currently
+supported advanced booster/signature systems; Advanced 3060 permits supported
+equipment introduced by 3060; Open permits all supported catalogue units.
+
+### Slice SR-6b — Remaining physical equipment and specialist defensive gear
 
 Complete the curated BattleMech physical-equipment table and defensive equipment
 that affects a duel: for example, remaining melee implements or shields where

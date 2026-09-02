@@ -12,6 +12,7 @@ function handleCreateGame() {
   renderCreateMapPreview();
   document.getElementById('create-tonnage-select').value = '200';
   document.getElementById('create-victory-select').value = 'annihilation';
+  document.getElementById('create-ruleset-select').value = 'advanced_3060';
   showScreen('match-setup-screen');
 }
 
@@ -61,8 +62,9 @@ async function handleCreateConfiguredGame() {
   const mapId = document.getElementById('create-map-select').value;
   const dropshipTonnage = Number.parseInt(document.getElementById('create-tonnage-select').value, 10);
   const victoryMode = document.getElementById('create-victory-select').value;
+  const ruleset = document.getElementById('create-ruleset-select').value;
   if (!BT_MAPS[mapId] || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
-  await createHumanGame({ mapId, dropshipTonnage, victoryMode });
+  await createHumanGame({ mapId, dropshipTonnage, victoryMode, ruleset });
 }
 
 // A short first match removes roster-building friction while preserving the
@@ -105,7 +107,7 @@ async function handleCreateDesertHillsScenario() {
   });
 }
 
-async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation', customScenario = null }) {
+async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation', customScenario = null, ruleset = 'advanced_3060' }) {
   if ((!BT_MAPS[mapId] && !BT_CUSTOM_MAPS[mapId]) || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
   showLoading(true);
   try {
@@ -127,6 +129,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
           units: [], turn: 0, phase: 'setup', vs_ai_mode: false,
           map_id: mapId, map_dimensions: dimensions, dropship_tonnage: dropshipTonnage,
           catalogue_version: catalogueVersion,
+          ruleset: BT_RULESETS?.[ruleset] ? ruleset : 'advanced_3060',
           special_ammo_setup_v1: true,
           hidden_units_v1: true,
           minefield_allowance: { '1': 2, '2': 2 },

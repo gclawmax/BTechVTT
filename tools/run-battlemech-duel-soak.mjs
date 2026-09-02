@@ -53,6 +53,7 @@ try {
   await run('node', ['test-fixes.mjs'], {}, 'Static rules regression');
   await run('node', ['tools/test-heat-mobility-equipment-regression.mjs'], {}, 'SR-4 heat and mobility regression');
   await run('node', ['tools/test-signature-electronics-regression.mjs'], {}, 'SR-5 signature and electronics regression');
+  await run('node', ['tools/test-ruleset-controls-regression.mjs'], {}, 'SR-6 ruleset controls regression');
   if (!suppliedUrl) {
     server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
     await waitForServer(baseUrl);
