@@ -48,6 +48,36 @@ function hasOperationalMASC(mech) {
   return Boolean(mech && !mech.destroyed && !mech.shutdown && slots.length && slots.every(slot => !slot.damaged));
 }
 
+function operationalEquipmentSlots(mech, equipmentKey) {
+  const layout = BT_CRITICAL_LAYOUTS[mech?.unitId] || {};
+  return Object.entries(layout).flatMap(([location, slots]) => (slots || []).map((slot, index) => ({
+    location, index, key: criticalEquipmentKey(slot), damaged: (mech?.criticalSlotDamage?.[location] || []).includes(index)
+  }))).filter(slot => slot.key === equipmentKey);
+}
+
+function hasOperationalSupercharger(mech) {
+  const slots = operationalEquipmentSlots(mech, 'supercharger');
+  return Boolean(mech && !mech.destroyed && !mech.shutdown && slots.length && slots.every(slot => !slot.damaged));
+}
+
+function hasActiveTSM(mech) {
+  const slots = operationalEquipmentSlots(mech, 'triplestrengthmyomer');
+  // Standard TSM occupies six distributed, non-hittable slots. Its only
+  // activation condition is Heat Level 9+ on an operating BattleMech.
+  return Boolean(mech && !mech.destroyed && !mech.shutdown && Number(mech.roundStartingHeat ?? mech.heat ?? 0) >= 9 && slots.length);
+}
+
+function boostedWalkingMP(mech, mobility = criticalMovementProfile(mech)) {
+  return Math.max(0, Number(mobility.walk || 0) + (hasActiveTSM(mech) ? 1 : 0));
+}
+
+function boosterRunMP(mech, useMASC, useSupercharger) {
+  const walk = boostedWalkingMP(mech);
+  if (useMASC && useSupercharger) return Math.ceil(walk * 2.5);
+  if (useMASC || useSupercharger) return walk * 2;
+  return Math.ceil(walk * 1.5);
+}
+
 function mascUseLevel(mech, round = currentGameState.round) {
   const previousLevel = Math.max(0, Number(mech?.mascUseLevel ?? mech?.mascConsecutiveUses) || 0);
   const roundsSinceUse = Number(round) - Number(mech?.mascLastRound);
@@ -62,9 +92,21 @@ function mascTargetNumber(mech, round = currentGameState.round) {
   return MASC_TARGETS[Math.min(MASC_TARGETS.length, mascUseLevel(mech, round)) - 1];
 }
 
+function superchargerUseLevel(mech, round = currentGameState.round) {
+  const previousLevel = Math.max(0, Number(mech?.superchargerUseLevel) || 0);
+  const roundsSinceUse = Number(round) - Number(mech?.superchargerLastRound);
+  if (!previousLevel || !Number.isFinite(roundsSinceUse) || roundsSinceUse <= 0) return 1;
+  if (roundsSinceUse === 1) return previousLevel + 1;
+  return Math.max(1, previousLevel - roundsSinceUse + 1);
+}
+
+function superchargerTargetNumber(mech, round = currentGameState.round) {
+  return MASC_TARGETS[Math.min(MASC_TARGETS.length, superchargerUseLevel(mech, round)) - 1];
+}
+
 function mascRunMP(mech) {
   const mobility = criticalMovementProfile(mech);
-  return mobility.destroyedLegs ? 0 : mobility.walk * 2;
+  return mobility.destroyedLegs ? 0 : boosterRunMP(mech, true, false);
 }
 
 // Local AI games do not use the multiplayer movement RPC. Mirror its MASC
@@ -110,6 +152,47 @@ function resolveLocalMASCActivation(mech, round = currentGameState.round) {
     }
   }
   return { requested: true, useLevel, target, ...roll, passed, criticals, piloting, fallDamage };
+}
+
+function resolveLocalSuperchargerActivation(mech, round = currentGameState.round) {
+  const useLevel = superchargerUseLevel(mech, round);
+  const target = superchargerTargetNumber(mech, round);
+  const roll = roll2d6Detailed();
+  const passed = roll.total >= target;
+  mech.superchargerLastRound = Number(round); mech.superchargerUseLevel = useLevel; mech.superchargerUsedThisRound = true;
+  const criticals = [];
+  let piloting = null;
+  let fallDamage = 0;
+  if (!passed) {
+    const damageRoll = roll2d6Detailed();
+    const hits = damageRoll.total <= 7 ? 0 : damageRoll.total <= 9 ? 1 : damageRoll.total <= 11 ? 2 : 3;
+    const layout = BT_CRITICAL_LAYOUTS[mech.unitId]?.ct || [];
+    const choices = layout.map((slot, index) => ({ index, label:criticalSlotName(slot) }))
+      .filter(slot => slot.label === 'Fusion Engine' && !(mech.criticalSlotDamage?.ct || []).includes(slot.index));
+    for (const slot of choices.slice(0, hits)) { markCriticalSlot(mech, 'ct', slot.index); criticals.push({ location:'ct', ...slot }); }
+    mech.criticalHits = (mech.criticalHits || 0) + criticals.length;
+    if ((mech.criticalSlotDamage?.ct || []).filter(index => criticalSlotName(layout[index]) === 'Fusion Engine').length >= 3) mech.destroyed = true;
+    if (!mech.destroyed) {
+      const mobility = criticalMovementProfile(mech);
+      const pilotingTarget = Number(mech.pilot?.piloting ?? mech.pilotingSkill ?? 5) + mobility.pilotingModifier;
+      const pilotingRoll = roll2d6Detailed();
+      const pilotingPassed = pilotingTarget <= 2 || (pilotingTarget <= 12 && pilotingRoll.total >= pilotingTarget);
+      piloting = { target: pilotingTarget, ...pilotingRoll, passed: pilotingPassed };
+      if (!pilotingPassed) {
+        mech.prone = true;
+        const fallDirection = criticalDie() - 1;
+        mech.facing = (Number(mech.facing || 0) + fallDirection) % 6;
+        mech.torsoFacing = mech.facing;
+        fallDamage = Math.ceil(Number(BT_UNITS[mech.unitId]?.mass || BT_UNITS[mech.unitId]?.tonnage || 0) / 10);
+        for (let remaining = fallDamage; remaining > 0 && !mech.destroyed; remaining -= Math.min(5, remaining)) applyWeaponDamage(mech, Math.min(5, remaining), 'front');
+        mech.hasMoved = true;
+        mech.movementMode = 'run';
+        mech.movementHeat = MOVEMENT_HEAT.run;
+      }
+    }
+    return { requested:true, useLevel, target, ...roll, passed, criticals, damageRoll, piloting, fallDamage };
+  }
+  return { requested:true, useLevel, target, ...roll, passed, criticals };
 }
 
 async function attemptStartup(instanceId) {
@@ -250,6 +333,8 @@ function resetMovementForRound() {
     m.heatDissipated = 0;
     m.hasManagedHeat = false;
     m.mascUsedThisRound = false;
+    m.superchargerUsedThisRound = false;
+    m.tsmActiveThisRound = false;
   });
 }
 
@@ -310,8 +395,9 @@ async function startMovementMode(instanceId, mode) {
     flashMoveWarning("A destroyed gyro prevents this 'Mech from moving.");
     return;
   }
-  const useMASC = mode === 'masc';
-  const effectiveMode = useMASC ? 'run' : mode;
+  const useMASC = mode === 'masc' || mode === 'masc_supercharger';
+  const useSupercharger = mode === 'supercharger' || mode === 'masc_supercharger';
+  const effectiveMode = useMASC || useSupercharger ? 'run' : mode;
   if (effectiveMode === 'run' && criticalMovement.destroyedLegs) {
     flashMoveWarning("A 'Mech standing on one leg cannot run.");
     return;
@@ -320,6 +406,10 @@ async function startMovementMode(instanceId, mode) {
 
   if (useMASC && (!hasOperationalMASC(mech) || Number(mech.mascLastRound) === Number(currentGameState.round))) {
     flashMoveWarning(Number(mech.mascLastRound) === Number(currentGameState.round) ? 'MASC has already been attempted this round.' : 'This BattleMech has no operational MASC system.');
+    return;
+  }
+  if (useSupercharger && (!hasOperationalSupercharger(mech) || Number(mech.superchargerLastRound) === Number(currentGameState.round))) {
+    flashMoveWarning(Number(mech.superchargerLastRound) === Number(currentGameState.round) ? 'The Supercharger has already been attempted this round.' : 'This BattleMech has no operational Supercharger.');
     return;
   }
 
@@ -349,7 +439,9 @@ async function startMovementMode(instanceId, mode) {
     return;
   }
   const waterJetPenalty = effectiveMode === 'jump' ? submergedLegJumpJets(mech) : 0;
-  const movementRating = useMASC ? criticalMovement.walk * 2 : criticalMovement[effectiveMode] || 0;
+  const movementRating = (useMASC || useSupercharger) ? boosterRunMP(mech, useMASC, useSupercharger)
+    : effectiveMode === 'walk' && hasActiveTSM(mech) ? boostedWalkingMP(mech, criticalMovement)
+      : effectiveMode === 'run' && hasActiveTSM(mech) ? boosterRunMP(mech, false, false) : criticalMovement[effectiveMode] || 0;
   const mpMax = Math.max(0, movementRating - heatMovementPenalty(mech) - waterJetPenalty);
   if (mpMax <= 0) return;
 
@@ -358,6 +450,7 @@ async function startMovementMode(instanceId, mode) {
     instanceId,
     mode: effectiveMode,
     mascActive: useMASC,
+    superchargerActive: useSupercharger,
     mpMax,
     mpUsed: 0,
     hexesMoved: 0,
@@ -469,6 +562,17 @@ async function confirmMove() {
       await submitAuthoritativeMovement(mech, moveState.mode, moveState.path || []);
       return;
     }
+    if (moveState.superchargerActive) {
+      const result = resolveLocalSuperchargerActivation(mech);
+      logEvent(`${mechLabel(mech)} activated its Supercharger — need ${result.target}+, rolled ${format2d6(result)}: ${result.passed ? 'success' : 'failure'}.`, 'roll');
+      if (!result.passed) {
+        mech.col = moveState.origCol; mech.row = moveState.origRow; mech.facing = moveState.origFacing; mech.torsoFacing = moveState.origTorsoFacing;
+        const pilotingText = result.piloting ? ` Piloting ${result.piloting.passed ? 'passed' : 'failed'} on ${result.piloting.target}+ with ${format2d6(result.piloting)}${result.fallDamage ? `; fell for ${result.fallDamage} damage` : ''}.` : '';
+        logEvent(`Supercharger failure caused ${result.criticals.length} engine critical hit${result.criticals.length === 1 ? '' : 's'}.${pilotingText}${!mech.prone && !mech.destroyed ? ' Choose a normal movement mode.' : ''}`, 'roll');
+        moveState = { active:false, instanceId:null, mode:null, mpMax:0, mpUsed:0, hexesMoved:0, path:[] };
+        renderMovementPanel();renderReactionPanel();renderRoster();renderDetail();draw();updateAdvanceButtonState();await syncMechInstances();return;
+      }
+    }
     if (moveState.mascActive) {
       const result = resolveLocalMASCActivation(mech);
       logEvent(`${mechLabel(mech)} activated MASC at risk level ${result.useLevel} — need ${result.target}+, rolled ${format2d6(result)}: ${result.passed ? 'success' : 'failure'}.`, 'roll');
@@ -484,6 +588,8 @@ async function confirmMove() {
     }
     mech.movementMode = moveState.mode;
     if (!moveState.mascActive) mech.mascUsedThisRound = false;
+    if (!moveState.superchargerActive) mech.superchargerUsedThisRound = false;
+    mech.tsmActiveThisRound = hasActiveTSM(mech);
     mech.mpUsed = moveState.mpUsed;
     mech.hexesMoved = moveState.hexesMoved;
     mech.hasMoved = true;
@@ -511,13 +617,14 @@ async function confirmMove() {
 }
 
 async function submitAuthoritativeMovement(mech, mode, path) {
-  const summary = `${mechLabel(mech)} ${mode === 'jump' ? 'jumped' : mode === 'run' ? `${moveState.mascActive ? 'used MASC and ' : ''}ran` : mode === 'walk' ? 'walked' : 'stood still'}${mode === 'stand' ? '' : ` to ${hexCode(mech.col, mech.row)}`}`;
+  const boosterLabel = moveState.mascActive && moveState.superchargerActive ? 'used MASC and Supercharger and ' : moveState.mascActive ? 'used MASC and ' : moveState.superchargerActive ? 'used its Supercharger and ' : '';
+  const summary = `${mechLabel(mech)} ${mode === 'jump' ? 'jumped' : mode === 'run' ? `${boosterLabel}ran` : mode === 'walk' ? 'walked' : 'stood still'}${mode === 'stand' ? '' : ` to ${hexCode(mech.col, mech.row)}`}`;
   // For a jump, attach the player's chosen landing facing so the server honours it
   // (the 'Mech faces travel direction by default, but the player may rotate freely).
   let submitPath = (mode === 'jump' && Array.isArray(path) && path.length === 1 && path[0].action === 'jump')
     ? [{ ...path[0], facing: mech.facing }]
     : path;
-  if (moveState.mascActive && Array.isArray(submitPath) && submitPath.length) submitPath = submitPath.map((step, index) => index === 0 ? { ...step, masc: true } : step);
+  if ((moveState.mascActive || moveState.superchargerActive) && Array.isArray(submitPath) && submitPath.length) submitPath = submitPath.map((step, index) => index === 0 ? { ...step, masc: Boolean(moveState.mascActive), supercharger: Boolean(moveState.superchargerActive) } : step);
   const { data, error } = await db.rpc('submit_battlemech_movement', {
     p_game_id: currentGameId,
     p_instance_id: mech.instanceId,
@@ -538,6 +645,16 @@ async function submitAuthoritativeMovement(mech, mode, path) {
       const damaged = (masc.failure?.critical_hits || []).map(hit => `${hitLocationLabel(hit.location)} ${hit.label}`).join(', ');
       const psr = masc.failure?.piloting_check;
       logEvent(`MASC failure damaged ${damaged || 'no remaining leg component'}${psr ? `; Piloting ${psr.passed ? 'passed' : 'failed'} on ${psr.target}+${psr.total == null ? '' : ` with ${psr.die_a} + ${psr.die_b} = ${psr.total}`}${masc.failure?.fall_damage ? `; fell for ${masc.failure.fall_damage} damage` : ''}` : ''}. Choose a normal movement mode if the BattleMech remains standing.`, 'roll');
+      return;
+    }
+  }
+  if (data?.supercharger?.requested) {
+    const boost = data.supercharger;
+    logEvent(`${mechLabel(mech)} activated its Supercharger at risk level ${boost.use_level} — need ${boost.target}+, rolled ${boost.die_a} + ${boost.die_b} = ${boost.total}: ${boost.passed ? 'success' : 'failure'}.`, 'roll');
+    if (!boost.passed) {
+      const damaged = (boost.failure?.critical_hits || []).map(hit => `${hitLocationLabel(hit.location)} ${hit.label}`).join(', ');
+      const psr = boost.failure?.piloting_check;
+      logEvent(`Supercharger failure caused ${damaged || 'no engine critical damage'}${psr ? `; Piloting ${psr.passed ? 'passed' : 'failed'} on ${psr.target}+${psr.total == null ? '' : ` with ${psr.die_a} + ${psr.die_b} = ${psr.total}`}` : ''}.${boost.activation_ends ? ' The movement activation ends.' : ' Choose a normal movement mode.'}`, 'roll');
       return;
     }
   }
@@ -695,7 +812,7 @@ function renderMovementPanel() {
     panel.innerHTML = `
       <div class="panel-eyebrow">Movement</div>
       <div style="font-size:11px;color:var(--phosphor-dim);line-height:1.5;">
-        ${titleCaseMode(mech.movementMode)}${mech.mascUsedThisRound ? ' with MASC' : ''} — ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} moved, ${mech.mpUsed} MP spent.
+        ${titleCaseMode(mech.movementMode)}${mech.mascUsedThisRound && mech.superchargerUsedThisRound ? ' with MASC + Supercharger' : mech.mascUsedThisRound ? ' with MASC' : mech.superchargerUsedThisRound ? ' with Supercharger' : ''}${mech.tsmActiveThisRound ? ' · TSM active' : ''} — ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} moved, ${mech.mpUsed} MP spent.
       </div>`;
     return;
   }
@@ -729,7 +846,7 @@ function renderMovementPanel() {
       : [];
     const chargePicker = chargeTargets.length ? `<div style="margin:0 0 7px;font-size:10px;color:var(--amber);">Charge — declare against a standing enemy that has completed movement. No weapons may be fired this turn.<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${chargeTargets.map(target => `<button onclick="declareChargeAttack('${target.instanceId}')" style="padding:6px;border:1px solid var(--amber);background:rgba(212,128,10,.12);color:var(--paper);font:9px var(--mono);cursor:pointer;">Charge: ${mechLabel(target)}</button>`).join('')}</div></div>` : '';
     panel.innerHTML = `
-      <div class="panel-eyebrow">Movement — ${moveState.mascActive ? 'MASC Run' : titleCaseMode(moveState.mode)}</div>
+      <div class="panel-eyebrow">Movement — ${moveState.mascActive && moveState.superchargerActive ? 'MASC + Supercharger Run' : moveState.mascActive ? 'MASC Run' : moveState.superchargerActive ? 'Supercharger Run' : titleCaseMode(moveState.mode)}</div>
       <div style="font-size:11px;color:var(--paper);margin-bottom:6px;">
         MP ${moveState.mpUsed}/${moveState.mpMax} used (${mpLeft} left) · ${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'} moved
       </div>
@@ -750,10 +867,21 @@ function renderMovementPanel() {
   const mobility = criticalMovementProfile(mech);
   const modeButtons = [`<button onclick="startMovementMode('${mech.instanceId}','stand')" style="${MOVE_BTN_STYLE}">Stand Still</button>`];
   const heatPenalty = heatMovementPenalty(mech);
-  if (mobility.walk > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','walk')" style="${MOVE_BTN_STYLE}">Walk (${mobility.walk - heatPenalty} MP)</button>`);
-  if (mobility.run > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','run')" style="${MOVE_BTN_STYLE}">Run (${mobility.run - heatPenalty} MP)</button>`);
+  const walkMP = boostedWalkingMP(mech, mobility);
+  const runMP = hasActiveTSM(mech) ? boosterRunMP(mech, false, false) : mobility.run;
+  const tsmLabel = hasActiveTSM(mech) ? ' · TSM' : '';
+  if (walkMP > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','walk')" style="${MOVE_BTN_STYLE}">Walk (${walkMP - heatPenalty} MP${tsmLabel})</button>`);
+  if (runMP > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','run')" style="${MOVE_BTN_STYLE}">Run (${runMP - heatPenalty} MP${tsmLabel})</button>`);
   if (hasOperationalMASC(mech) && Number(mech.mascLastRound) !== Number(currentGameState.round) && mascRunMP(mech) > heatPenalty) {
     modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','masc')" title="Double Walking MP; roll ${mascTargetNumber(mech)}+ to avoid a MASC failure." style="${MOVE_BTN_STYLE}">Use MASC (${mascRunMP(mech) - heatPenalty} MP · ${mascTargetNumber(mech)}+)</button>`);
+  }
+  if (hasOperationalSupercharger(mech) && Number(mech.superchargerLastRound) !== Number(currentGameState.round)) {
+    const superMP = boosterRunMP(mech, false, true);
+    modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','supercharger')" title="Double Walking MP; failure can cause engine critical hits and a fall." style="${MOVE_BTN_STYLE}">Use Supercharger (${superMP - heatPenalty} MP · ${superchargerTargetNumber(mech)}+)</button>`);
+    if (hasOperationalMASC(mech) && Number(mech.mascLastRound) !== Number(currentGameState.round)) {
+      const combinedMP = boosterRunMP(mech, true, true);
+      modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','masc_supercharger')" title="Use both systems for 2.5× Walking MP; each makes an independent escalating check." style="${MOVE_BTN_STYLE}">MASC + Supercharger (${combinedMP - heatPenalty} MP · ${mascTargetNumber(mech)}+ / ${superchargerTargetNumber(mech)}+)</button>`);
+    }
   }
   if (mobility.jump > heatPenalty) modeButtons.push(`<button onclick="startMovementMode('${mech.instanceId}','jump')" style="${MOVE_BTN_STYLE}">Jump (${mobility.jump - heatPenalty} MP)</button>`);
 

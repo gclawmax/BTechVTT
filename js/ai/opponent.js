@@ -134,7 +134,9 @@ function generateAIMoveAction(mech, playerMechs, settings) {
   if (!targetHex) return null;
   
   const mobility = criticalMovementProfile(mech);
-  const ordinaryBudget = Math.min(mobility.run, Math.max(1, Number(settings.movementRange) || 1));
+  const tsmActive = typeof hasActiveTSM === 'function' && hasActiveTSM(mech);
+  const ordinaryRun = tsmActive && typeof boosterRunMP === 'function' ? boosterRunMP(mech, false, false) : mobility.run;
+  const ordinaryBudget = Math.min(ordinaryRun, Math.max(1, Number(settings.movementRange) || 1));
   const mascTarget = typeof mascTargetNumber === 'function' ? mascTargetNumber(mech) : 13;
   const riskAcceptable = ['strongest', 'optimal'].includes(settings.targetPriority) && mascTarget <= 7;
   const useMASC = typeof hasOperationalMASC === 'function' && hasOperationalMASC(mech) &&
@@ -169,6 +171,7 @@ function generateAIMoveAction(mech, playerMechs, settings) {
     toRow: current.row,
     path,
     useMASC,
+    tsmActive,
     mascTarget,
     facing: path.at(-1)?.direction ?? mech.facing
   };
@@ -398,6 +401,7 @@ async function executeAIMove(action) {
   // Simplified bookkeeping so the Movement Panel reflects the AI's move too.
   mech.movementMode = action.useMASC ? 'run' : 'walk';
   mech.mascUsedThisRound = Boolean(action.useMASC);
+  mech.tsmActiveThisRound = Boolean(action.tsmActive);
   mech.hexesMoved = action.path?.length || 1;
   mech.mpUsed = action.path?.length || 1;
   mech.hasMoved = true;
@@ -410,7 +414,7 @@ async function executeAIMove(action) {
   renderDetail();
   renderMovementPanel();
   await syncMechInstances();
-  logEvent(`${mechLabel(mech)} (AI) ${action.useMASC ? 'used MASC and ran' : 'moved'} ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} to ${hexCode(action.toCol, action.toRow)}.`, 'move');
+  logEvent(`${mechLabel(mech)} (AI) ${action.useMASC ? 'used MASC and ran' : 'moved'} ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} to ${hexCode(action.toCol, action.toRow)}${action.tsmActive ? ' with TSM active' : ''}.`, 'move');
 }
 
 // Execute AI attack

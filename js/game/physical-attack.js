@@ -46,9 +46,11 @@ function availablePhysicalWeapons(mech) {
 function physicalAttackDamage(attacker, type) {
   const tonnage = BT_UNITS[attacker.unitId].tonnage;
   const physicalWeapon = physicalWeaponRule(type);
-  if (physicalWeapon?.floorDamage) return Math.max(1, Math.floor(tonnage / physicalWeapon.damageDivisor));
-  if (physicalWeapon) return Math.max(1, physicalWeapon.damage ?? Math.ceil(tonnage / physicalWeapon.damageDivisor) + (physicalWeapon.damageBonus || 0));
-  return Math.max(1, Math.ceil(tonnage / (['kick', 'hatchet', 'dfa'].includes(type) ? 5 : 10)));
+  let damage;
+  if (physicalWeapon?.floorDamage) damage = Math.max(1, Math.floor(tonnage / physicalWeapon.damageDivisor));
+  else if (physicalWeapon) damage = Math.max(1, physicalWeapon.damage ?? Math.ceil(tonnage / physicalWeapon.damageDivisor) + (physicalWeapon.damageBonus || 0));
+  else damage = Math.max(1, Math.ceil(tonnage / (['kick', 'hatchet', 'dfa'].includes(type) ? 5 : 10)));
+  return typeof hasActiveTSM === 'function' && hasActiveTSM(attacker) && !['push', 'dfa'].includes(type) ? damage * 2 : damage;
 }
 
 function physicalLimbLabel(limb) {

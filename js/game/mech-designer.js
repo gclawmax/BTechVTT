@@ -38,7 +38,9 @@ const CUSTOM_ELECTRONICS = Object.freeze({
   clan_active_probe:{name:'Clan Active Probe',tech:'clan',weight:1,slots:1,label:'Clan Active Probe'},
   c3_master:{name:'C3 Computer (Master)',tech:'inner_sphere',weight:5,slots:5,label:'IS C3 Master Computer',repeatable:true},
   c3_slave:{name:'C3 Computer (Slave)',tech:'inner_sphere',weight:1,slots:1,label:'IS C3 Slave Computer'},
-  c3i:{name:'Improved C3 Computer (C3i)',tech:'inner_sphere',weight:2.5,slots:2,label:'IS C3i Computer'}
+  c3i:{name:'Improved C3 Computer (C3i)',tech:'inner_sphere',weight:2.5,slots:2,label:'IS C3i Computer'},
+  supercharger:{name:'Supercharger',tech:'all',variable:'supercharger',slots:1,label:'Supercharger'},
+  tsm:{name:'Triple-Strength Myomer',tech:'inner_sphere',weight:0,slots:6,label:'Triple Strength Myomer'}
 });
 const CUSTOM_LOCATIONS = Object.freeze({ head:'Head',ct:'Center Torso',lt:'Left Torso',rt:'Right Torso',la:'Left Arm',ra:'Right Arm',ll:'Left Leg',rl:'Right Leg' });
 const CUSTOM_TECH_BASES = Object.freeze({ inner_sphere:'Inner Sphere',clan:'Clan' });
@@ -87,6 +89,12 @@ function customElectronicProfile(design, key) {
   if (base.variable === 'targeting_computer') {
     const size = customTargetingComputerSize(design);
     return { ...base, weight:size.tons, slots:size.slots };
+  }
+  if (base.variable === 'supercharger') {
+    const rating = Number(design.tonnage) * Number(design.walking_mp);
+    const engineType = CUSTOM_ENGINE_TYPES[design.engine_type || 'standard'];
+    const engineWeight = (customEngineWeight(rating) || 0) * (engineType?.multiplier || 1);
+    return { ...base, tech:design.tech_base === 'clan' ? 'clan' : 'inner_sphere', weight:Math.ceil(engineWeight / 5) / 2 };
   }
   return base;
 }
@@ -143,8 +151,10 @@ function calculateCustomDesign(design) {
   for (const item of electronics) {
     const profile = customElectronicProfile(design, item.key);
     if (!profile || !(item.location in slots)) { errors.push('An electronic equipment selection is unsupported.'); continue; }
-    if (profile.tech !== techBase) { errors.push(`${profile.name} requires ${profile.tech === 'clan' ? 'Clan' : 'Inner Sphere'} technology.`); continue; }
-    if (profile.variable && profile.slots < 1) { errors.push('A Targeting Computer requires at least one eligible direct-fire weapon.'); continue; }
+    if (profile.tech !== 'all' && profile.tech !== techBase) { errors.push(`${profile.name} requires ${profile.tech === 'clan' ? 'Clan' : 'Inner Sphere'} technology.`); continue; }
+    if (profile.variable === 'targeting_computer' && profile.slots < 1) { errors.push('A Targeting Computer requires at least one eligible direct-fire weapon.'); continue; }
+    if (item.key === 'supercharger' && item.location !== 'ct') { errors.push('A Supercharger must be installed in the Center Torso.'); continue; }
+    if (item.key === 'tsm' && item.location === 'head') { errors.push('Triple-Strength Myomer cannot be installed in the Head.'); continue; }
     slots[item.location] -= profile.slots; electronicWeight += profile.weight;
     electronicCounts.set(item.key, (electronicCounts.get(item.key) || 0) + 1);
   }
@@ -221,7 +231,13 @@ function addCustomElectronic() {
   renderMechDesigner();
 }
 function removeCustomElectronic(index) { customDesignerState.electronics.splice(index,1);renderMechDesigner(); }
-function updateCustomElectronic(index, field, value) { customDesignerState.electronics[index][field] = value;renderMechDesigner(); }
+function updateCustomElectronic(index, field, value) {
+  const item = customDesignerState.electronics[index];
+  item[field] = value;
+  if (field === 'key' && value === 'supercharger') item.location = 'ct';
+  if (field === 'key' && value === 'tsm' && item.location === 'head') item.location = 'ct';
+  renderMechDesigner();
+}
 
 function customOptions(entries, selected) { return entries.map(([value,label]) => `<option value="${value}" ${value===selected?'selected':''}>${label}</option>`).join(''); }
 function customLocationOptions(selected, allowHead=true) { return customOptions(Object.entries(CUSTOM_LOCATIONS).filter(([key]) => allowHead || key!=='head'),selected); }
@@ -236,7 +252,7 @@ function renderMechDesigner() {
   const clan = techBase === 'clan';
   const selectedEquipment = Object.entries(CUSTOM_EQUIPMENT).filter(([,p]) => clan || !p.clan);
   const selectedAmmo = Object.entries(CUSTOM_AMMO).filter(([,p]) => clan || !p.clan);
-  const selectedElectronics = Object.entries(CUSTOM_ELECTRONICS).filter(([,p]) => p.tech === techBase);
+  const selectedElectronics = Object.entries(CUSTOM_ELECTRONICS).filter(([,p]) => p.tech === 'all' || p.tech === techBase);
   const engineChoices = Object.entries(CUSTOM_ENGINE_TYPES).filter(([,p]) => !p.clan || clan);
   const structureChoices = Object.entries(CUSTOM_STRUCTURE_TYPES).filter(([,p]) => !p.clan || clan).filter(([key]) => clan || key !== 'clan_endo_steel');
   const armorChoices = Object.entries(CUSTOM_ARMOR_TYPES).filter(([,p]) => !p.clan || clan).filter(([key]) => clan || key !== 'clan_ferro_fibrous');
@@ -245,7 +261,9 @@ function renderMechDesigner() {
   const electronicRows = (d.electronics || []).map((item,index) => {
     const selectedProfile = customElectronicProfile(d,item.key);
     const choices = selectedElectronics.map(([key]) => { const p=customElectronicProfile(d,key);return [key,`${p.name} · ${p.weight}t / ${p.slots} slots`]; });
-    return `<div class="designer-equipment-row"><select onchange="updateCustomElectronic(${index},'key',this.value)">${customOptions(choices,item.key)}</select><select onchange="updateCustomElectronic(${index},'location',this.value)">${customLocationOptions(item.location)}</select><span class="designer-note">${selectedProfile?.variable ? 'Sized from eligible direct-fire weapons' : 'Electronic system'}</span><button onclick="removeCustomElectronic(${index})">Remove</button></div>`;
+    const locationOptions = item.key === 'supercharger' ? customOptions([['ct','Center Torso']],item.location) : customLocationOptions(item.location,item.key !== 'tsm');
+    const equipmentNote = item.key === 'supercharger' ? '10% of engine mass, rounded up to 0.5 t' : item.key === 'tsm' ? 'Six non-hittable slots; active at Heat Level 9+' : selectedProfile?.variable === 'targeting_computer' ? 'Sized from eligible direct-fire weapons' : 'Electronic system';
+    return `<div class="designer-equipment-row"><select onchange="updateCustomElectronic(${index},'key',this.value)">${customOptions(choices,item.key)}</select><select onchange="updateCustomElectronic(${index},'location',this.value)">${locationOptions}</select><span class="designer-note">${equipmentNote}</span><button onclick="removeCustomElectronic(${index})">Remove</button></div>`;
   }).join('');
   const weights = calc.weights;
   const saved = customSavedDesigns.map(item => `<div class="designer-saved-row"><div><strong>${escapeHtml(item.name)}</strong><span>${item.design?.tonnage || '?'} tons · ${item.design?.walking_mp || '?'} / ${Math.ceil(Number(item.design?.walking_mp||0)*1.5)} / ${item.design?.jump_mp || 0}</span></div><button onclick="loadSavedCustomDesign('${item.id}')">Use as new revision</button><button onclick="archiveCustomDesign('${item.id}')">Archive</button></div>`).join('') || '<div class="roster-empty">No saved custom BattleMechs yet.</div>';

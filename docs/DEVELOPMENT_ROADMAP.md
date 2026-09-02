@@ -1,7 +1,7 @@
 # BTechVTT — Development Roadmap
 
 Status: **authoritative roadmap**  
-Last updated: **2026-08-31**
+Last updated: **2026-09-02**
 
 This document is the single source of truth for development priorities. It
 supersedes the roadmap sections in `README.md`, `README2.md`, and
@@ -274,6 +274,10 @@ special rule must have its own resolution test before it appears in the hangar.
 Add Superchargers and Triple-Strength Myomer. This covers activation timing,
 movement changes, failure/critical consequences, heat thresholds, physical-damage
 modifiers and interactions with existing MASC, shutdown and piloting checks.
+
+Implementation status: **implemented in SQL 118; live migration and soak
+validation pending**. The MechLab, local AI battle path and shared authoritative
+resolver use the same heat threshold, movement ratings and physical-damage rules.
 
 **Why isolated:** this is the highest-risk slice because it spans Movement,
 Physical Attacks, Heat Management and critical damage.

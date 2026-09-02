@@ -36,7 +36,7 @@ function criticalSlotIndex(location) {
 function criticalSlotCanTakeDamage(mech, location, index) {
   const slot = BT_CRITICAL_LAYOUTS[mech.unitId]?.[location]?.[index];
   if (!slot || mech.criticalSlotDamage?.[location]?.includes(index)) return false;
-  return !/^(Endo Steel|Ferro-Fibrous|CASE)$/i.test(criticalSlotName(slot));
+  return !/^(Endo Steel|Ferro-Fibrous|CASE|Triple[- ]Strength Myomer)$/i.test(criticalSlotName(slot));
 }
 
 function availableCriticalSlots(mech, location) {

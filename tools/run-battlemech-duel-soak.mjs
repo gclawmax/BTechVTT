@@ -51,6 +51,7 @@ try {
   await mkdir(reportDir, { recursive:true });
   await rm(join(reportDir, 'soak-summary.json'), { force:true });
   await run('node', ['test-fixes.mjs'], {}, 'Static rules regression');
+  await run('node', ['tools/test-heat-mobility-equipment-regression.mjs'], {}, 'SR-4 heat and mobility regression');
   if (!suppliedUrl) {
     server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
     await waitForServer(baseUrl);
