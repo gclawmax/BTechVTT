@@ -285,11 +285,44 @@ function hasOperationalElectronicEquipment(mech, keys) {
 }
 
 function hasOperationalEcm(mech) {
-  return hasOperationalElectronicEquipment(mech, ['guardianecmsuite', 'ecmsuite']);
+  return hasOperationalElectronicEquipment(mech, ['guardianecmsuite', 'ecmsuite', 'angelecmsuite', 'watchdogcews', 'watchdogecm']);
 }
 
 function hasOperationalActiveProbe(mech) {
-  return hasOperationalElectronicEquipment(mech, ['beagleactiveprobe', 'activeprobe']);
+  return hasOperationalElectronicEquipment(mech, ['beagleactiveprobe', 'activeprobe', 'lightactiveprobe', 'watchdogcews', 'watchdogecm']);
+}
+
+const SIGNATURE_EQUIPMENT = Object.freeze({
+  null: { keys:['nullsignaturesystem'], name:'Null Signature', heat:10 },
+  void: { keys:['voidsignaturesystem'], name:'Void Signature', heat:10 },
+  chameleon: { keys:['chameleonlightpolarizationshield', 'chameleonlightpolarizationfield'], name:'Chameleon LPS', heat:6 }
+});
+
+function signatureModes(mech) {
+  const modes = mech?.signatureModes;
+  return modes && typeof modes === 'object' && !Array.isArray(modes) ? modes : {};
+}
+
+function signatureSystemActive(mech, key) {
+  const system = SIGNATURE_EQUIPMENT[key];
+  return Boolean(system && signatureModes(mech)[key] && hasOperationalElectronicEquipment(mech, system.keys));
+}
+
+function signatureHeat(mech) {
+  return Object.entries(SIGNATURE_EQUIPMENT).reduce((total, [key, system]) => total + (signatureSystemActive(mech, key) ? system.heat : 0), 0);
+}
+
+function signatureTargetModifier(target, range) {
+  if (signatureSystemActive(target, 'void')) {
+    const moved = Number(target.hexesMoved || 0);
+    return moved > 5 ? 0 : moved > 2 ? 1 : moved > 0 ? 2 : 3;
+  }
+  const byRange = range?.label === 'Medium' ? 1 : ['Long', 'Extreme', 'LOS'].includes(range?.label) ? 2 : 0;
+  return byRange * ((signatureSystemActive(target, 'null') ? 1 : 0) + (signatureSystemActive(target, 'chameleon') ? 1 : 0));
+}
+
+function voidSignatureAttackerModifier(attacker) {
+  return signatureSystemActive(attacker, 'void') ? 1 : 0;
 }
 
 function hasOperationalTargetingComputer(mech) {
@@ -376,7 +409,7 @@ function targetingComputerCanAim(attacker, weaponEntry, mountId) {
 
 function electronicWarfareReadout(attacker, target) {
   const notices = [];
-  if (hasOperationalEcm(attacker)) notices.push('Guardian ECM active (6 hexes)');
+  if (hasOperationalEcm(attacker)) notices.push('ECM active (6 hexes)');
   if (hasOperationalActiveProbe(attacker)) notices.push(ecmInterferesLine(attacker.owner, attacker) ? 'Active Probe is inside hostile ECM' : 'Active Probe operational: hidden units and minefields are checked after Movement');
   if (hasOperationalTargetingComputer(attacker)) notices.push('Targeting Computer operational: eligible direct fire receives −1 or may make an aimed shot');
   const c3 = target ? c3NetworkSupport(attacker, target) : null;
@@ -385,6 +418,8 @@ function electronicWarfareReadout(attacker, target) {
   if (target && targetGuidanceEcm(attacker, target)) notices.push(`${mechLabel(target)} is ECM-protected: Artemis and Narc guidance are suppressed`);
   if (target && Number(target.taggedRound) === Number(currentGameState.round)) notices.push(`${mechLabel(target)} is TAG-designated this round`);
   if (target?.narcPod && Number(target.narcPod.round) === Number(currentGameState.round)) notices.push(`${mechLabel(target)} carries a Narc beacon`);
+  for (const [key, system] of Object.entries(SIGNATURE_EQUIPMENT)) if (signatureSystemActive(attacker, key)) notices.push(`${system.name} active (+${system.heat} heat)`);
+  if (target && signatureSystemActive(target, 'void')) notices.push(`${mechLabel(target)} has Void Signature protection based on movement`);
   return notices;
 }
 
@@ -598,6 +633,8 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   if (aimedLocation && !targetingComputerCanAim(eligibleAttacker, weaponEntry, mountId)) return { valid: false, reason: `${weapon.name} cannot make a Targeting Computer aimed shot in this firing mode.` };
   if (aimedLocation && (!['ct', 'lt', 'rt', 'la', 'ra', 'll', 'rl'].includes(aimedLocation) || Number(eligibleTarget.structure?.[aimedLocation] || 0) <= 0)) return { valid: false, reason: 'Choose an intact non-head location for the aimed shot.' };
   const partialCover = sight.partialCover ? 1 : 0;
+  const signature = signatureTargetModifier(eligibleTarget, range);
+  const voidSignature = voidSignatureAttackerModifier(eligibleAttacker);
   const secondaryTarget = Boolean(options.secondaryTarget);
   const targetDirection = weaponDirectionTo(attacker, target);
   const torsoFacing = attacker.torsoFacing == null ? attacker.facing : attacker.torsoFacing;
@@ -608,12 +645,12 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
     damage: effectiveWeaponDamage(weapon, distance),
     distance,
     range,
-    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + armorPiercingModifier + semiGuidedModifier + accuracyModifier + targetingComputerModifier + indirectModifier + spotterMovement + partialCover + multipleTargets,
+    targetNumber: gunnery + attackerMove + targetMove + range.modifier + woods + critical + heat + (attacker.prone ? 2 : 0) + (target.prone ? (distance === 1 ? -2 : 1) : 0) + clusterModifier + precisionModifier + armorPiercingModifier + semiGuidedModifier + accuracyModifier + targetingComputerModifier + indirectModifier + spotterMovement + partialCover + multipleTargets + signature + voidSignature,
     attackAngle: attackDirection(attacker, target),
     multipleTargets,
     aimedLocation,
     c3,
-    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier}${c3.source && c3.source.instanceId !== attacker.instanceId && c3.distance < distance ? ` (C3 ${c3.distance} hexes via ${mechLabel(c3.source)})` : ''} + terrain ${woods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${armorPiercingModifier ? ' + armor-piercing 1' : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${targetingComputerModifier === -1 ? ' - Targeting Computer 1' : targetingComputerModifier === 3 ? ` + Targeting Computer aimed ${aimedLocation} 3` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
+    breakdown: `Gunnery ${gunnery} + move ${attackerMove} + target ${targetMove} + ${range.label.toLowerCase()} ${range.modifier}${c3.source && c3.source.instanceId !== attacker.instanceId && c3.distance < distance ? ` (C3 ${c3.distance} hexes via ${mechLabel(c3.source)})` : ''} + terrain ${woods}${indirect ? ` + indirect 1 + spotter move ${spotterMovement}` : ''}${critical ? ` + damage ${critical}` : ''}${heat ? ` + heat ${heat}` : ''}${attacker.prone ? ' + prone 2' : ''}${target.prone ? `${distance === 1 ? ' - prone target 2' : ' + prone target 1'}` : ''}${partialCover ? ' + partial cover 1' : ''}${multipleTargets ? ` + secondary target ${multipleTargets}` : ''}${signature ? ` + target signature ${signature}` : ''}${voidSignature ? ' + attacker Void Signature 1' : ''}${clusterModifier ? ' - LB-X cluster 1' : ''}${precisionModifier ? ` - precision ${-precisionModifier}` : ''}${armorPiercingModifier ? ' + armor-piercing 1' : ''}${semiGuidedModifier ? ` - semi-guided TAG ${-semiGuidedModifier}` : ''}${targetingComputerModifier === -1 ? ' - Targeting Computer 1' : targetingComputerModifier === 3 ? ` + Targeting Computer aimed ${aimedLocation} 3` : ''}${guidanceEcm ? ' · ECM suppresses Artemis/Narc' : ''}${accuracyModifier ? ' - pulse laser 2' : ''}`
   };
 }
 

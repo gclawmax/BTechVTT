@@ -290,6 +290,11 @@ They must share the existing authoritative ECM/LOS/heat framework, display their
 current state clearly and fail safely when damaged. This includes any supported
 advanced ECM or signature equipment, not a new generic modifier system.
 
+Implementation status: **implemented in SQL 119; live migration and soak
+validation pending**. Angel ECM, Watchdog CEWS, Clan Light Active Probes, and
+selectable Null Signature, Void Signature and Chameleon LPS modes now share the
+authoritative ECM, weapon-targeting and Heat Management paths.
+
 ### Slice SR-6 — Remaining physical equipment and specialist defensive gear
 
 Complete the curated BattleMech physical-equipment table and defensive equipment

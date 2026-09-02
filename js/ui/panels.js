@@ -108,6 +108,37 @@ function roundOneAmmoControl(inst, bin) {
   </div>`;
 }
 
+async function setSignatureSystemMode(instanceId, key, active) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
+  if (!mech || mech.owner !== mySeatNumber || currentGameState.phase !== 'initiative') return;
+  if (vsAiMode) {
+    mech.signatureModes = { ...(mech.signatureModes || {}), [key]: active };
+    if (key === 'void' && active) {
+      mech.signatureModes.null = false;
+      mech.signatureModes.chameleon = false;
+    }
+    if (active && (key === 'null' || key === 'chameleon')) mech.signatureModes.void = false;
+    await syncMechInstances();
+  } else {
+    const { error } = await db.rpc('set_battlemech_signature_mode', { p_game_id: currentGameId, p_instance_id: instanceId, p_system: key, p_active: active });
+    if (error) { flashMoveWarning(error.message); logEvent(`Server rejected signature-system setting: ${error.message}`, 'error'); return; }
+    await loadGameState();
+  }
+  renderDetail();
+  renderRoster();
+}
+
+function signatureSystemControls(inst) {
+  if (typeof SIGNATURE_EQUIPMENT !== 'object') return '';
+  const installed = Object.entries(SIGNATURE_EQUIPMENT).filter(([key, system]) => hasOperationalElectronicEquipment(inst, system.keys));
+  if (!installed.length) return '';
+  const editable = inst.owner === mySeatNumber && currentGameState.phase === 'initiative' && !inst.hasMoved;
+  return `<div class="panel-eyebrow" style="margin-top:14px;">Signature Systems</div><div style="font-size:10px;color:var(--phosphor-dim);margin:-8px 0 6px;line-height:1.45;">Select systems during Initiative; the setting applies for this round and adds its listed heat during Heat Management.</div>${installed.map(([key, system]) => {
+    const active = signatureSystemActive(inst, key);
+    return `<div class="stat-grid" style="margin:4px 0;"><div class="k">${system.name}</div><div class="v">${active ? 'ACTIVE' : 'OFF'} · +${system.heat} heat${editable ? ` <button onclick="setSignatureSystemMode('${inst.instanceId}','${key}',${!active})" style="margin-left:5px;padding:3px 5px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font:8px var(--display);cursor:pointer;">${active ? 'Turn Off' : 'Turn On'}</button>` : ''}</div></div>`;
+  }).join('')}`;
+}
+
 function renderDetail() {
   const body = document.getElementById('detail-body');
   const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
@@ -157,6 +188,7 @@ function renderDetail() {
       ${unit.weapons.map(w => `<div class="k">${w.weapon?.name || w.key.replaceAll('_',' ')}${clanWeaponSuffix}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
     </div>
     ${(inst.ammoBins || []).length ? `<div class="panel-eyebrow" style="margin-top:14px;">Ammunition</div><div class="stat-grid">${inst.ammoBins.map(bin => `<div class="k">${bin.type.replace('_',' ')}${bin.loadType ? ` · ${bin.loadType}` : ''} · ${bin.location}</div><div class="v">${bin.shots} / ${bin.maxShots} shots</div>${roundOneAmmoControl(inst, bin)}`).join('')}</div>` : ''}
+    ${signatureSystemControls(inst)}
     <div class="panel-eyebrow" style="margin-top:14px;">Armour / Internal Structure</div>
     <div style="font-size:9px;color:var(--phosphor-dim);margin:-8px 0 6px;">A = current / maximum armour · I = current / maximum internal structure</div>
     <div class="armor-diagram">

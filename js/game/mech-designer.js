@@ -36,11 +36,17 @@ const CUSTOM_ELECTRONICS = Object.freeze({
   clan_ecm:{name:'Clan ECM Suite',tech:'clan',weight:1,slots:1,label:'Clan ECM Suite'},
   beagle_probe:{name:'Beagle Active Probe',tech:'inner_sphere',weight:1.5,slots:2,label:'IS Beagle Active Probe'},
   clan_active_probe:{name:'Clan Active Probe',tech:'clan',weight:1,slots:1,label:'Clan Active Probe'},
+  clan_light_active_probe:{name:'Clan Light Active Probe',tech:'clan',weight:.5,slots:1,label:'Clan Light Active Probe'},
+  angel_ecm:{name:'Angel ECM Suite',tech:'all',weight:2,slots:2,label:'Angel ECM Suite'},
+  watchdog_cews:{name:'Watchdog CEWS',tech:'clan',weight:1.5,slots:2,label:'Watchdog CEWS'},
   c3_master:{name:'C3 Computer (Master)',tech:'inner_sphere',weight:5,slots:5,label:'IS C3 Master Computer',repeatable:true},
   c3_slave:{name:'C3 Computer (Slave)',tech:'inner_sphere',weight:1,slots:1,label:'IS C3 Slave Computer'},
   c3i:{name:'Improved C3 Computer (C3i)',tech:'inner_sphere',weight:2.5,slots:2,label:'IS C3i Computer'},
   supercharger:{name:'Supercharger',tech:'all',variable:'supercharger',slots:1,label:'Supercharger'},
-  tsm:{name:'Triple-Strength Myomer',tech:'inner_sphere',weight:0,slots:6,label:'Triple Strength Myomer'}
+  tsm:{name:'Triple-Strength Myomer',tech:'inner_sphere',weight:0,slots:6,label:'Triple Strength Myomer'},
+  null_signature:{name:'Null Signature System',tech:'inner_sphere',weight:0,slots:7,label:'Null Signature System'},
+  void_signature:{name:'Void Signature System',tech:'inner_sphere',weight:0,slots:7,label:'Void Signature System'},
+  chameleon_lps:{name:'Chameleon Light Polarization Shield',tech:'inner_sphere',weight:0,slots:6,label:'Chameleon Light Polarization Shield'}
 });
 const CUSTOM_LOCATIONS = Object.freeze({ head:'Head',ct:'Center Torso',lt:'Left Torso',rt:'Right Torso',la:'Left Arm',ra:'Right Arm',ll:'Left Leg',rl:'Right Leg' });
 const CUSTOM_TECH_BASES = Object.freeze({ inner_sphere:'Inner Sphere',clan:'Clan' });

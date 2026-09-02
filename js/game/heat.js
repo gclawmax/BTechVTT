@@ -12,7 +12,8 @@ function heatLedger(mech) {
   const starting = Number(mech.roundStartingHeat || 0);
   const movement = Number(mech.movementHeat || 0);
   const weapons = Number(mech.weaponHeat || 0) + Number(mech.externalHeat || 0);
-  const expectedHeat = starting + movement + weapons;
+  const signature = typeof signatureHeat === 'function' ? signatureHeat(mech) : 0;
+  const expectedHeat = starting + movement + weapons + signature;
   const before = expectedHeat + engineHeat + Number(mech.pendingTerrainHeat || 0);
   const sinks = Math.max(0, (BT_UNITS[mech.unitId].heat_sink_capacity || BT_UNITS[mech.unitId].heat_sinks) - destroyedHeatSinkCapacity(mech));
   const dissipated = Math.min(before, sinks);
@@ -20,6 +21,7 @@ function heatLedger(mech) {
     starting,
     movement,
     weapons,
+    signature,
     expectedHeat,
     recordedHeat: Number(mech.heat || 0),
     engineHeat,
@@ -40,7 +42,7 @@ async function resolveHeatForSeat(seat) {
     mech.heat = ledger.after;
     mech.externalHeat = 0;
     mech.hasManagedHeat = true;
-    messages.push(`${mechLabel(mech)} heat: start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before}; dissipated ${ledger.dissipated}/${ledger.sinks}, ending ${ledger.after}.`);
+    messages.push(`${mechLabel(mech)} heat: start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.signature ? ` + signature ${ledger.signature}` : ''}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before}; dissipated ${ledger.dissipated}/${ledger.sinks}, ending ${ledger.after}.`);
   }
   await syncMechInstances();
   return messages;
@@ -151,7 +153,7 @@ function renderHeatPanel() {
       : '';
     return `<div style="padding:7px 0;border-top:1px solid var(--panel-line);font-size:10px;line-height:1.55;">
       <div style="color:var(--paper);">${mechLabel(mech)}${mech.hasManagedHeat ? ' · resolved' : ''}</div>
-      <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
+      <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.signature ? ` + signature ${ledger.signature}` : ''}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
       ${ledger.recordedHeat !== ledger.expectedHeat ? `<div style="color:var(--amber);">Heat ledger correction: recorded ${ledger.recordedHeat}, calculated ${ledger.expectedHeat} before engine/terrain effects.</div>` : ''}
       <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : sinksPreviewed ? `dissipates ${ledger.dissipated}, remaining Heat Level ${ledger.after}` : `will dissipate ${ledger.dissipated}`}${mech.shutdown && !mech.hasManagedHeat ? ' · SHUT DOWN' : ''}${sinksPreviewed ? overrideStatus : ''}</div>
       ${canOverride && !mech.shutdownOverrideRequested ? `<button onclick="declareShutdownOverride('${mech.instanceId}')" style="margin-top:5px;${MOVE_BTN_STYLE}">Declare Post-Sink Shutdown Override (need ${predictedShutdownTarget})</button>` : ''}
