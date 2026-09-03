@@ -44,20 +44,4 @@ BEGIN
  EXECUTE patched;
 END $$;
 
--- Talons also increase successful DFA damage. Keep this isolated from the
--- DFA's separate self-damage and landing checks.
-DO $$
-DECLARE fn regprocedure;source text;patched text;
-BEGIN
- fn:=to_regprocedure('public.resolve_declared_death_from_above(uuid,text)');
- IF fn IS NULL THEN RAISE EXCEPTION 'DFA resolver is missing';END IF;
- SELECT pg_get_functiondef(fn) INTO source;
- IF position('sr6b_talon_dfa_v1' IN source)>0 THEN RETURN;END IF;
- patched:=regexp_replace(source,
-  $pattern$target_damage[[:space:]]*:=[[:space:]]*ceil[[:space:]]*[(][[:space:]]*attacker_mass[[:space:]]*[*][[:space:]]*3[[:space:]]*/[[:space:]]*10([.]0)?[[:space:]]*[)][[:space:]]*::int[[:space:]]*;[[:space:]]*remaining[[:space:]]*:=[[:space:]]*target_damage[[:space:]]*;$pattern$,
-  $replacement$target_damage:=ceil(attacker_mass*3/10.0)::int;IF btech_talon_operational(g.catalogue_version,attacker,'ll') OR btech_talon_operational(g.catalogue_version,attacker,'rl') THEN target_damage:=ceil(target_damage*1.5)::int;END IF; /* sr6b_talon_dfa_v1 */ remaining:=target_damage;$replacement$);
- IF patched=source OR position('sr6b_talon_dfa_v1' IN patched)=0 THEN RAISE EXCEPTION 'Could not safely install Talon DFA damage';END IF;
- EXECUTE patched;
-END $$;
-
 NOTIFY pgrst,'reload schema';

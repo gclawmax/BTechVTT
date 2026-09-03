@@ -17,6 +17,6 @@ const jumpBooster = vm.runInContext('mechanicalJumpBoosterMP', context);
 check('operational Talons increase only their leg kick damage by 50%', talonDamage({ unitId:'talon', structure:{ ll:10 }, criticalSlotDamage:{} }, 'll', 10) === 15);
 check('destroyed Talons provide no kick bonus', talonDamage({ unitId:'talon', structure:{ ll:10 }, criticalSlotDamage:{ ll:[1] } }, 'll', 10) === 10);
 check('a recorded operational mechanical jump-booster rating is available to movement', jumpBooster({ unitId:'booster', structure:{ ct:20 }, criticalSlotDamage:{} }) === 5);
-for (const marker of ['btech_talon_operational','sr6b_talon_kick_v1','sr6b_talon_dfa_v1']) check(`authoritative SQL includes ${marker}`, sql.includes(marker));
+for (const marker of ['btech_talon_operational','sr6b_talon_kick_v1','btech_specialist_equipment_operational']) check(`authoritative SQL includes ${marker}`, sql.includes(marker));
 if (failures.length) { console.error(`\n${failures.length} specialist-physical equipment regression failure(s).`); process.exit(1); }
 console.log('\nSpecialist physical-equipment regression checks passed.');
