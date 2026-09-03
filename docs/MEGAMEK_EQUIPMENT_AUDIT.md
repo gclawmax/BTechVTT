@@ -15,9 +15,11 @@ silently admitting a unit whose equipment has no game effect.
 ## Next BattleMech mechanics to audit before importing dependent designs
 
 1. Shields and their distinct defensive/physical-attack effects.
-2. Talons and their kick-damage and piloting interactions.
-3. Actuator Enhancement Systems.
-4. Jump boosters and their movement restrictions.
+2. Actuator Enhancement Systems.
+
+Talons and Mechanical Jump Boosters are implemented in SQL 121. The latter
+uses an explicit catalogue MP rating rather than inferring a value from the
+number of critical slots.
 
 Vehicle, infantry, aerospace and underwater-only equipment remains outside the
 BattleMech duel scope unless a future scenario slice explicitly adopts it.

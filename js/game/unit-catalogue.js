@@ -184,6 +184,7 @@ async function loadUnitCatalogue(catalogueVersion, forceReload = false) {
       era: definition.era || null,
       color: catalogueUnitColor(row.unit_id, index),
       movement: definition.movement,
+      mechanical_jump_booster_mp: definition.mechanical_jump_booster_mp ?? definition.movement?.jump_booster ?? 0,
       heat_sinks: definition.heat_sinks,
       heat_sink_type: definition.heat_sink_type,
       heat_sink_capacity: definition.heat_sink_capacity || definition.heat_sinks,

@@ -237,7 +237,8 @@ function criticalMovementProfile(mech) {
       if ((mech.structure?.[location] || 0) <= 0 || (mech.criticalSlotDamage?.[location] || []).includes(index)) unavailableJumpJets++;
     });
   }
-  const jump = damage.destroyedLegs >= 2 ? 0 : Math.max(0, baseJump - unavailableJumpJets);
+  const jumpJetMP = damage.destroyedLegs >= 2 ? 0 : Math.max(0, baseJump - unavailableJumpJets);
+  const jump = Math.max(jumpJetMP, typeof mechanicalJumpBoosterMP === 'function' ? mechanicalJumpBoosterMP(mech) : 0);
   return { ...damage, baseWalk, baseJump, walk, run, jump, unavailableJumpJets };
 }
 

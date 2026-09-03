@@ -137,6 +137,7 @@ function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandi
   const targetMove = targetMovementModifier(target);
   const targetTerrain = terrainAt(target.col, target.row) === 'heavy_woods' ? 2 : terrainAt(target.col, target.row) === 'light_woods' ? 1 : 0;
   let damage = physicalAttackDamage(attacker, type);
+  if (type === 'kick' && typeof talonAdjustedDamage === 'function') damage = talonAdjustedDamage(attacker, limb, damage);
   if (physicalWeapon && !physicalWeapon.damageActuators) reductions = 0;
   while (reductions-- > 0) damage = Math.floor(damage / 2);
   const piloting = Number(attacker.pilot?.piloting ?? attacker.pilotingSkill ?? 5);

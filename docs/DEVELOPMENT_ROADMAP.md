@@ -316,6 +316,12 @@ their published rules differ from the existing hatchet/sword/club framework.
 Each item must state its required actuators, usable arc, attack phase, damage and
 critical-slot failure behaviour.
 
+Implementation status: **Talons and Mechanical Jump Boosters implemented in
+SQL 121; shield and AES equipment remains deliberately catalogued as later-era
+Open/Experimental work until selectable defensive modes and their full
+authoritative damage interactions are introduced.** This prevents a future
+catalogue import from quietly treating those systems as cosmetic.
+
 ### Slice SR-7 — Catalogue completion and rules audit
 
 After the preceding slices, run an import audit against the desired Inner
