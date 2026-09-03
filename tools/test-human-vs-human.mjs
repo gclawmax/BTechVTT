@@ -100,7 +100,16 @@ async function addAndDeployBattleMech(page, selection) {
   await option.click();
   await page.waitForSelector('.hangar-entry', { timeout: 15000 });
   await page.getByRole('button', { name: 'Deploy', exact: true }).first().click();
-  await page.waitForFunction(() => /Deployment:\s*[1-9]/.test(document.querySelector('.roster-summary')?.textContent || ''), null, { timeout: 15000 });
+  try {
+    await page.waitForFunction(() => Array.from(document.querySelectorAll('.roster-summary')).some(node => /Deployment:\s*[1-9]\d*/.test(node.textContent || '')), null, { timeout: 15000 });
+  } catch (error) {
+    const lobbyState = await page.evaluate(() => ({
+      status: document.getElementById('lobby-status')?.textContent?.trim() || '',
+      summaries: Array.from(document.querySelectorAll('.roster-summary')).map(node => node.textContent?.trim() || ''),
+      hangar: Array.from(document.querySelectorAll('.hangar-entry')).map(node => node.textContent?.trim() || '')
+    }));
+    throw new Error(`BattleMech was not deployed after selecting ${selection.unitId}: ${JSON.stringify(lobbyState)} (${error.message})`);
+  }
 }
 async function chooseSoakForce(page) {
   if (fixedForces) return {
@@ -112,7 +121,7 @@ async function chooseSoakForce(page) {
     for (const character of seed) value = Math.imul(value ^ character.charCodeAt(0), 16777619) >>> 0;
     const next = () => { value = (Math.imul(value, 1664525) + 1013904223) >>> 0; return value / 4294967296; };
     const candidates = [...databaseSupportedUnitIds].map(unitId => ({ unitId, unit:getSupportedUnit(unitId) }))
-      .filter(({ unit }) => unit && !unit.customDesign && Number(unit.tonnage) <= 100 && Number(unit.movement?.run || 0) >= 6 && (unit.weapons || []).some(weapon => !weapon.weapon?.supportOnly))
+      .filter(({ unitId, unit }) => unit && !unit.customDesign && unitRulesetStatus(unitId, unit, 'advanced_3060').allowed && Number(unit.tonnage) <= 100 && Number(unit.movement?.run || 0) >= 6 && (unit.weapons || []).some(weapon => !weapon.weapon?.supportOnly))
       .sort((left, right) => left.unitId.localeCompare(right.unitId));
     if (candidates.length < 2) throw new Error('The pinned catalogue has fewer than two eligible supported soak BattleMechs.');
     const host = candidates[Math.floor(next() * candidates.length)];
@@ -390,7 +399,8 @@ try {
   soakSelections = selections;
   console.log(`SOAK FORCE: ${selections.host.unitId} versus ${selections.guest.unitId} (${selections.mode}, seed ${selections.seed})`);
   await Promise.all([addAndDeployBattleMech(host, selections.host), addAndDeployBattleMech(guest, selections.guest)]);
-  check(`both players deploy the ${selections.mode} ${soakProfile.name} roster`, /Deployment:\s*[1-9]/.test(await host.locator('.roster-summary').innerText()) && /Deployment:\s*[1-9]/.test(await guest.locator('.roster-summary').innerText()));
+  const hasDeployment = async page => (await page.locator('.roster-summary').allInnerTexts()).some(text => /Deployment:\s*[1-9]\d*/.test(text));
+  check(`both players deploy the ${selections.mode} ${soakProfile.name} roster`, await hasDeployment(host) && await hasDeployment(guest));
   await Promise.all([
     placeBattlefieldDeployment(host, soakProfile.deployment.host.hex, soakProfile.deployment.host.facing),
     placeBattlefieldDeployment(guest, soakProfile.deployment.guest.hex, soakProfile.deployment.guest.facing)
