@@ -879,6 +879,11 @@ async function handleStartGame() {
       return;
     }
     gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars, gameState.deployment_positions, gameState.c3_assignments);
+  } else {
+    // SQL 123 forbids adding or replacing units after play starts. Persist the
+    // canonical demonstration roster in the same transaction that starts the
+    // match, before any human or AI phase action can be submitted.
+    gameState.mech_instances = buildDefaultVsAIMechInstances();
   }
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
