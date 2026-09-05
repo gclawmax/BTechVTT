@@ -318,7 +318,19 @@ async function main() {
   const partsPath = option('--parts-output', `${sqlPath}.parts`);
   const partBytes = integer(option('--part-bytes', '400000')) || 400_000;
   if (!basename(partsPath).endsWith('.sql.parts')) throw new Error('Parts output directory must end with .sql.parts');
-  const config = JSON.parse(await readFile(configPath, 'utf8'));
+  const selectedConfig = JSON.parse(await readFile(configPath, 'utf8'));
+  // A small reviewed expansion may extend the currently released roster
+  // without copying its entire allowlist. The child still supplies a new,
+  // immutable catalogue version; duplicate IDs are rejected below.
+  const baseConfig = selectedConfig.extends
+    ? JSON.parse(await readFile(join(dirname(configPath), selectedConfig.extends), 'utf8'))
+    : null;
+  const config = baseConfig
+    ? { ...baseConfig, ...selectedConfig, units:[...(baseConfig.units || []), ...(selectedConfig.units || [])] }
+    : selectedConfig;
+  if (!config.catalogue_version || !Array.isArray(config.units)) throw new Error('Catalogue config needs a version and units array');
+  const ids = config.units.map(entry => entry.id);
+  if (new Set(ids).size !== ids.length) throw new Error('Catalogue config contains duplicate unit IDs');
   const compatibleOnly = process.argv.includes('--skip-unsupported');
   const candidates = [];
   for (const entry of config.units) candidates.push(parseMtf(await readFile(join(source, entry.source), 'utf8'), entry));

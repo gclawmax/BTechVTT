@@ -64,6 +64,7 @@ try {
   await run('node', ['tools/test-signature-electronics-regression.mjs'], {}, 'SR-5 signature and electronics regression');
   await run('node', ['tools/test-ruleset-controls-regression.mjs'], {}, 'SR-6 ruleset controls regression');
   await run('node', ['tools/test-specialist-physical-equipment-regression.mjs'], {}, 'SR-6b specialist physical-equipment regression');
+  await run('node', ['test-sr7-catalogue-audit.mjs'], {}, 'SR-7 catalogue audit regression');
   if (!suppliedUrl) {
     server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
     await waitForServer(baseUrl);

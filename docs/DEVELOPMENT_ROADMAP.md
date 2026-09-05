@@ -335,6 +335,12 @@ The output is a small, reviewed import batch rather than a large untestable
 catalogue dump. Re-run the Human-versus-human battle regression with at least
 one representative unit from every specialist family.
 
+Implementation status: **implemented in SQL 122.** The SR-7 release extends
+curated-05 to 85 BattleMechs with a reviewed Inner Sphere/Clan batch. Its
+strict builder and `test-sr7-catalogue-audit.mjs` keep any unknown equipment
+out of the playable catalogue; the full audit is recorded in
+`docs/SR7_CATALOGUE_AUDIT.md`.
+
 ## Supporting documents
 
 - `README2.md` — current architecture and implemented-feature overview.

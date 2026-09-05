@@ -1,0 +1,16 @@
+{
+  "extends": "supported-megamek-units.json",
+  "catalogue_version": "megamek-2026-09-sr7-01",
+  "units": [
+    { "id": "bushwacker-bsw-x1", "source": "data/mekfiles/meks/3058Uu/Bushwacker BSW-X1.mtf" },
+    { "id": "bushwacker-bsw-x2", "source": "data/mekfiles/meks/3058Uu/Bushwacker BSW-X2.mtf" },
+    { "id": "axman-axm-1n", "source": "data/mekfiles/meks/3050U/Axman AXM-1N.mtf" },
+    { "id": "king-crab-kgc-000", "source": "data/mekfiles/meks/3050U/King Crab KGC-000.mtf" },
+    { "id": "wraith-tr1", "source": "data/mekfiles/meks/3055U/Wraith TR1.mtf" },
+    { "id": "nightsky-ngs-5s", "source": "data/mekfiles/meks/3055U/Nightsky NGS-5S.mtf" },
+    { "id": "axman-axm-2n", "source": "data/mekfiles/meks/3050U/Axman AXM-2N.mtf" },
+    { "id": "nova-cat-prime", "source": "data/mekfiles/meks/3060u/Nova Cat Prime.mtf" },
+    { "id": "nova-cat-a", "source": "data/mekfiles/meks/3060u/Nova Cat A.mtf" },
+    { "id": "nova-cat-b", "source": "data/mekfiles/meks/3060u/Nova Cat B.mtf" }
+  ]
+}
