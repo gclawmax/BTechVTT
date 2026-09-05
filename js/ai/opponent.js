@@ -40,8 +40,14 @@ const AI_SETTINGS = {
 // AI plan generator - creates movement and attack plans
 function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   const settings = AI_SETTINGS[difficulty] || AI_SETTINGS.beginner;
+  const context = createAIPlanningContext(difficulty, gameState, mechInstances);
   const aiPlan = {
     type: 'ai_plan',
+    engineVersion: BT_AI_ENGINE_VERSION,
+    decisionId: context.decisionId,
+    seed: context.seed,
+    snapshotHash: context.snapshotHash,
+    phase: currentGameState.phase,
     difficulty: difficulty,
     timestamp: Date.now(),
     actions: []
@@ -56,31 +62,49 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   }
   
   // Get player mechs (owner 1 = human)
-  const playerMechs = mechInstances.filter(inst => inst.owner === 1);
+  const playerMechs = mechInstances.filter(inst => inst.owner === 1 && !inst.destroyed &&
+    (typeof isEnemyHiddenUnit !== 'function' || !isEnemyHiddenUnit(inst)));
   
-  // Generate actions for each AI mech
+  // Generate one explicit action or pass for every eligible AI BattleMech.
+  // A weak difficulty may choose a conservative pass, but it may never omit
+  // the activation and leave the match waiting forever.
   for (const mech of aiMechs) {
     // The algorithmic AI is phase-scoped: Movement can only create movement
     // actions; Weapon Attack can only create attack actions.
-    if (currentGameState.phase === 'movement' && !mech.hasMoved && Math.random() < settings.moveChance) {
-      const moveAction = generateAIMoveAction(mech, playerMechs, settings);
-      if (moveAction) aiPlan.actions.push(moveAction);
+    if (currentGameState.phase === 'movement' && !mech.hasMoved && !mech.destroyed) {
+      const canConsiderMove = !mech.shutdown && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
+      const moveAction = canConsiderMove && context.random() < settings.moveChance
+        ? generateAIMoveAction(mech, playerMechs, settings, context) : null;
+      aiPlan.actions.push(moveAction || { type: 'complete_movement', instanceId: mech.instanceId, reason: canConsiderMove ? 'Held position by difficulty policy.' : 'Unable to move.' });
     }
 
-    if (currentGameState.phase === 'weapon_attack' && !mech.hasFired && Math.random() < settings.attackChance) {
-      const attackAction = generateAIAttackAction(mech, playerMechs, settings);
-      if (attackAction) aiPlan.actions.push(attackAction);
+    if (currentGameState.phase === 'weapon_attack' && !mech.hasFired && !mech.destroyed) {
+      const canConsiderFire = !mech.shutdown && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
+      const attackAction = canConsiderFire && context.random() < settings.attackChance
+        ? generateAIAttackAction(mech, playerMechs, settings, context) : null;
+      aiPlan.actions.push(attackAction || { type: 'no_fire', instanceId: mech.instanceId, reason: canConsiderFire ? 'No legal shot selected.' : 'Unable to fire.' });
     }
 
-    if (currentGameState.phase === 'reaction' && !mech.hasReacted) {
-      aiPlan.actions.push(generateAIReactionAction(mech, playerMechs));
+    if (currentGameState.phase === 'reaction' && !mech.hasReacted && !mech.destroyed) {
+      aiPlan.actions.push(generateAIReactionAction(mech, playerMechs, context));
     }
 
-    if (currentGameState.phase === 'physical_attack' && !mech.hasPhysicalAttacked) {
+    if (currentGameState.phase === 'physical_attack' && !mech.hasPhysicalAttacked && !mech.destroyed) {
       const target = playerMechs.find(candidate => physicalLimbCandidates('kick').some(limb => evaluatePhysicalAttack(mech, candidate, 'kick', limb).valid));
-      if (target) aiPlan.actions.push({ type: 'physical_attack', instanceId: mech.instanceId, targetInstanceId: target.instanceId, attackType: 'kick' });
+      aiPlan.actions.push(target
+        ? { type: 'physical_attack', instanceId: mech.instanceId, targetInstanceId: target.instanceId, attackType: 'kick', _debug: `Legal kick against ${mechLabel(target)}` }
+        : { type: 'no_physical_attack', instanceId: mech.instanceId, reason: 'No legal physical attack.' });
     }
   }
+
+  if (currentGameState.phase === 'heat') aiPlan.actions.push({ type: 'manage_heat', reason: 'Resolve every outstanding AI heat ledger.' });
+
+  aiPlan.actions = aiPlan.actions.filter(action => {
+    const check = validateAIActionContract(action, currentGameState.phase);
+    if (!check.valid) console.error('[BT-AI] Rejected planned action:', check.reason, action);
+    return check.valid;
+  });
+  aiPlan.decision = registerAIPlan(context, aiPlan.actions);
   
   return aiPlan;
 }
@@ -88,13 +112,13 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
 // Pick a legal one-hexside torso twist toward the nearest opposing 'Mech.
 // If the target is outside that arc, the AI deliberately holds its torso
 // facing and still completes the required Reaction action.
-function generateAIReactionAction(mech, playerMechs) {
-  if (mech.prone) return { type: 'complete_reaction', instanceId: mech.instanceId };
+function generateAIReactionAction(mech, playerMechs, context = null) {
+  if (mech.prone || mech.shutdown) return { type: 'complete_reaction', instanceId: mech.instanceId, reason: mech.prone ? 'Prone BattleMechs cannot torso twist.' : 'Shutdown BattleMech.' };
   const target = [...playerMechs].sort((a, b) =>
     axialDistance(mech.col, mech.row, a.col, a.row) - axialDistance(mech.col, mech.row, b.col, b.row)
   )[0];
 
-  if (!target) return { type: 'complete_reaction', instanceId: mech.instanceId };
+  if (!target) return { type: 'complete_reaction', instanceId: mech.instanceId, reason: 'No visible target.' };
 
   let desiredFacing = mech.facing;
   let bestDistance = Infinity;
@@ -109,13 +133,13 @@ function generateAIReactionAction(mech, playerMechs) {
 
   const torsoFacing = mech.torsoFacing == null ? mech.facing : mech.torsoFacing;
   const turn = (desiredFacing - torsoFacing + 6) % 6;
-  if (turn === 1) return { type: 'torso_twist', instanceId: mech.instanceId, direction: 'left' };
-  if (turn === 5) return { type: 'torso_twist', instanceId: mech.instanceId, direction: 'right' };
-  return { type: 'complete_reaction', instanceId: mech.instanceId };
+  if (turn === 1) return { type: 'torso_twist', instanceId: mech.instanceId, direction: 'left', _debug: `Turn toward ${mechLabel(target)}` };
+  if (turn === 5) return { type: 'torso_twist', instanceId: mech.instanceId, direction: 'right', _debug: `Turn toward ${mechLabel(target)}` };
+  return { type: 'complete_reaction', instanceId: mech.instanceId, reason: 'Current torso arc is preferred.' };
 }
 
 // Generate a movement action for AI mech
-function generateAIMoveAction(mech, playerMechs, settings) {
+function generateAIMoveAction(mech, playerMechs, settings, context = null) {
   const unit = BT_UNITS[mech.unitId];
   if (!unit) return null;
   
@@ -124,7 +148,7 @@ function generateAIMoveAction(mech, playerMechs, settings) {
   let minDistance = Infinity;
   
   for (const playerMech of playerMechs) {
-    const distance = Math.abs(mech.col - playerMech.col) + Math.abs(mech.row - playerMech.row);
+    const distance = axialDistance(mech.col, mech.row, playerMech.col, playerMech.row);
     if (distance < minDistance) {
       minDistance = distance;
       targetHex = { col: playerMech.col, row: playerMech.row };
@@ -173,7 +197,8 @@ function generateAIMoveAction(mech, playerMechs, settings) {
     useMASC,
     tsmActive,
     mascTarget,
-    facing: path.at(-1)?.direction ?? mech.facing
+    facing: path.at(-1)?.direction ?? mech.facing,
+    _debug: `Closed from range ${minDistance} to ${axialDistance(current.col, current.row, targetHex.col, targetHex.row)}`
   };
 }
 
@@ -214,7 +239,7 @@ function scoreWeaponAttack(mech, target, weaponEntry) {
 
 // Generate an attack action scored by expected damage rather than choosing
 // the catalogue's first weapon against a distance/tonnage-sorted target.
-function generateAIAttackAction(mech, playerMechs, settings) {
+function generateAIAttackAction(mech, playerMechs, settings, context = null) {
   const unit = BT_UNITS[mech.unitId];
   if (!unit?.weapons?.length) return null;
 
@@ -230,7 +255,8 @@ function generateAIAttackAction(mech, playerMechs, settings) {
 
   let choice;
   if (settings.targetPriority === 'random') {
-    choice = candidates[Math.floor(Math.random() * candidates.length)];
+    const random = context?.random || Math.random;
+    choice = candidates[Math.floor(random() * candidates.length)];
   } else if (settings.targetPriority === 'closest') {
     const nearestTarget = [...playerMechs].sort((a, b) =>
       axialDistance(mech.col, mech.row, a.col, a.row) - axialDistance(mech.col, mech.row, b.col, b.row)
@@ -252,8 +278,34 @@ function generateAIAttackAction(mech, playerMechs, settings) {
 }
 
 // Execute AI plan after a delay
+async function completeAIUnitPhaseAction(action) {
+  const mech = mechInstances.find(candidate => candidate.instanceId === action.instanceId);
+  if (!mech || mech.destroyed) return false;
+  if (action.type === 'complete_movement') {
+    mech.movementMode = 'stand';
+    mech.mpUsed = 0;
+    mech.hexesMoved = 0;
+    mech.movementHeat = 0;
+    mech.heat = (mech.roundStartingHeat || 0) + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
+    mech.hasMoved = true;
+    logEvent(`${mechLabel(mech)} (AI) held position.`, 'move');
+  } else if (action.type === 'no_fire') {
+    mech.hasFired = true;
+    logEvent(`${mechLabel(mech)} (AI) declared no weapon fire.`, 'attack');
+  } else if (action.type === 'no_physical_attack') {
+    mech.hasPhysicalAttacked = true;
+    logEvent(`${mechLabel(mech)} (AI) declared no physical attack.`, 'attack');
+  } else {
+    return false;
+  }
+  await syncMechInstances();
+  updateAdvanceButtonState();
+  return true;
+}
+
 async function executeAIPlan(aiPlan) {
   if (!aiPlan || !aiPlan.actions || aiPlan.actions.length === 0) {
+    completeAIDecision('completed');
     logEvent('AI has no actions to take this phase.', 'system');
     if (currentGameState.phase === 'movement') {
       // No planned move is still a legal decision: the AI stands still.
@@ -287,27 +339,43 @@ async function executeAIPlan(aiPlan) {
   // Execute actions one by one with delays for visual feedback
   for (const action of aiPlan.actions) {
     await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay between actions
-    
-    switch (action.type) {
-      case 'move':
-        await executeAIMove(action);
-        break;
-      case 'attack':
-        await executeAIAttack(action);
-        break;
-      case 'torso_twist':
-        await executeAIReaction(action);
-        break;
-      case 'complete_reaction':
-        await executeAIReaction(action);
-        break;
-      case 'physical_attack':
-        await executeAIPhysicalAttack(action);
-        break;
+    try {
+      const contract = validateAIActionContract(action, aiPlan.phase || currentGameState.phase);
+      if (!contract.valid) throw new Error(contract.reason);
+      switch (action.type) {
+        case 'move':
+          await executeAIMove(action);
+          break;
+        case 'attack':
+          await executeAIAttack(action);
+          break;
+        case 'torso_twist':
+        case 'complete_reaction':
+          await executeAIReaction(action);
+          break;
+        case 'physical_attack':
+          await executeAIPhysicalAttack(action);
+          break;
+        case 'complete_movement':
+        case 'no_fire':
+        case 'no_physical_attack':
+          await completeAIUnitPhaseAction(action);
+          break;
+        case 'manage_heat':
+          await resolveAIHeatManagement();
+          break;
+      }
+      recordAIActionOutcome(action, 'completed', action._debug || action.reason || '');
+    } catch (error) {
+      recordAIActionOutcome(action, 'failed', error.message || error);
+      console.error('[BT-AI] Action failed:', action, error);
+      logEvent(`AI action failed safely: ${error.message || error}`, 'error');
     }
   }
   
   console.log('AI plan execution complete');
+  const decisionFailed = pendingAIDecisionEnvelope?.outcomes?.some(outcome => outcome.status === 'failed');
+  completeAIDecision(decisionFailed ? 'failed' : 'completed');
 
   if (currentGameState.phase === 'movement') {
     const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
@@ -323,12 +391,26 @@ async function executeAIPlan(aiPlan) {
     updateAdvanceButtonState();
   }
 
+  if (currentGameState.phase === 'reaction') {
+    const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
+    aiMechs.forEach(m => {
+      if (m.prone) m.torsoFacing = m.facing;
+      m.hasReacted = true;
+    });
+    await syncMechInstances();
+    updateAdvanceButtonState();
+  }
+
   if (currentGameState.phase === 'physical_attack') {
     const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
     aiMechs.forEach(m => { m.hasPhysicalAttacked = true; });
     await syncMechInstances();
     updateAdvanceButtonState();
   }
+
+  // The final sync stores the completed decision envelope, including every
+  // action outcome, through SQL 123's guarded AI authority gateway.
+  if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase)) await syncMechInstances();
 }
 
 async function executeAIPhysicalAttack(action) {
@@ -336,7 +418,7 @@ async function executeAIPhysicalAttack(action) {
   const target = mechInstances.find(m => m.instanceId === action.targetInstanceId);
   const limb = physicalLimbCandidates(action.attackType).find(candidate => evaluatePhysicalAttack(attacker, target, action.attackType, candidate).valid);
   const attack = evaluatePhysicalAttack(attacker, target, action.attackType, limb);
-  if (!attack.valid) return;
+  if (!attack.valid) throw new Error(attack.reason || 'Physical attack is no longer legal.');
   const roll = roll2d6Detailed();
   const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);
   let message = `${mechLabel(attacker)} (AI) kicked ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: miss.`;
@@ -347,11 +429,12 @@ async function executeAIPhysicalAttack(action) {
   await syncMechInstances();
   await checkForMatchEnd();
   logEvent(message, 'attack');
+  attacker.hasPhysicalAttacked = true;
 }
 
 async function executeAIReaction(action) {
   const mech = mechInstances.find(m => m.instanceId === action.instanceId);
-  if (!mech || mech.destroyed || mech.hasReacted) return;
+  if (!mech || mech.destroyed || mech.hasReacted) throw new Error('Reaction BattleMech is no longer eligible.');
 
   if (action.type === 'torso_twist') {
     const delta = action.direction === 'left' ? 1 : -1;
@@ -374,7 +457,7 @@ async function executeAIReaction(action) {
 // Execute AI movement
 async function executeAIMove(action) {
   const mech = mechInstances.find(m => m.instanceId === action.instanceId);
-  if (!mech) return;
+  if (!mech || mech.destroyed || mech.hasMoved) throw new Error('Movement BattleMech is no longer eligible.');
 
   if (action.useMASC) {
     const result = resolveLocalMASCActivation(mech);
@@ -422,13 +505,13 @@ async function executeAIAttack(action) {
   const attacker = mechInstances.find(m => m.instanceId === action.instanceId);
   const target = mechInstances.find(m => m.instanceId === action.targetInstanceId);
   
-  if (!attacker || !target || attacker.hasFired) return;
+  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.hasFired) throw new Error('Weapon attacker or target is no longer eligible.');
   
   const weaponEntry = BT_UNITS[attacker.unitId].weapons.find(weapon =>
     weapon.key === action.weaponKey && (!action.weaponLocation || weapon.location === action.weaponLocation));
-  if (!weaponEntry) return;
+  if (!weaponEntry) throw new Error('Planned weapon mount is no longer available.');
   const attack = evaluateWeaponAttack(attacker, target, weaponEntry);
-  if (!attack.valid) return;
+  if (!attack.valid) throw new Error(attack.reason || 'Planned weapon attack is no longer legal.');
 
   attacker.weaponHeat = (attacker.weaponHeat || 0) + attack.weapon.heat;
   attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat + (attacker.externalHeat || 0);

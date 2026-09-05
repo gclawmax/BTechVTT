@@ -154,7 +154,9 @@ and skirmish isolation tests are complete.
 
 - Expand remaining specialist equipment and catalogue-led rule batches (see
   **BattleMech specialist-rules programme** below).
-- Improve AI decision-making without delaying Human-versus-human rules work.
+- Improve AI decision-making through the staged programme in
+  `docs/AI_OPPONENT_ROADMAP.md`. AI-1 is implemented in SQL 123 and build
+  `20260905-ai-foundation-65`; live migration validation is pending.
 - Production hosting, observability, backups and deployment beyond the current
   GitHub Pages/Supabase development setup.
 - Further visual, audio, accessibility and mobile polish.
@@ -345,5 +347,6 @@ out of the playable catalogue; the full audit is recorded in
 
 - `README2.md` — current architecture and implemented-feature overview.
 - `docs/HOW_TO_PLAY_PROPOSAL.md` — player-facing rules and UI guidance source.
+- `docs/AI_OPPONENT_ROADMAP.md` — authoritative Play vs AI development slices.
 - `SKILL_ROADMAP2.md` — retained as historical roadmap context only.
 - `README.md` — legacy project overview; its roadmap is obsolete.

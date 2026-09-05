@@ -356,12 +356,17 @@ async function syncMechInstances() {
         await loadGameState();
         return;
       }
-      const { data: game, error: readError } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
-      if (readError) throw readError;
-      const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-      gameState.mech_instances = mechSnapshot;
-      const { error: writeError } = await db.from('btech_games').update({ state: JSON.stringify(gameState) }).eq('id', currentGameId);
-      if (writeError) throw writeError;
+      // Solo matches still cross a server authority boundary. The gateway
+      // verifies the caller controls this AI match, preserves configuration,
+      // rejects malformed/foreign unit snapshots and stores the reproducible
+      // AI decision envelope. No AI code writes btech_games directly.
+      const decision = typeof getAIDecisionForPersistence === 'function' ? getAIDecisionForPersistence() : null;
+      const { error } = await db.rpc('submit_ai_phase_state', {
+        p_game_id: currentGameId,
+        p_mech_instances: mechSnapshot,
+        p_decision: decision
+      });
+      if (error) throw error;
     });
   } catch (err) {
     console.warn('Failed to sync mech positions:', err);

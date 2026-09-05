@@ -349,6 +349,7 @@ check('#4 moveState cleared after confirm', sandbox.moveState.active === false);
 // game-state object, while the jump test intentionally controls the stub.
 load('js/game/physical-attack.js');
 load('js/game/phases.js');
+load('js/ai/engine.js');
 load('js/ai/opponent.js');
 sandbox.BT_UNITS.testmech.tonnage = 50;
 const physicalAttacker = { ...mkMech(4), col: 4, row: 4, facing: 0, structure: { ...STRUCT, ll: 7, rl: 7 } };

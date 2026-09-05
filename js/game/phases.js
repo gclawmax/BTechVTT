@@ -53,6 +53,10 @@ function makePhaseState() {
     match_result: currentGameState.match_result,
     active_player_player_id: currentGameState.active_player_id,
     mech_instances: mechInstances,
+    ...(vsAiMode && typeof BT_AI_ENGINE_VERSION !== 'undefined' ? {
+      ai_engine_version: BT_AI_ENGINE_VERSION,
+      ai_decisions: typeof aiDecisionHistory !== 'undefined' ? aiDecisionHistory.slice(-50) : []
+    } : {}),
     ...currentMatchConfig
   };
 }
@@ -96,8 +100,10 @@ async function loadGameState() {
     ...(gameState.map_id ? { map_id: gameState.map_id } : {}),
     ...(gameState.dropship_tonnage ? { dropship_tonnage: gameState.dropship_tonnage } : {}),
     ...(gameState.rosters ? { rosters: gameState.rosters } : {}),
+    ...(gameState.ruleset ? { ruleset: gameState.ruleset } : {}),
     ...(typeof gameState.vs_ai_mode === 'boolean' ? { vs_ai_mode: gameState.vs_ai_mode } : {}),
     ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {}),
+    ...(gameState.ai_seed ? { ai_seed: gameState.ai_seed } : {}),
     ...(gameState.special_ammo_setup_v1 ? { special_ammo_setup_v1: true } : {}),
     ...(gameState.terrain_overrides ? { terrain_overrides: gameState.terrain_overrides } : {}),
     ...(gameState.elevation_overrides ? { elevation_overrides: gameState.elevation_overrides } : {}),
@@ -122,6 +128,7 @@ async function loadGameState() {
   // the same tab can leave AI-only controls visible in a human game created
   // before the flag existed in saved state.
   vsAiMode = gameState.vs_ai_mode === true;
+  if (vsAiMode && typeof restoreAIDecisionHistory === 'function') restoreAIDecisionHistory(gameState.ai_decisions);
   if (!vsAiMode && currentUser?.id) {
     const { data: myPlayer } = await db.from('btech_players')
       .select('id').eq('game_id', currentGameId).eq('user_id', currentUser.id).eq('role', 'player').maybeSingle();

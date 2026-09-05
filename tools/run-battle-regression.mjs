@@ -22,6 +22,7 @@ const steps = [
   { label: 'SR-6 ruleset controls regression', command: 'node', args: ['tools/test-ruleset-controls-regression.mjs'] },
   { label: 'SR-6b specialist physical-equipment regression', command: 'node', args: ['tools/test-specialist-physical-equipment-regression.mjs'] },
   { label: 'SR-7 catalogue audit regression', command: 'node', args: ['test-sr7-catalogue-audit.mjs'] },
+  { label: 'AI-1 decision foundation regression', command: 'node', args: ['tools/test-ai-foundation.mjs'] },
   { label: 'Two-player complete battle', command: 'node', args: ['tools/test-human-vs-human.mjs'] },
   ...(suite === 'quick' ? [] : [{ label: 'Two-player focused rules battle', command: 'node', args: ['tools/test-human-vs-human-rules.mjs'] }]),
   ...(suite === 'quick' ? [] : [{ label: 'Dragon Level 2 live acceptance', command: 'node', args: ['tools/test-dragon-level2-live.mjs'] }]),

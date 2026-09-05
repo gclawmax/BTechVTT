@@ -10,13 +10,16 @@ async function handleCreateVsAI() {
     // past movement. See issue #6.
     const catalogueVersion = await loadLatestUnitCatalogue();
     const code = generateGameCode();
+    // Persist the root seed so every phase decision can be reproduced from an
+    // exported replay. Individual decisions derive a phase/snapshot seed.
+    const aiSeed = `${code}:${Date.now().toString(36)}`;
     const { data: game, error: gameErr } = await db
       .from('btech_games')
       .insert({
         game_code: code,
         host_id: currentUser.id,
         catalogue_version: catalogueVersion,
-        state: JSON.stringify({ units: [], turn: 0, phase: 'setup', vs_ai_mode: true, ai_difficulty: aiDifficulty, catalogue_version: catalogueVersion }),
+        state: JSON.stringify({ units: [], turn: 0, phase: 'setup', vs_ai_mode: true, ai_difficulty: aiDifficulty, ai_seed: aiSeed, ai_engine_version: BT_AI_ENGINE_VERSION, ai_decisions: [], catalogue_version: catalogueVersion }),
         status: 'lobby',
         created_at: new Date().toISOString()
       })
