@@ -326,7 +326,7 @@ async function completePhaseThroughHeat(host, guest) {
           if (mech) { selectedInstanceId = mech.instanceId; completeReaction(mech.instanceId); }
         });
       } else if (snapshot.phase === 'weapon_attack') {
-        await page.evaluate(() => {
+        await page.evaluate(async () => {
           const mech = (mechInstances || []).find(candidate => candidate.owner === mySeatNumber && !candidate.hasFired && !candidate.destroyed);
           const target = (mechInstances || []).find(candidate => candidate.owner !== mySeatNumber && !candidate.destroyed);
           if (!mech || !target) return;
@@ -334,10 +334,10 @@ async function completePhaseThroughHeat(host, guest) {
           selectWeaponTarget(target.instanceId);
           const entry = (BT_UNITS[mech.unitId]?.weapons || []).find((weapon, index) => evaluateWeaponAttack(mech, target, weapon).valid);
           if (entry) toggleWeaponForAttack(weaponMountId(entry, BT_UNITS[mech.unitId].weapons.indexOf(entry)));
-          confirmWeaponAttack();
+          await confirmWeaponAttack();
         });
       } else if (snapshot.phase === 'heat') {
-        await page.evaluate(() => confirmHeatManagement());
+        await page.evaluate(async () => { await confirmHeatManagement(); });
       }
       await sleep(700);
       const next = page.locator('#btn-advance-phase');
@@ -440,9 +440,10 @@ try {
     `${beforePhysical.hostState.phase}/${beforePhysical.guestState.phase}`);
 
   const afterPhysical = await completePhysicalExchange(host, guest);
-  check('both kick declarations resolve and advance both players to Heat',
+  const physicalResolved = check('both kick declarations resolve and advance both players to Heat',
     afterPhysical.hostState.phase === 'heat' && afterPhysical.guestState.phase === 'heat',
     `${afterPhysical.hostState.phase}/${afterPhysical.guestState.phase}`);
+  if (!physicalResolved) throw new Error('Physical exchange did not resolve; later phase and rejoin checks were deliberately skipped.');
   const ledger = await physicalLedger(host);
   check('the server stores both resolved physical declarations',
     !ledger.error && ledger.events.length === 2 && ledger.events.every(event => event.status === 'resolved' && event.resolution?.state_version === 'authoritative-physical-01' && event.resolution?.results?.[0]?.attack_type === 'kick'),

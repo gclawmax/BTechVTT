@@ -6,7 +6,7 @@
 //   BT_SOAK_RUNS=20 BT_SOAK_KEEP_PASSED=1 node tools/run-battlemech-duel-soak.mjs
 
 import { spawn } from 'node:child_process';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -19,6 +19,7 @@ const baseUrl = suppliedUrl || `http://127.0.0.1:${port}/index.html`;
 const keepPassed = process.env.BT_SOAK_KEEP_PASSED === '1';
 const continueAfterFailure = process.env.BT_SOAK_CONTINUE === '1';
 const reportDir = join(tmpdir(), 'btechvtt-duel-soak');
+const lockPath = join(tmpdir(), 'btechvtt-duel-soak.lock');
 const seedBase = String(process.env.BT_SOAK_SEED || Date.now());
 
 function run(command, args, env, label) {
@@ -47,7 +48,15 @@ if (process.env.BT_SOAK_LIST === '1') {
 }
 
 let server = null;
+let lock = null;
 try {
+  try {
+    lock = await open(lockPath, 'wx');
+    await lock.writeFile(JSON.stringify({ pid:process.pid, startedAt:new Date().toISOString(), runs, seedBase }) + '\n');
+  } catch (error) {
+    if (error?.code === 'EEXIST') throw new Error(`Another BattleMech duel soak is already using the disposable test accounts (${lockPath}). Wait for it to finish before starting another run.`);
+    throw error;
+  }
   await mkdir(reportDir, { recursive:true });
   await rm(join(reportDir, 'soak-summary.json'), { force:true });
   await run('node', ['test-fixes.mjs'], {}, 'Static rules regression');
@@ -102,4 +111,5 @@ try {
   process.exitCode = 1;
 } finally {
   if (server && !server.killed) server.kill('SIGTERM');
+  if (lock) { await lock.close(); await rm(lockPath, { force:true }); }
 }
