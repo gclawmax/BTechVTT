@@ -131,8 +131,8 @@ try {
 
   gameId = result.gameId;
   gameCode = result.gameCode;
-  check('the deployed browser includes the AI specialist authority',/^20260906-ai[56]-/.test(result.build),result.build);
-  if(result.build.includes('ai6-')) check('AI-6 persists the selected difficulty and personality into the match',result.createdDifficulty==='advanced'&&result.createdPersonality==='sniper'&&result.plannedPersonality==='sniper',JSON.stringify({difficulty:result.createdDifficulty,personality:result.createdPersonality,planned:result.plannedPersonality}));
+  check('the deployed browser includes the AI specialist authority',/^20260906-ai[5-7]-/.test(result.build),result.build);
+  if(/^20260906-ai[67]-/.test(result.build)) check('AI difficulty and personality persist into the match',result.createdDifficulty==='advanced'&&result.createdPersonality==='sniper'&&result.plannedPersonality==='sniper',JSON.stringify({difficulty:result.createdDifficulty,personality:result.createdPersonality,planned:result.plannedPersonality}));
   check('SQL 126 accepts the active AI Reaction action',result.reacted && ['torso_twist','complete_reaction'].includes(result.reactionAction?.type),JSON.stringify(result.reactionAction));
   check('AI-5 selects a legal physical attack rather than a fixed kick',result.physicalAction?.type === 'physical_attack' && result.physicalAction?.attackType && result.physicalAction?.limbs?.length,JSON.stringify(result.physicalAction));
   check('the authoritative server resolves the AI physical declaration',result.event?.status === 'resolved' && result.event?.resolution?.results?.length > 0,result.eventError || result.event?.status || 'missing');

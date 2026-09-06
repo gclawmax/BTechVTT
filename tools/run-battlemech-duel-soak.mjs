@@ -67,6 +67,8 @@ try {
   await run('node', ['test-sr7-catalogue-audit.mjs'], {}, 'SR-7 catalogue audit regression');
   await run('node', ['tools/test-ai-foundation.mjs'], {}, 'AI-1 decision foundation regression');
   await run('node', ['tools/test-ai-weapon-planning.mjs'], {}, 'AI-2 weapon-package regression');
+  await run('node', ['tools/test-ai-difficulty-personality.mjs'], {}, 'AI-6 difficulty and personality regression');
+  await run('node', ['tools/test-ai-evaluation.mjs'], {}, 'AI-7 evaluation and retention regression');
   if (!suppliedUrl) {
     server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
     await waitForServer(baseUrl);

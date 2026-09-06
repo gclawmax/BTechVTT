@@ -115,6 +115,8 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   const personality = normaliseAIPersonality(gameState?.ai_personality || (typeof aiPersonality !== 'undefined' ? aiPersonality : 'balanced'));
   const settings = aiSettingsFor(difficulty, personality);
   const context = createAIPlanningContext(settings.difficulty, { ...gameState, ai_personality: personality }, mechInstances);
+  const requestedPlayer = (allPlayers || []).find(player => player.id === aiPlayerId || player.player_id === aiPlayerId);
+  const aiSeat = Number(gameState?.ai_evaluation_seat || requestedPlayer?.seat_number || 2);
   const aiPlan = {
     type: 'ai_plan',
     engineVersion: BT_AI_ENGINE_VERSION,
@@ -124,12 +126,13 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
     phase: currentGameState.phase,
     difficulty: settings.difficulty,
     personality,
+    seat: aiSeat,
     timestamp: Date.now(),
     actions: []
   };
   
   // Get AI's mech instances
-  const aiMechs = mechInstances.filter(inst => inst.owner === 2); // Owner 2 = AI
+  const aiMechs = mechInstances.filter(inst => Number(inst.owner) === aiSeat);
   
   if (aiMechs.length === 0) {
     console.warn('No AI mechs found for plan generation');
@@ -137,7 +140,7 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   }
   
   // Get player mechs (owner 1 = human)
-  const playerMechs = mechInstances.filter(inst => inst.owner === 1 && !inst.destroyed &&
+  const playerMechs = mechInstances.filter(inst => Number(inst.owner) !== aiSeat && !inst.destroyed &&
     (typeof isEnemyHiddenUnit !== 'function' || !isEnemyHiddenUnit(inst)));
   const coordination = buildAIForceCoordination(aiMechs, playerMechs, settings, context);
   aiPlan.coordination = coordination.summary;

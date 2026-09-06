@@ -2,7 +2,7 @@
 // Pure, deterministic planning helpers. The phase-specific opponent code may
 // improve over time without changing this replay/audit contract.
 
-var BT_AI_ENGINE_VERSION = 'ai-6.0';
+var BT_AI_ENGINE_VERSION = 'ai-7.0';
 var pendingAIDecisionEnvelope = null;
 var aiDecisionHistory = [];
 
@@ -95,6 +95,7 @@ function buildAIBattlefieldSnapshot(gameState = {}, units = null) {
     victoryMode: matchState.victory_mode || matchConfig.victory_mode || 'annihilation',
     aiDifficulty: matchState.ai_difficulty || matchConfig.ai_difficulty || 'beginner',
     aiPersonality: matchState.ai_personality || matchConfig.ai_personality || 'balanced',
+    aiSeat: Number(matchState.ai_evaluation_seat || 2),
     objectiveHexes: matchState.objective_hexes || matchConfig.objective_hexes || [],
     minefields: matchState.minefields || matchConfig.minefields || [],
     terrainOverrides: matchState.terrain_overrides || matchConfig.terrain_overrides || {},

@@ -145,7 +145,24 @@ AI-6 is client-side decision policy. It adds no new combat authority or SQL.
 
 ## AI-7 — evaluation and tuning
 
-Run deterministic AI-versus-AI battles across catalogue units, maps and
-victory conditions. Track illegal actions, stalls, heat efficiency, viable
-weapons left unused, objective performance, decision time and win-rate changes.
-Retain only failures and representative replays.
+**Implemented in build `20260906-ai7-evaluation-73`.**
+
+- `tools/run-ai-evaluation.mjs` runs deterministic AI-versus-AI planner duels
+  across the current catalogue, four difficulties, six personalities, six
+  maps and three victory conditions.
+- Either side can be planned without changing unit ownership, allowing fair
+  head-to-head comparison through the same production decision engine.
+- Reports track illegal actions, stalls, decision time, damage/heat efficiency,
+  overheated rounds, viable weapons left unused, objective performance and
+  win rates by difficulty and personality.
+- `BT_AI7_BASELINE` compares a run with an earlier summary and records win-rate,
+  illegal-action and stall changes.
+- The tournament creates no database match. It retains every failed local
+  replay, a bounded diverse set of representative successes, and discards
+  routine successful replays.
+- Static AI-7 tests are part of the main duel soak preflight. Live Play-vs-AI
+  tests continue to prove that plans are accepted by authoritative SQL.
+
+See `docs/AI_EVALUATION.md` for commands, measurements and retention details.
+AI-1 through AI-7 now form the completed opponent-development foundation;
+future AI work should be evidence-led tuning against saved AI-7 baselines.

@@ -159,9 +159,10 @@ and skirmish isolation tests are complete.
   planning is implemented in SQL 124, with dedicated live acceptance and soak
   coverage and hardened AI ammunition setup. AI-3 tactical movement, AI-4
   force coordination, AI-5 specialist reactions/physical tactics and AI-6
-  difficulty/personality policy are implemented through build
-  `20260906-ai6-difficulty-personality-72` and SQL 126. AI-7 automated
-  evaluation and tuning is next.
+  difficulty/personality policy and AI-7 deterministic evaluation are
+  implemented through build `20260906-ai7-evaluation-73` and SQL 126. The
+  opponent foundation is complete; subsequent tuning should be measured
+  against saved AI-7 baselines rather than added as an untested rules layer.
 - Production hosting, observability, backups and deployment beyond the current
   GitHub Pages/Supabase development setup.
 - Further visual, audio, accessibility and mobile polish.
