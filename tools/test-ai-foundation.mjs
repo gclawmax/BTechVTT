@@ -68,7 +68,17 @@ const weaponPlanA = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-see
 const weaponPlanB = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-seed' }, []);
 check('every eligible AI BattleMech receives an explicit weapon action or pass', weaponPlanA.actions.length === 1 && ['attack', 'no_fire'].includes(weaponPlanA.actions[0].type), JSON.stringify(weaponPlanA.actions));
 check('the same phase snapshot produces the same planned action', JSON.stringify(weaponPlanA.actions) === JSON.stringify(weaponPlanB.actions));
-check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-2.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed);
+check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-3.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed);
+
+sandbox.currentGameState.phase = 'movement';
+ai.hasMoved = false;
+human.col = 1;
+const movementPlanA = sandbox.generateAIPlan('expert', null, { ai_seed: 'movement-seed' }, []);
+const movementPlanB = sandbox.generateAIPlan('expert', null, { ai_seed: 'movement-seed' }, []);
+const move = movementPlanA.actions[0];
+check('AI-3 movement planning is deterministic', JSON.stringify(movementPlanA.actions) === JSON.stringify(movementPlanB.actions));
+check('AI-3 emits a server-compatible path and movement mode', move.type === 'move' && ['walk','run'].includes(move.movementMode) && move.path.every(step => step.action === 'step'), JSON.stringify(move));
+check('AI-3 records tactical score components', Number.isFinite(move.scoreBreakdown?.total) && Number.isFinite(move.scoreBreakdown?.rangeScore));
 
 sandbox.currentGameState.phase = 'physical_attack';
 ai.hasPhysicalAttacked = false;
@@ -79,10 +89,12 @@ const movementSource = fs.readFileSync(path.join(ROOT, 'js/movement/movement.js'
 const movementRulesSource = fs.readFileSync(path.join(ROOT, 'js/movement/rules.js'), 'utf8');
 const lobbySource = fs.readFileSync(path.join(ROOT, 'js/network/lobby.js'), 'utf8');
 const sqlSource = fs.readFileSync(path.join(ROOT, 'SQL/123_ai_authoritative_foundation.sql'), 'utf8');
+const ai3SqlSource = fs.readFileSync(path.join(ROOT, 'SQL/125_ai_authoritative_tactical_movement.sql'), 'utf8');
 check('Play vs AI snapshots use the guarded RPC rather than a direct table update', movementSource.includes("db.rpc('submit_ai_phase_state'") && !movementSource.includes("db.from('btech_games').update({ state: JSON.stringify(gameState)"));
 check('a fresh AI match persists the same canonical starting force that the board displays', movementRulesSource.includes('function buildDefaultVsAIMechInstances()') && lobbySource.includes('gameState.mech_instances = buildDefaultVsAIMechInstances()'));
 check('SQL 123 verifies controller, AI turn, unit identities and phase actions', ['Only the seated human participant', 'An AI decision was submitted outside the AI turn', 'attempted to replace a deployed BattleMech identity', 'outside the active phase'].every(marker => sqlSource.includes(marker)));
 check('SQL 123 keeps a durable participant-readable decision record', sqlSource.includes('CREATE TABLE IF NOT EXISTS public.btech_ai_decisions') && sqlSource.includes('Participants can view AI decisions'));
+check('SQL 125 routes AI movement through the authoritative human resolver', ai3SqlSource.includes('btech_authorized_movement_player') && ai3SqlSource.includes('submit_battlemech_movement(uuid,text,text,jsonb)'));
 
 if (failures.length) {
   console.error(`\n${failures.length} AI-1 regression failure(s).`);

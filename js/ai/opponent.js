@@ -76,6 +76,10 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
     ? currentActivationAllowance('weapon_attack') : aiMechs.length;
   const weaponActors = new Set(aiMechs.filter(mech => !mech.hasFired && !mech.destroyed)
     .slice(0, Math.max(1, weaponAllowance)).map(mech => mech.instanceId));
+  const movementAllowance = currentGameState.phase === 'movement' && typeof currentActivationAllowance === 'function'
+    ? currentActivationAllowance('movement') : aiMechs.length;
+  const movementActors = new Set(aiMechs.filter(mech => !mech.hasMoved && !mech.destroyed)
+    .slice(0, Math.max(1, movementAllowance)).map(mech => mech.instanceId));
   
   // Generate one explicit action or pass for every eligible AI BattleMech.
   // A weak difficulty may choose a conservative pass, but it may never omit
@@ -83,11 +87,20 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   for (const mech of aiMechs) {
     // The algorithmic AI is phase-scoped: Movement can only create movement
     // actions; Weapon Attack can only create attack actions.
-    if (currentGameState.phase === 'movement' && !mech.hasMoved && !mech.destroyed) {
+    if (currentGameState.phase === 'movement' && movementActors.has(mech.instanceId)) {
       const canConsiderMove = !mech.shutdown && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
-      const moveAction = canConsiderMove && context.random() < settings.moveChance
-        ? generateAIMoveAction(mech, playerMechs, settings, context) : null;
-      aiPlan.actions.push(moveAction || { type: 'complete_movement', instanceId: mech.instanceId, reason: canConsiderMove ? 'Held position by difficulty policy.' : 'Unable to move.' });
+      if (mech.shutdown) aiPlan.actions.push({ type: 'attempt_startup', instanceId: mech.instanceId, reason: 'Attempt reactor startup.' });
+      else if (mech.prone) {
+        const mobility = criticalMovementProfile(mech);
+        const cannotStand = mobility.destroyedLegs >= 2 || mobility.gyroDestroyed;
+        aiPlan.actions.push(cannotStand || Number(mech.heat || 0) >= 20
+          ? { type: 'remain_prone', instanceId: mech.instanceId, reason: cannotStand ? 'Critical damage prevents standing.' : 'Remain prone while dangerously hot.' }
+          : { type: 'attempt_stand', instanceId: mech.instanceId, reason: 'Attempt to regain mobility.' });
+      } else {
+        const moveAction = canConsiderMove && context.random() < settings.moveChance
+          ? generateAIMoveAction(mech, playerMechs, settings, context) : null;
+        aiPlan.actions.push(moveAction || { type: 'complete_movement', instanceId: mech.instanceId, reason: canConsiderMove ? 'Held the best tactical position.' : 'Unable to move.' });
+      }
     }
 
     if (currentGameState.phase === 'weapon_attack' && weaponActors.has(mech.instanceId)) {
@@ -150,67 +163,126 @@ function generateAIReactionAction(mech, playerMechs, context = null) {
   return { type: 'complete_reaction', instanceId: mech.instanceId, reason: 'Current torso arc is preferred.' };
 }
 
-// Generate a movement action for AI mech
+function aiFacingToward(col, row, target) {
+  let best = 0, distance = Infinity;
+  for (let direction = 0; direction < 6; direction++) {
+    const hex = hexNeighbor(col, row, direction);
+    const next = axialDistance(hex.col, hex.row, target.col, target.row);
+    if (next < distance) { best = direction; distance = next; }
+  }
+  return best;
+}
+
+function aiMovementCandidates(mech, mode, mpMax) {
+  const width = Number(typeof GRID_COLS === 'undefined' ? 16 : GRID_COLS);
+  const height = Number(typeof GRID_ROWS === 'undefined' ? 17 : GRID_ROWS);
+  const occupied = new Set(mechInstances.filter(unit => unit.instanceId !== mech.instanceId && !unit.destroyed).map(unit => `${unit.col},${unit.row}`));
+  const terrainCost = (col, row) => typeof movementTerrainCost === 'function' ? movementTerrainCost(col, row) : 0;
+  const elevationCost = (a, b, c, d) => typeof movementElevationCost === 'function' ? movementElevationCost(a, b, c, d) : 0;
+  const candidates = [{ col: mech.col, row: mech.row, facing: mech.facing, cost: 0, hexes: 0, path: [] }];
+  const best = new Map([[`${mech.col},${mech.row},${mech.facing}`, 0]]);
+  for (let cursor = 0; cursor < candidates.length && candidates.length < 1800; cursor++) {
+    const state = candidates[cursor];
+    for (let direction = 0; direction < 6; direction++) {
+      const next = hexNeighbor(state.col, state.row, direction);
+      if (next.col < 0 || next.col >= width || next.row < 0 || next.row >= height || occupied.has(`${next.col},${next.row}`) || terrainMovementBlocked(next.col, next.row)) continue;
+      const rear = direction === (state.facing + 3) % 6;
+      if (rear && mode !== 'walk') continue;
+      const level = elevationCost(state.col, state.row, next.col, next.row);
+      if (level > 2 || (rear && level)) continue;
+      const terrain = typeof terrainAt === 'function' ? terrainAt(next.col, next.row) : 'clear';
+      if (mode === 'run' && ['shallow_water', 'deep_water'].includes(terrain)) continue;
+      const turns = direction === state.facing || rear ? 0 : Math.min(Math.abs(direction - state.facing), 6 - Math.abs(direction - state.facing));
+      const cost = state.cost + 1 + turns + terrainCost(next.col, next.row) + level;
+      if (cost > mpMax) continue;
+      const facing = rear ? state.facing : direction;
+      const key = `${next.col},${next.row},${facing}`;
+      if ((best.get(key) ?? Infinity) <= cost) continue;
+      best.set(key, cost);
+      candidates.push({ col: next.col, row: next.row, facing, cost, hexes: state.hexes + 1, path: [...state.path, { action: 'step', col: next.col, row: next.row }] });
+    }
+  }
+  return candidates;
+}
+
+function aiScoreDestination(mech, candidate, playerMechs, mode) {
+  const unit = BT_UNITS[mech.unitId] || {};
+  const nearest = [...playerMechs].sort((a, b) => axialDistance(candidate.col, candidate.row, a.col, a.row) - axialDistance(candidate.col, candidate.row, b.col, b.row))[0];
+  if (!nearest) return { total: 0 };
+  const range = axialDistance(candidate.col, candidate.row, nearest.col, nearest.row);
+  const weaponRanges = (unit.weapons || []).map(entry => Number((typeof weaponProfile === 'function' ? weaponProfile(entry) : null)?.ranges?.medium || 0)).filter(Boolean);
+  const preferred = weaponRanges.length ? Math.max(2, Math.round(weaponRanges.reduce((a, b) => a + b, 0) / weaponRanges.length)) : 3;
+  const rangeScore = 18 - Math.abs(range - preferred) * 3;
+  const terrain = typeof terrainAt === 'function' ? terrainAt(candidate.col, candidate.row) : 'clear';
+  const coverScore = ({ heavy_woods: 7, light_woods: 3, rubble: 2, shallow_water: 3 }[terrain] || 0);
+  const hazardPenalty = ({ fire: 12, deep_water: 10, magma_crust: 9, magma_liquid: 50 }[terrain] || 0);
+  const movementScore = Math.min(5, candidate.hexes) * 1.5;
+  const heatPenalty = Math.max(0, Number(mech.heat || 0) + (mode === 'run' ? 2 : mode === 'walk' ? 1 : 0) - 13) * 1.5;
+  const facing = aiFacingToward(candidate.col, candidate.row, nearest);
+  const facingPenalty = candidate.facing === facing ? 0 : 2;
+  const armor = Object.values(mech.armor || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+  const structure = Object.values(mech.structure || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+  const preservation = armor + structure < Number(unit.tons || 50) ? coverScore * 0.75 : 0;
+  const probe = { ...mech, col: candidate.col, row: candidate.row, facing: candidate.facing, torsoFacing: candidate.facing };
+  const losScore = typeof weaponLineOfSight === 'function' && weaponLineOfSight(probe, nearest).valid ? 4 : -8;
+  const objectives = typeof currentMatchConfig !== 'undefined' && Array.isArray(currentMatchConfig.objective_hexes) ? currentMatchConfig.objective_hexes : [];
+  const objectiveScore = objectives.includes(typeof hexCode === 'function' ? hexCode(candidate.col, candidate.row) : '') ? 8 : 0;
+  const nextRoundOptions = Array.from({ length: 6 }, (_, direction) => hexNeighbor(candidate.col, candidate.row, direction))
+    .filter(hex => hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS && !terrainMovementBlocked(hex.col, hex.row)).length * 0.4;
+  const total = rangeScore + coverScore + movementScore + preservation + losScore + objectiveScore + nextRoundOptions - hazardPenalty - heatPenalty - facingPenalty;
+  return { total, rangeScore, coverScore, movementScore, preservation, losScore, objectiveScore, nextRoundOptions, hazardPenalty, heatPenalty, range, preferred };
+}
+
+// Generate a deterministic, rules-legal movement action by enumerating final
+// positions/facings and scoring range, cover, terrain, heat and survivability.
 function generateAIMoveAction(mech, playerMechs, settings, context = null) {
   const unit = BT_UNITS[mech.unitId];
   if (!unit) return null;
   
-  // Simple AI: move toward nearest player mech
-  let targetHex = null;
-  let minDistance = Infinity;
-  
-  for (const playerMech of playerMechs) {
-    const distance = axialDistance(mech.col, mech.row, playerMech.col, playerMech.row);
-    if (distance < minDistance) {
-      minDistance = distance;
-      targetHex = { col: playerMech.col, row: playerMech.row };
-    }
-  }
-  
-  if (!targetHex) return null;
-  
+  if (!playerMechs.length) return null;
   const mobility = criticalMovementProfile(mech);
-  const tsmActive = typeof hasActiveTSM === 'function' && hasActiveTSM(mech);
-  const ordinaryRun = tsmActive && typeof boosterRunMP === 'function' ? boosterRunMP(mech, false, false) : mobility.run;
-  const ordinaryBudget = Math.min(ordinaryRun, Math.max(1, Number(settings.movementRange) || 1));
+  const heatPenalty = typeof heatMovementPenalty === 'function' ? heatMovementPenalty(mech) : 0;
+  const modes = [{ mode: 'walk', mp: Math.max(0, Number(mobility.walk || 0) - heatPenalty) }, { mode: 'run', mp: Math.max(0, Number(mobility.run || 0) - heatPenalty) }];
   const mascTarget = typeof mascTargetNumber === 'function' ? mascTargetNumber(mech) : 13;
   const riskAcceptable = ['strongest', 'optimal'].includes(settings.targetPriority) && mascTarget <= 7;
-  const useMASC = typeof hasOperationalMASC === 'function' && hasOperationalMASC(mech) &&
-    Number(mech.mascLastRound) !== Number(currentGameState.round) && riskAcceptable && minDistance > ordinaryBudget + 1;
-  const maxMove = useMASC ? Math.min(typeof mascRunMP === 'function' ? mascRunMP(mech) : mobility.run, ordinaryBudget + mobility.walk) : ordinaryBudget;
-
-  // Build a deterministic legal route that reduces true hex distance. MASC is
-  // considered only by advanced AI and only while its failure target is 7+ or
-  // easier; it is never treated as a free, automatic speed bonus.
-  const path = [];
-  let current = { col: mech.col, row: mech.row };
-  for (let step = 0; step < maxMove; step++) {
-    const choices = Array.from({ length: 6 }, (_, direction) => ({ ...hexNeighbor(current.col, current.row, direction), direction }))
-      .filter(hex => hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS)
-      .filter(hex => !terrainMovementBlocked(hex.col, hex.row))
-      .filter(hex => !mechInstances.some(inst => inst.instanceId !== mech.instanceId && !inst.destroyed && inst.col === hex.col && inst.row === hex.row))
-      .sort((a, b) => axialDistance(a.col, a.row, targetHex.col, targetHex.row) - axialDistance(b.col, b.row, targetHex.col, targetHex.row));
-    const next = choices[0];
-    if (!next || axialDistance(next.col, next.row, targetHex.col, targetHex.row) >= axialDistance(current.col, current.row, targetHex.col, targetHex.row)) break;
-    path.push({ col: next.col, row: next.row, direction: next.direction });
-    current = next;
-    if (axialDistance(current.col, current.row, targetHex.col, targetHex.row) <= 1) break;
+  if (riskAcceptable && typeof hasOperationalMASC === 'function' && hasOperationalMASC(mech) && Number(mech.mascLastRound) !== Number(currentGameState.round)) {
+    modes.push({ mode: 'run', mp: Math.max(0, Number(mobility.walk || 0) * 2 - heatPenalty), useMASC: true });
   }
-  if (!path.length) return null;
-  
+  const options = [];
+  for (const choice of modes) for (const candidate of aiMovementCandidates(mech, choice.mode, choice.mp)) {
+    if (!candidate.path.length) continue;
+    const scoreBreakdown = aiScoreDestination(mech, candidate, playerMechs, choice.mode);
+    const mascRisk = choice.useMASC ? Math.max(0, mascTarget - 3) : 0;
+    options.push({ ...candidate, movementMode: choice.mode, useMASC: Boolean(choice.useMASC), scoreBreakdown: { ...scoreBreakdown, mascRisk, total: scoreBreakdown.total - mascRisk } });
+  }
+  const jumpMP = Math.max(0, Number(mobility.jump || 0) - heatPenalty);
+  if (jumpMP > 0 && (typeof terrainAt !== 'function' || terrainAt(mech.col, mech.row) !== 'deep_water')) {
+    for (let col = 0; col < GRID_COLS; col++) for (let row = 0; row < GRID_ROWS; row++) {
+      const distance = axialDistance(mech.col, mech.row, col, row);
+      if (!distance || distance > jumpMP || terrainMovementBlocked(col, row) || mechInstances.some(unit => unit.instanceId !== mech.instanceId && !unit.destroyed && unit.col === col && unit.row === row)) continue;
+      const nearest = [...playerMechs].sort((a, b) => axialDistance(col, row, a.col, a.row) - axialDistance(col, row, b.col, b.row))[0];
+      const facing = aiFacingToward(col, row, nearest);
+      const candidate = { col, row, facing, cost: distance, hexes: distance, path: [{ action: 'jump', col, row, facing }] };
+      options.push({ ...candidate, movementMode: 'jump', useMASC: false, scoreBreakdown: aiScoreDestination(mech, candidate, playerMechs, 'jump') });
+    }
+  }
+  options.sort((a, b) => b.scoreBreakdown.total - a.scoreBreakdown.total || a.cost - b.cost || a.col - b.col || a.row - b.row || a.facing - b.facing);
+  const best = options[0];
+  if (!best || best.scoreBreakdown.total <= aiScoreDestination(mech, { col: mech.col, row: mech.row, facing: mech.facing, hexes: 0 }, playerMechs, 'stand').total) return null;
   return {
     type: 'move',
     instanceId: mech.instanceId,
     fromCol: mech.col,
     fromRow: mech.row,
-    toCol: current.col,
-    toRow: current.row,
-    path,
-    useMASC,
-    tsmActive,
-    mascTarget,
-    facing: path.at(-1)?.direction ?? mech.facing,
-    _debug: `Closed from range ${minDistance} to ${axialDistance(current.col, current.row, targetHex.col, targetHex.row)}`
+    toCol: best.col,
+    toRow: best.row,
+    path: best.useMASC ? best.path.map((step, index) => index === 0 ? { ...step, masc: true } : step) : best.path,
+    movementMode: best.movementMode,
+    useMASC: best.useMASC,
+    mpUsed: best.cost,
+    facing: best.facing,
+    scoreBreakdown: best.scoreBreakdown,
+    _debug: `${best.movementMode} ${best.hexes} hexes to range ${best.scoreBreakdown.range}; tactical score ${best.scoreBreakdown.total.toFixed(1)}`
   };
 }
 
@@ -482,13 +554,12 @@ async function completeAIUnitPhaseAction(action) {
   const mech = mechInstances.find(candidate => candidate.instanceId === action.instanceId);
   if (!mech || mech.destroyed) return false;
   if (action.type === 'complete_movement') {
-    mech.movementMode = 'stand';
-    mech.mpUsed = 0;
-    mech.hexesMoved = 0;
-    mech.movementHeat = 0;
-    mech.heat = (mech.roundStartingHeat || 0) + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
-    mech.hasMoved = true;
+    const { error } = await db.rpc('submit_battlemech_movement', { p_game_id: currentGameId, p_instance_id: mech.instanceId, p_mode: 'stand', p_path: [] });
+    if (error) throw new Error(`Server rejected AI stand-still: ${error.message}`);
+    await loadGameState();
     logEvent(`${mechLabel(mech)} (AI) held position.`, 'move');
+    updateAdvanceButtonState();
+    return true;
   } else if (action.type === 'no_physical_attack') {
     mech.hasPhysicalAttacked = true;
     logEvent(`${mechLabel(mech)} (AI) declared no physical attack.`, 'attack');
@@ -531,7 +602,7 @@ async function executeAIPlan(aiPlan) {
   // A weapon declaration can immediately hand play back to the human or
   // advance the phase. Save the reproducible plan before that happens; SQL
   // 124 finalizes its outcomes without rewriting combat state afterward.
-  if (plannedPhase === 'weapon_attack') await syncMechInstances();
+  if (['movement', 'weapon_attack'].includes(plannedPhase)) await syncMechInstances();
   
   // Execute actions one by one with delays for visual feedback
   for (const action of aiPlan.actions) {
@@ -558,6 +629,11 @@ async function executeAIPlan(aiPlan) {
         case 'no_physical_attack':
           await completeAIUnitPhaseAction(action);
           break;
+        case 'attempt_startup':
+        case 'attempt_stand':
+        case 'remain_prone':
+          await executeAISpecialMovement(action);
+          break;
         case 'manage_heat':
           await resolveAIHeatManagement();
           break;
@@ -573,13 +649,6 @@ async function executeAIPlan(aiPlan) {
   console.log('AI plan execution complete');
   const decisionFailed = pendingAIDecisionEnvelope?.outcomes?.some(outcome => outcome.status === 'failed');
   completeAIDecision(decisionFailed ? 'failed' : 'completed');
-
-  if (plannedPhase === 'movement') {
-    const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
-    aiMechs.forEach(m => { if (!m.hasMoved) { m.movementMode = 'stand'; m.mpUsed = 0; m.hexesMoved = 0; m.movementHeat = 0; m.heat = (m.roundStartingHeat || 0) + (m.weaponHeat || 0); m.hasMoved = true; } });
-    await syncMechInstances();
-    updateAdvanceButtonState();
-  }
 
   if (plannedPhase === 'reaction') {
     const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
@@ -598,8 +667,15 @@ async function executeAIPlan(aiPlan) {
     updateAdvanceButtonState();
   }
 
-  if (plannedPhase === 'weapon_attack') await finalizeAIDecisionRecord();
-  else if (['movement', 'reaction', 'physical_attack', 'heat'].includes(plannedPhase)) await syncMechInstances();
+  if (['movement', 'weapon_attack'].includes(plannedPhase)) await finalizeAIDecisionRecord();
+  else if (['reaction', 'physical_attack', 'heat'].includes(plannedPhase)) await syncMechInstances();
+}
+
+async function executeAISpecialMovement(action) {
+  const rpc = { attempt_startup: 'attempt_startup_battlemech', attempt_stand: 'attempt_stand_battlemech', remain_prone: 'remain_prone_battlemech' }[action.type];
+  const { error } = await db.rpc(rpc, { p_game_id: currentGameId, p_instance_id: action.instanceId });
+  if (error) throw new Error(`Server rejected AI ${action.type.replaceAll('_', ' ')}: ${error.message}`);
+  await loadGameState();
 }
 
 async function executeAIPhysicalAttack(action) {
@@ -648,45 +724,13 @@ async function executeAIMove(action) {
   const mech = mechInstances.find(m => m.instanceId === action.instanceId);
   if (!mech || mech.destroyed || mech.hasMoved) throw new Error('Movement BattleMech is no longer eligible.');
 
-  if (action.useMASC) {
-    const result = resolveLocalMASCActivation(mech);
-    logEvent(`${mechLabel(mech)} (AI) activated MASC — need ${result.target}+, rolled ${format2d6(result)}: ${result.passed ? 'success' : 'failure'}.`, 'roll');
-    if (!result.passed) {
-      const damaged = result.criticals.map(hit => `${hitLocationLabel(hit.location)} ${hit.label}`).join(', ');
-      logEvent(`${mechLabel(mech)} (AI) suffered MASC failure damage to ${damaged || 'no remaining leg component'}${result.fallDamage ? ` and fell for ${result.fallDamage} damage` : ''}.`, 'roll');
-      if (!mech.hasMoved) {
-        mech.hasMoved = true; mech.movementMode = 'stand'; mech.mpUsed = 0; mech.hexesMoved = 0; mech.movementHeat = 0;
-      }
-      await syncMechInstances(); draw(); renderRoster(); renderDetail(); renderMovementPanel(); updateAdvanceButtonState();
-      return;
-    }
-  }
-  const dir = action.path?.at(-1)?.direction ?? directionBetween(action.fromCol, action.fromRow, action.toCol, action.toRow);
-
-  // Update mech position
-  mech.col = action.toCol;
-  mech.row = action.toRow;
-
-  // Face the direction of travel (hex-direction index 0-5), when it's a single valid step.
-  if (dir !== -1) mech.facing = dir;
-
-  // Simplified bookkeeping so the Movement Panel reflects the AI's move too.
-  mech.movementMode = action.useMASC ? 'run' : 'walk';
-  mech.mascUsedThisRound = Boolean(action.useMASC);
-  mech.tsmActiveThisRound = Boolean(action.tsmActive);
-  mech.hexesMoved = action.path?.length || 1;
-  mech.mpUsed = action.path?.length || 1;
-  mech.hasMoved = true;
-  mech.movementHeat = action.useMASC ? MOVEMENT_HEAT.run : MOVEMENT_HEAT.walk;
-  mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
-
-  // Update UI
-  draw();
-  renderRoster();
-  renderDetail();
-  renderMovementPanel();
-  await syncMechInstances();
-  logEvent(`${mechLabel(mech)} (AI) ${action.useMASC ? 'used MASC and ran' : 'moved'} ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} to ${hexCode(action.toCol, action.toRow)}${action.tsmActive ? ' with TSM active' : ''}.`, 'move');
+  const { data, error } = await db.rpc('submit_battlemech_movement', {
+    p_game_id: currentGameId, p_instance_id: mech.instanceId,
+    p_mode: action.movementMode || 'walk', p_path: action.path || []
+  });
+  if (error) throw new Error(`Server rejected AI movement: ${error.message}`);
+  await loadGameState();
+  logEvent(`${mechLabel(mech)} (AI) ${action.movementMode || 'walk'}ed to ${hexCode(data?.col ?? action.toCol, data?.row ?? action.toRow)} (${data?.mp_used ?? action.mpUsed} MP).`, 'move');
 }
 
 async function finalizeAIDecisionRecord() {

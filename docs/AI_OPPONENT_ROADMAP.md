@@ -63,6 +63,18 @@ SQL 124 must be installed before this browser build is used for Play vs AI.
 
 ## AI-3 — tactical movement
 
+**Implemented in build `20260906-ai3-tactical-movement-69` and SQL 125.**
+
+The AI now enumerates rules-legal walking and running destinations, chooses a
+deterministic final position from range, cover, terrain, movement, heat,
+facing and damaged-unit preservation scores, and submits the chosen path to
+the same authoritative movement resolver as a human. Prone and shutdown units
+make explicit audited stand, remain-prone and startup choices. Movement plans
+are limited to the current activation allowance so uneven forces cannot be
+silently completed out of turn.
+
+SQL 125 must be installed before this browser build is used for Play vs AI.
+
 Enumerate legal paths and final facings, then score range bands, line of sight,
 cover, terrain, movement modifiers, heat, hazards, objectives and next-round
 options. Add explicit standing, remaining-prone and shutdown-startup choices.

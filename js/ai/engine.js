@@ -2,7 +2,7 @@
 // Pure, deterministic planning helpers. The phase-specific opponent code may
 // improve over time without changing this replay/audit contract.
 
-var BT_AI_ENGINE_VERSION = 'ai-2.0';
+var BT_AI_ENGINE_VERSION = 'ai-3.0';
 var pendingAIDecisionEnvelope = null;
 var aiDecisionHistory = [];
 
@@ -119,7 +119,7 @@ function createAIPlanningContext(difficulty, gameState = {}, units = null) {
 }
 
 const AI_ACTIONS_BY_PHASE = Object.freeze({
-  movement: new Set(['move', 'complete_movement']),
+  movement: new Set(['move', 'complete_movement', 'attempt_stand', 'remain_prone', 'attempt_startup']),
   reaction: new Set(['torso_twist', 'complete_reaction']),
   weapon_attack: new Set(['attack', 'no_fire']),
   physical_attack: new Set(['physical_attack', 'no_physical_attack']),
@@ -142,7 +142,8 @@ function publicAIAction(action) {
   return Object.fromEntries([
     'type', 'instanceId', 'targetInstanceId', 'weaponKey', 'weaponLocation',
     'weaponCount', 'allocations', 'weaponHeat', 'expectedDamage', 'attackType',
-    'facing', 'useMASC', 'reason', '_debug'
+    'facing', 'movementMode', 'path', 'toCol', 'toRow', 'mpUsed',
+    'useMASC', 'reason', '_debug', 'scoreBreakdown'
   ].filter(key => action[key] !== undefined).map(key => [key, action[key]]));
 }
 
