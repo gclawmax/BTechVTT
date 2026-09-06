@@ -68,7 +68,7 @@ const weaponPlanA = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-see
 const weaponPlanB = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-seed' }, []);
 check('every eligible AI BattleMech receives an explicit weapon action or pass', weaponPlanA.actions.length === 1 && ['attack', 'no_fire'].includes(weaponPlanA.actions[0].type), JSON.stringify(weaponPlanA.actions));
 check('the same phase snapshot produces the same planned action', JSON.stringify(weaponPlanA.actions) === JSON.stringify(weaponPlanB.actions));
-check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-3.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed);
+check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-4.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed);
 
 sandbox.currentGameState.phase = 'movement';
 ai.hasMoved = false;
@@ -80,8 +80,38 @@ check('AI-3 movement planning is deterministic', JSON.stringify(movementPlanA.ac
 check('AI-3 emits a server-compatible path and movement mode', move.type === 'move' && ['walk','run'].includes(move.movementMode) && move.path.every(step => step.action === 'step'), JSON.stringify(move));
 check('AI-3 records tactical score components', Number.isFinite(move.scoreBreakdown?.total) && Number.isFinite(move.scoreBreakdown?.rangeScore));
 
+sandbox.currentGameState.phase = 'weapon_attack';
+sandbox.currentActivationAllowance = () => 3;
+sandbox.BT_WEAPONS.tag = { name: 'TAG', damage: 0, heat: 0, ranges: { short: 5, medium: 9, long: 15 } };
+sandbox.BT_UNITS['ai-tagger'] = { name: 'Tagger', tonnage: 35, movement: { walk: 6, run: 9, jump: 0 }, weapons: [{ key: 'tag', location: 'Right Arm', count: 1 }] };
+const tagger = { ...ai, instanceId: 'ai-tagger', unitId: 'ai-tagger', col: 7, hasFired: false };
+const striker = { ...ai, instanceId: 'ai-striker', hasFired: false };
+const weakened = { ...human, col: 4, armor: { ct: 2 }, structure: { ct: 3 } };
+sandbox.mechInstances = [striker, tagger, weakened];
+const coordinated = sandbox.generateAIPlan('expert', null, { ai_seed: 'coordination-seed' }, []);
+check('AI-4 records a force-level coordinated doctrine', coordinated.coordination?.doctrine === 'coordinated' && coordinated.coordination?.focus_target_id === weakened.instanceId, JSON.stringify(coordinated.coordination));
+check('AI-4 activates a support designator before a striker', coordinated.actions[0]?.instanceId === tagger.instanceId, JSON.stringify(coordinated.actions));
+check('AI-4 keeps attacks focused on the ranked target', coordinated.actions.filter(action => action.type === 'attack').every(action => action.focusTargetId === weakened.instanceId));
+
+const directEvaluator = sandbox.evaluateWeaponAttack;
+sandbox.BT_WEAPONS.lrm5 = { name: 'LRM 5', damage: 5, heat: 2, ammoType: 'lrm5', clusterSize: 5, range: [7,14,21] };
+sandbox.BT_UNITS['ai-lrm'] = { name: 'Missile Support', tonnage: 55, movement: { walk: 4, run: 6, jump: 0 }, weapons: [{ key: 'lrm5', location: 'Left Torso', count: 1 }] };
+const missile = { ...ai, instanceId: 'ai-lrm', unitId: 'ai-lrm', ammoBins: [{ id: 'lt:1', type: 'lrm5', shots: 12 }] };
+const spotter = { ...tagger, instanceId: 'ai-spotter' };
+sandbox.isIndirectCapableWeapon = () => true;
+sandbox.eligibleIndirectSpotters = () => [spotter];
+sandbox.evaluateWeaponAttack = (_attacker, _target, entry, options = {}) => options.indirect
+  ? { valid: true, targetNumber: 8, weapon: sandbox.BT_WEAPONS[entry.key], damage: sandbox.BT_WEAPONS[entry.key].damage }
+  : { valid: false, reason: 'blocked line of sight' };
+sandbox.mechInstances = [missile, spotter, weakened];
+const expertSettings = { targetPriority:'optimal',planningHorizon:5,maxProjectedHeat:7,ammoConservation:.15 };
+const indirect = sandbox.scoreWeaponAttack(missile, weakened, sandbox.BT_UNITS['ai-lrm'].weapons[0], { settings:expertSettings, coordination:sandbox.buildAIForceCoordination([missile, spotter], [weakened], expertSettings, null) });
+check('AI-4 uses a legal friendly spotter when direct LRM fire is blocked', indirect?.indirect === true && indirect?.spotterId === spotter.instanceId, JSON.stringify(indirect && { indirect:indirect.indirect,spotterId:indirect.spotterId }));
+sandbox.evaluateWeaponAttack = directEvaluator;
+
 sandbox.currentGameState.phase = 'physical_attack';
 ai.hasPhysicalAttacked = false;
+sandbox.mechInstances = [ai, human];
 const physicalPlan = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-seed' }, []);
 check('no legal physical target produces an explicit pass', physicalPlan.actions.length === 1 && physicalPlan.actions[0].type === 'no_physical_attack');
 
@@ -100,5 +130,5 @@ if (failures.length) {
   console.error(`\n${failures.length} AI-1 regression failure(s).`);
   process.exitCode = 1;
 } else {
-  console.log('\nAI-1 decision foundation regression passed.');
+  console.log('\nAI decision, movement and coordination regression passed.');
 }

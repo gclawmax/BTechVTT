@@ -81,6 +81,16 @@ options. Add explicit standing, remaining-prone and shutdown-startup choices.
 
 ## AI-4 — force coordination and initiative
 
+**Implemented in build `20260906-ai4-force-coordination-70`.**
+
+Advanced and Expert AI now produce one deterministic force doctrine for each
+activation. It ranks enemy threats, selects a shared focus target, activates
+TAG/Narc designators before damage dealers, preserves firing support, values
+C3 and missile roles, keeps ECM protection near allies, avoids crowding,
+contests objectives and withdraws critically depleted units. The doctrine,
+target order, support order and withdrawal list are stored in the normal AI
+decision audit envelope.
+
 Coordinate targeting, activation order, firing lanes, scouts, indirect-fire
 spotters, C3, TAG/Narc, ECM cover, objectives and withdrawal of crippled units.
 

@@ -72,19 +72,22 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   // Get player mechs (owner 1 = human)
   const playerMechs = mechInstances.filter(inst => inst.owner === 1 && !inst.destroyed &&
     (typeof isEnemyHiddenUnit !== 'function' || !isEnemyHiddenUnit(inst)));
+  const coordination = buildAIForceCoordination(aiMechs, playerMechs, settings, context);
+  aiPlan.coordination = coordination.summary;
+  const orderedAIMechs = orderAIActivations(aiMechs, currentGameState.phase, coordination);
   const weaponAllowance = currentGameState.phase === 'weapon_attack' && typeof currentActivationAllowance === 'function'
     ? currentActivationAllowance('weapon_attack') : aiMechs.length;
-  const weaponActors = new Set(aiMechs.filter(mech => !mech.hasFired && !mech.destroyed)
+  const weaponActors = new Set(orderedAIMechs.filter(mech => !mech.hasFired && !mech.destroyed)
     .slice(0, Math.max(1, weaponAllowance)).map(mech => mech.instanceId));
   const movementAllowance = currentGameState.phase === 'movement' && typeof currentActivationAllowance === 'function'
     ? currentActivationAllowance('movement') : aiMechs.length;
-  const movementActors = new Set(aiMechs.filter(mech => !mech.hasMoved && !mech.destroyed)
+  const movementActors = new Set(orderedAIMechs.filter(mech => !mech.hasMoved && !mech.destroyed)
     .slice(0, Math.max(1, movementAllowance)).map(mech => mech.instanceId));
   
   // Generate one explicit action or pass for every eligible AI BattleMech.
   // A weak difficulty may choose a conservative pass, but it may never omit
   // the activation and leave the match waiting forever.
-  for (const mech of aiMechs) {
+  for (const mech of orderedAIMechs) {
     // The algorithmic AI is phase-scoped: Movement can only create movement
     // actions; Weapon Attack can only create attack actions.
     if (currentGameState.phase === 'movement' && movementActors.has(mech.instanceId)) {
@@ -98,7 +101,7 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
           : { type: 'attempt_stand', instanceId: mech.instanceId, reason: 'Attempt to regain mobility.' });
       } else {
         const moveAction = canConsiderMove && context.random() < settings.moveChance
-          ? generateAIMoveAction(mech, playerMechs, settings, context) : null;
+          ? generateAIMoveAction(mech, playerMechs, settings, context, coordination) : null;
         aiPlan.actions.push(moveAction || { type: 'complete_movement', instanceId: mech.instanceId, reason: canConsiderMove ? 'Held the best tactical position.' : 'Unable to move.' });
       }
     }
@@ -106,7 +109,7 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
     if (currentGameState.phase === 'weapon_attack' && weaponActors.has(mech.instanceId)) {
       const canConsiderFire = !mech.shutdown && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
       const attackAction = canConsiderFire && context.random() < settings.attackChance
-        ? generateAIAttackAction(mech, playerMechs, settings, context) : null;
+        ? generateAIAttackAction(mech, playerMechs, settings, context, coordination) : null;
       aiPlan.actions.push(attackAction || { type: 'no_fire', instanceId: mech.instanceId, reason: canConsiderFire ? 'No legal shot selected.' : 'Unable to fire.' });
     }
 
@@ -130,8 +133,74 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
     return check.valid;
   });
   aiPlan.decision = registerAIPlan(context, aiPlan.actions);
+  aiPlan.decision.coordination = coordination.summary;
   
   return aiPlan;
+}
+
+function aiCurrentDurability(mech) {
+  return ['armor', 'structure'].reduce((total, key) => total + Object.values(mech[key] || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0), 0);
+}
+
+function aiUnitCapabilities(mech) {
+  const unit = BT_UNITS[mech.unitId] || {};
+  const weapons = unit.weapons || [];
+  const keys = weapons.map(entry => String(entry.key || '').toLowerCase());
+  const damage = weapons.reduce((sum, entry) => sum + Math.max(0, Number((typeof weaponProfile === 'function' ? weaponProfile(entry) : null)?.damage || 0)) * Math.max(1, Number(entry.count || 1)), 0);
+  const electronic = labels => typeof hasOperationalElectronicEquipment === 'function' && hasOperationalElectronicEquipment(mech, labels);
+  return {
+    damage,
+    tonnage: Number(unit.tonnage || unit.tons || 50),
+    designator: keys.some(key => ['tag', 'c3_master_tag', 'narc'].includes(key)),
+    tag: keys.some(key => ['tag', 'c3_master_tag'].includes(key)),
+    narc: keys.includes('narc'),
+    missiles: keys.some(key => /^(lrm|mml|atm|srm)/.test(key)),
+    ecm: typeof hasOperationalEcm === 'function' ? hasOperationalEcm(mech) : electronic(['guardianecmsuite', 'ecmsuite', 'angelecmsuite', 'watchdogcews', 'watchdogecm']),
+    probe: typeof hasOperationalActiveProbe === 'function' ? hasOperationalActiveProbe(mech) : electronic(['beagleactiveprobe', 'activeprobe', 'lightactiveprobe', 'watchdogcews', 'watchdogecm']),
+    c3: Boolean(mech.c3Network),
+    mobility: Number(criticalMovementProfile(mech).walk || 0)
+  };
+}
+
+function buildAIForceCoordination(aiMechs, enemies, settings, context) {
+  const capabilities = Object.fromEntries(aiMechs.map(mech => [mech.instanceId, aiUnitCapabilities(mech)]));
+  const enemyScores = enemies.map(enemy => {
+    const capability = aiUnitCapabilities(enemy);
+    const durability = aiCurrentDurability(enemy);
+    const objective = typeof currentMatchConfig !== 'undefined' && (currentMatchConfig.objective_hexes || []).includes(typeof hexCode === 'function' ? hexCode(enemy.col, enemy.row) : '') ? 20 : 0;
+    const marked = Number(enemy.taggedRound) === Number(currentGameState.round) || Number(enemy.narcPod?.round) === Number(currentGameState.round) ? 12 : 0;
+    return { instanceId: enemy.instanceId, score: capability.damage * 1.5 + capability.tonnage * .15 + objective + marked + Math.max(0, 80 - durability) * .35, durability };
+  }).sort((a, b) => b.score - a.score || String(a.instanceId).localeCompare(String(b.instanceId)));
+  const focusTargetId = enemyScores[0]?.instanceId || null;
+  const retreating = new Set(aiMechs.filter(mech => {
+    const capability = capabilities[mech.instanceId];
+    return aiCurrentDurability(mech) < capability.tonnage * .55 || Number(mech.pilot?.hits || 0) >= 4;
+  }).map(mech => mech.instanceId));
+  const supportFirst = new Set(aiMechs.filter(mech => capabilities[mech.instanceId].designator).map(mech => mech.instanceId));
+  return {
+    capabilities, enemyScores, focusTargetId, retreating, supportFirst,
+    enabled: Number(settings.planningHorizon || 1) >= 3,
+    summary: {
+      doctrine: Number(settings.planningHorizon || 1) >= 3 ? 'coordinated' : 'individual',
+      focus_target_id: focusTargetId,
+      target_priority: enemyScores.map(item => item.instanceId),
+      support_first: [...supportFirst],
+      withdrawing: [...retreating],
+      scouts: aiMechs.filter(mech => capabilities[mech.instanceId].probe || capabilities[mech.instanceId].mobility >= 6).map(mech => mech.instanceId),
+      missile_support: aiMechs.filter(mech => capabilities[mech.instanceId].missiles).map(mech => mech.instanceId),
+      c3_nodes: aiMechs.filter(mech => capabilities[mech.instanceId].c3).map(mech => mech.instanceId),
+      ecm_escorts: aiMechs.filter(mech => capabilities[mech.instanceId].ecm).map(mech => mech.instanceId)
+    }
+  };
+}
+
+function orderAIActivations(mechs, phase, coordination) {
+  return [...mechs].sort((a, b) => {
+    const ac = coordination.capabilities[a.instanceId], bc = coordination.capabilities[b.instanceId];
+    if (phase === 'weapon_attack') return Number(bc.designator) - Number(ac.designator) || ac.damage - bc.damage || String(a.instanceId).localeCompare(String(b.instanceId));
+    if (phase === 'movement') return Number(coordination.retreating.has(b.instanceId)) - Number(coordination.retreating.has(a.instanceId)) || Number(bc.probe) - Number(ac.probe) || ac.tonnage - bc.tonnage || String(a.instanceId).localeCompare(String(b.instanceId));
+    return String(a.instanceId).localeCompare(String(b.instanceId));
+  });
 }
 
 // Pick a legal one-hexside torso twist toward the nearest opposing 'Mech.
@@ -205,7 +274,7 @@ function aiMovementCandidates(mech, mode, mpMax) {
   return candidates;
 }
 
-function aiScoreDestination(mech, candidate, playerMechs, mode) {
+function aiScoreDestination(mech, candidate, playerMechs, mode, coordination = null) {
   const unit = BT_UNITS[mech.unitId] || {};
   const nearest = [...playerMechs].sort((a, b) => axialDistance(candidate.col, candidate.row, a.col, a.row) - axialDistance(candidate.col, candidate.row, b.col, b.row))[0];
   if (!nearest) return { total: 0 };
@@ -229,13 +298,17 @@ function aiScoreDestination(mech, candidate, playerMechs, mode) {
   const objectiveScore = objectives.includes(typeof hexCode === 'function' ? hexCode(candidate.col, candidate.row) : '') ? 8 : 0;
   const nextRoundOptions = Array.from({ length: 6 }, (_, direction) => hexNeighbor(candidate.col, candidate.row, direction))
     .filter(hex => hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS && !terrainMovementBlocked(hex.col, hex.row)).length * 0.4;
-  const total = rangeScore + coverScore + movementScore + preservation + losScore + objectiveScore + nextRoundOptions - hazardPenalty - heatPenalty - facingPenalty;
-  return { total, rangeScore, coverScore, movementScore, preservation, losScore, objectiveScore, nextRoundOptions, hazardPenalty, heatPenalty, range, preferred };
+  const allyDistances = mechInstances.filter(unit => unit.owner === mech.owner && unit.instanceId !== mech.instanceId && !unit.destroyed).map(unit => axialDistance(candidate.col, candidate.row, unit.col, unit.row));
+  const formationScore = allyDistances.length ? (Math.min(...allyDistances) < 2 ? -4 : Math.min(...allyDistances) <= 6 ? 2 : -2) : 0;
+  const retreatScore = coordination?.retreating?.has(mech.instanceId) ? axialDistance(candidate.col, candidate.row, nearest.col, nearest.row) * 2 + coverScore : 0;
+  const ecmCoverScore = coordination?.capabilities?.[mech.instanceId]?.ecm && allyDistances.some(distance => distance <= 6) ? 3 : 0;
+  const total = rangeScore + coverScore + movementScore + preservation + losScore + objectiveScore + nextRoundOptions + formationScore + retreatScore + ecmCoverScore - hazardPenalty - heatPenalty - facingPenalty;
+  return { total, rangeScore, coverScore, movementScore, preservation, losScore, objectiveScore, nextRoundOptions, formationScore, retreatScore, ecmCoverScore, hazardPenalty, heatPenalty, range, preferred };
 }
 
 // Generate a deterministic, rules-legal movement action by enumerating final
 // positions/facings and scoring range, cover, terrain, heat and survivability.
-function generateAIMoveAction(mech, playerMechs, settings, context = null) {
+function generateAIMoveAction(mech, playerMechs, settings, context = null, coordination = null) {
   const unit = BT_UNITS[mech.unitId];
   if (!unit) return null;
   
@@ -251,7 +324,7 @@ function generateAIMoveAction(mech, playerMechs, settings, context = null) {
   const options = [];
   for (const choice of modes) for (const candidate of aiMovementCandidates(mech, choice.mode, choice.mp)) {
     if (!candidate.path.length) continue;
-    const scoreBreakdown = aiScoreDestination(mech, candidate, playerMechs, choice.mode);
+    const scoreBreakdown = aiScoreDestination(mech, candidate, playerMechs, choice.mode, coordination);
     const mascRisk = choice.useMASC ? Math.max(0, mascTarget - 3) : 0;
     options.push({ ...candidate, movementMode: choice.mode, useMASC: Boolean(choice.useMASC), scoreBreakdown: { ...scoreBreakdown, mascRisk, total: scoreBreakdown.total - mascRisk } });
   }
@@ -263,12 +336,12 @@ function generateAIMoveAction(mech, playerMechs, settings, context = null) {
       const nearest = [...playerMechs].sort((a, b) => axialDistance(col, row, a.col, a.row) - axialDistance(col, row, b.col, b.row))[0];
       const facing = aiFacingToward(col, row, nearest);
       const candidate = { col, row, facing, cost: distance, hexes: distance, path: [{ action: 'jump', col, row, facing }] };
-      options.push({ ...candidate, movementMode: 'jump', useMASC: false, scoreBreakdown: aiScoreDestination(mech, candidate, playerMechs, 'jump') });
+      options.push({ ...candidate, movementMode: 'jump', useMASC: false, scoreBreakdown: aiScoreDestination(mech, candidate, playerMechs, 'jump', coordination) });
     }
   }
   options.sort((a, b) => b.scoreBreakdown.total - a.scoreBreakdown.total || a.cost - b.cost || a.col - b.col || a.row - b.row || a.facing - b.facing);
   const best = options[0];
-  if (!best || best.scoreBreakdown.total <= aiScoreDestination(mech, { col: mech.col, row: mech.row, facing: mech.facing, hexes: 0 }, playerMechs, 'stand').total) return null;
+  if (!best || best.scoreBreakdown.total <= aiScoreDestination(mech, { col: mech.col, row: mech.row, facing: mech.facing, hexes: 0 }, playerMechs, 'stand', coordination).total) return null;
   return {
     type: 'move',
     instanceId: mech.instanceId,
@@ -409,10 +482,16 @@ function scoreWeaponAttack(mech, target, weaponEntry, options = {}) {
   const mountId = weaponMountId(weaponEntry, mountIndex);
   const modeOption = options.modeOption || aiWeaponModeOptions(mech, weaponEntry)[0];
   if (!modeOption) return null;
-  const evaluate = aimedLocation => withAIWeaponSelection(mech, mountId, modeOption, aimedLocation, () =>
-    evaluateWeaponAttack(mech, target, weaponEntry, { secondaryTarget: Boolean(options.secondaryTarget) }));
+  const evaluate = (aimedLocation, indirect = false, spotter = null) => withAIWeaponSelection(mech, mountId, modeOption, aimedLocation, () =>
+    evaluateWeaponAttack(mech, target, weaponEntry, { secondaryTarget: Boolean(options.secondaryTarget), indirect, spotter }));
   let aimedLocation = null;
   let attack = evaluate(null);
+  let indirect = false;
+  let spotter = null;
+  if (!attack.valid && options.coordination?.enabled && typeof isIndirectCapableWeapon === 'function' && isIndirectCapableWeapon(mech, weaponEntry) && typeof eligibleIndirectSpotters === 'function') {
+    spotter = eligibleIndirectSpotters(mech, target).sort((a, b) => Number(options.coordination.capabilities?.[b.instanceId]?.probe) - Number(options.coordination.capabilities?.[a.instanceId]?.probe) || axialDistance(a.col, a.row, target.col, target.row) - axialDistance(b.col, b.row, target.col, target.row))[0] || null;
+    if (spotter) { const indirectAttack = evaluate(null, true, spotter); if (indirectAttack.valid) { attack = indirectAttack; indirect = true; } }
+  }
   if (!attack.valid) return null;
   let hitChance = toHitProbability(attack.targetNumber);
   const perShotDamage = Number(attack.damage ?? attack.weapon.damage ?? 0);
@@ -420,13 +499,16 @@ function scoreWeaponAttack(mech, target, weaponEntry, options = {}) {
   const loadType = modeOption.bin?.loadType || 'standard';
   const specialDamageFactor = ['inferno', 'fragmentation'].includes(loadType) ? 0 : loadType === 'flechette' ? 0.5 : 1;
   let expectedDamage = hitChance * perShotDamage * modeOption.shots * clusterFraction * specialDamageFactor;
-  let score = expectedDamage + hitChance * estimatedKillBonus(target, attack) + aiAmmoUtility(modeOption, attack, target, options.settings || {});
+  const supportUtility = ['tag', 'c3_master_tag'].includes(weaponEntry.key) && Number(target.taggedRound) !== Number(currentGameState.round) ? 8 * hitChance
+    : weaponEntry.key === 'narc' && Number(target.narcPod?.round) !== Number(currentGameState.round) ? 7 * hitChance : 0;
+  const focusBonus = options.coordination?.enabled && target.instanceId === options.coordination.focusTargetId ? 2.5 : 0;
+  let score = expectedDamage + hitChance * estimatedKillBonus(target, attack) + aiAmmoUtility(modeOption, attack, target, options.settings || {}) + supportUtility + focusBonus;
 
   const weakLocation = aiWeakestAimLocation(target);
   const canAim = weakLocation && typeof targetingComputerCanAim === 'function' &&
     withAIWeaponSelection(mech, mountId, modeOption, null, () => targetingComputerCanAim(mech, weaponEntry, mountId));
   if (canAim) {
-    const aimedAttack = evaluate(weakLocation);
+    const aimedAttack = indirect ? { valid: false } : evaluate(weakLocation);
     if (aimedAttack.valid) {
       const aimedChance = toHitProbability(aimedAttack.targetNumber);
       const locationRemaining = Number(target.armor?.[weakLocation] || 0) + Number(target.structure?.[weakLocation] || 0);
@@ -446,7 +528,7 @@ function scoreWeaponAttack(mech, target, weaponEntry, options = {}) {
   const jamReliability = weaponEntry.key?.startsWith('rac') ? Math.max(0.72, 1 - modeOption.shots * 0.035)
     : modeOption.mode === 'rapid' ? 0.97 : 1;
   score *= jamReliability;
-  return { target, weaponEntry, mountId, attack, modeOption, aimedLocation, heat, hitChance, expectedDamage, score };
+  return { target, weaponEntry, mountId, attack, modeOption, aimedLocation, heat, hitChance, expectedDamage, score, indirect, spotterId: spotter?.instanceId || null };
 }
 
 function aiWeaponHeatBudget(mech, settings) {
@@ -459,17 +541,21 @@ function aiWeaponHeatBudget(mech, settings) {
   return Math.max(0, sinks + Number(settings.maxProjectedHeat ?? 13) - beforeWeapons);
 }
 
-function aiPrimaryWeaponTarget(mech, targets, unit, settings, context) {
+function aiPrimaryWeaponTarget(mech, targets, unit, settings, context, coordination = null) {
   const legal = targets.map(target => ({
     target,
     score: unit.weapons.reduce((sum, weaponEntry) => {
       const choices = aiWeaponModeOptions(mech, weaponEntry)
-        .map(modeOption => scoreWeaponAttack(mech, target, weaponEntry, { modeOption, settings }))
+        .map(modeOption => scoreWeaponAttack(mech, target, weaponEntry, { modeOption, settings, coordination }))
         .filter(Boolean);
       return sum + Math.max(0, ...choices.map(choice => choice.score));
     }, 0)
   })).filter(candidate => candidate.score > 0);
   if (!legal.length) return null;
+  if (coordination?.enabled) {
+    const focus = legal.find(candidate => candidate.target.instanceId === coordination.focusTargetId);
+    if (focus) return focus.target;
+  }
   if (settings.targetPriority === 'random') return legal[Math.floor((context?.random?.() ?? Math.random()) * legal.length)].target;
   if (settings.targetPriority === 'closest') return legal.sort((a, b) =>
     axialDistance(mech.col, mech.row, a.target.col, a.target.row) - axialDistance(mech.col, mech.row, b.target.col, b.target.row))[0].target;
@@ -479,10 +565,10 @@ function aiPrimaryWeaponTarget(mech, targets, unit, settings, context) {
 // AI-2 chooses one complete declaration for the current activation. Every
 // mount is independently evaluated against the primary and legal secondary
 // targets, then the package is constrained by heat and shared ammunition.
-function generateAIAttackAction(mech, playerMechs, settings, context = null) {
+function generateAIAttackAction(mech, playerMechs, settings, context = null, coordination = null) {
   const unit = BT_UNITS[mech.unitId];
   if (!unit?.weapons?.length || !playerMechs.length) return null;
-  const primary = aiPrimaryWeaponTarget(mech, playerMechs, unit, settings, context);
+  const primary = aiPrimaryWeaponTarget(mech, playerMechs, unit, settings, context, coordination);
   if (!primary) return null;
 
   const candidateGroups = unit.weapons.map(weaponEntry => {
@@ -492,7 +578,8 @@ function generateAIAttackAction(mech, playerMechs, settings, context = null) {
         const choice = scoreWeaponAttack(mech, target, weaponEntry, {
           modeOption,
           secondaryTarget: target.instanceId !== primary.instanceId,
-          settings
+          settings,
+          coordination
         });
         if (choice?.score > 0) choices.push(choice);
       }
@@ -510,7 +597,8 @@ function generateAIAttackAction(mech, playerMechs, settings, context = null) {
       const binId = candidate.modeOption.bin?.id;
       const used = binId ? ammoUsed.get(binId) || 0 : 0;
       const available = Number(candidate.modeOption.bin?.shots || Infinity);
-      return heatUsed + candidate.heat <= heatBudget && used + candidate.modeOption.shots <= available;
+      const incompatibleFireLine = selected.some(chosen => chosen.target.instanceId === candidate.target.instanceId && chosen.indirect !== candidate.indirect);
+      return !incompatibleFireLine && heatUsed + candidate.heat <= heatBudget && used + candidate.modeOption.shots <= available;
     });
     if (!choice) continue;
     const binId = choice.modeOption.bin?.id;
@@ -530,6 +618,7 @@ function generateAIAttackAction(mech, playerMechs, settings, context = null) {
     if (choice.modeOption.bin) allocation.ammo_bins[choice.mountId] = choice.modeOption.bin.id;
     if (choice.modeOption.mode !== 'single') allocation.ammo_bins.__fire_modes[choice.mountId] = choice.modeOption.mode;
     if (choice.aimedLocation) allocation.ammo_bins.__aim_locations[choice.mountId] = choice.aimedLocation;
+    if (choice.indirect) { allocation.ammo_bins.__indirect = true; allocation.ammo_bins.__spotter = choice.spotterId; }
   }
   const allocations = [...grouped.values()];
   if (!allocations.some(allocation => allocation.primary)) allocations[0].primary = true;
@@ -545,7 +634,9 @@ function generateAIAttackAction(mech, playerMechs, settings, context = null) {
     allocations,
     weaponHeat: heatUsed,
     expectedDamage,
-    _debug: `${selected.length} mount${selected.length === 1 ? '' : 's'}, EV ${expectedDamage.toFixed(1)} damage, ${heatUsed}/${heatBudget} planned heat${allocations.length > 1 ? `, split across ${allocations.length} targets` : ''}`
+    coordinationRole: coordination?.capabilities?.[mech.instanceId]?.designator ? 'designator' : coordination?.retreating?.has(mech.instanceId) ? 'withdrawing' : 'striker',
+    focusTargetId: coordination?.focusTargetId || null,
+    _debug: `${selected.length} mount${selected.length === 1 ? '' : 's'}, EV ${expectedDamage.toFixed(1)} damage, ${heatUsed}/${heatBudget} planned heat${coordination?.enabled && primary.instanceId === coordination.focusTargetId ? ', coordinated focus' : ''}${allocations.length > 1 ? `, split across ${allocations.length} targets` : ''}`
   };
 }
 

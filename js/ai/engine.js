@@ -2,7 +2,7 @@
 // Pure, deterministic planning helpers. The phase-specific opponent code may
 // improve over time without changing this replay/audit contract.
 
-var BT_AI_ENGINE_VERSION = 'ai-3.0';
+var BT_AI_ENGINE_VERSION = 'ai-4.0';
 var pendingAIDecisionEnvelope = null;
 var aiDecisionHistory = [];
 
@@ -143,7 +143,8 @@ function publicAIAction(action) {
     'type', 'instanceId', 'targetInstanceId', 'weaponKey', 'weaponLocation',
     'weaponCount', 'allocations', 'weaponHeat', 'expectedDamage', 'attackType',
     'facing', 'movementMode', 'path', 'toCol', 'toRow', 'mpUsed',
-    'useMASC', 'reason', '_debug', 'scoreBreakdown'
+    'useMASC', 'reason', '_debug', 'scoreBreakdown', 'coordinationRole',
+    'focusTargetId'
   ].filter(key => action[key] !== undefined).map(key => [key, action[key]]));
 }
 

@@ -147,6 +147,10 @@ try {
 
     vsAiMode = true;
     AI_SETTINGS.expert.attackChance = 1;
+    // A delayed realtime notification from initial match setup can otherwise
+    // replace this fixture between publication and planning. Reload the exact
+    // authoritative row while the scheduler guard remains held.
+    await loadGameState();
     const plan = generateAIPlan('expert',ai.id,state,players);
     try { await executeAIPlan(plan); }
     finally { aiTurnInProgress = false; }
@@ -184,7 +188,9 @@ try {
 
   check('Play vs AI pins an immutable catalogue',Boolean(result.catalogueVersion),result.catalogueVersion || 'missing');
   check('AI-2 chooses a complete multi-mount package',action?.type === 'attack' && plannedMounts.length >= 2,`${result.force.ai}: ${plannedMounts.length} mounts`);
-  check('AI-2 records an auditable planned and completed decision',result.decision?.engine_version === 'ai-2.0' && result.decision?.status === 'completed',result.decisionError || result.decision?.status || 'missing');
+  check('AI records an auditable planned and completed decision',/^ai-(?:[4-9]|[1-9][0-9])\./.test(result.decision?.engine_version || '') && result.decision?.status === 'completed',result.decisionError || result.decision?.status || 'missing');
+  check('AI-4 records its force doctrine in the live decision',result.plan?.coordination?.doctrine === 'coordinated' && result.decision?.decision?.coordination?.focus_target_id,JSON.stringify(result.plan?.coordination || null));
+  check('AI-4 declaration follows its ranked focus target',action?.focusTargetId === result.plan?.coordination?.focus_target_id && action?.allocations?.some(allocation => allocation.target_instance_id === action.focusTargetId),action?.focusTargetId || 'missing');
   check('the authoritative event belongs to the AI seat',result.event?.player_id === result.players.aiId,result.eventError || result.event?.player_id || 'missing');
   check('the server receives exactly the planned mount package',[...plannedMounts].sort().join('|') === [...declaredMounts].sort().join('|'),`${plannedMounts.length} planned / ${declaredMounts.length} declared`);
   const resolvedMounts = new Set(resolved.map(item => item?.mount_id).filter(Boolean));
