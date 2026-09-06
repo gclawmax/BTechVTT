@@ -885,6 +885,7 @@ async function handleStartGame() {
     // match, before any human or AI phase action can be submitted.
     gameState.mech_instances = buildDefaultVsAIMechInstances();
   }
+  if (vsAiMode && typeof prepareAIAmmoLoadouts === 'function') prepareAIAmmoLoadouts(gameState.mech_instances);
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
 

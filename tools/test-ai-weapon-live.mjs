@@ -110,6 +110,8 @@ try {
       }
       const attacker = units.find(mech => mech.owner === 2);
       const targets = units.filter(mech => mech.owner === 1);
+      prepareAIAmmoLoadouts([attacker]);
+      attacker.weaponPhaseStart = { round:1,mech:copy(attacker) };
       mechInstances = units;
       currentGameState = {
         round:1,phase:'weapon_attack',active_player_id:ai.id,initiative_winner:ai.id,
@@ -137,14 +139,13 @@ try {
       initiative_order:currentGameState.initiative_order,initiative_round:1,initiative_rolls:[],initiative_pending:[],
       phase_activation:null,active_player_player_id:ai.id,round:1
     };
+    // Take the normal scheduler's re-entry guard before publishing an active
+    // AI fixture. Realtime can deliver that update immediately.
+    aiTurnInProgress = true;
     const { error:updateError } = await db.from('btech_games').update({ current_round:1,current_phase:'weapon_attack',active_player_id:ai.id,initiative_winner:ai.id,state }).eq('id',currentGameId);
     if (updateError) throw updateError;
 
     vsAiMode = true;
-    // load/start-game scheduling may already have queued an AI callback. Hold
-    // the production re-entry guard while this acceptance invokes the same
-    // planner/executor explicitly, so only one declaration can be submitted.
-    aiTurnInProgress = true;
     AI_SETTINGS.expert.attackChance = 1;
     const plan = generateAIPlan('expert',ai.id,state,players);
     try { await executeAIPlan(plan); }
@@ -186,7 +187,11 @@ try {
   check('AI-2 records an auditable planned and completed decision',result.decision?.engine_version === 'ai-2.0' && result.decision?.status === 'completed',result.decisionError || result.decision?.status || 'missing');
   check('the authoritative event belongs to the AI seat',result.event?.player_id === result.players.aiId,result.eventError || result.event?.player_id || 'missing');
   check('the server receives exactly the planned mount package',[...plannedMounts].sort().join('|') === [...declaredMounts].sort().join('|'),`${plannedMounts.length} planned / ${declaredMounts.length} declared`);
-  check('the authoritative resolver returns one dice result per mount',resolved.length === plannedMounts.length && resolved.every(item => Number.isFinite(Number(item?.to_hit?.die_a)) && Number.isFinite(Number(item?.to_hit?.die_b))),`${resolved.length} results`);
+  const resolvedMounts = new Set(resolved.map(item => item?.mount_id).filter(Boolean));
+  const completeResolution = plannedMounts.every(mountId => resolvedMounts.has(mountId)) &&
+    resolved.every(item => plannedMounts.includes(item?.mount_id)) &&
+    resolved.every(item => Number.isFinite(Number(item?.to_hit?.die_a)) && Number.isFinite(Number(item?.to_hit?.die_b)));
+  check('the authoritative resolver returns dice results for every planned mount',completeResolution,`${plannedMounts.length} mounts / ${resolved.length} shot results`);
   check('server ammunition consumption matches the selected modes',plannedAmmo.length > 0 && ammoExact,JSON.stringify({ expectedAmmo,beforeBins,afterBins }));
   check('server heat accounting applies the package exactly once',Number(result.after?.weaponHeat) === Number(result.before?.weaponHeat || 0) + Number(action?.weaponHeat || 0),`${result.before?.weaponHeat || 0} + ${action?.weaponHeat || 0} = ${result.after?.weaponHeat}`);
   check('the AI activation hands play on without remaining active',result.finalGame?.activePlayerId !== result.players.aiId || result.finalGame?.phase !== 'weapon_attack',JSON.stringify(result.finalGame));

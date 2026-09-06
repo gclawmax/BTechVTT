@@ -85,6 +85,15 @@ check('per-mount target scoring can produce legal split fire', action.allocation
 check('the action contract accepts the complete package', sandbox.validateAIActionContract(action, 'weapon_attack').valid);
 check('the action contract rejects an incomplete single-weapon legacy action', !sandbox.validateAIActionContract({ type:'attack', instanceId:'ai-1', targetInstanceId:'near', weaponKey:'laser' }, 'weapon_attack').valid);
 
+const loadoutUnits = [{ owner:1,ammoBins:[{ id:'human',type:'lb10x',shots:10,maxShots:10 }] },{ owner:2,ammoBins:[
+  { id:'lbx',type:'lb10x',shots:10,maxShots:10 },{ id:'mml',type:'mml7',shots:1,maxShots:1 },{ id:'atm',type:'atm6',shots:10,maxShots:10 }
+]}];
+sandbox.prepareAIAmmoLoadouts(loadoutUnits);
+check('Play-vs-AI prepares legal immutable AI specialist ammunition defaults',
+  !loadoutUnits[0].ammoBins[0].loadType && loadoutUnits[1].ammoBins[0].loadType === 'slug' &&
+  loadoutUnits[1].ammoBins[1].loadType === 'lrm' && loadoutUnits[1].ammoBins[1].shots === Math.floor(120 / 7) &&
+  loadoutUnits[1].ammoBins[2].loadType === 'standard');
+
 const sql = fs.readFileSync(path.join(ROOT, 'SQL/124_ai_authoritative_weapon_packages.sql'), 'utf8');
 const opponentSource = fs.readFileSync(path.join(ROOT, 'js/ai/opponent.js'), 'utf8');
 check('SQL 124 routes AI fire through the maintained human weapon resolver', sql.includes('btech_authorized_weapon_player') && sql.includes('submit_multi_target_weapon_declaration'));

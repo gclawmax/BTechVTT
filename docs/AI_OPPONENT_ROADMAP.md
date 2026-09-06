@@ -29,8 +29,8 @@ before this browser build is used for Play vs AI.
 
 ## AI-2 — complete weapon-package planning
 
-**Implemented in SQL 124; dedicated live acceptance and soak coverage were
-added in build `20260906-ai-live-tests-67`.**
+**Implemented in SQL 124; dedicated live acceptance, soak coverage and AI
+ammunition setup hardening are in build `20260906-ai-soak-fixes-68`.**
 
 - Each activation chooses a complete declaration, not a single catalogue
   weapon. Legal mount/mode/bin combinations are evaluated against every
@@ -53,6 +53,9 @@ added in build `20260906-ai-live-tests-67`.**
   authoritative declaration, server dice, heat, ammunition and hand-off.
   `tools/run-ai-weapon-soak.mjs` rotates supported catalogue forces and maps,
   deletes passing fixtures and retains failed game codes with JSON reports.
+- Play-vs-AI assigns legal immutable Round 1 defaults to the AI force's LB-X,
+  MML, ATM and specialist ammunition bins; no absent second human can block
+  Initiative or cause an authoritative package rejection.
 - The dedicated static regression verifies package composition, heat limits,
   rapid-fire ammunition, split fire, action contracts and the SQL boundary.
 

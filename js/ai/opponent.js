@@ -248,6 +248,30 @@ function aiWeaponModes(weaponEntry) {
   return ['single'];
 }
 
+// Play-vs-AI has no second human available to configure the AI force's
+// immutable Round 1 ammunition. Give every specialised AI bin a conservative
+// legal default before the match is persisted. The planner may choose among
+// bins and weapon modes later, but it may never invent a loadout mid-battle.
+function prepareAIAmmoLoadouts(units) {
+  for (const mech of units || []) {
+    if (Number(mech.owner) !== 2) continue;
+    mech.ammoBins = (mech.ammoBins || []).map(bin => {
+      if (bin.loadType) return bin;
+      let loadType = null;
+      if (bin.type === 'lb10x') loadType = 'slug';
+      else if (/^mml(3|5|7|9)$/.test(bin.type)) loadType = 'lrm';
+      else if (/^atm(3|6|9|12)$/.test(bin.type)) loadType = 'standard';
+      else if (['srm2','srm4','srm6','ac2','ac5','ac10','ac20','lrm5','lrm10','lrm15','lrm20'].includes(bin.type)) loadType = 'standard';
+      if (!loadType) return bin;
+      const prepared = { ...bin, loadType };
+      const rack = /^mml(3|5|7|9)$/.test(bin.type) ? Number(bin.type.slice(3)) : 0;
+      if (rack) prepared.shots = prepared.maxShots = Math.floor(120 / rack);
+      return prepared;
+    });
+  }
+  return units;
+}
+
 function aiWeaponShots(mode) {
   if (/^[1-6]$/.test(mode)) return Number(mode);
   return mode === 'rapid' ? 2 : 1;
