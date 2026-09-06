@@ -32,6 +32,14 @@ const sandbox = {
   physicalLimbCandidates: () => ['ll', 'rl'],
   evaluatePhysicalAttack: () => ({ valid: false, reason: 'not adjacent' }),
   evaluateWeaponAttack: (_attacker, _target, weaponEntry) => ({ valid: true, targetNumber: 7, weapon: sandbox.BT_WEAPONS[weaponEntry.key], damage: sandbox.BT_WEAPONS[weaponEntry.key].damage }),
+  emptyWeaponAttackState: () => ({ attackerId:null, ammoBinsByMount:{}, fireModesByMount:{}, aimLocationsByMount:{} }),
+  weaponAttackState: { attackerId:null, ammoBinsByMount:{}, fireModesByMount:{}, aimLocationsByMount:{} },
+  weaponProfile: entry => entry?.weapon || sandbox.BT_WEAPONS[entry?.key],
+  weaponMountId: (entry, index) => entry.mountId || `${entry.key}:${entry.location}:${index}`,
+  weaponPhaseStartMech: mech => mech,
+  destroyedHeatSinkCapacity: () => 0,
+  signatureHeat: () => 0,
+  currentActivationAllowance: () => 1,
   BT_WEAPONS: { laser: { name: 'Laser', damage: 5, heat: 3 } }
 };
 vm.createContext(sandbox);
@@ -60,7 +68,7 @@ const weaponPlanA = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-see
 const weaponPlanB = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-seed' }, []);
 check('every eligible AI BattleMech receives an explicit weapon action or pass', weaponPlanA.actions.length === 1 && ['attack', 'no_fire'].includes(weaponPlanA.actions[0].type), JSON.stringify(weaponPlanA.actions));
 check('the same phase snapshot produces the same planned action', JSON.stringify(weaponPlanA.actions) === JSON.stringify(weaponPlanB.actions));
-check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-1.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed);
+check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-2.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed);
 
 sandbox.currentGameState.phase = 'physical_attack';
 ai.hasPhysicalAttacked = false;

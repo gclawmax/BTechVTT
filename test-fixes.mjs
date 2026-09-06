@@ -395,7 +395,8 @@ sandbox.BT_UNITS.ai_test = { name: 'AI Test', tonnage: 50, movement: { walk: 4, 
 const aiShooter = { ...physicalAttacker, instanceId: 'ai', unitId: 'ai_test', owner: 2, col: 4, row: 4, facing: 0, torsoFacing: 0 };
 const aiTarget = { ...adjacentTarget, instanceId: 'human', owner: 1, col: 6, row: 4, armor: { ct: 20 }, structure: { ...STRUCT } };
 const aiChoice = sandbox.generateAIAttackAction(aiShooter, [aiTarget], { targetPriority: 'optimal' });
-check('#4b2 AI chooses the highest expected-damage legal weapon', aiChoice?.weaponKey === 'ai_large', aiChoice?._debug || 'no action');
+const aiChosenMounts = aiChoice?.allocations?.flatMap(allocation => allocation.weapon_mounts) || [];
+check('#4b2 AI package includes the highest expected-damage legal weapon', aiChosenMounts.some(mount => mount.startsWith('ai_large:')), aiChoice?._debug || 'no action');
 check('#4b2 2d6 hit probabilities handle automatic, ordinary and impossible shots', sandbox.toHitProbability(2) === 1 && sandbox.toHitProbability(7) === 0.583 && sandbox.toHitProbability(13) === 0);
 
 // ── #4c Critical mobility consequences ───────────────────────────────────
@@ -702,7 +703,7 @@ check('#5 the detail panel identifies a carried improvised club', panelSource.in
 const physicalAttackSource = fs.readFileSync(`${ROOT}/js/game/physical-attack.js`, 'utf8');
 check('#5 units without legal physical targets are passed automatically and hidden from the picker', phasesSource.includes('autoPassIneligiblePhysicalAttackers') && phasesSource.includes("p_attack_type: 'pass'") && physicalAttackSource.includes('pending = mechInstances.filter') && physicalAttackSource.includes('hasLegalPhysicalAttack(m)') && physicalAttackSource.includes('const enemies = legalPhysicalTargets(attacker)'));
 const aiOpponentSource = fs.readFileSync(`${ROOT}/js/ai/opponent.js`, 'utf8');
-check('#5 AI weapon selection scores every legal target/mount by expected damage', aiOpponentSource.includes('TWO_D6_HIT_CHANCE') && aiOpponentSource.includes('scoreWeaponAttack') && aiOpponentSource.includes('expectedDamage + killBonus') && aiOpponentSource.includes('candidates.sort((a, b) => b.score - a.score)'));
+check('#5 AI weapon selection builds complete heat/ammunition-aware packages', aiOpponentSource.includes('TWO_D6_HIT_CHANCE') && aiOpponentSource.includes('scoreWeaponAttack') && aiOpponentSource.includes('aiWeaponHeatBudget') && aiOpponentSource.includes('candidateGroups') && aiOpponentSource.includes('allocations'));
 const careerAvatarSource = fs.readFileSync(`${ROOT}/js/game/career-avatar.js`, 'utf8');
 const gameSettingsSource = fs.readFileSync(`${ROOT}/js/ui/game-settings.js`, 'utf8');
 const howToPlaySource = fs.readFileSync(`${ROOT}/how-to-play.html`, 'utf8');

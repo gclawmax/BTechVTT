@@ -6,8 +6,8 @@ turn. Difficulty changes decision quality, never hidden information or rules.
 
 ## AI-1 — deterministic authority foundation
 
-**Implemented in build `20260905-ai-foundation-65` and SQL 123; live migration
-validation pending.**
+**Implemented in build `20260905-ai-foundation-65` and SQL 123; migration
+confirmed live on 6 September 2026.**
 
 - A stable battlefield snapshot records phase, map, ruleset, objectives,
   terrain, minefields and combat state for every BattleMech.
@@ -15,7 +15,8 @@ validation pending.**
   round, phase and snapshot hash. Replaying that state produces the same plan.
 - Phase action contracts reject movement, reaction, fire, physical or heat
   actions submitted in the wrong phase.
-- Every eligible AI BattleMech receives an explicit action or explicit pass.
+- Every eligible AI BattleMech within the current activation allowance
+  receives an explicit action or explicit pass.
 - Each action outcome is attached to a bounded decision history in the match.
 - SQL 123 verifies the human controller, active AI seat, round, phase, action
   ownership and immutable deployed-unit identities before accepting state.
@@ -28,10 +29,30 @@ before this browser build is used for Play vs AI.
 
 ## AI-2 — complete weapon-package planning
 
-Choose complete, legal declarations rather than one weapon. Score expected
-damage, heat, ammunition, range, arcs, firing modes, specialist ammunition,
-targeting support and split fire. Move weapon/damage resolution onto shared
-authoritative server routines rather than trusting client-calculated outcomes.
+**Implemented in build `20260906-ai-weapons-66` and SQL 124; live migration
+validation pending.**
+
+- Each activation chooses a complete declaration, not a single catalogue
+  weapon. Legal mount/mode/bin combinations are evaluated against every
+  visible target, including secondary-target penalties.
+- Package selection scores hit probability, expected cluster damage, kill
+  opportunities, range, arcs, Targeting Computer support, specialist
+  ammunition, Ultra/Rotary/LB-X modes, jam risk and ammunition scarcity.
+- A post-sink heat ceiling varies by difficulty. Shared ammunition-bin counts
+  and destroyed heat-sink capacity constrain the final package.
+- Useful mounts may split fire; the selected primary target and every mount's
+  ammunition, mode and aimed location are carried in the audit envelope.
+- SQL 124 allows only the seated human controller of a Play vs AI match to
+  submit for the active AI seat. It then routes the declaration through the
+  maintained human multi-target resolver, so the server owns dice, heat,
+  ammunition, jams, criticals and damage.
+- A rejected package falls back to an authoritative no-fire declaration so a
+  planner defect cannot stall the match. The rejected reason remains in the
+  AI decision record.
+- The dedicated static regression verifies package composition, heat limits,
+  rapid-fire ammunition, split fire, action contracts and the SQL boundary.
+
+SQL 124 must be installed before this browser build is used for Play vs AI.
 
 ## AI-3 — tactical movement
 

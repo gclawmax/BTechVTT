@@ -9,7 +9,9 @@ const AI_SETTINGS = {
     targetPriority: 'random', // random, closest, strongest
     movementRange: 1, // hexes per turn
     heatManagement: false,
-    planningHorizon: 1
+    planningHorizon: 1,
+    maxProjectedHeat: 18,
+    ammoConservation: 0
   },
   intermediate: {
     moveChance: 0.85,
@@ -17,7 +19,9 @@ const AI_SETTINGS = {
     targetPriority: 'closest',
     movementRange: 2,
     heatManagement: true,
-    planningHorizon: 2
+    planningHorizon: 2,
+    maxProjectedHeat: 13,
+    ammoConservation: 0.05
   },
   advanced: {
     moveChance: 0.95,
@@ -25,7 +29,9 @@ const AI_SETTINGS = {
     targetPriority: 'strongest',
     movementRange: 3,
     heatManagement: true,
-    planningHorizon: 3
+    planningHorizon: 3,
+    maxProjectedHeat: 10,
+    ammoConservation: 0.1
   },
   expert: {
     moveChance: 1.0,
@@ -33,7 +39,9 @@ const AI_SETTINGS = {
     targetPriority: 'optimal',
     movementRange: 3,
     heatManagement: true,
-    planningHorizon: 5
+    planningHorizon: 5,
+    maxProjectedHeat: 7,
+    ammoConservation: 0.15
   }
 };
 
@@ -64,6 +72,10 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   // Get player mechs (owner 1 = human)
   const playerMechs = mechInstances.filter(inst => inst.owner === 1 && !inst.destroyed &&
     (typeof isEnemyHiddenUnit !== 'function' || !isEnemyHiddenUnit(inst)));
+  const weaponAllowance = currentGameState.phase === 'weapon_attack' && typeof currentActivationAllowance === 'function'
+    ? currentActivationAllowance('weapon_attack') : aiMechs.length;
+  const weaponActors = new Set(aiMechs.filter(mech => !mech.hasFired && !mech.destroyed)
+    .slice(0, Math.max(1, weaponAllowance)).map(mech => mech.instanceId));
   
   // Generate one explicit action or pass for every eligible AI BattleMech.
   // A weak difficulty may choose a conservative pass, but it may never omit
@@ -78,7 +90,7 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
       aiPlan.actions.push(moveAction || { type: 'complete_movement', instanceId: mech.instanceId, reason: canConsiderMove ? 'Held position by difficulty policy.' : 'Unable to move.' });
     }
 
-    if (currentGameState.phase === 'weapon_attack' && !mech.hasFired && !mech.destroyed) {
+    if (currentGameState.phase === 'weapon_attack' && weaponActors.has(mech.instanceId)) {
       const canConsiderFire = !mech.shutdown && (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
       const attackAction = canConsiderFire && context.random() < settings.attackChance
         ? generateAIAttackAction(mech, playerMechs, settings, context) : null;
@@ -228,52 +240,216 @@ function estimatedKillBonus(target, attack) {
   return 0;
 }
 
-function scoreWeaponAttack(mech, target, weaponEntry) {
-  const attack = evaluateWeaponAttack(mech, target, weaponEntry);
-  if (!attack.valid) return null;
-  const hitChance = toHitProbability(attack.targetNumber);
-  const expectedDamage = hitChance * (attack.damage ?? attack.weapon.damage);
-  const killBonus = hitChance * estimatedKillBonus(target, attack);
-  return { target, weaponEntry, attack, hitChance, expectedDamage, score: expectedDamage + killBonus };
+function aiWeaponModes(weaponEntry) {
+  const key = weaponProfile(weaponEntry)?.key || weaponEntry?.key || '';
+  if (key.startsWith('uac')) return ['single', 'rapid'];
+  if (key.startsWith('rac')) return ['1', '2', '3', '4', '5', '6'];
+  if (key === 'lb10x') return ['slug', 'cluster'];
+  return ['single'];
 }
 
-// Generate an attack action scored by expected damage rather than choosing
-// the catalogue's first weapon against a distance/tonnage-sorted target.
-function generateAIAttackAction(mech, playerMechs, settings, context = null) {
-  const unit = BT_UNITS[mech.unitId];
-  if (!unit?.weapons?.length) return null;
+function aiWeaponShots(mode) {
+  if (/^[1-6]$/.test(mode)) return Number(mode);
+  return mode === 'rapid' ? 2 : 1;
+}
 
-  const candidates = [];
-  for (const target of playerMechs) {
-    for (const weaponEntry of unit.weapons) {
-      const scored = scoreWeaponAttack(mech, target, weaponEntry);
-      if (scored) candidates.push(scored);
+function aiWeaponModeOptions(mech, weaponEntry) {
+  const weapon = weaponProfile(weaponEntry);
+  if (!weapon) return [];
+  const bins = weaponPhaseStartMech(mech).ammoBins || [];
+  return aiWeaponModes(weaponEntry).flatMap(mode => {
+    const shots = aiWeaponShots(mode);
+    if (!weapon.ammoType) return [{ mode, shots, bin: null }];
+    return bins.filter(bin => bin.type === weapon.ammoType && !bin.destroyed && Number(bin.shots || 0) >= shots)
+      .filter(bin => weaponEntry.key !== 'lb10x' || !bin.loadType || bin.loadType === mode)
+      .map(bin => ({ mode, shots, bin }));
+  });
+}
+
+function aiWeakestAimLocation(target) {
+  return ['ct', 'lt', 'rt', 'la', 'ra', 'll', 'rl']
+    .filter(location => Number(target.structure?.[location] || 0) > 0)
+    .sort((a, b) => Number(target.armor?.[a] || 0) + Number(target.structure?.[a] || 0) -
+      Number(target.armor?.[b] || 0) - Number(target.structure?.[b] || 0))[0] || null;
+}
+
+function withAIWeaponSelection(mech, mountId, option, aimedLocation, callback) {
+  const previous = weaponAttackState;
+  weaponAttackState = {
+    ...emptyWeaponAttackState(),
+    attackerId: mech.instanceId,
+    ammoBinsByMount: option.bin ? { [mountId]: option.bin.id } : {},
+    fireModesByMount: { [mountId]: option.mode },
+    aimLocationsByMount: aimedLocation ? { [mountId]: aimedLocation } : {}
+  };
+  try { return callback(); }
+  finally { weaponAttackState = previous; }
+}
+
+function aiClusterFraction(mech, weapon, option, target) {
+  if (!weapon?.clusterSize && option.mode !== 'cluster') return 1;
+  if (weapon.streak) return 1;
+  let fraction = 0.63;
+  const guided = option.bin?.artemisCapable || (option.bin?.narcCapable && target.narcPod &&
+    Number(target.narcPod.round) === Number(currentGameState.round));
+  if (guided && (typeof targetGuidanceEcm !== 'function' || !targetGuidanceEcm(mech, target))) fraction = 0.72;
+  return fraction;
+}
+
+function aiAmmoUtility(option, attack, target, settings) {
+  if (!option.bin) return 0;
+  const load = option.bin.loadType || 'standard';
+  let utility = 0;
+  if (load === 'inferno') utility += toHitProbability(attack.targetNumber) * 4;
+  if (load === 'armor_piercing') utility += toHitProbability(attack.targetNumber) * 1.5;
+  if (load === 'precision') utility += 0.5;
+  if (load === 'semi_guided' && Number(target.taggedRound) === Number(currentGameState.round)) utility += 2;
+  const scarcity = option.shots / Math.max(option.shots, Number(option.bin.shots || 0));
+  return utility - scarcity * Number(settings.ammoConservation || 0) * Number(attack.damage || attack.weapon.damage || 0);
+}
+
+function scoreWeaponAttack(mech, target, weaponEntry, options = {}) {
+  const mountIndex = BT_UNITS[mech.unitId].weapons.indexOf(weaponEntry);
+  const mountId = weaponMountId(weaponEntry, mountIndex);
+  const modeOption = options.modeOption || aiWeaponModeOptions(mech, weaponEntry)[0];
+  if (!modeOption) return null;
+  const evaluate = aimedLocation => withAIWeaponSelection(mech, mountId, modeOption, aimedLocation, () =>
+    evaluateWeaponAttack(mech, target, weaponEntry, { secondaryTarget: Boolean(options.secondaryTarget) }));
+  let aimedLocation = null;
+  let attack = evaluate(null);
+  if (!attack.valid) return null;
+  let hitChance = toHitProbability(attack.targetNumber);
+  const perShotDamage = Number(attack.damage ?? attack.weapon.damage ?? 0);
+  const clusterFraction = aiClusterFraction(mech, attack.weapon, modeOption, target);
+  const loadType = modeOption.bin?.loadType || 'standard';
+  const specialDamageFactor = ['inferno', 'fragmentation'].includes(loadType) ? 0 : loadType === 'flechette' ? 0.5 : 1;
+  let expectedDamage = hitChance * perShotDamage * modeOption.shots * clusterFraction * specialDamageFactor;
+  let score = expectedDamage + hitChance * estimatedKillBonus(target, attack) + aiAmmoUtility(modeOption, attack, target, options.settings || {});
+
+  const weakLocation = aiWeakestAimLocation(target);
+  const canAim = weakLocation && typeof targetingComputerCanAim === 'function' &&
+    withAIWeaponSelection(mech, mountId, modeOption, null, () => targetingComputerCanAim(mech, weaponEntry, mountId));
+  if (canAim) {
+    const aimedAttack = evaluate(weakLocation);
+    if (aimedAttack.valid) {
+      const aimedChance = toHitProbability(aimedAttack.targetNumber);
+      const locationRemaining = Number(target.armor?.[weakLocation] || 0) + Number(target.structure?.[weakLocation] || 0);
+      const aimedDamage = aimedChance * perShotDamage * modeOption.shots * clusterFraction * specialDamageFactor;
+      const aimedScore = aimedDamage + (perShotDamage >= locationRemaining ? aimedChance * perShotDamage * 2 : 0);
+      if (aimedScore > score) {
+        attack = aimedAttack;
+        aimedLocation = weakLocation;
+        hitChance = aimedChance;
+        expectedDamage = aimedDamage;
+        score = aimedScore;
+      }
     }
   }
-  if (!candidates.length) return null;
-  candidates.sort((a, b) => b.score - a.score);
 
-  let choice;
-  if (settings.targetPriority === 'random') {
-    const random = context?.random || Math.random;
-    choice = candidates[Math.floor(random() * candidates.length)];
-  } else if (settings.targetPriority === 'closest') {
-    const nearestTarget = [...playerMechs].sort((a, b) =>
-      axialDistance(mech.col, mech.row, a.col, a.row) - axialDistance(mech.col, mech.row, b.col, b.row)
-    )[0];
-    choice = candidates.find(candidate => candidate.target.instanceId === nearestTarget?.instanceId) || candidates[0];
-  } else {
-    choice = candidates[0];
+  const heat = Number(attack.weapon.heat || 0) * modeOption.shots;
+  const jamReliability = weaponEntry.key?.startsWith('rac') ? Math.max(0.72, 1 - modeOption.shots * 0.035)
+    : modeOption.mode === 'rapid' ? 0.97 : 1;
+  score *= jamReliability;
+  return { target, weaponEntry, mountId, attack, modeOption, aimedLocation, heat, hitChance, expectedDamage, score };
+}
+
+function aiWeaponHeatBudget(mech, settings) {
+  const unit = BT_UNITS[mech.unitId] || {};
+  const destroyed = typeof destroyedHeatSinkCapacity === 'function' ? destroyedHeatSinkCapacity(mech) : 0;
+  const sinks = Math.max(0, Number(unit.heat_sink_capacity || unit.heat_sinks || 0) - destroyed);
+  const signature = typeof signatureHeat === 'function' ? signatureHeat(mech) : 0;
+  const beforeWeapons = Number(mech.roundStartingHeat || 0) + Number(mech.movementHeat || 0) +
+    Number(mech.externalHeat || 0) + signature;
+  return Math.max(0, sinks + Number(settings.maxProjectedHeat ?? 13) - beforeWeapons);
+}
+
+function aiPrimaryWeaponTarget(mech, targets, unit, settings, context) {
+  const legal = targets.map(target => ({
+    target,
+    score: unit.weapons.reduce((sum, weaponEntry) => {
+      const choices = aiWeaponModeOptions(mech, weaponEntry)
+        .map(modeOption => scoreWeaponAttack(mech, target, weaponEntry, { modeOption, settings }))
+        .filter(Boolean);
+      return sum + Math.max(0, ...choices.map(choice => choice.score));
+    }, 0)
+  })).filter(candidate => candidate.score > 0);
+  if (!legal.length) return null;
+  if (settings.targetPriority === 'random') return legal[Math.floor((context?.random?.() ?? Math.random()) * legal.length)].target;
+  if (settings.targetPriority === 'closest') return legal.sort((a, b) =>
+    axialDistance(mech.col, mech.row, a.target.col, a.target.row) - axialDistance(mech.col, mech.row, b.target.col, b.target.row))[0].target;
+  return legal.sort((a, b) => b.score - a.score)[0].target;
+}
+
+// AI-2 chooses one complete declaration for the current activation. Every
+// mount is independently evaluated against the primary and legal secondary
+// targets, then the package is constrained by heat and shared ammunition.
+function generateAIAttackAction(mech, playerMechs, settings, context = null) {
+  const unit = BT_UNITS[mech.unitId];
+  if (!unit?.weapons?.length || !playerMechs.length) return null;
+  const primary = aiPrimaryWeaponTarget(mech, playerMechs, unit, settings, context);
+  if (!primary) return null;
+
+  const candidateGroups = unit.weapons.map(weaponEntry => {
+    const choices = [];
+    for (const target of playerMechs) {
+      for (const modeOption of aiWeaponModeOptions(mech, weaponEntry)) {
+        const choice = scoreWeaponAttack(mech, target, weaponEntry, {
+          modeOption,
+          secondaryTarget: target.instanceId !== primary.instanceId,
+          settings
+        });
+        if (choice?.score > 0) choices.push(choice);
+      }
+    }
+    return choices.sort((a, b) => b.score - a.score);
+  }).filter(choices => choices.length).sort((a, b) =>
+    (b[0].score / Math.max(1, b[0].heat)) - (a[0].score / Math.max(1, a[0].heat)) || b[0].score - a[0].score);
+
+  const heatBudget = aiWeaponHeatBudget(mech, settings);
+  let heatUsed = 0;
+  const ammoUsed = new Map();
+  const selected = [];
+  for (const choices of candidateGroups) {
+    const choice = choices.find(candidate => {
+      const binId = candidate.modeOption.bin?.id;
+      const used = binId ? ammoUsed.get(binId) || 0 : 0;
+      const available = Number(candidate.modeOption.bin?.shots || Infinity);
+      return heatUsed + candidate.heat <= heatBudget && used + candidate.modeOption.shots <= available;
+    });
+    if (!choice) continue;
+    const binId = choice.modeOption.bin?.id;
+    const used = binId ? ammoUsed.get(binId) || 0 : 0;
+    selected.push(choice);
+    heatUsed += choice.heat;
+    if (binId) ammoUsed.set(binId, used + choice.modeOption.shots);
   }
+  if (!selected.length) return null;
 
+  const grouped = new Map();
+  for (const choice of selected) {
+    const targetId = choice.target.instanceId;
+    if (!grouped.has(targetId)) grouped.set(targetId, { target_instance_id: targetId, primary: targetId === primary.instanceId, weapon_mounts: [], ammo_bins: { __fire_modes: {}, __aim_locations: {} } });
+    const allocation = grouped.get(targetId);
+    allocation.weapon_mounts.push(choice.mountId);
+    if (choice.modeOption.bin) allocation.ammo_bins[choice.mountId] = choice.modeOption.bin.id;
+    if (choice.modeOption.mode !== 'single') allocation.ammo_bins.__fire_modes[choice.mountId] = choice.modeOption.mode;
+    if (choice.aimedLocation) allocation.ammo_bins.__aim_locations[choice.mountId] = choice.aimedLocation;
+  }
+  const allocations = [...grouped.values()];
+  if (!allocations.some(allocation => allocation.primary)) allocations[0].primary = true;
+  const expectedDamage = selected.reduce((sum, choice) => sum + choice.expectedDamage, 0);
+  const first = selected[0];
   return {
     type: 'attack',
     instanceId: mech.instanceId,
-    targetInstanceId: choice.target.instanceId,
-    weaponKey: choice.weaponEntry.key,
-    weaponLocation: choice.weaponEntry.location,
-    weaponCount: choice.weaponEntry.count,
-    _debug: `EV ${choice.expectedDamage.toFixed(1)} dmg (${Math.round(choice.hitChance * 100)}% to hit ${choice.attack.targetNumber}+) vs ${mechLabel(choice.target)}`
+    targetInstanceId: allocations.find(allocation => allocation.primary)?.target_instance_id || primary.instanceId,
+    weaponKey: first.weaponEntry.key,
+    weaponLocation: first.weaponEntry.location,
+    weaponCount: selected.length,
+    allocations,
+    weaponHeat: heatUsed,
+    expectedDamage,
+    _debug: `${selected.length} mount${selected.length === 1 ? '' : 's'}, EV ${expectedDamage.toFixed(1)} damage, ${heatUsed}/${heatBudget} planned heat${allocations.length > 1 ? `, split across ${allocations.length} targets` : ''}`
   };
 }
 
@@ -289,9 +465,6 @@ async function completeAIUnitPhaseAction(action) {
     mech.heat = (mech.roundStartingHeat || 0) + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
     mech.hasMoved = true;
     logEvent(`${mechLabel(mech)} (AI) held position.`, 'move');
-  } else if (action.type === 'no_fire') {
-    mech.hasFired = true;
-    logEvent(`${mechLabel(mech)} (AI) declared no weapon fire.`, 'attack');
   } else if (action.type === 'no_physical_attack') {
     mech.hasPhysicalAttacked = true;
     logEvent(`${mechLabel(mech)} (AI) declared no physical attack.`, 'attack');
@@ -319,11 +492,6 @@ async function executeAIPlan(aiPlan) {
       updateAdvanceButtonState();
       logEvent('AI held position and completed Movement.', 'move');
     }
-    if (currentGameState.phase === 'weapon_attack') {
-      mechInstances.filter(m => m.owner === 2 && !m.destroyed).forEach(m => { m.hasFired = true; });
-      await syncMechInstances();
-      updateAdvanceButtonState();
-    }
     if (currentGameState.phase === 'physical_attack') {
       mechInstances.filter(m => m.owner === 2 && !m.destroyed).forEach(m => { m.hasPhysicalAttacked = true; });
       await syncMechInstances();
@@ -334,7 +502,12 @@ async function executeAIPlan(aiPlan) {
     return;
   }
   
+  const plannedPhase = aiPlan.phase || currentGameState.phase;
   logEvent(`AI plan: ${aiPlan.actions.length} action${aiPlan.actions.length === 1 ? '' : 's'} queued.`, 'system');
+  // A weapon declaration can immediately hand play back to the human or
+  // advance the phase. Save the reproducible plan before that happens; SQL
+  // 124 finalizes its outcomes without rewriting combat state afterward.
+  if (plannedPhase === 'weapon_attack') await syncMechInstances();
   
   // Execute actions one by one with delays for visual feedback
   for (const action of aiPlan.actions) {
@@ -347,7 +520,8 @@ async function executeAIPlan(aiPlan) {
           await executeAIMove(action);
           break;
         case 'attack':
-          await executeAIAttack(action);
+        case 'no_fire':
+          await executeAIWeaponDeclaration(action);
           break;
         case 'torso_twist':
         case 'complete_reaction':
@@ -357,7 +531,6 @@ async function executeAIPlan(aiPlan) {
           await executeAIPhysicalAttack(action);
           break;
         case 'complete_movement':
-        case 'no_fire':
         case 'no_physical_attack':
           await completeAIUnitPhaseAction(action);
           break;
@@ -377,21 +550,14 @@ async function executeAIPlan(aiPlan) {
   const decisionFailed = pendingAIDecisionEnvelope?.outcomes?.some(outcome => outcome.status === 'failed');
   completeAIDecision(decisionFailed ? 'failed' : 'completed');
 
-  if (currentGameState.phase === 'movement') {
+  if (plannedPhase === 'movement') {
     const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
     aiMechs.forEach(m => { if (!m.hasMoved) { m.movementMode = 'stand'; m.mpUsed = 0; m.hexesMoved = 0; m.movementHeat = 0; m.heat = (m.roundStartingHeat || 0) + (m.weaponHeat || 0); m.hasMoved = true; } });
     await syncMechInstances();
     updateAdvanceButtonState();
   }
 
-  if (currentGameState.phase === 'weapon_attack') {
-    const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
-    aiMechs.forEach(m => { m.hasFired = true; });
-    await syncMechInstances();
-    updateAdvanceButtonState();
-  }
-
-  if (currentGameState.phase === 'reaction') {
+  if (plannedPhase === 'reaction') {
     const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
     aiMechs.forEach(m => {
       if (m.prone) m.torsoFacing = m.facing;
@@ -401,16 +567,15 @@ async function executeAIPlan(aiPlan) {
     updateAdvanceButtonState();
   }
 
-  if (currentGameState.phase === 'physical_attack') {
+  if (plannedPhase === 'physical_attack') {
     const aiMechs = mechInstances.filter(m => m.owner === 2 && !m.destroyed);
     aiMechs.forEach(m => { m.hasPhysicalAttacked = true; });
     await syncMechInstances();
     updateAdvanceButtonState();
   }
 
-  // The final sync stores the completed decision envelope, including every
-  // action outcome, through SQL 123's guarded AI authority gateway.
-  if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(currentGameState.phase)) await syncMechInstances();
+  if (plannedPhase === 'weapon_attack') await finalizeAIDecisionRecord();
+  else if (['movement', 'reaction', 'physical_attack', 'heat'].includes(plannedPhase)) await syncMechInstances();
 }
 
 async function executeAIPhysicalAttack(action) {
@@ -500,45 +665,47 @@ async function executeAIMove(action) {
   logEvent(`${mechLabel(mech)} (AI) ${action.useMASC ? 'used MASC and ran' : 'moved'} ${mech.hexesMoved} hex${mech.hexesMoved === 1 ? '' : 'es'} to ${hexCode(action.toCol, action.toRow)}${action.tsmActive ? ' with TSM active' : ''}.`, 'move');
 }
 
-// Execute AI attack
-async function executeAIAttack(action) {
-  const attacker = mechInstances.find(m => m.instanceId === action.instanceId);
-  const target = mechInstances.find(m => m.instanceId === action.targetInstanceId);
-  
-  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.hasFired) throw new Error('Weapon attacker or target is no longer eligible.');
-  
-  const weaponEntry = BT_UNITS[attacker.unitId].weapons.find(weapon =>
-    weapon.key === action.weaponKey && (!action.weaponLocation || weapon.location === action.weaponLocation));
-  if (!weaponEntry) throw new Error('Planned weapon mount is no longer available.');
-  const attack = evaluateWeaponAttack(attacker, target, weaponEntry);
-  if (!attack.valid) throw new Error(attack.reason || 'Planned weapon attack is no longer legal.');
-
-  attacker.weaponHeat = (attacker.weaponHeat || 0) + attack.weapon.heat;
-  attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat + (attacker.externalHeat || 0);
-  const roll = roll2d6Detailed();
-  const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);
-  let message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: miss.`;
-  if (hit) {
-    const shotDamage = attack.damage ?? attack.weapon.damage;
-    const damage = applyWeaponDamage(target, shotDamage, attack.attackAngle);
-    const flamerHeat = weaponEntry.key === 'flamer' ? 2 : 0;
-    if (flamerHeat) {
-      target.externalHeat = (target.externalHeat || 0) + flamerHeat;
-      target.heat = (target.heat || 0) + flamerHeat;
-    }
-    message = `${mechLabel(attacker)} (AI) fired ${attack.weapon.name} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${shotDamage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
+async function finalizeAIDecisionRecord() {
+  if (!pendingAIDecisionEnvelope || !currentGameId) return;
+  const { error } = await db.rpc('finalize_ai_decision', {
+    p_game_id: currentGameId,
+    p_decision: pendingAIDecisionEnvelope
+  });
+  if (error) {
+    console.warn('[BT-AI] Could not finalize decision record:', error);
+    logEvent(`AI decision audit could not be finalized: ${error.message}`, 'error');
   }
-  await syncMechInstances();
-  await checkForMatchEnd();
-  await queueLocalWeaponPresentation(attacker, [{
-    msg: `${message}${action._debug ? ` [${action._debug}]` : ''}`,
-    soundFamily: weaponSoundFamily({ weapon: attack.weapon.name })
-  }]);
+}
 
-  // Update UI
-  draw();
-  renderRoster();
-  renderDetail();
+// AI-2 submits exactly the same complete multi-target declaration as a human.
+// Dice, ammunition, heat, jams, criticals and damage are resolved by Supabase;
+// no client-calculated combat state is written back over that result.
+async function executeAIWeaponDeclaration(action) {
+  const attacker = mechInstances.find(m => m.instanceId === action.instanceId);
+  if (!attacker || attacker.destroyed || attacker.hasFired) throw new Error('Weapon attacker is no longer eligible.');
+  const allocations = action.type === 'no_fire' ? [] : action.allocations;
+  let { data, error } = await db.rpc('submit_multi_target_weapon_declaration', {
+    p_game_id: currentGameId,
+    p_attacker_instance_id: attacker.instanceId,
+    p_target_allocations: allocations
+  });
+  if (error && allocations.length) {
+    const rejected = error.message;
+    logEvent(`AI weapon package was rejected; declaring no fire safely: ${rejected}`, 'error');
+    ({ data, error } = await db.rpc('submit_multi_target_weapon_declaration', {
+      p_game_id: currentGameId,
+      p_attacker_instance_id: attacker.instanceId,
+      p_target_allocations: []
+    }));
+    if (!error) action._debug = `${action._debug || ''}; authoritative package rejected (${rejected}); no-fire fallback accepted`;
+  }
+  if (error) throw new Error(`Server rejected the AI weapon declaration: ${error.message}`);
+  if (action.type === 'no_fire') logEvent(`${mechLabel(attacker)} (AI) declared no weapon fire.`, 'attack');
+  else logEvent(`${mechLabel(attacker)} (AI) submitted ${action.weaponCount} weapon mount${action.weaponCount === 1 ? '' : 's'} for authoritative resolution.`, 'attack');
+  weaponAttackState = emptyWeaponAttackState();
+  await loadGameState();
+  renderWeaponAttackPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
+  if (data?.status === 'resolved') await checkForMatchEnd();
 }
 
 // AI turn handler - called when it's AI's turn

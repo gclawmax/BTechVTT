@@ -963,7 +963,7 @@ function weaponDeclarationSummary(attacker, mountIds, fireModes = {}) {
 }
 
 async function loadWeaponCombatEvents() {
-  if (!currentGameId || vsAiMode) return;
+  if (!currentGameId) return;
   const { data, error } = await db.from('btech_combat_events')
     .select('id,round,phase,sequence,attacker_instance_id,target_instance_id,declaration,resolution,status,declared_at,resolved_at')
     .eq('game_id', currentGameId).eq('phase', 'weapon_attack')

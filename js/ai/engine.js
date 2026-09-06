@@ -1,8 +1,8 @@
-// ── AI-1 DECISION ENGINE FOUNDATION ───────────────────────
+// ── AI DECISION ENGINE & AUDIT FOUNDATION ─────────────────
 // Pure, deterministic planning helpers. The phase-specific opponent code may
 // improve over time without changing this replay/audit contract.
 
-var BT_AI_ENGINE_VERSION = 'ai-1.0';
+var BT_AI_ENGINE_VERSION = 'ai-2.0';
 var pendingAIDecisionEnvelope = null;
 var aiDecisionHistory = [];
 
@@ -55,6 +55,7 @@ function aiUnitSnapshot(mech) {
     roundStartingHeat: Number(mech.roundStartingHeat || 0),
     movementHeat: Number(mech.movementHeat || 0),
     weaponHeat: Number(mech.weaponHeat || 0),
+    externalHeat: Number(mech.externalHeat || 0),
     prone: Boolean(mech.prone),
     shutdown: Boolean(mech.shutdown),
     destroyed: Boolean(mech.destroyed),
@@ -66,8 +67,16 @@ function aiUnitSnapshot(mech) {
     armor: copy(mech.armor || {}),
     structure: copy(mech.structure || {}),
     ammoBins: copy(mech.ammoBins || []),
+    weaponJams: copy(mech.weaponJams || []),
+    destroyedMounts: copy(mech.destroyedMounts || []),
     criticalSlotDamage: copy(mech.criticalSlotDamage || {}),
-    pilot: copy(mech.pilot || {})
+    pilot: copy(mech.pilot || {}),
+    weaponPhaseStart: copy(mech.weaponPhaseStart || null),
+    proneSupportArm: mech.proneSupportArm || null,
+    taggedRound: Number(mech.taggedRound || 0),
+    narcPod: copy(mech.narcPod || null),
+    signatureModes: copy(mech.signatureModes || {}),
+    c3Network: copy(mech.c3Network || null)
   };
 }
 
@@ -82,6 +91,7 @@ function buildAIBattlefieldSnapshot(gameState = {}, units = null) {
     activePlayerId: phaseState.active_player_id || matchState.active_player_player_id || null,
     mapId: matchState.map_id || matchConfig.map_id || null,
     ruleset: matchState.ruleset || matchConfig.ruleset || 'advanced_3060',
+    catalogueVersion: matchState.catalogue_version || (typeof activeCatalogueVersion !== 'undefined' ? activeCatalogueVersion : null),
     victoryMode: matchState.victory_mode || matchConfig.victory_mode || 'annihilation',
     objectiveHexes: matchState.objective_hexes || matchConfig.objective_hexes || [],
     minefields: matchState.minefields || matchConfig.minefields || [],
@@ -121,14 +131,18 @@ function validateAIActionContract(action, phase) {
   if (!AI_ACTIONS_BY_PHASE[phase]?.has(action.type)) return { valid: false, reason: `${action.type || 'unknown'} is not legal during ${phase}.` };
   if (action.type !== 'manage_heat' && !action.instanceId) return { valid: false, reason: `${action.type} requires an acting BattleMech.` };
   if (['attack', 'physical_attack'].includes(action.type) && !action.targetInstanceId) return { valid: false, reason: `${action.type} requires a target.` };
-  if (action.type === 'attack' && !action.weaponKey) return { valid: false, reason: 'Weapon attack requires a weapon.' };
+  if (action.type === 'attack' && (!Array.isArray(action.allocations) || !action.allocations.length)) return { valid: false, reason: 'Weapon attack requires a complete allocation.' };
+  if (action.type === 'attack' && action.allocations.some(allocation => !allocation?.target_instance_id || !Array.isArray(allocation.weapon_mounts) || !allocation.weapon_mounts.length)) {
+    return { valid: false, reason: 'Every weapon allocation requires a target and at least one mount.' };
+  }
   return { valid: true, reason: '' };
 }
 
 function publicAIAction(action) {
   return Object.fromEntries([
     'type', 'instanceId', 'targetInstanceId', 'weaponKey', 'weaponLocation',
-    'weaponCount', 'attackType', 'facing', 'useMASC', 'reason', '_debug'
+    'weaponCount', 'allocations', 'weaponHeat', 'expectedDamage', 'attackType',
+    'facing', 'useMASC', 'reason', '_debug'
   ].filter(key => action[key] !== undefined).map(key => [key, action[key]]));
 }
 
