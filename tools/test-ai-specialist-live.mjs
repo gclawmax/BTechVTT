@@ -150,7 +150,7 @@ try {
     gameCode = identity.gameCode || null;
   }
 } finally {
-  console.log(`\nAI-5 LIVE ACCEPTANCE ${failures.length ? 'FAILED' : 'PASSED'}${gameCode ? ` — ${gameCode}` : ''}`);
+  console.log(`\nAI SPECIALIST LIVE ACCEPTANCE ${failures.length ? 'FAILED' : 'PASSED'}${gameCode ? ` — ${gameCode}` : ''}`);
   if (failures.length) console.log(`Failed disposable match retained${gameCode ? ` as ${gameCode}` : ''}.`);
   if (consoleErrors.length) console.log(`Console/page errors: ${consoleErrors.length}.\n${consoleErrors.slice(0,20).join('\n')}`);
   await browser.close();
