@@ -96,9 +96,28 @@ spotters, C3, TAG/Narc, ECM cover, objectives and withdrawal of crippled units.
 
 ## AI-5 — reactions, physical attacks and specialist equipment
 
-Plan torso twists, arm flips, prone support, punches, kicks, pushes, clubs,
-charges and DFA. Add tactics for hidden units, probes, minefields and all
-supported specialist equipment.
+**Implemented in build `20260906-ai5-specialist-tactics-71` and SQL 126.**
+
+- Reaction and Physical Attack choices now use the same server-authoritative
+  resolvers as human actions, including explicit passes and activation limits.
+- The AI plans legal torso twists, rear arm flips and the least costly intact
+  prone supporting arm before it selects a complete weapon package.
+- It scores every legal punch, kick, push and catalogue physical-weapon limb,
+  including carried improvised clubs, TSM and Talon-adjusted damage.
+- Advanced and Expert units may declare Charge or Death From Above during
+  Movement, then preserve and resolve that commitment in Physical Attacks.
+- A unit with working hands can spend Weapon Attack searching woods or rubble
+  for an improvised club when close combat makes that useful.
+- Hidden enemies remain excluded from target selection. With no visible
+  contact the force searches deterministic map sectors, gives active-probe
+  units extra scouting value, and avoids enemy minefields only after its seat
+  has actually detected them.
+- SQL 126 narrowly authorizes the seated human controller to invoke Reaction,
+  prone-support, club and physical/displacement resolvers for the active AI
+  seat. It does not grant access to an opposing or inactive seat.
+
+SQL 126 must be installed after SQL 125 before this browser build is used for
+Play vs AI.
 
 ## AI-6 — difficulty and personality
 

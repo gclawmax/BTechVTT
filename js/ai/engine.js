@@ -2,7 +2,7 @@
 // Pure, deterministic planning helpers. The phase-specific opponent code may
 // improve over time without changing this replay/audit contract.
 
-var BT_AI_ENGINE_VERSION = 'ai-4.0';
+var BT_AI_ENGINE_VERSION = 'ai-5.0';
 var pendingAIDecisionEnvelope = null;
 var aiDecisionHistory = [];
 
@@ -119,10 +119,10 @@ function createAIPlanningContext(difficulty, gameState = {}, units = null) {
 }
 
 const AI_ACTIONS_BY_PHASE = Object.freeze({
-  movement: new Set(['move', 'complete_movement', 'attempt_stand', 'remain_prone', 'attempt_startup']),
+  movement: new Set(['move', 'complete_movement', 'attempt_stand', 'remain_prone', 'attempt_startup', 'declare_charge', 'declare_dfa']),
   reaction: new Set(['torso_twist', 'complete_reaction']),
-  weapon_attack: new Set(['attack', 'no_fire']),
-  physical_attack: new Set(['physical_attack', 'no_physical_attack']),
+  weapon_attack: new Set(['attack', 'find_club', 'no_fire']),
+  physical_attack: new Set(['physical_attack', 'resolve_charge', 'resolve_dfa', 'no_physical_attack']),
   heat: new Set(['manage_heat'])
 });
 
@@ -130,7 +130,10 @@ function validateAIActionContract(action, phase) {
   if (!action || typeof action !== 'object') return { valid: false, reason: 'AI action must be an object.' };
   if (!AI_ACTIONS_BY_PHASE[phase]?.has(action.type)) return { valid: false, reason: `${action.type || 'unknown'} is not legal during ${phase}.` };
   if (action.type !== 'manage_heat' && !action.instanceId) return { valid: false, reason: `${action.type} requires an acting BattleMech.` };
-  if (['attack', 'physical_attack'].includes(action.type) && !action.targetInstanceId) return { valid: false, reason: `${action.type} requires a target.` };
+  if (['attack', 'physical_attack', 'declare_charge', 'declare_dfa', 'resolve_charge', 'resolve_dfa'].includes(action.type) && !action.targetInstanceId) return { valid: false, reason: `${action.type} requires a target.` };
+  if (['declare_charge', 'declare_dfa'].includes(action.type) && (!Array.isArray(action.path) || !action.path.length || !Number.isInteger(action.toCol) || !Number.isInteger(action.toRow))) return { valid: false, reason: `${action.type} requires a complete staging path.` };
+  if (action.type === 'physical_attack' && (!action.attackType || !Array.isArray(action.limbs) || !action.limbs.length)) return { valid: false, reason: 'Physical attack requires a type and legal limb selection.' };
+  if (action.type === 'torso_twist' && !['left', 'right'].includes(action.direction)) return { valid: false, reason: 'Torso twist requires a direction.' };
   if (action.type === 'attack' && (!Array.isArray(action.allocations) || !action.allocations.length)) return { valid: false, reason: 'Weapon attack requires a complete allocation.' };
   if (action.type === 'attack' && action.allocations.some(allocation => !allocation?.target_instance_id || !Array.isArray(allocation.weapon_mounts) || !allocation.weapon_mounts.length)) {
     return { valid: false, reason: 'Every weapon allocation requires a target and at least one mount.' };
@@ -142,9 +145,9 @@ function publicAIAction(action) {
   return Object.fromEntries([
     'type', 'instanceId', 'targetInstanceId', 'weaponKey', 'weaponLocation',
     'weaponCount', 'allocations', 'weaponHeat', 'expectedDamage', 'attackType',
-    'facing', 'movementMode', 'path', 'toCol', 'toRow', 'mpUsed',
+    'facing', 'movementMode', 'path', 'fromCol', 'fromRow', 'toCol', 'toRow', 'mpUsed',
     'useMASC', 'reason', '_debug', 'scoreBreakdown', 'coordinationRole',
-    'focusTargetId'
+    'focusTargetId', 'limbs', 'proneSupportArm', 'direction', 'hexesMoved'
   ].filter(key => action[key] !== undefined).map(key => [key, action[key]]));
 }
 

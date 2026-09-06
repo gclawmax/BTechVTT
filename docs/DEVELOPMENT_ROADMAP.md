@@ -157,10 +157,10 @@ and skirmish isolation tests are complete.
 - Improve AI decision-making through the staged programme in
   `docs/AI_OPPONENT_ROADMAP.md`. AI-1 is live; AI-2 complete weapon-package
   planning is implemented in SQL 124, with dedicated live acceptance and soak
-  coverage and hardened AI ammunition setup. AI-3 tactical movement and AI-4
-  force coordination are implemented through build
-  `20260906-ai4-force-coordination-70`; AI-5 specialist reactions and physical
-  tactics are next.
+  coverage and hardened AI ammunition setup. AI-3 tactical movement, AI-4
+  force coordination and AI-5 specialist reactions/physical tactics are
+  implemented through build `20260906-ai5-specialist-tactics-71` and SQL 126;
+  AI-6 difficulty and personality is next.
 - Production hosting, observability, backups and deployment beyond the current
   GitHub Pages/Supabase development setup.
 - Further visual, audio, accessibility and mobile polish.

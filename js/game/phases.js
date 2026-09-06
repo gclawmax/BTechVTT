@@ -834,27 +834,20 @@ async function skipEmptyPhysicalPhase() {
 async function passRemainingPhysicalAttacks() {
   const pending = getPhaseUnitsForActivePlayer().filter(m => !m.hasPhysicalAttacked);
   if (!pending.length) return;
-  if (!vsAiMode) {
-    const allowance = Math.min(currentActivationAllowance('physical_attack'), pending.length);
-    for (const mech of pending.slice(0, allowance)) {
-      const { error } = await db.rpc('submit_simultaneous_physical_declaration', {
-        p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId,
-        p_target_instance_id: null, p_attack_type: 'pass', p_limbs: []
-      });
-      if (error) { logEvent(`Server rejected the Physical Attack pass: ${error.message}`, 'error'); return; }
+  const allowance = Math.min(currentActivationAllowance('physical_attack'), pending.length);
+  for (const mech of pending.slice(0, allowance)) {
+    const { error } = await db.rpc('submit_simultaneous_physical_declaration', {
+      p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId,
+      p_target_instance_id: null, p_attack_type: 'pass', p_limbs: []
+    });
+    if (error) {
+      logEvent(`Server rejected the Physical Attack pass: ${error.message}`, 'error');
+      return;
     }
-    physicalAttackState = { attackerId: null, targetId: null, attackType: null, limbs: [] };
-    await loadGameState();
-    return;
   }
-  pending.forEach(m => { m.hasPhysicalAttacked = true; });
   physicalAttackState = { attackerId: null, targetId: null, attackType: null, limbs: [] };
-  renderPhysicalAttackPanel();
-  renderRoster();
-  renderDetail();
-  draw();
-  await syncMechInstances();
-  logEvent(`Player ${getActivePlayerSeat()} declined ${pending.length} remaining physical attack${pending.length === 1 ? '' : 's'}.`, 'phase');
+  await loadGameState();
+  logEvent(`Player ${getActivePlayerSeat()} declined ${allowance} physical attack${allowance === 1 ? '' : 's'} in this activation.`, 'phase');
 }
 
 function beginPhaseForFirstPlayer(phase) {

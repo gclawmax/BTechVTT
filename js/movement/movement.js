@@ -710,7 +710,7 @@ async function submitAuthoritativeMovement(mech, mode, path) {
 async function declareDeathFromAbove(targetId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === moveState.instanceId);
   const target = mechInstances.find(candidate => candidate.instanceId === targetId);
-  if (!mech || !target || vsAiMode || moveState.mode !== 'jump' || axialDistance(mech.col, mech.row, target.col, target.row) !== 1) return;
+  if (!mech || !target || moveState.mode !== 'jump' || axialDistance(mech.col, mech.row, target.col, target.row) !== 1) return;
   const path = (moveState.path || []).map((step, index) => index === 0 && step.action === 'jump' ? { ...step, facing: mech.facing } : step);
   const { data, error } = await db.rpc('declare_death_from_above', {
     p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId, p_target_instance_id: target.instanceId,
@@ -726,7 +726,7 @@ async function declareDeathFromAbove(targetId) {
 async function declareChargeAttack(targetId) {
   const mech = mechInstances.find(candidate => candidate.instanceId === moveState.instanceId);
   const target = mechInstances.find(candidate => candidate.instanceId === targetId);
-  if (!mech || !target || vsAiMode || !['walk', 'run'].includes(moveState.mode) || axialDistance(mech.col, mech.row, target.col, target.row) !== 1) return;
+  if (!mech || !target || !['walk', 'run'].includes(moveState.mode) || axialDistance(mech.col, mech.row, target.col, target.row) !== 1) return;
   const { data, error } = await db.rpc('declare_charge_attack', {
     p_game_id: currentGameId, p_attacker_instance_id: mech.instanceId, p_target_instance_id: target.instanceId,
     p_staging_col: mech.col, p_staging_row: mech.row, p_staging_facing: mech.facing,
@@ -842,11 +842,11 @@ function renderMovementPanel() {
 
   if (moveState.active && moveState.instanceId === mech.instanceId) {
     const mpLeft = moveState.mpMax - moveState.mpUsed;
-    const dfaTargets = moveState.mode === 'jump' && !vsAiMode
+    const dfaTargets = moveState.mode === 'jump'
       ? mechInstances.filter(candidate => candidate.owner !== mech.owner && !candidate.destroyed && !isEnemyHiddenUnit(candidate) && candidate.hasMoved && axialDistance(mech.col, mech.row, candidate.col, candidate.row) === 1)
       : [];
     const dfaPicker = dfaTargets.length ? `<div style="margin:0 0 7px;font-size:10px;color:var(--amber);">Death From Above — declare against a completed enemy movement. The jump costs MP to the target hex; your 'Mech remains one hex short until Physical Attacks.<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${dfaTargets.map(target => `<button onclick="declareDeathFromAbove('${target.instanceId}')" style="padding:6px;border:1px solid var(--amber);background:rgba(212,128,10,.12);color:var(--paper);font:9px var(--mono);cursor:pointer;">DFA: ${mechLabel(target)}</button>`).join('')}</div></div>` : '';
-    const chargeTargets = ['walk', 'run'].includes(moveState.mode) && !vsAiMode && moveState.hexesMoved > 0
+    const chargeTargets = ['walk', 'run'].includes(moveState.mode) && moveState.hexesMoved > 0
       ? mechInstances.filter(candidate => candidate.owner !== mech.owner && !candidate.destroyed && !isEnemyHiddenUnit(candidate) && !candidate.prone && candidate.hasMoved && !candidate.dfaDeclaration && !candidate.chargeDeclaration && axialDistance(mech.col, mech.row, candidate.col, candidate.row) === 1 && directionBetween(mech.col, mech.row, candidate.col, candidate.row) === mech.facing)
       : [];
     const chargePicker = chargeTargets.length ? `<div style="margin:0 0 7px;font-size:10px;color:var(--amber);">Charge — declare against a standing enemy that has completed movement. No weapons may be fired this turn.<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;">${chargeTargets.map(target => `<button onclick="declareChargeAttack('${target.instanceId}')" style="padding:6px;border:1px solid var(--amber);background:rgba(212,128,10,.12);color:var(--paper);font:9px var(--mono);cursor:pointer;">Charge: ${mechLabel(target)}</button>`).join('')}</div></div>` : '';
