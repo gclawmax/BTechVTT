@@ -156,8 +156,8 @@ and skirmish isolation tests are complete.
   **BattleMech specialist-rules programme** below).
 - Improve AI decision-making through the staged programme in
   `docs/AI_OPPONENT_ROADMAP.md`. AI-1 is live; AI-2 complete weapon-package
-  planning is implemented in SQL 124 and build `20260906-ai-weapons-66`, with
-  live migration validation pending. AI-3 tactical movement is next.
+  planning is implemented in SQL 124, with dedicated live acceptance and soak
+  coverage in build `20260906-ai-live-tests-67`. AI-3 tactical movement is next.
 - Production hosting, observability, backups and deployment beyond the current
   GitHub Pages/Supabase development setup.
 - Further visual, audio, accessibility and mobile polish.

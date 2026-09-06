@@ -29,8 +29,8 @@ before this browser build is used for Play vs AI.
 
 ## AI-2 — complete weapon-package planning
 
-**Implemented in build `20260906-ai-weapons-66` and SQL 124; live migration
-validation pending.**
+**Implemented in SQL 124; dedicated live acceptance and soak coverage were
+added in build `20260906-ai-live-tests-67`.**
 
 - Each activation chooses a complete declaration, not a single catalogue
   weapon. Legal mount/mode/bin combinations are evaluated against every
@@ -48,7 +48,11 @@ validation pending.**
   ammunition, jams, criticals and damage.
 - A rejected package falls back to an authoritative no-fire declaration so a
   planner defect cannot stall the match. The rejected reason remains in the
-  AI decision record.
+  audit record.
+- `tools/test-ai-weapon-live.mjs` now verifies a real Play-vs-AI decision,
+  authoritative declaration, server dice, heat, ammunition and hand-off.
+  `tools/run-ai-weapon-soak.mjs` rotates supported catalogue forces and maps,
+  deletes passing fixtures and retains failed game codes with JSON reports.
 - The dedicated static regression verifies package composition, heat limits,
   rapid-fire ammunition, split fire, action contracts and the SQL boundary.
 
