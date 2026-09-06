@@ -1,5 +1,5 @@
-// AI-5 live acceptance. Exercises an authoritative AI torso twist followed by
-// an authoritative physical attack in a disposable Play-vs-AI match.
+// AI-5/6 live acceptance. Verifies the selected AI-6 policy is persisted, then
+// exercises an authoritative AI torso twist and physical attack.
 
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -50,6 +50,9 @@ async function signIn() {
 
 try {
   await signIn();
+  await page.selectOption('#ai-difficulty-select','advanced');
+  await page.selectOption('#ai-personality-select','sniper');
+  await page.evaluate(() => updateAIOpponentOptions());
   await page.evaluate(async () => { await handleCreateVsAI(); });
   if (!await waitForScreen('lobby-screen')) throw new Error('Play vs AI did not open its lobby.');
   await page.evaluate(async () => { await handleStartGame(); });
@@ -59,6 +62,7 @@ try {
     const copy = value => JSON.parse(JSON.stringify(value));
     const { data:game, error:gameError } = await db.from('btech_games').select('*').eq('id',currentGameId).single();
     if (gameError) throw new Error(`Game lookup failed: ${gameError.message}`);
+    const createdState = typeof game.state === 'string' ? JSON.parse(game.state) : game.state;
     const { data:players, error:playerError } = await db.from('btech_players').select('*').eq('game_id',currentGameId).eq('role','player').order('seat_number');
     if (playerError) throw new Error(`Player lookup failed: ${playerError.message}`);
     const humanPlayer = players.find(player => player.seat_number === 1 && !player.is_ai);
@@ -82,7 +86,7 @@ try {
     }
     const initiative = [{ player_id:aiPlayer.id, seat_number:2, is_ai:true }, { player_id:humanPlayer.id, seat_number:1, is_ai:false }];
     const baseState = {
-      map_id:mapId, ruleset:'advanced_3060', vs_ai_mode:true, ai_difficulty:'expert', ai_seed:'ai5-live',
+      map_id:mapId, ruleset:'advanced_3060', vs_ai_mode:true, ai_difficulty:'expert', ai_personality:'sniper', ai_seed:'ai5-live',
       ai_engine_version:BT_AI_ENGINE_VERSION, ai_decisions:[], catalogue_version:game.catalogue_version,
       terrain_overrides:{}, mech_instances:units, initiative_order:initiative, initiative_round:1,
       initiative_rolls:[], initiative_pending:[], phase_activation:null, active_player_player_id:aiPlayer.id, round:1
@@ -117,22 +121,25 @@ try {
     aiTurnInProgress = false;
     return {
       build:BT_BUILD_ID, gameId:currentGameId, gameCode:game.game_code, catalogueVersion:game.catalogue_version,
+      createdDifficulty:createdState.ai_difficulty, createdPersonality:createdState.ai_personality,
       reactionAction:reactionPlan.actions[0] || null, reacted:reactedAI?.hasReacted === true,
       physicalAction, event:event.data, eventError:event.error?.message || null,
-      decisions:decisions.data || [], decisionError:decisions.error?.message || null
+      decisions:decisions.data || [], decisionError:decisions.error?.message || null,
+      plannedPersonality:physicalPlan.decision?.personality || null
     };
   });
 
   gameId = result.gameId;
   gameCode = result.gameCode;
-  check('the deployed browser is AI-5',result.build === '20260906-ai5-specialist-tactics-71',result.build);
+  check('the deployed browser includes the AI specialist authority',/^20260906-ai[56]-/.test(result.build),result.build);
+  if(result.build.includes('ai6-')) check('AI-6 persists the selected difficulty and personality into the match',result.createdDifficulty==='advanced'&&result.createdPersonality==='sniper'&&result.plannedPersonality==='sniper',JSON.stringify({difficulty:result.createdDifficulty,personality:result.createdPersonality,planned:result.plannedPersonality}));
   check('SQL 126 accepts the active AI Reaction action',result.reacted && ['torso_twist','complete_reaction'].includes(result.reactionAction?.type),JSON.stringify(result.reactionAction));
   check('AI-5 selects a legal physical attack rather than a fixed kick',result.physicalAction?.type === 'physical_attack' && result.physicalAction?.attackType && result.physicalAction?.limbs?.length,JSON.stringify(result.physicalAction));
   check('the authoritative server resolves the AI physical declaration',result.event?.status === 'resolved' && result.event?.resolution?.results?.length > 0,result.eventError || result.event?.status || 'missing');
   check('Reaction and Physical decisions are durably completed',!result.decisionError && ['reaction','physical_attack'].every(phase => result.decisions.some(decision => decision.phase === phase && decision.status === 'completed')),JSON.stringify(result.decisions.map(decision => ({ phase:decision.phase,status:decision.status }))));
   if (!failures.length && !KEEP) {
     const cleanup = await page.evaluate(async id => (await db.from('btech_games').delete().eq('id',id)).error?.message || null,gameId);
-    check('the passing disposable AI-5 match is removed',!cleanup,cleanup || gameCode);
+    check('the passing disposable AI acceptance match is removed',!cleanup,cleanup || gameCode);
   }
 } catch (error) {
   failures.push(`fatal acceptance error — ${error.message}`);

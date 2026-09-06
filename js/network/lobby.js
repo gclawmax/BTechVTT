@@ -263,6 +263,8 @@ async function loadLobbyUI() {
     catch (error) { console.warn('Unable to refresh newly published custom BattleMech:', error); }
   }
   if (typeof gameState.vs_ai_mode === 'boolean') vsAiMode = gameState.vs_ai_mode;
+  if (gameState.ai_difficulty) aiDifficulty = AI_DIFFICULTY_KEYS.includes(gameState.ai_difficulty) ? gameState.ai_difficulty : 'beginner';
+  if (gameState.ai_personality) aiPersonality = AI_PERSONALITY_KEYS.includes(gameState.ai_personality) ? gameState.ai_personality : 'balanced';
 
   // Every human player receives a temporary Avatar when opening a skirmish
   // lobby. It belongs to this match only; campaign persistence comes later.
@@ -302,7 +304,7 @@ async function loadLobbyUI() {
         // Check if this is the AI player
         const isAI = player.is_ai === true;
         const username = isAI 
-          ? `AI ${aiDifficulty.charAt(0).toUpperCase() + aiDifficulty.slice(1)}`
+          ? `AI ${titleCase(aiDifficulty)} · ${AI_PERSONALITY_LABELS[aiPersonality]}`
           : titleCase(player.user_id?.substring(0, 8) || `Player ${player.seat_number}`);
         const isCurrentPlayer = !isAI && player.user_id === currentUser?.id;
         if (isCurrentPlayer) isReady = player.ready === true;
@@ -511,7 +513,7 @@ function renderLobbyMatchSetup(gameState, players) {
   if (!settingsEl || !rosterSection || !rosterEl) return;
 
   if (vsAiMode || !gameState.map_id) {
-    settingsEl.innerHTML = '<div class="match-setting-summary">AI skirmish using the current demonstration map and test roster.</div>';
+    settingsEl.innerHTML = `<div class="match-setting-summary">AI skirmish using the current demonstration map and test roster.<br>Opponent: <strong>${escapeHtml(titleCase(aiDifficulty))} · ${escapeHtml(AI_PERSONALITY_LABELS[aiPersonality])}</strong><br><small>Difficulty changes decision quality; personality changes tactical preferences. Neither changes the rules or dice.</small></div>`;
     rosterSection.hidden = true;
     return;
   }
@@ -888,6 +890,7 @@ async function handleStartGame() {
   if (vsAiMode && typeof prepareAIAmmoLoadouts === 'function') prepareAIAmmoLoadouts(gameState.mech_instances);
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
+  gameState.ai_personality = aiPersonality;
 
   // Single update call — set up game but leave phase at 'initiative' for manual roll
   await db
@@ -994,6 +997,7 @@ function subscribeGameStateSync() {
           ...(gs.rosters ? { rosters: gs.rosters } : {}),
           ...(typeof gs.vs_ai_mode === 'boolean' ? { vs_ai_mode: gs.vs_ai_mode } : {}),
           ...(gs.ai_difficulty ? { ai_difficulty: gs.ai_difficulty } : {}),
+          ...(gs.ai_personality ? { ai_personality: gs.ai_personality } : {}),
           ...(remote.catalogue_version ? { catalogue_version: remote.catalogue_version } : {})
         };
         // Realtime updates must update this too: a tab may previously have

@@ -38,6 +38,7 @@ async function showMainMenu() {
                    currentUser?.email?.replace('@FreeGames.com', '') ||
                    'Player';
   document.getElementById('menu-username').textContent = titleCase(username);
+  if (typeof setAIOpponentOptions === 'function') setAIOpponentOptions();
   await populateActiveGames();
   showScreen('menu-screen');
 }

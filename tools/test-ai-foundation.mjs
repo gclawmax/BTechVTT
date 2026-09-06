@@ -71,7 +71,7 @@ const weaponPlanA = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-see
 const weaponPlanB = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-seed' }, []);
 check('every eligible AI BattleMech receives an explicit weapon action or pass', weaponPlanA.actions.length === 1 && ['attack', 'no_fire'].includes(weaponPlanA.actions[0].type), JSON.stringify(weaponPlanA.actions));
 check('the same phase snapshot produces the same planned action', JSON.stringify(weaponPlanA.actions) === JSON.stringify(weaponPlanB.actions));
-check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-5.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed);
+check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-6.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed && weaponPlanA.decision?.personality === 'balanced');
 
 sandbox.currentGameState.phase = 'movement';
 ai.hasMoved = false;
@@ -124,7 +124,7 @@ sandbox.evaluateWeaponAttack = directEvaluator;
 sandbox.physicalAttackTypesFor = () => ['punch','kick'];
 sandbox.physicalLimbCandidates = type => type === 'punch' ? ['la','ra'] : ['ll','rl'];
 sandbox.evaluatePhysicalAttack = (_attacker,_target,type) => ({ valid:true,targetNumber:type==='punch'?5:7,damage:type==='punch'?5:10 });
-const physicalChoice=sandbox.generateAIPhysicalAction(ai,[human]);
+const physicalChoice=sandbox.generateAIPhysicalAction(ai,[human],sandbox.aiSettingsFor('expert','balanced'),sandbox.createAIPlanningContext('expert',{ai_seed:'physical',ai_personality:'balanced'},[ai,human]));
 check('AI-5 scores every legal physical attack and limb combination',physicalChoice?.attackType==='punch'&&physicalChoice?.limbs?.length===2,JSON.stringify(physicalChoice));
 const dfaChoice=sandbox.generateAIPhysicalAction({...ai,dfaDeclaration:{target_instance_id:human.instanceId}},[human]);
 check('AI-5 preserves and resolves Movement-declared DFA',dfaChoice?.type==='resolve_dfa'&&dfaChoice?.targetInstanceId===human.instanceId);

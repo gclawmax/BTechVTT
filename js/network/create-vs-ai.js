@@ -1,6 +1,7 @@
 // ── CREATE VS AI GAME ────────────────────────────────────
 async function handleCreateVsAI() {
   if (!currentUser) return;
+  updateAIOpponentOptions();
   showLoading(true);
   try {
     // Pin the match to the current immutable catalogue release, exactly like
@@ -19,7 +20,7 @@ async function handleCreateVsAI() {
         game_code: code,
         host_id: currentUser.id,
         catalogue_version: catalogueVersion,
-        state: JSON.stringify({ units: [], turn: 0, phase: 'setup', vs_ai_mode: true, ai_difficulty: aiDifficulty, ai_seed: aiSeed, ai_engine_version: BT_AI_ENGINE_VERSION, ai_decisions: [], catalogue_version: catalogueVersion }),
+        state: JSON.stringify({ units: [], turn: 0, phase: 'setup', vs_ai_mode: true, ai_difficulty: aiDifficulty, ai_personality: aiPersonality, ai_seed: aiSeed, ai_engine_version: BT_AI_ENGINE_VERSION, ai_decisions: [], catalogue_version: catalogueVersion }),
         status: 'lobby',
         created_at: new Date().toISOString()
       })

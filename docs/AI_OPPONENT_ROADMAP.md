@@ -121,10 +121,27 @@ Play vs AI.
 
 ## AI-6 — difficulty and personality
 
-All levels use the same legal information. Beginner samples several reasonable
-actions; Intermediate manages range and heat; Advanced coordinates the force;
-Expert receives more search depth. Optional personalities alter risk and
-objective preferences without granting bonuses.
+**Implemented in build `20260906-ai6-difficulty-personality-72`.**
+
+- The Dropship exposes four difficulty levels and six optional personalities;
+  both choices are saved locally and pinned into the match state.
+- Every level uses the same legal information, authoritative resolvers and
+  unmodified dice. A lower difficulty no longer randomly declines an otherwise
+  legal activation.
+- Beginner deterministically samples a broad short-list of reasonable actions;
+  Intermediate searches farther and manages range, heat and ammunition;
+  Advanced narrows its choices and enables force coordination; Expert evaluates
+  the deepest candidate set and consistently selects its highest-ranked choice.
+- Balanced, Aggressive, Cautious, Brawler, Sniper and Objective Focused
+  doctrines independently weight preferred range, heat ceiling, cover, hazards,
+  formation, withdrawal, risky equipment, physical attacks and objectives.
+- Difficulty, personality, search breadth and selected action remain in the
+  replayable decision envelope, so a surprising choice can be reproduced.
+- `tools/test-ai-difficulty-personality.mjs` verifies tier progression,
+  unchanged action availability, doctrine differences, deterministic replay and
+  the Dropship-to-match persistence path.
+
+AI-6 is client-side decision policy. It adds no new combat authority or SQL.
 
 ## AI-7 — evaluation and tuning
 

@@ -1,54 +1,120 @@
 // ── AI OPPONENT SYSTEM ──────────────────────────────────────
 let aiTurnInProgress = false;
 
-// AI difficulty settings
+// Difficulty controls deliberation quality, never rules, dice or information.
+// Personality is an independent doctrine layer: it changes tactical weights
+// but never the legal actions available to the computer opponent.
 const AI_SETTINGS = {
   beginner: {
-    moveChance: 0.7,
-    attackChance: 0.6,
-    targetPriority: 'random', // random, closest, strongest
+    moveChance: 1,
+    attackChance: 1,
+    targetPriority: 'reasonable',
     movementRange: 1, // hexes per turn
     heatManagement: false,
     planningHorizon: 1,
     maxProjectedHeat: 18,
-    ammoConservation: 0
+    ammoConservation: 0,
+    searchBreadth: 48,
+    choicePool: 6,
+    reasonableMargin: 8
   },
   intermediate: {
-    moveChance: 0.85,
-    attackChance: 0.75,
+    moveChance: 1,
+    attackChance: 1,
     targetPriority: 'closest',
     movementRange: 2,
     heatManagement: true,
     planningHorizon: 2,
     maxProjectedHeat: 13,
-    ammoConservation: 0.05
+    ammoConservation: 0.05,
+    searchBreadth: 120,
+    choicePool: 3,
+    reasonableMargin: 4
   },
   advanced: {
-    moveChance: 0.95,
-    attackChance: 0.85,
+    moveChance: 1,
+    attackChance: 1,
     targetPriority: 'strongest',
     movementRange: 3,
     heatManagement: true,
     planningHorizon: 3,
     maxProjectedHeat: 10,
-    ammoConservation: 0.1
+    ammoConservation: 0.1,
+    searchBreadth: 320,
+    choicePool: 2,
+    reasonableMargin: 2
   },
   expert: {
     moveChance: 1.0,
-    attackChance: 0.95,
+    attackChance: 1,
     targetPriority: 'optimal',
     movementRange: 3,
     heatManagement: true,
     planningHorizon: 5,
     maxProjectedHeat: 7,
-    ammoConservation: 0.15
+    ammoConservation: 0.15,
+    searchBreadth: 1800,
+    choicePool: 1,
+    reasonableMargin: 0
   }
 };
 
+const AI_PERSONALITIES = {
+  balanced: { rangeOffset:0, rangeWeight:1, coverWeight:1, hazardWeight:1, heatAllowance:0, heatAversion:1, objectiveWeight:1, formationWeight:1, retreatRatio:.55, physicalWeight:1, punchWeight:1, kickWeight:1, pushWeight:1, riskTolerance:1 },
+  aggressive: { rangeOffset:-1, rangeWeight:1.1, coverWeight:.75, hazardWeight:.8, heatAllowance:4, heatAversion:.6, objectiveWeight:1, formationWeight:.8, retreatRatio:.38, physicalWeight:1.2, punchWeight:1.1, kickWeight:1.15, pushWeight:.8, riskTolerance:1.35 },
+  cautious: { rangeOffset:2, rangeWeight:1, coverWeight:1.55, hazardWeight:1.4, heatAllowance:-3, heatAversion:1.6, objectiveWeight:.8, formationWeight:1.2, retreatRatio:.75, physicalWeight:.7, punchWeight:.8, kickWeight:.7, pushWeight:1.2, riskTolerance:.55 },
+  brawler: { rangeOffset:-3, rangeWeight:1.4, coverWeight:.8, hazardWeight:.9, heatAllowance:1, heatAversion:.85, objectiveWeight:.8, formationWeight:.8, retreatRatio:.48, physicalWeight:1.65, punchWeight:1.35, kickWeight:1.3, pushWeight:.9, riskTolerance:1.25 },
+  sniper: { rangeOffset:3, rangeWeight:1.35, coverWeight:1.25, hazardWeight:1.1, heatAllowance:-1, heatAversion:1.25, objectiveWeight:.7, formationWeight:1, retreatRatio:.62, physicalWeight:.55, punchWeight:.7, kickWeight:.65, pushWeight:1.1, riskTolerance:.7 },
+  objective: { rangeOffset:0, rangeWeight:.8, coverWeight:1, hazardWeight:1, heatAllowance:0, heatAversion:1, objectiveWeight:2.5, formationWeight:1.15, retreatRatio:.55, physicalWeight:1, punchWeight:1, kickWeight:1, pushWeight:1.2, riskTolerance:1 }
+};
+
+function normaliseAIPersonality(value) {
+  return AI_PERSONALITIES[value] ? value : 'balanced';
+}
+
+function aiSettingsFor(difficulty, personality) {
+  const key = AI_SETTINGS[difficulty] ? difficulty : 'beginner';
+  const personalityKey = normaliseAIPersonality(personality);
+  const doctrine = AI_PERSONALITIES[personalityKey];
+  return {
+    ...AI_SETTINGS[key],
+    difficulty: key,
+    personality: personalityKey,
+    personalityProfile: doctrine,
+    maxProjectedHeat: Math.max(0, AI_SETTINGS[key].maxProjectedHeat + doctrine.heatAllowance)
+  };
+}
+
+function aiChooseRanked(options, settings, context, score = option => option.score ?? option.scoreBreakdown?.total ?? 0) {
+  if (!options.length) return null;
+  const ranked = [...options].sort((a, b) => score(b) - score(a));
+  const bestScore = score(ranked[0]);
+  const reasonable = ranked.filter(option => score(option) >= bestScore - Number(settings.reasonableMargin || 0));
+  const pool = reasonable.slice(0, Math.max(1, Number(settings.choicePool || 1)));
+  if (pool.length === 1) return pool[0];
+  const random = context?.random?.() ?? Math.random();
+  // Intermediate/Advanced bias toward the front of their short-list. Beginner
+  // samples the reasonable set uniformly, making mistakes without acting at random.
+  const exponent = settings.difficulty === 'beginner' ? 1 : settings.difficulty === 'intermediate' ? 1.7 : 2.5;
+  return pool[Math.min(pool.length - 1, Math.floor(Math.pow(random, exponent) * pool.length))];
+}
+
+function aiSampleCandidates(candidates, settings, context) {
+  const limit = Math.max(1, Number(settings.searchBreadth || candidates.length));
+  if (candidates.length <= limit) return candidates;
+  const seed = context?.seed || 'ai-search';
+  return [...candidates].sort((left, right) => {
+    const leftHash = Number.parseInt(hashAIValue(`${seed}:${left.col}:${left.row}:${left.facing}:${left.cost}`), 16);
+    const rightHash = Number.parseInt(hashAIValue(`${seed}:${right.col}:${right.row}:${right.facing}:${right.cost}`), 16);
+    return leftHash - rightHash;
+  }).slice(0, limit);
+}
+
 // AI plan generator - creates movement and attack plans
 function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
-  const settings = AI_SETTINGS[difficulty] || AI_SETTINGS.beginner;
-  const context = createAIPlanningContext(difficulty, gameState, mechInstances);
+  const personality = normaliseAIPersonality(gameState?.ai_personality || (typeof aiPersonality !== 'undefined' ? aiPersonality : 'balanced'));
+  const settings = aiSettingsFor(difficulty, personality);
+  const context = createAIPlanningContext(settings.difficulty, { ...gameState, ai_personality: personality }, mechInstances);
   const aiPlan = {
     type: 'ai_plan',
     engineVersion: BT_AI_ENGINE_VERSION,
@@ -56,7 +122,8 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
     seed: context.seed,
     snapshotHash: context.snapshotHash,
     phase: currentGameState.phase,
-    difficulty: difficulty,
+    difficulty: settings.difficulty,
+    personality,
     timestamp: Date.now(),
     actions: []
   };
@@ -123,7 +190,7 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
     }
 
     if (currentGameState.phase === 'physical_attack' && physicalActors.has(mech.instanceId)) {
-      aiPlan.actions.push(generateAIPhysicalAction(mech, playerMechs) || { type: 'no_physical_attack', instanceId: mech.instanceId, reason: 'No legal physical attack.' });
+      aiPlan.actions.push(generateAIPhysicalAction(mech, playerMechs, settings, context) || { type: 'no_physical_attack', instanceId: mech.instanceId, reason: 'No legal physical attack.' });
     }
   }
 
@@ -136,11 +203,12 @@ function generateAIPlan(difficulty, aiPlayerId, gameState, allPlayers) {
   });
   aiPlan.decision = registerAIPlan(context, aiPlan.actions);
   aiPlan.decision.coordination = coordination.summary;
+  aiPlan.decision.personality = personality;
   
   return aiPlan;
 }
 
-function generateAIPhysicalAction(mech, targets) {
+function generateAIPhysicalAction(mech, targets, settings = AI_SETTINGS.expert, context = null) {
   if (mech.dfaDeclaration) return { type:'resolve_dfa',instanceId:mech.instanceId,targetInstanceId:mech.dfaDeclaration.target_instance_id,attackType:'dfa',_debug:'Resolve Movement-declared DFA.' };
   if (mech.chargeDeclaration) return { type:'resolve_charge',instanceId:mech.instanceId,targetInstanceId:mech.chargeDeclaration.target_instance_id,attackType:'charge',_debug:'Resolve Movement-declared Charge.' };
   const choices=[];
@@ -152,17 +220,20 @@ function generateAIPhysicalAction(mech, targets) {
     const chance=toHitProbability(Math.max(...attacks.map(attack=>attack.targetNumber)));
     const damage=attacks.reduce((sum,attack)=>sum+Number(attack.damage||0),0);
     const stability=attackType==='kick'?3:attackType==='push'?2:0;
-    choices.push({target,attackType,limbs,score:chance*(damage+stability),expectedDamage:chance*damage,targetNumber:Math.max(...attacks.map(attack=>attack.targetNumber))});
+    const doctrine=settings.personalityProfile||AI_PERSONALITIES.balanced;
+    const typeWeight=attackType==='punch'?doctrine.punchWeight:attackType==='kick'?doctrine.kickWeight:attackType==='push'?doctrine.pushWeight:1;
+    choices.push({target,attackType,limbs,score:chance*(damage+stability)*doctrine.physicalWeight*typeWeight,expectedDamage:chance*damage,targetNumber:Math.max(...attacks.map(attack=>attack.targetNumber))});
   }
   choices.sort((a,b)=>b.score-a.score||b.expectedDamage-a.expectedDamage||String(a.target.instanceId).localeCompare(String(b.target.instanceId)));
-  const best=choices[0];
+  const best=aiChooseRanked(choices,settings,context);
   return best?{type:'physical_attack',instanceId:mech.instanceId,targetInstanceId:best.target.instanceId,attackType:best.attackType,limbs:best.limbs,expectedDamage:best.expectedDamage,_debug:`${best.attackType} ${best.targetNumber}+; EV ${best.expectedDamage.toFixed(1)}`} : null;
 }
 
 function generateAIClubSearchAction(mech, targets, settings) {
   if (typeof canSearchForImprovisedClub !== 'function' || !canSearchForImprovisedClub(mech)) return null;
   const adjacent = targets.some(target => axialDistance(mech.col, mech.row, target.col, target.row) === 1);
-  if (!adjacent && Number(settings.planningHorizon || 1) < 3) return null;
+  const doctrine=settings.personalityProfile||AI_PERSONALITIES.balanced;
+  if ((!adjacent && Number(settings.planningHorizon || 1) < 3) || doctrine.physicalWeight < .65) return null;
   return { type: 'find_club', instanceId: mech.instanceId, reason: adjacent ? 'Prepare an improvised club for the imminent Physical Attack phase.' : 'Prepare an improvised club for close combat.' };
 }
 
@@ -191,25 +262,28 @@ function aiUnitCapabilities(mech) {
 }
 
 function buildAIForceCoordination(aiMechs, enemies, settings, context) {
+  const doctrine = settings.personalityProfile || AI_PERSONALITIES.balanced;
   const capabilities = Object.fromEntries(aiMechs.map(mech => [mech.instanceId, aiUnitCapabilities(mech)]));
   const enemyScores = enemies.map(enemy => {
     const capability = aiUnitCapabilities(enemy);
     const durability = aiCurrentDurability(enemy);
     const objective = typeof currentMatchConfig !== 'undefined' && (currentMatchConfig.objective_hexes || []).includes(typeof hexCode === 'function' ? hexCode(enemy.col, enemy.row) : '') ? 20 : 0;
     const marked = Number(enemy.taggedRound) === Number(currentGameState.round) || Number(enemy.narcPod?.round) === Number(currentGameState.round) ? 12 : 0;
-    return { instanceId: enemy.instanceId, score: capability.damage * 1.5 + capability.tonnage * .15 + objective + marked + Math.max(0, 80 - durability) * .35, durability };
+    return { instanceId: enemy.instanceId, score: capability.damage * 1.5 + capability.tonnage * .15 + objective * doctrine.objectiveWeight + marked + Math.max(0, 80 - durability) * .35, durability };
   }).sort((a, b) => b.score - a.score || String(a.instanceId).localeCompare(String(b.instanceId)));
   const focusTargetId = enemyScores[0]?.instanceId || null;
   const retreating = new Set(aiMechs.filter(mech => {
     const capability = capabilities[mech.instanceId];
-    return aiCurrentDurability(mech) < capability.tonnage * .55 || Number(mech.pilot?.hits || 0) >= 4;
+    return aiCurrentDurability(mech) < capability.tonnage * doctrine.retreatRatio || Number(mech.pilot?.hits || 0) >= (doctrine.retreatRatio >= .7 ? 3 : 4);
   }).map(mech => mech.instanceId));
   const supportFirst = new Set(aiMechs.filter(mech => capabilities[mech.instanceId].designator).map(mech => mech.instanceId));
   return {
-    capabilities, enemyScores, focusTargetId, retreating, supportFirst,
+    capabilities, enemyScores, focusTargetId, retreating, supportFirst, settings,
     enabled: Number(settings.planningHorizon || 1) >= 3,
     summary: {
       doctrine: Number(settings.planningHorizon || 1) >= 3 ? 'coordinated' : 'individual',
+      personality: settings.personality || 'balanced',
+      search_breadth: Number(settings.searchBreadth || 0),
       focus_target_id: focusTargetId,
       target_priority: enemyScores.map(item => item.instanceId),
       support_first: [...supportFirst],
@@ -323,18 +397,21 @@ function aiMovementCandidates(mech, mode, mpMax) {
 }
 
 function aiScoreDestination(mech, candidate, playerMechs, mode, coordination = null) {
+  const settings = coordination?.settings || aiSettingsFor('advanced', 'balanced');
+  const doctrine = settings.personalityProfile || AI_PERSONALITIES.balanced;
   const unit = BT_UNITS[mech.unitId] || {};
   const visibleTarget = [...playerMechs].sort((a, b) => axialDistance(candidate.col, candidate.row, a.col, a.row) - axialDistance(candidate.col, candidate.row, b.col, b.row))[0] || null;
   const nearest = visibleTarget || aiSearchWaypoint(mech);
   const range = axialDistance(candidate.col, candidate.row, nearest.col, nearest.row);
   const weaponRanges = (unit.weapons || []).map(entry => Number((typeof weaponProfile === 'function' ? weaponProfile(entry) : null)?.ranges?.medium || 0)).filter(Boolean);
-  const preferred = weaponRanges.length ? Math.max(2, Math.round(weaponRanges.reduce((a, b) => a + b, 0) / weaponRanges.length)) : 3;
-  const rangeScore = visibleTarget ? 18 - Math.abs(range - preferred) * 3 : 16 - range * 2;
+  const basePreferred = weaponRanges.length ? Math.max(2, Math.round(weaponRanges.reduce((a, b) => a + b, 0) / weaponRanges.length)) : 3;
+  const preferred = Math.max(1, basePreferred + Number(doctrine.rangeOffset || 0));
+  const rangeScore = (visibleTarget ? 18 - Math.abs(range - preferred) * 3 : 16 - range * 2) * doctrine.rangeWeight;
   const terrain = typeof terrainAt === 'function' ? terrainAt(candidate.col, candidate.row) : 'clear';
-  const coverScore = ({ heavy_woods: 7, light_woods: 3, rubble: 2, shallow_water: 3 }[terrain] || 0);
-  const hazardPenalty = ({ fire: 12, deep_water: 10, magma_crust: 9, magma_liquid: 50 }[terrain] || 0);
+  const coverScore = ({ heavy_woods: 7, light_woods: 3, rubble: 2, shallow_water: 3 }[terrain] || 0) * doctrine.coverWeight;
+  const hazardPenalty = ({ fire: 12, deep_water: 10, magma_crust: 9, magma_liquid: 50 }[terrain] || 0) * doctrine.hazardWeight;
   const movementScore = Math.min(5, candidate.hexes) * 1.5;
-  const heatPenalty = Math.max(0, Number(mech.heat || 0) + (mode === 'run' ? 2 : mode === 'walk' ? 1 : 0) - 13) * 1.5;
+  const heatPenalty = Math.max(0, Number(mech.heat || 0) + (mode === 'run' ? 2 : mode === 'walk' ? 1 : 0) - 13) * 1.5 * doctrine.heatAversion;
   const facing = aiFacingToward(candidate.col, candidate.row, nearest);
   const facingPenalty = candidate.facing === facing ? 0 : 2;
   const armor = Object.values(mech.armor || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
@@ -343,11 +420,11 @@ function aiScoreDestination(mech, candidate, playerMechs, mode, coordination = n
   const probe = { ...mech, col: candidate.col, row: candidate.row, facing: candidate.facing, torsoFacing: candidate.facing };
   const losScore = visibleTarget && typeof weaponLineOfSight === 'function' ? (weaponLineOfSight(probe, nearest).valid ? 4 : -8) : 0;
   const objectives = typeof currentMatchConfig !== 'undefined' && Array.isArray(currentMatchConfig.objective_hexes) ? currentMatchConfig.objective_hexes : [];
-  const objectiveScore = objectives.includes(typeof hexCode === 'function' ? hexCode(candidate.col, candidate.row) : '') ? 8 : 0;
+  const objectiveScore = objectives.includes(typeof hexCode === 'function' ? hexCode(candidate.col, candidate.row) : '') ? 8 * doctrine.objectiveWeight : 0;
   const nextRoundOptions = Array.from({ length: 6 }, (_, direction) => hexNeighbor(candidate.col, candidate.row, direction))
     .filter(hex => hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS && !terrainMovementBlocked(hex.col, hex.row)).length * 0.4;
   const allyDistances = mechInstances.filter(unit => unit.owner === mech.owner && unit.instanceId !== mech.instanceId && !unit.destroyed).map(unit => axialDistance(candidate.col, candidate.row, unit.col, unit.row));
-  const formationScore = allyDistances.length ? (Math.min(...allyDistances) < 2 ? -4 : Math.min(...allyDistances) <= 6 ? 2 : -2) : 0;
+  const formationScore = (allyDistances.length ? (Math.min(...allyDistances) < 2 ? -4 : Math.min(...allyDistances) <= 6 ? 2 : -2) : 0) * doctrine.formationWeight;
   const retreatScore = coordination?.retreating?.has(mech.instanceId) ? axialDistance(candidate.col, candidate.row, nearest.col, nearest.row) * 2 + coverScore : 0;
   const ecmCoverScore = coordination?.capabilities?.[mech.instanceId]?.ecm && allyDistances.some(distance => distance <= 6) ? 3 : 0;
   const probeSearchScore = !visibleTarget && coordination?.capabilities?.[mech.instanceId]?.probe ? Math.min(5, candidate.hexes) * 2 : 0;
@@ -371,12 +448,13 @@ function generateAIMoveAction(mech, playerMechs, settings, context = null, coord
   const heatPenalty = typeof heatMovementPenalty === 'function' ? heatMovementPenalty(mech) : 0;
   const modes = [{ mode: 'walk', mp: Math.max(0, Number(mobility.walk || 0) - heatPenalty) }, { mode: 'run', mp: Math.max(0, Number(mobility.run || 0) - heatPenalty) }];
   const mascTarget = typeof mascTargetNumber === 'function' ? mascTargetNumber(mech) : 13;
-  const riskAcceptable = ['strongest', 'optimal'].includes(settings.targetPriority) && mascTarget <= 7;
+  const doctrine=settings.personalityProfile||AI_PERSONALITIES.balanced;
+  const riskAcceptable = ['strongest', 'optimal'].includes(settings.targetPriority) && mascTarget <= Math.round(5 + doctrine.riskTolerance * 2);
   if (riskAcceptable && typeof hasOperationalMASC === 'function' && hasOperationalMASC(mech) && Number(mech.mascLastRound) !== Number(currentGameState.round)) {
     modes.push({ mode: 'run', mp: Math.max(0, Number(mobility.walk || 0) * 2 - heatPenalty), useMASC: true });
   }
   const options = [];
-  for (const choice of modes) for (const candidate of aiMovementCandidates(mech, choice.mode, choice.mp)) {
+  for (const choice of modes) for (const candidate of aiSampleCandidates(aiMovementCandidates(mech, choice.mode, choice.mp).filter(option => option.path.length), settings, context)) {
     if (!candidate.path.length) continue;
     const scoreBreakdown = aiScoreDestination(mech, candidate, playerMechs, choice.mode, coordination);
     const mascRisk = choice.useMASC ? Math.max(0, mascTarget - 3) : 0;
@@ -384,20 +462,23 @@ function generateAIMoveAction(mech, playerMechs, settings, context = null, coord
   }
   const jumpMP = Math.max(0, Number(mobility.jump || 0) - heatPenalty);
   if (jumpMP > 0 && (typeof terrainAt !== 'function' || terrainAt(mech.col, mech.row) !== 'deep_water')) {
+    const jumpCandidates=[];
     for (let col = 0; col < GRID_COLS; col++) for (let row = 0; row < GRID_ROWS; row++) {
       const distance = axialDistance(mech.col, mech.row, col, row);
       if (!distance || distance > jumpMP || terrainMovementBlocked(col, row) || mechInstances.some(unit => unit.instanceId !== mech.instanceId && !unit.destroyed && unit.col === col && unit.row === row)) continue;
       const nearest = [...playerMechs].sort((a, b) => axialDistance(col, row, a.col, a.row) - axialDistance(col, row, b.col, b.row))[0] || aiSearchWaypoint(mech);
       const facing = aiFacingToward(col, row, nearest);
       const candidate = { col, row, facing, cost: distance, hexes: distance, path: [{ action: 'jump', col, row, facing }] };
-      options.push({ ...candidate, movementMode: 'jump', useMASC: false, scoreBreakdown: aiScoreDestination(mech, candidate, playerMechs, 'jump', coordination) });
+      jumpCandidates.push(candidate);
     }
+    for(const candidate of aiSampleCandidates(jumpCandidates,settings,context)) options.push({ ...candidate, movementMode: 'jump', useMASC: false, scoreBreakdown: aiScoreDestination(mech, candidate, playerMechs, 'jump', coordination) });
   }
   options.sort((a, b) => b.scoreBreakdown.total - a.scoreBreakdown.total || a.cost - b.cost || a.col - b.col || a.row - b.row || a.facing - b.facing);
-  const best = options[0];
+  const best = aiChooseRanked(options,settings,context,option=>option.scoreBreakdown.total);
   if (!best || best.scoreBreakdown.total <= aiScoreDestination(mech, { col: mech.col, row: mech.row, facing: mech.facing, hexes: 0 }, playerMechs, 'stand', coordination).total) return null;
   const adjacentTarget=playerMechs.find(target=>target.hasMoved&&!target.dfaDeclaration&&!target.chargeDeclaration&&axialDistance(best.col,best.row,target.col,target.row)===1);
-  if(adjacentTarget&&Number(settings.planningHorizon||1)>=3&&best.hexes>=2){
+  const specialAttackThreshold=Math.max(.15,Math.min(.95,.3+Number(settings.planningHorizon||1)*.1))*doctrine.riskTolerance;
+  if(adjacentTarget&&Number(settings.planningHorizon||1)>=3&&best.hexes>=2&&(context?.random?.()??Math.random())<specialAttackThreshold){
     if(best.movementMode==='jump'&&axialDistance(mech.col,mech.row,adjacentTarget.col,adjacentTarget.row)<=jumpMP)return{type:'declare_dfa',instanceId:mech.instanceId,targetInstanceId:adjacentTarget.instanceId,toCol:best.col,toRow:best.row,facing:best.facing,path:best.path,movementMode:'jump',mpUsed:best.cost,hexesMoved:best.hexes,_debug:`DFA staging against ${mechLabel(adjacentTarget)}`};
     if(best.movementMode==='run'&&!adjacentTarget.prone&&best.scoreBreakdown.range===1&&aiFacingToward(best.col,best.row,adjacentTarget)===best.facing)return{type:'declare_charge',instanceId:mech.instanceId,targetInstanceId:adjacentTarget.instanceId,toCol:best.col,toRow:best.row,facing:best.facing,path:best.path,movementMode:'run',mpUsed:best.cost,hexesMoved:best.hexes,_debug:`Charge staging against ${mechLabel(adjacentTarget)}`};
   }
@@ -564,7 +645,11 @@ function scoreWeaponAttack(mech, target, weaponEntry, options = {}) {
   const supportUtility = ['tag', 'c3_master_tag'].includes(weaponEntry.key) && Number(target.taggedRound) !== Number(currentGameState.round) ? 8 * hitChance
     : weaponEntry.key === 'narc' && Number(target.narcPod?.round) !== Number(currentGameState.round) ? 7 * hitChance : 0;
   const focusBonus = options.coordination?.enabled && target.instanceId === options.coordination.focusTargetId ? 2.5 : 0;
-  let score = expectedDamage + hitChance * estimatedKillBonus(target, attack) + aiAmmoUtility(modeOption, attack, target, options.settings || {}) + supportUtility + focusBonus;
+  const settings=options.settings||aiSettingsFor('advanced','balanced');
+  const doctrine=settings.personalityProfile||AI_PERSONALITIES.balanced;
+  const distance=axialDistance(mech.col,mech.row,target.col,target.row);
+  const rangeStyle=doctrine.rangeOffset>0?distance*.12*doctrine.rangeOffset:Math.max(0,7-distance)*.12*Math.abs(doctrine.rangeOffset);
+  let score = expectedDamage + hitChance * estimatedKillBonus(target, attack) + aiAmmoUtility(modeOption, attack, target, settings) + supportUtility + focusBonus + rangeStyle;
 
   const weakLocation = aiWeakestAimLocation(target);
   const canAim = weakLocation && typeof targetingComputerCanAim === 'function' &&
@@ -589,7 +674,7 @@ function scoreWeaponAttack(mech, target, weaponEntry, options = {}) {
   const heat = Number(attack.weapon.heat || 0) * modeOption.shots;
   const jamReliability = weaponEntry.key?.startsWith('rac') ? Math.max(0.72, 1 - modeOption.shots * 0.035)
     : modeOption.mode === 'rapid' ? 0.97 : 1;
-  score *= jamReliability;
+  score = (score - heat * .08 * doctrine.heatAversion) * jamReliability;
   return { target, weaponEntry, mountId, attack, modeOption, aimedLocation, heat, hitChance, expectedDamage, score, indirect, spotterId: spotter?.instanceId || null, armsFlipped:Boolean(options.armsFlipped) };
 }
 
@@ -619,10 +704,10 @@ function aiPrimaryWeaponTarget(mech, targets, unit, settings, context, coordinat
     const focus = legal.find(candidate => candidate.target.instanceId === coordination.focusTargetId);
     if (focus) return focus.target;
   }
-  if (settings.targetPriority === 'random') return legal[Math.floor((context?.random?.() ?? Math.random()) * legal.length)].target;
+  if (settings.targetPriority === 'reasonable') return aiChooseRanked(legal,settings,context)?.target || null;
   if (settings.targetPriority === 'closest') return legal.sort((a, b) =>
     axialDistance(mech.col, mech.row, a.target.col, a.target.row) - axialDistance(mech.col, mech.row, b.target.col, b.target.row))[0].target;
-  return legal.sort((a, b) => b.score - a.score)[0].target;
+  return aiChooseRanked(legal,settings,context)?.target || null;
 }
 
 // AI-2 chooses one complete declaration for the current activation. Every
@@ -673,13 +758,14 @@ function generateAIAttackAction(mech, playerMechs, settings, context = null, coo
   const ammoUsed = new Map();
   const selected = [];
   for (const choices of candidateGroups) {
-    const choice = choices.find(candidate => {
+    const viable = choices.filter(candidate => {
       const binId = candidate.modeOption.bin?.id;
       const used = binId ? ammoUsed.get(binId) || 0 : 0;
       const available = Number(candidate.modeOption.bin?.shots || Infinity);
       const incompatibleFireLine = selected.some(chosen => chosen.target.instanceId === candidate.target.instanceId && chosen.indirect !== candidate.indirect);
       return !incompatibleFireLine && heatUsed + candidate.heat <= heatBudget && used + candidate.modeOption.shots <= available;
     });
+    const choice = aiChooseRanked(viable,settings,context);
     if (!choice) continue;
     const binId = choice.modeOption.bin?.id;
     const used = binId ? ammoUsed.get(binId) || 0 : 0;
@@ -716,9 +802,10 @@ function generateAIAttackAction(mech, playerMechs, settings, context = null, coo
     weaponHeat: heatUsed,
     expectedDamage,
     coordinationRole: coordination?.capabilities?.[mech.instanceId]?.designator ? 'designator' : coordination?.retreating?.has(mech.instanceId) ? 'withdrawing' : 'striker',
+    personality: settings.personality || 'balanced',
     focusTargetId: coordination?.focusTargetId || null,
     proneSupportArm,
-    _debug: `${selected.length} mount${selected.length === 1 ? '' : 's'}, EV ${expectedDamage.toFixed(1)} damage, ${heatUsed}/${heatBudget} planned heat${coordination?.enabled && primary.instanceId === coordination.focusTargetId ? ', coordinated focus' : ''}${allocations.length > 1 ? `, split across ${allocations.length} targets` : ''}`
+    _debug: `${settings.difficulty || 'custom'} ${settings.personality || 'balanced'}: ${selected.length} mount${selected.length === 1 ? '' : 's'}, EV ${expectedDamage.toFixed(1)} damage, ${heatUsed}/${heatBudget} planned heat${coordination?.enabled && primary.instanceId === coordination.focusTargetId ? ', coordinated focus' : ''}${allocations.length > 1 ? `, split across ${allocations.length} targets` : ''}`
   };
 }
 

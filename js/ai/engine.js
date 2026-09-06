@@ -2,7 +2,7 @@
 // Pure, deterministic planning helpers. The phase-specific opponent code may
 // improve over time without changing this replay/audit contract.
 
-var BT_AI_ENGINE_VERSION = 'ai-5.0';
+var BT_AI_ENGINE_VERSION = 'ai-6.0';
 var pendingAIDecisionEnvelope = null;
 var aiDecisionHistory = [];
 
@@ -93,6 +93,8 @@ function buildAIBattlefieldSnapshot(gameState = {}, units = null) {
     ruleset: matchState.ruleset || matchConfig.ruleset || 'advanced_3060',
     catalogueVersion: matchState.catalogue_version || (typeof activeCatalogueVersion !== 'undefined' ? activeCatalogueVersion : null),
     victoryMode: matchState.victory_mode || matchConfig.victory_mode || 'annihilation',
+    aiDifficulty: matchState.ai_difficulty || matchConfig.ai_difficulty || 'beginner',
+    aiPersonality: matchState.ai_personality || matchConfig.ai_personality || 'balanced',
     objectiveHexes: matchState.objective_hexes || matchConfig.objective_hexes || [],
     minefields: matchState.minefields || matchConfig.minefields || [],
     terrainOverrides: matchState.terrain_overrides || matchConfig.terrain_overrides || {},
@@ -110,6 +112,7 @@ function createAIPlanningContext(difficulty, gameState = {}, units = null) {
   return {
     engineVersion: BT_AI_ENGINE_VERSION,
     difficulty: difficulty || 'beginner',
+    personality: gameState.ai_personality || snapshot.aiPersonality || 'balanced',
     snapshot,
     snapshotHash,
     seed,
@@ -147,7 +150,7 @@ function publicAIAction(action) {
     'weaponCount', 'allocations', 'weaponHeat', 'expectedDamage', 'attackType',
     'facing', 'movementMode', 'path', 'fromCol', 'fromRow', 'toCol', 'toRow', 'mpUsed',
     'useMASC', 'reason', '_debug', 'scoreBreakdown', 'coordinationRole',
-    'focusTargetId', 'limbs', 'proneSupportArm', 'direction', 'hexesMoved'
+    'focusTargetId', 'limbs', 'proneSupportArm', 'direction', 'hexesMoved', 'personality'
   ].filter(key => action[key] !== undefined).map(key => [key, action[key]]));
 }
 
@@ -156,6 +159,7 @@ function registerAIPlan(context, actions) {
     decision_id: context.decisionId,
     engine_version: context.engineVersion,
     difficulty: context.difficulty,
+    personality: context.personality,
     round: context.snapshot.round,
     phase: context.snapshot.phase,
     seed: context.seed,

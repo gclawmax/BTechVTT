@@ -9,10 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260902-map-hardening-51">
+  <link rel="stylesheet" href="css/main.css?v=20260906-ai6-difficulty-personality-72">
 </head>
-<body data-build="20260906-ai5-specialist-tactics-71">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260906-ai5-specialist-tactics-71</div>
+<body data-build="20260906-ai6-difficulty-personality-72">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260906-ai6-difficulty-personality-72</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 <div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
   <section class="game-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
@@ -86,7 +86,27 @@
     <div class="username-display" id="menu-username"></div>
     <button class="btn-large career" onclick="openCareerAvatarCreator()" title="Create or update the persistent commander identity stored with your account.">Start Career <small>Create your persistent commander avatar</small></button>
     <button class="btn-large primary" onclick="handleCreateGame()" title="Create a configurable two-player skirmish with your choice of map, tonnage and victory condition.">Create Custom Skirmish</button>
-    <button class="btn-large ai" onclick="handleCreateVsAI()" title="Create a solo skirmish against a computer-controlled force.">Play vs AI</button>
+    <div class="ai-opponent-options" aria-label="Computer opponent settings">
+      <label for="ai-difficulty-select">Difficulty
+        <select id="ai-difficulty-select" onchange="updateAIOpponentOptions()" title="Changes decision quality and search depth; it never changes dice or grants hidden information.">
+          <option value="beginner">Beginner — samples reasonable choices</option>
+          <option value="intermediate">Intermediate — manages range and heat</option>
+          <option value="advanced">Advanced — coordinates its force</option>
+          <option value="expert">Expert — deepest tactical search</option>
+        </select>
+      </label>
+      <label for="ai-personality-select">Personality
+        <select id="ai-personality-select" onchange="updateAIOpponentOptions()" title="Changes tactical preferences without granting any rules bonus.">
+          <option value="balanced">Balanced</option>
+          <option value="aggressive">Aggressive</option>
+          <option value="cautious">Cautious</option>
+          <option value="brawler">Brawler</option>
+          <option value="sniper">Sniper</option>
+          <option value="objective">Objective Focused</option>
+        </select>
+      </label>
+    </div>
+    <button class="btn-large ai" onclick="handleCreateVsAI()" title="Create a solo skirmish against a computer-controlled force using the selected difficulty and personality.">Play vs AI <small id="ai-opponent-summary">Beginner · Balanced</small></button>
 
     <details class="dropship-submenu" name="dropship-navigation">
       <summary title="Open the built-in scenario list.">Scenarios <small>Three ready-to-play deployments</small></summary>
@@ -257,7 +277,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260906-ai5-specialist-tactics-71</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260906-ai6-difficulty-personality-72</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -286,13 +306,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2?v=20260813-reaction-ui-01"></script>
 <script src="js/network/supabase.js?v=20260825-build-stamp-01"></script>
 <script src="js/core/state.js?v=20260831-hit-location-diagnostics-39"></script>
-<script src="js/ai/state.js?v=20260813-reaction-ui-01"></script>
-<script src="js/ai/engine.js?v=20260906-ai5-specialist-tactics-71"></script>
+<script src="js/ai/state.js?v=20260906-ai6-difficulty-personality-72"></script>
+<script src="js/ai/engine.js?v=20260906-ai6-difficulty-personality-72"></script>
 <script src="js/core/game-log.js?v=20260826-combat-presentation-25"></script>
 <script src="js/ui/game-settings.js?v=20260826-combat-presentation-25"></script>
 <script src="js/core/screen.js?v=20260813-reaction-ui-01"></script>
 <script src="js/core/auth.js?v=20260813-reaction-ui-01"></script>
-<script src="js/core/helpers.js?v=20260901-finished-games-48"></script>
+<script src="js/core/helpers.js?v=20260906-ai6-difficulty-personality-72"></script>
 <script src="js/core/modal.js?v=20260813-physical-warning-01"></script>
 <script src="js/network/game-code.js?v=20260813-reaction-ui-01"></script>
 <script src="js/game/maps.js?v=20260902-variable-maps-50"></script>
@@ -305,12 +325,12 @@
 <script src="js/network/create-game.js?v=20260903-ruleset-controls-63"></script>
 <script src="js/game/scenario-editor.js?v=20260902-map-hardening-51"></script>
 <script src="js/game/career-avatar.js?v=20260826-dropship-navigation-22"></script>
-<script src="js/network/create-vs-ai.js?v=20260813-reaction-ui-01"></script>
+<script src="js/network/create-vs-ai.js?v=20260906-ai6-difficulty-personality-72"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
-<script src="js/network/lobby.js?v=20260906-ai4-force-coordination-70"></script>
+<script src="js/network/lobby.js?v=20260906-ai6-difficulty-personality-72"></script>
 <script src="js/game/telemetry.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/replay-viewer.js?v=20260902-replay-viewer-49"></script>
-<script src="js/game/phases.js?v=20260906-ai5-specialist-tactics-71"></script>
+<script src="js/game/phases.js?v=20260906-ai6-difficulty-personality-72"></script>
 <script src="js/game/board.js?v=20260902-variable-maps-50"></script>
 <script src="js/game/unit-artwork.js?v=20260820-01"></script>
 <script src="js/movement/rules.js?v=20260905-ai-foundation-65"></script>
@@ -323,6 +343,6 @@
 <script src="js/game/physical-attack.js?v=20260904-specialist-physical-64"></script>
 <script src="js/game/heat.js?v=20260902-signature-electronics-62"></script>
 <script src="js/app.js?v=20260813-reaction-ui-01"></script>
-<script src="js/ai/opponent.js?v=20260906-ai5-specialist-tactics-71"></script>
+<script src="js/ai/opponent.js?v=20260906-ai6-difficulty-personality-72"></script>
 </body>
 </html>

@@ -103,6 +103,7 @@ async function loadGameState() {
     ...(gameState.ruleset ? { ruleset: gameState.ruleset } : {}),
     ...(typeof gameState.vs_ai_mode === 'boolean' ? { vs_ai_mode: gameState.vs_ai_mode } : {}),
     ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {}),
+    ...(gameState.ai_personality ? { ai_personality: gameState.ai_personality } : {}),
     ...(gameState.ai_seed ? { ai_seed: gameState.ai_seed } : {}),
     ...(gameState.special_ammo_setup_v1 ? { special_ammo_setup_v1: true } : {}),
     ...(gameState.terrain_overrides ? { terrain_overrides: gameState.terrain_overrides } : {}),
