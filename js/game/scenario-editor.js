@@ -59,6 +59,7 @@ function newScenarioEditorState() {
     columns: 16, rows: 17, generation_seed: '',
     instructions: 'Choose forces, deploy in your marked zone, and complete the selected victory condition.',
     dropship_tonnage: 200,
+    force_limit: { mode:'tonnage' },
     victory_mode: 'annihilation',
     terrain: {}, elevation: {},
     deployment_zones: defaultScenarioDeploymentZones(),
@@ -84,6 +85,8 @@ function normalizeScenarioDefinition(input) {
   const cleanZone = seat => [...new Set((Array.isArray(zones[String(seat)]) ? zones[String(seat)] : []).filter(valid))];
   const zoneOne = cleanZone(1);
   const zoneOneSet = new Set(zoneOne);
+  let forceLimit;
+  try { forceLimit = normaliseMatchForceLimit(source.force_limit); } catch { forceLimit = { mode:'tonnage' }; }
   return {
     schema_version: 1,
     name: String(source.name || 'New Battlefield').trim().slice(0, 80) || 'New Battlefield',
@@ -92,6 +95,7 @@ function normalizeScenarioDefinition(input) {
     generation_seed: String(source.generation_seed || '').slice(0, 64),
     instructions: String(source.instructions || '').trim().slice(0, 600),
     dropship_tonnage: [100, 150, 200, 250].includes(Number(source.dropship_tonnage)) ? Number(source.dropship_tonnage) : 200,
+    force_limit: forceLimit,
     victory_mode: ['annihilation', 'control', 'breakthrough'].includes(source.victory_mode) ? source.victory_mode : 'annihilation',
     terrain, elevation,
     deployment_zones: { '1': zoneOne, '2': cleanZone(2).filter(code => !zoneOneSet.has(code)) },
@@ -164,6 +168,17 @@ function scenarioEditorSetField(field, value) {
   const status = document.getElementById('scenario-editor-status');
   if (status) status.textContent = '';
   if (field === 'victory_mode') renderScenarioEditorMap();
+}
+function scenarioEditorSetForceFormat(mode) {
+  if (!scenarioEditorState) return;
+  scenarioEditorState.force_limit = mode === 'bv2' ? { mode:'bv2', limit:Number(scenarioEditorState.force_limit?.limit) || 5000, bv_version:'BV2.1' } : { mode:'tonnage' };
+  renderScenarioEditor();
+}
+function scenarioEditorSetBvLimit(value) {
+  if (!scenarioEditorState) return;
+  const limit = Number(value);
+  if (Number.isInteger(limit) && limit >= 100 && limit <= 50000) scenarioEditorState.force_limit = { mode:'bv2', limit, bv_version:'BV2.1' };
+  const status = document.getElementById('scenario-editor-status'); if (status) status.textContent = '';
 }
 function scenarioEditorSetMinefieldRule(field, value) {
   if (!scenarioEditorState) return;
@@ -240,13 +255,16 @@ function renderScenarioEditor() {
   const terrainButtons = SCENARIO_TERRAIN.map(([key, label]) => `<button data-scenario-tool="terrain:${key}" class="scenario-tool terrain-${key}${scenarioEditorTool.type === 'terrain' && scenarioEditorTool.value === key ? ' selected' : ''}" onclick="selectScenarioEditorTool('terrain','${key}')">${label}</button>`).join('');
   const elevationButtons = [0, 1, 2, 3].map(level => `<button data-scenario-tool="elevation:${level}" class="scenario-tool${scenarioEditorTool.type === 'elevation' && Number(scenarioEditorTool.value) === level ? ' selected' : ''}" onclick="selectScenarioEditorTool('elevation','${level}')">Level ${level}</button>`).join('');
   const dimensions = scenarioEditorDimensions(), presetId = SCENARIO_SIZE_PRESETS.find(([, cols, rows]) => cols === dimensions.cols && rows === dimensions.rows)?.[0] || 'custom';
+  const bvMode = scenarioEditorState.force_limit?.mode === 'bv2';
   root.innerHTML = `<header class="scenario-editor-header"><div><h2>Map & Scenario Editor</h2><p>Paint a ${dimensions.cols} × ${dimensions.rows} battlefield, mark deployment zones and choose the victory condition.</p></div><button class="secondary" onclick="closeScenarioEditor()">Back to Dropship</button></header>
     <div class="scenario-editor-layout"><aside class="scenario-editor-sidebar">
       <label>Name<input maxlength="80" value="${scenarioEditorEscape(scenarioEditorState.name)}" oninput="scenarioEditorSetField('name',this.value)"></label>
       <label>Map size<select onchange="scenarioEditorSetSizePreset(this.value)">${SCENARIO_SIZE_PRESETS.map(([id,, , label]) => `<option value="${id}" ${id === presetId ? 'selected' : ''}>${label}</option>`).join('')}</select></label><div class="scenario-editor-size-row"><label>Columns<input id="scenario-columns" type="number" min="8" max="48" value="${dimensions.cols}"></label><label>Rows<input id="scenario-rows" type="number" min="8" max="48" value="${dimensions.rows}"></label><button onclick="scenarioEditorApplyCustomSize()">Resize</button></div>
       <label>Description<textarea maxlength="240" oninput="scenarioEditorSetField('description',this.value)">${scenarioEditorEscape(scenarioEditorState.description)}</textarea></label>
       <label>Player instructions<textarea maxlength="600" oninput="scenarioEditorSetField('instructions',this.value)">${scenarioEditorEscape(scenarioEditorState.instructions)}</textarea></label>
-      <label>Tonnage per player<select onchange="scenarioEditorSetField('dropship_tonnage',this.value)">${[100,150,200,250].map(value => `<option value="${value}" ${scenarioEditorState.dropship_tonnage === value ? 'selected' : ''}>${value} tons</option>`).join('')}</select></label>
+      <label>Force format<select onchange="scenarioEditorSetForceFormat(this.value)"><option value="tonnage" ${!bvMode ? 'selected' : ''}>Tonnage — classic limit</option><option value="bv2" ${bvMode ? 'selected' : ''}>BV2 — combat-value limit</option></select></label>
+      <label>Dropship tonnage per player<select onchange="scenarioEditorSetField('dropship_tonnage',this.value)">${[100,150,200,250].map(value => `<option value="${value}" ${scenarioEditorState.dropship_tonnage === value ? 'selected' : ''}>${value} tons</option>`).join('')}</select></label>
+      ${bvMode ? `<label>BV2 limit per player<input type="number" min="100" max="50000" step="1" value="${scenarioEditorState.force_limit.limit}" oninput="scenarioEditorSetBvLimit(this.value)"><small>Use 2,500, 5,000, 7,500, 10,000, or a custom whole-number cap.</small></label>` : ''}
       <label>Victory condition<select onchange="scenarioEditorSetField('victory_mode',this.value)"><option value="annihilation" ${scenarioEditorState.victory_mode === 'annihilation' ? 'selected' : ''}>Annihilation</option><option value="control" ${scenarioEditorState.victory_mode === 'control' ? 'selected' : ''}>Objective Control</option><option value="breakthrough" ${scenarioEditorState.victory_mode === 'breakthrough' ? 'selected' : ''}>Breakthrough</option></select></label>
       <fieldset class="scenario-minefield-rules"><legend>Minefield rules</legend><label>Budget per side<select onchange="scenarioEditorSetMinefieldRule('budget',this.value)">${[0,10,20,30,40,50,60,80,100,120].map(value => `<option value="${value}" ${scenarioEditorState.minefield_rules.budget === value ? 'selected' : ''}>${value} points</option>`).join('')}</select></label><span class="deployment-help">Density costs the same number of points: 10 / 20 / 30.</span><label class="scenario-editor-check"><input type="checkbox" ${scenarioEditorState.minefield_rules.permitted_types.includes('conventional') ? 'checked' : ''} onchange="scenarioEditorToggleMinefieldType('conventional')"> Conventional fields</label><label class="scenario-editor-check"><input type="checkbox" ${scenarioEditorState.minefield_rules.permitted_types.includes('vibrabomb') ? 'checked' : ''} onchange="scenarioEditorToggleMinefieldType('vibrabomb')"> Vibrabombs</label></fieldset>
       <label>Generation seed<input id="scenario-seed" maxlength="64" value="${scenarioEditorEscape(scenarioEditorState.generation_seed)}"></label><label>Terrain density<select id="scenario-density"><option value="15">Light</option><option value="25" selected>Balanced</option><option value="40">Dense</option></select></label><label>Terrain pattern<select id="scenario-pattern"><option value="balanced">Balanced terrain</option><option value="ridge">Ridge line</option><option value="river">River crossing</option><option value="urban">Industrial district</option></select></label><label class="scenario-editor-check"><input id="scenario-symmetry" type="checkbox" checked> Mirror for a fair duel</label><button class="scenario-generate" onclick="generateScenarioEditorMap()">Generate Terrain</button><div class="scenario-editor-file-actions"><button onclick="saveScenarioEditorDraft()">Save Draft</button><button onclick="exportScenarioEditor()">Export JSON</button><label class="scenario-import-button">Import JSON<input id="scenario-import-input" type="file" accept="application/json,.json" onchange="importScenarioEditor(this.files[0])"></label></div>
@@ -319,7 +337,7 @@ async function launchScenarioEditorMatch() {
     mapId,
     dropshipTonnage: scenarioEditorState.dropship_tonnage,
     victoryMode: scenarioEditorState.victory_mode,
-    customScenario
+    customScenario, forceLimit:scenarioEditorState.force_limit
   });
 }
 
@@ -336,7 +354,7 @@ async function launchScenarioEditorVsAI() {
   const customScenario = { ...scenarioEditorState, map_id:mapId, id:mapId, visual:'custom' };
   registerCustomMapDefinition(customScenario);
   localStorage.setItem(SCENARIO_EDITOR_STORAGE_KEY, JSON.stringify(scenarioEditorState));
-  await createVsAIGame({ mapId, dropshipTonnage:scenarioEditorState.dropship_tonnage, victoryMode:scenarioEditorState.victory_mode, customScenario });
+  await createVsAIGame({ mapId, dropshipTonnage:scenarioEditorState.dropship_tonnage, victoryMode:scenarioEditorState.victory_mode, customScenario, forceLimit:scenarioEditorState.force_limit });
 }
 
 window.addEventListener('pointerup', () => { scenarioEditorPainting = false; });

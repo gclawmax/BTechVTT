@@ -1,6 +1,6 @@
 # Battle Value Design
 
-Status: **BV-1 complete; BV-2 ready for SQL deployment.** No existing match
+Status: **BV-1 complete; BV-2/BV-3 ready for SQL deployment.** No existing match
 becomes a BV match automatically: tonnage remains the default format.
 
 ## Purpose
@@ -113,6 +113,11 @@ state is changed; an equivalent tonnage match behaves exactly as it does now;
 rejoin and exported reports preserve the original BV declaration.
 
 ### BV-3 — match creation, scenarios and Vs AI
+
+**Ready for deployment.** Create Match, Play vs AI, and the scenario editor
+offer Tonnage or BV2; BV2 provides 2,500 / 5,000 / 7,500 / 10,000 presets and
+a bounded custom whole-number cap. AI selection is seed-deterministic and the
+server seals both sides' final values before play begins.
 
 1. Add a “Force format” choice to Create Match, Play vs AI and the scenario
    editor. Tonnage remains preselected for backward-compatible play.

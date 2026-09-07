@@ -39,6 +39,36 @@ function buildVsAiSuggestedForce(entries, tonnageLimit, seed, excluded = new Set
   return picked.length ? picked : [candidates[0][0]];
 }
 
+function buildVsAiSuggestedBvForce(entries, bvLimit, seed, excluded = new Set()) {
+  const candidates = entries.filter(([unitId, unit]) => !excluded.has(unitId) && Number(unit?.battleValue?.stock || 0) > 0 && Number(unit.battleValue.stock) <= bvLimit);
+  if (!candidates.length) throw new Error('The selected ruleset has no BattleMech with a verified BV2 value inside this limit.');
+  const desiredCount = Math.max(1, Math.min(4, Math.round(bvLimit / 2200)));
+  const selected = [], seen = new Set();
+  let remaining = bvLimit;
+  for (let index = 0; index < desiredCount; index++) {
+    const legal = candidates.filter(([unitId, unit]) => !seen.has(unitId) && Number(unit.battleValue.stock) <= remaining);
+    if (!legal.length) break;
+    const desiredValue = remaining / Math.max(1, desiredCount - index);
+    legal.sort(([leftId, left], [rightId, right]) => {
+      const leftScore = Math.abs(Number(left.battleValue.stock) - desiredValue) + vsAiHash(`${seed}:bv:${index}:${leftId}`) * 260;
+      const rightScore = Math.abs(Number(right.battleValue.stock) - desiredValue) + vsAiHash(`${seed}:bv:${index}:${rightId}`) * 260;
+      return leftScore - rightScore;
+    });
+    const picked = legal[0];
+    selected.push(picked[0]); seen.add(picked[0]); remaining -= Number(picked[1].battleValue.stock);
+  }
+  return selected.length ? selected : [candidates[0][0]];
+}
+
+function bv2ForceSnapshot(roster) {
+  const entries = (roster || []).map(unitId => {
+    const unit = getSupportedUnit(unitId), value = bv2EntryValue(unit);
+    return value ? { unit_id:unitId, stock:value.stock, adjusted:value.adjusted, gunnery:4, piloting:5, pilot_multiplier:1 } : null;
+  });
+  if (entries.some(entry => !entry)) throw new Error('A selected BattleMech is BV pending. Choose only verified catalogue BattleMechs for this BV2 match.');
+  return { system:'BV2', bv_version:'BV2.1', stock:entries.reduce((sum, entry) => sum + entry.stock, 0), adjusted:entries.reduce((sum, entry) => sum + entry.adjusted, 0), entries };
+}
+
 function vsAiHexCoordinates(code) {
   const value = String(code || '');
   return /^\d{4}$/.test(value) ? { col:Number(value.slice(0, 2)), row:Number(value.slice(2, 4)) } : null;
@@ -93,6 +123,9 @@ function handleCreateVsAI() {
   mapSelect.innerHTML = builtInMapOptions();
   mapSelect.value = DEFAULT_MAP_ID;
   document.getElementById('vs-ai-tonnage-select').value = '200';
+  document.getElementById('vs-ai-force-format-select').value = 'tonnage';
+  document.getElementById('vs-ai-bv-limit-select').value = '5000';
+  syncForceFormatControls('vs-ai');
   document.getElementById('vs-ai-victory-select').value = 'annihilation';
   document.getElementById('vs-ai-ruleset-select').value = 'advanced_3060';
   document.getElementById('vs-ai-difficulty-setup-select').value = aiDifficulty;
@@ -108,29 +141,33 @@ async function handleCreateConfiguredVsAI() {
   const dropshipTonnage = Number(document.getElementById('vs-ai-tonnage-select')?.value);
   const victoryMode = document.getElementById('vs-ai-victory-select')?.value;
   const ruleset = document.getElementById('vs-ai-ruleset-select')?.value;
+  let forceLimit;
+  try { forceLimit = readForceLimitControls('vs-ai'); }
+  catch (error) { alert(error.message); return; }
   setAIOpponentOptions(document.getElementById('vs-ai-difficulty-setup-select')?.value, document.getElementById('vs-ai-personality-setup-select')?.value);
-  await createVsAIGame({ mapId, dropshipTonnage, victoryMode, ruleset, difficulty:aiDifficulty, personality:aiPersonality });
+  await createVsAIGame({ mapId, dropshipTonnage, victoryMode, ruleset, difficulty:aiDifficulty, personality:aiPersonality, forceLimit });
 }
 
-async function createVsAIGame({ mapId, dropshipTonnage, victoryMode = 'annihilation', ruleset = 'advanced_3060', difficulty = aiDifficulty, personality = aiPersonality, customScenario = null }) {
+async function createVsAIGame({ mapId, dropshipTonnage, victoryMode = 'annihilation', ruleset = 'advanced_3060', difficulty = aiDifficulty, personality = aiPersonality, customScenario = null, forceLimit = null }) {
   if (!currentUser || (!BT_MAPS[mapId] && !BT_CUSTOM_MAPS[mapId]) || !VS_AI_FORCE_LIMITS.includes(Number(dropshipTonnage))) return;
   showLoading(true);
   try {
     const catalogueVersion = await loadLatestUnitCatalogue();
     const code = generateGameCode(), aiSeed = `${code}:${Date.now().toString(36)}`;
     const validRuleset = BT_RULESETS?.[ruleset] ? ruleset : 'advanced_3060';
+    const sealedForceLimit = normaliseMatchForceLimit(forceLimit || customScenario?.force_limit);
     const validMode = ['annihilation', 'control', 'breakthrough'].includes(victoryMode) ? victoryMode : 'annihilation';
     const entries = vsAiUnitEntries(validRuleset);
-    const humanRoster = buildVsAiSuggestedForce(entries, Number(dropshipTonnage), `${aiSeed}:human`);
-    const aiRoster = buildVsAiSuggestedForce(entries, Number(dropshipTonnage), `${aiSeed}:ai`, new Set(humanRoster));
-    const setupState = { map_id:mapId, map_dimensions:mapDimensions(mapId), dropship_tonnage:Number(dropshipTonnage), ruleset:validRuleset, victory_mode:validMode, objective_hexes:validMode === 'control' ? objectiveHexesForMap(mapId) : [], objective_scores:{ '1':0, '2':0 }, vs_ai_mode:true, ai_difficulty:AI_DIFFICULTY_KEYS.includes(difficulty) ? difficulty : 'beginner', ai_personality:AI_PERSONALITY_KEYS.includes(personality) ? personality : 'balanced', ai_seed:aiSeed, ai_engine_version:BT_AI_ENGINE_VERSION, ai_decisions:[], catalogue_version:catalogueVersion, special_ammo_setup_v1:true, hidden_units_v1:true, minefield_rules:customScenario?.minefield_rules || { budget:40, permitted_types:['conventional','vibrabomb'], permitted_densities:[10,20,30], vibrabomb_sensitivities:[20,30,40,50,60,70,80,90,100] }, rosters:{ '1':humanRoster, '2':aiRoster }, deployment_positions:{}, units:[], turn:0, phase:'setup' };
+    const humanRoster = sealedForceLimit.mode === 'bv2' ? buildVsAiSuggestedBvForce(entries, sealedForceLimit.limit, `${aiSeed}:human`) : buildVsAiSuggestedForce(entries, Number(dropshipTonnage), `${aiSeed}:human`);
+    const aiRoster = sealedForceLimit.mode === 'bv2' ? buildVsAiSuggestedBvForce(entries, sealedForceLimit.limit, `${aiSeed}:ai`, new Set(humanRoster)) : buildVsAiSuggestedForce(entries, Number(dropshipTonnage), `${aiSeed}:ai`, new Set(humanRoster));
+    const setupState = { map_id:mapId, map_dimensions:mapDimensions(mapId), dropship_tonnage:Number(dropshipTonnage), ...(sealedForceLimit.mode === 'bv2' ? { force_limit:sealedForceLimit, force_values:{ '1':bv2ForceSnapshot(humanRoster), '2':bv2ForceSnapshot(aiRoster) } } : {}), ruleset:validRuleset, victory_mode:validMode, objective_hexes:validMode === 'control' ? objectiveHexesForMap(mapId) : [], objective_scores:{ '1':0,'2':0 }, vs_ai_mode:true, ai_difficulty:AI_DIFFICULTY_KEYS.includes(difficulty) ? difficulty : 'beginner', ai_personality:AI_PERSONALITY_KEYS.includes(personality) ? personality : 'balanced', ai_seed:aiSeed, ai_engine_version:BT_AI_ENGINE_VERSION, ai_decisions:[], catalogue_version:catalogueVersion, special_ammo_setup_v1:true, hidden_units_v1:true, minefield_rules:customScenario?.minefield_rules || { budget:40, permitted_types:['conventional','vibrabomb'], permitted_densities:[10,20,30], vibrabomb_sensitivities:[20,30,40,50,60,70,80,90,100] }, rosters:{ '1':humanRoster, '2':aiRoster }, deployment_positions:{}, units:[], turn:0, phase:'setup' };
     const humanHangar = humanRoster.map((unitId, index) => ({ id:`vsai-human-${index + 1}`, unit_id:unitId, pilot:{ id:`vsai-human-pilot-${index + 1}`, name:'MechWarrior', gunnery:4, piloting:5 } }));
     setupState.skirmish_avatars = { '1':{ id:`skirmish-${code}-p1`, callsign:'Skirmish Commander P1', gunnery:4, piloting:5, hangar:humanHangar, deployed:humanHangar.map(entry => entry.id) } };
     const customTerrain = customScenario?.terrain && typeof customScenario.terrain === 'object' ? customScenario.terrain : null;
     if (customScenario) Object.assign(setupState, { custom_scenario:customScenario, terrain_overrides:customTerrain || {}, elevation_overrides:customScenario.elevation || {}, deployment_zones:customScenario.deployment_zones, building_cf:Object.fromEntries(Object.entries(customTerrain || {}).filter(([, terrain]) => terrain === 'building').map(([hex]) => [hex, 40])) });
     setupState.deployment_positions['1'] = buildVsAiDeployment(humanRoster, 1, setupState);
     setupState.deployment_positions['2'] = buildVsAiDeployment(aiRoster, 2, setupState);
-    setupState.ai_setup = { version:'gm4', generated_force:[...aiRoster], generated_deployment:[...setupState.deployment_positions['2']], minefields:'server-private after lobby start' };
+    setupState.ai_setup = { version:'bv3', force_format:sealedForceLimit, generated_force:[...aiRoster], generated_deployment:[...setupState.deployment_positions['2']], minefields:'server-private after lobby start' };
     const { data: game, error: gameErr } = await db.from('btech_games').insert({ game_code:code, host_id:currentUser.id, catalogue_version:catalogueVersion, state:JSON.stringify(setupState), status:'lobby', created_at:new Date().toISOString() }).select().single();
     if (gameErr) throw gameErr;
     currentGameId = game.id; isHost = true; isReady = true; vsAiMode = true; mySeatNumber = 1;

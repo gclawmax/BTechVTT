@@ -1,4 +1,30 @@
 // ── CREATE GAME ──────────────────────────────────────────
+const BV2_FORCE_PRESETS = Object.freeze([2500, 5000, 7500, 10000]);
+
+function normaliseMatchForceLimit(input) {
+  if (!input || input.mode !== 'bv2') return { mode:'tonnage' };
+  const limit = Number(input.limit);
+  if (!Number.isInteger(limit) || limit < 100 || limit > 50000) throw new Error('Choose a whole BV2 limit between 100 and 50,000.');
+  return { mode:'bv2', limit, bv_version:'BV2.1' };
+}
+
+function readForceLimitControls(prefix) {
+  const mode = document.getElementById(`${prefix}-force-format-select`)?.value;
+  if (mode !== 'bv2') return { mode:'tonnage' };
+  const selected = document.getElementById(`${prefix}-bv-limit-select`)?.value;
+  const raw = selected === 'custom' ? document.getElementById(`${prefix}-bv-custom-limit`)?.value : selected;
+  return normaliseMatchForceLimit({ mode:'bv2', limit:Number(raw) });
+}
+
+function syncForceFormatControls(prefix) {
+  const bv = document.getElementById(`${prefix}-force-format-select`)?.value === 'bv2';
+  const controls = document.getElementById(`${prefix}-bv-limit-controls`);
+  const custom = document.getElementById(`${prefix}-bv-limit-select`)?.value === 'custom';
+  if (controls) controls.hidden = !bv;
+  const customInput = document.getElementById(`${prefix}-bv-custom-limit`);
+  if (customInput) customInput.hidden = !bv || !custom;
+}
+
 function handleCreateGame() {
   if (!currentUser) return;
   // A previous test game against the AI must not turn a new human-created
@@ -9,6 +35,9 @@ function handleCreateGame() {
   mapSelect.value = DEFAULT_MAP_ID;
   renderCreateMapPreview();
   document.getElementById('create-tonnage-select').value = '200';
+  document.getElementById('create-force-format-select').value = 'tonnage';
+  document.getElementById('create-bv-limit-select').value = '5000';
+  syncForceFormatControls('create');
   document.getElementById('create-victory-select').value = 'annihilation';
   document.getElementById('create-ruleset-select').value = 'advanced_3060';
   showScreen('match-setup-screen');
@@ -69,8 +98,11 @@ async function handleCreateConfiguredGame() {
   const dropshipTonnage = Number.parseInt(document.getElementById('create-tonnage-select').value, 10);
   const victoryMode = document.getElementById('create-victory-select').value;
   const ruleset = document.getElementById('create-ruleset-select').value;
+  let forceLimit;
+  try { forceLimit = readForceLimitControls('create'); }
+  catch (error) { alert(error.message); return; }
   if (!BT_MAPS[mapId] || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
-  await createHumanGame({ mapId, dropshipTonnage, victoryMode, ruleset });
+  await createHumanGame({ mapId, dropshipTonnage, victoryMode, ruleset, forceLimit });
 }
 
 // A short first match removes roster-building friction while preserving the
@@ -113,7 +145,7 @@ async function handleCreateDesertHillsScenario() {
   });
 }
 
-async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation', customScenario = null, ruleset = 'advanced_3060' }) {
+async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation', customScenario = null, ruleset = 'advanced_3060', forceLimit = null }) {
   if ((!BT_MAPS[mapId] && !BT_CUSTOM_MAPS[mapId]) || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
   showLoading(true);
   try {
@@ -123,6 +155,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
     const resolvedRosters = Object.fromEntries(Object.entries(rosters).map(([seat, unitIds]) => [seat, unitIds.map(resolveCatalogueId)]));
     const code = generateGameCode();
     const dimensions = mapDimensions(mapId);
+    const sealedForceLimit = normaliseMatchForceLimit(forceLimit || customScenario?.force_limit);
     const customTerrain = customScenario?.terrain && typeof customScenario.terrain === 'object' ? customScenario.terrain : null;
     const customBuildings = customTerrain ? Object.fromEntries(Object.entries(customTerrain).filter(([, terrain]) => terrain === 'building').map(([code]) => [code, 40])) : null;
     const { data: game, error: gameErr } = await db
@@ -134,6 +167,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
         state: JSON.stringify({
           units: [], turn: 0, phase: 'setup', vs_ai_mode: false,
           map_id: mapId, map_dimensions: dimensions, dropship_tonnage: dropshipTonnage,
+          ...(sealedForceLimit.mode === 'bv2' ? { force_limit:sealedForceLimit } : {}),
           catalogue_version: catalogueVersion,
           ruleset: BT_RULESETS?.[ruleset] ? ruleset : 'advanced_3060',
           special_ammo_setup_v1: true,

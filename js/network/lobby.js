@@ -941,6 +941,14 @@ async function handleStartGame() {
     document.getElementById('lobby-status').textContent = 'Each force must be legal and fully deployed before the match can start.';
     return;
   }
+  if (bv2ForceLimit(gameState) != null) {
+    const { data: sealedState, error: sealError } = await db.rpc('seal_bv2_match_force_values', { p_game_id:currentGameId });
+    if (sealError) {
+      document.getElementById('lobby-status').textContent = `BV2 force validation rejected: ${sealError.message}`;
+      return;
+    }
+    if (sealedState && typeof sealedState === 'object') Object.assign(gameState, sealedState);
+  }
   if (vsAiMode) {
     const { error } = await db.rpc('seed_ai_minefield_plan', { p_game_id:currentGameId });
     if (error) { document.getElementById('lobby-status').textContent = `AI minefield setup rejected: ${error.message}`; return; }

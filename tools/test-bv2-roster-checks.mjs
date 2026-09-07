@@ -20,6 +20,8 @@ check('Hangar pilots contribute to a sealed detailed value',
 check('both roster routes reject an over-cap BV force',
   sql.includes("'Roster exceeds the BV2 limit") && sql.includes("'Deployed BattleMechs exceed the BV2 limit"));
 check('legacy tonnage validation remains present', sql.includes('Deployed BattleMechs exceed the dropship tonnage limit'));
+check('a BV2 match uses its BV cap instead of imposing a second tonnage cap',
+  sql.includes("IF bv_limit IS NULL AND total_tonnage>coalesce((st->>'dropship_tonnage')::int,0)"));
 check('schema privileges are restricted to authenticated callers',
   sql.includes('GRANT EXECUTE ON FUNCTION public.update_skirmish_hangar(uuid,jsonb,jsonb) TO authenticated'));
 
