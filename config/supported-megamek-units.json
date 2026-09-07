@@ -1,5 +1,6 @@
 {
-  "catalogue_version": "megamek-2026-08-curated-05",
+  "catalogue_version": "megamek-2026-09-bv2-01",
+  "require_verified_bv2": true,
   "units": [
     { "id": "atlas-as7-d", "source": "data/mekfiles/meks/3039u/Atlas AS7-D.mtf" },
     { "id": "hunchback-hbk-4g", "source": "data/mekfiles/meks/3039u/Hunchback HBK-4G.mtf" },

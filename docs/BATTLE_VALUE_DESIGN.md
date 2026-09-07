@@ -9,8 +9,7 @@ replace tonnage: existing skirmishes, scenarios and Career prototypes remain
 tonnage-limited unless a creator explicitly selects a BV format.
 
 The playable standard is **BV2** (the modern revised Battle Value system,
-usually shown simply as “BV”). BV1 is legacy import metadata only; the game
-will neither calculate nor offer BV1 match limits.
+usually shown simply as “BV”).
 
 ## Product decisions
 
@@ -152,8 +151,6 @@ then custom designs continue to work in tonnage games only.
 
 ## Explicit non-goals
 
-- BV1 match balancing or conversion between BV1 and BV2.
 - Using Alpha Strike Point Value as a substitute for BV.
 - Estimating BV from tonnage, damage, or AI performance.
 - Altering BV after damage, ammunition expenditure, or a battle result.
-

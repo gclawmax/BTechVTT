@@ -51,6 +51,36 @@ Catalogue versions are immutable. Increment `catalogue_version` in the
 allowlist whenever its contents change, allowing active and saved matches to
 retain the definitions with which they started.
 
+## Import verified BV2 values
+
+BV2 is calculated by MegaMek; it is not an MTF header. Use MegaMek's
+`MekCacheCSVTool` to export its pipe-delimited `Units.txt` file from the same
+release as the unit data. Place that file at `local-data/megamek-bv2/Units.txt`
+and create the reviewed fixture:
+
+```text
+node tools/import-megamek-bv2.mjs \
+  --megamek-release 0.51.01 \
+  --source-revision <MegaMek-client-commit>
+```
+
+The importer joins every reviewed unit by its exact MegaMek source file. It
+fails on a missing, duplicate, malformed or unverified value; it never
+estimates Battle Value from tonnage or weapons. The generated fixture remains
+in ignored `local-data/` because it derives from MegaMek data.
+
+The current `megamek-2026-09-bv2-01` catalogue configuration requires that
+fixture. Run the normal content-pack builder with the same local data checkout:
+
+```text
+node tools/build-megamek-content-pack.mjs \
+  --bv-input local-data/megamek-bv2/supported-bv2.json
+```
+
+The generated release embeds each unit's BV2 stock value, standard G4/P5
+reference skills and MegaMek provenance into the pinned unit definition. This
+is data preparation only: BV match limits are delivered in BV-2 and BV-3.
+
 Unknown equipment makes supported-pack generation fail visibly instead of
 silently producing an incorrect playable BattleMech.
 

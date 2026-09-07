@@ -182,6 +182,7 @@ async function loadUnitCatalogue(catalogueVersion, forceReload = false) {
       tonnage: definition.mass,
       techBase: definition.tech_base || 'Inner Sphere',
       era: definition.era || null,
+      battleValue: definition.battle_value?.system === 'BV2' ? { ...definition.battle_value } : null,
       color: catalogueUnitColor(row.unit_id, index),
       movement: definition.movement,
       mechanical_jump_booster_mp: definition.mechanical_jump_booster_mp ?? definition.movement?.jump_booster ?? 0,

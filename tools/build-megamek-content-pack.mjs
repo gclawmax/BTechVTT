@@ -11,6 +11,7 @@ const DEFAULT_SOURCE = 'local-data/megamek-mm-data';
 const DEFAULT_CONFIG = 'config/supported-megamek-units.json';
 const DEFAULT_REGISTRY = 'local-data/btech-supported-registry.json';
 const DEFAULT_SQL = 'local-data/btech-supported-content-pack.sql';
+const DEFAULT_BV2 = 'local-data/megamek-bv2/supported-bv2.json';
 const ATTRIBUTION = 'MegaMek Data © 2025-2026 by The MegaMek Team — CC BY-NC-SA 4.0';
 const SOURCE_REPOSITORY = 'https://github.com/MegaMek/mm-data';
 
@@ -225,7 +226,7 @@ function structureFor(mass, config) {
   const [ct,side,arm,leg] = BIPED_STRUCTURE[mass];
   return { head:3,ct,lt:side,rt:side,la:arm,ra:arm,ll:leg,rl:leg };
 }
-function parseMtf(text, entry) {
+function parseMtf(text, entry, battleValue = null) {
   const lines = text.replaceAll('\r','').split('\n').map(line => line.trim()).filter(line => line && !line.startsWith('#'));
   const headers = headersFrom(lines);
   const mass = integer(headers.get('mass'));
@@ -249,7 +250,39 @@ function parseMtf(text, entry) {
       (!mount.definition.ammoType || ammoBins.some(bin => bin.ammo_type === mount.definition.ammoType))) &&
       Boolean(structureFor(mass, headers.get('config')))
   };
+  if (battleValue) definition.battle_value = battleValue;
   return { id:entry.id, source_uuid:headers.get('uuid') || null, source_file:entry.source, definition, mounts, criticals, ammo_bins:ammoBins };
+}
+
+async function loadBv2Fixture(path, config) {
+  let fixture;
+  try {
+    fixture = JSON.parse(await readFile(path, 'utf8'));
+  } catch (error) {
+    if (error?.code === 'ENOENT') throw new Error(`Verified MegaMek BV2 fixture not found at ${path}. Run tools/import-megamek-bv2.mjs before building this catalogue.`);
+    throw error;
+  }
+  if (fixture.schema !== 'btechvtt-megamek-bv2-01' || fixture.battle_value_system !== 'BV2') throw new Error('BV fixture is not a supported verified MegaMek BV2 export.');
+  if (fixture.reference_pilot?.gunnery !== 4 || fixture.reference_pilot?.piloting !== 5) throw new Error('BV fixture must use the standard Gunnery 4 / Piloting 5 reference pilot.');
+  if (!fixture.megamek_release || !fixture.source_revision || !fixture.records || typeof fixture.records !== 'object') throw new Error('BV fixture is missing MegaMek provenance or records.');
+  const values = new Map();
+  for (const unit of config.units) {
+    const record = fixture.records[unit.id];
+    if (!record || !Number.isInteger(record.stock_bv) || record.stock_bv <= 0 || normaliseSourcePath(record.source_file) !== normaliseSourcePath(unit.source)) {
+      throw new Error(`BV fixture has no verified BV2 value for ${unit.id}. Re-export MegaMek BV data before building this catalogue.`);
+    }
+    values.set(unit.id, {
+      system: 'BV2', stock:record.stock_bv, reference_pilot:{ gunnery:4, piloting:5 }, source:'megamek-calculator',
+      megamek_release:fixture.megamek_release, source_revision:fixture.source_revision, source_file:normaliseSourcePath(unit.source)
+    });
+  }
+  return values;
+}
+
+function normaliseSourcePath(value) {
+  const source = String(value || '').replaceAll('\\', '/');
+  const marker = source.toLowerCase().indexOf('data/mekfiles/');
+  return marker >= 0 ? source.slice(marker) : source.replace(/^\.\//, '');
 }
 
 function contentPack(registry) {
@@ -316,6 +349,7 @@ async function main() {
   const registryPath = option('--registry-output', DEFAULT_REGISTRY);
   const sqlPath = option('--sql-output', DEFAULT_SQL);
   const partsPath = option('--parts-output', `${sqlPath}.parts`);
+  const bv2Path = option('--bv-input', DEFAULT_BV2);
   const partBytes = integer(option('--part-bytes', '400000')) || 400_000;
   if (!basename(partsPath).endsWith('.sql.parts')) throw new Error('Parts output directory must end with .sql.parts');
   const selectedConfig = JSON.parse(await readFile(configPath, 'utf8'));
@@ -332,8 +366,9 @@ async function main() {
   const ids = config.units.map(entry => entry.id);
   if (new Set(ids).size !== ids.length) throw new Error('Catalogue config contains duplicate unit IDs');
   const compatibleOnly = process.argv.includes('--skip-unsupported');
+  const bv2Values = config.require_verified_bv2 ? await loadBv2Fixture(bv2Path, config) : new Map();
   const candidates = [];
-  for (const entry of config.units) candidates.push(parseMtf(await readFile(join(source, entry.source), 'utf8'), entry));
+  for (const entry of config.units) candidates.push(parseMtf(await readFile(join(source, entry.source), 'utf8'), entry, bv2Values.get(entry.id) || null));
   const unsupported = candidates.flatMap(unit => unit.mounts.filter(mount => !mount.weapon_key).map(mount => `${unit.id}: ${mount.raw_name}`));
   const unsupportedUnits = candidates.filter(unit => !unit.definition.supported_by_vtt).map(unit => unit.id);
   if ((unsupported.length || unsupportedUnits.length) && !compatibleOnly) {

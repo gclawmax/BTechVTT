@@ -65,7 +65,7 @@ adds Company HQ and authoritative repair/reload actions.
 1. **BV-1 through BV-5:** optional BV2 force balancing, starting with
    catalogue provenance and server-authoritative roster checks. See
    [Battle Value Design](BATTLE_VALUE_DESIGN.md). BV2 will complement rather
-   than replace tonnage limits; BV1 remains legacy import metadata only.
+   than replace tonnage limits.
 2. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
    factions and alternate origins — only after Career-1 settlement is proven.
 3. **Level 2 catalogue additions:** curated, catalogue-led systems not already
