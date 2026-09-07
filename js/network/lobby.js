@@ -21,6 +21,7 @@ let lobbyDeploymentIndex = 0;
 let lobbyMinefieldMode = null;
 let lobbyMinefieldDensity = 20;
 let lobbyVibrabombSensitivity = 50;
+let lobbyMinefieldView = [];
 
 async function loadProfileUnitFavourites() {
   if (!currentUser?.id || favouritesLoadedForUserId === currentUser.id) return;
@@ -254,6 +255,9 @@ async function loadLobbyUI() {
   }
   await loadProfileUnitFavourites();
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const minefieldView = await db.rpc('get_match_minefield_view', { p_game_id:currentGameId });
+  lobbyMinefieldView = minefieldView.error ? [] : (minefieldView.data || []);
+  gameState.minefields = lobbyMinefieldView;
   if (gameState.custom_scenario) registerCustomMapDefinition(gameState.custom_scenario);
   if (gameState.map_id) setActiveMap(gameState.map_id);
   setActiveTerrainState(gameState);
@@ -683,7 +687,9 @@ function renderLobbyDeployment(gameState) {
   const positions = gameState.deployment_positions?.[String(mySeatNumber)] || [];
   const minefields = gameState.minefields || [];
   const myMinefields = minefields.filter(field => Number(field.owner) === Number(mySeatNumber));
-  const minefieldAllowance = Number(gameState.minefield_allowance?.[String(mySeatNumber)] ?? 2);
+  const minefieldRules = gameState.minefield_rules || { budget:40, permitted_types:['conventional','vibrabomb'], permitted_densities:[10,20,30], vibrabomb_sensitivities:[20,30,40,50,60,70,80,90,100] };
+  const minefieldBudget = Number(minefieldRules.budget ?? 40);
+  const minefieldSpent = myMinefields.reduce((total, field) => total + Number(field.density || 0), 0);
   if (lobbyDeploymentIndex >= roster.length) lobbyDeploymentIndex = 0;
   const units = roster.map((id, index) => {
     const unit = getSupportedUnit(id);
@@ -702,7 +708,7 @@ function renderLobbyDeployment(gameState) {
     const canPlaceMech = mine && !owner && !terrainMovementBlocked(col, row);
     const field = myMinefields.find(candidate => Number(candidate.col) === col && Number(candidate.row) === row);
     const fieldIndex = field ? myMinefields.indexOf(field) : -1;
-    const canPlaceMine = lobbyMinefieldMode && myMinefields.length < minefieldAllowance && mine && !owner && !field && !['deep_water','shallow_water','building','impassable','magma_liquid'].includes(terrain);
+    const canPlaceMine = lobbyMinefieldMode && minefieldSpent + lobbyMinefieldDensity <= minefieldBudget && mine && !owner && !field && !['deep_water','shallow_water','building','impassable','magma_liquid'].includes(terrain);
     const handler = field ? `removeLobbyMinefield(${fieldIndex})` : lobbyMinefieldMode ? `placeLobbyMinefield(${col},${row})` : `placeLobbyDeployment(${col},${row})`;
     const canInteract = Boolean(field || (lobbyMinefieldMode ? canPlaceMine : canPlaceMech));
     const action = canInteract ? `onclick="${handler}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${handler}}"` : '';
@@ -715,7 +721,7 @@ function renderLobbyDeployment(gameState) {
   const hiddenTerrain = selected && !['clear','pavement','bridge','shallow_water','deep_water'].includes(terrainAt(selected.col,selected.row));
   const hiddenControl = selected ? `<button ${hiddenTerrain ? '' : 'disabled'} onclick="toggleLobbyHiddenDeployment()" title="Hidden BattleMechs must begin in legal non-clear, non-paved terrain.">${selected.hidden ? '✓ Hidden' : 'Hide Unit'}</button>` : '';
   const minePlan = myMinefields.length ? `<div class="minefield-plan">${myMinefields.map((field,index)=>`<div class="minefield-plan-row"><span><strong>${hexCode(field.col,field.row)}</strong> · ${escapeHtml(field.type==='vibrabomb'?`Vibrabomb ${field.sensitivity}t`:'Conventional')} · density ${Number(field.density)}</span><button onclick="removeLobbyMinefield(${index})" title="Remove this minefield from your deployment plan.">Remove</button></div>`).join('')}</div>` : '<span class="deployment-help">No minefields planned. Minefields are optional.</span>';
-  const mineControls = minefieldAllowance ? `<div class="deployment-unit-row"><span class="deployment-help">Minefield plan ${myMinefields.length}/${minefieldAllowance}:</span><button class="${lobbyMinefieldMode==='conventional'?'selected':''}" onclick="setLobbyMinefieldMode('conventional')" title="Keep this tool selected while placing conventional minefields.">Conventional</button><button class="${lobbyMinefieldMode==='vibrabomb'?'selected':''}" onclick="setLobbyMinefieldMode('vibrabomb')" title="Keep this tool selected while placing weight-sensitive vibrabombs.">Vibrabomb</button><label class="deployment-help">Density <select onchange="lobbyMinefieldDensity=Number(this.value)"><option ${lobbyMinefieldDensity===10?'selected':''}>10</option><option ${lobbyMinefieldDensity===20?'selected':''}>20</option><option ${lobbyMinefieldDensity===30?'selected':''}>30</option></select></label>${lobbyMinefieldMode==='vibrabomb'?`<label class="deployment-help">Trigger weight <select onchange="lobbyVibrabombSensitivity=Number(this.value)">${[20,30,40,50,60,70,80,90,100].map(value=>`<option ${lobbyVibrabombSensitivity===value?'selected':''}>${value}</option>`).join('')}</select> t</label>`:''}<button ${myMinefields.length?'':'disabled'} onclick="resetLobbyMinefields()">Clear Plan</button></div>${minePlan}` : '';
+  const mineControls = minefieldBudget ? `<div class="deployment-unit-row"><span class="deployment-help">Minefield budget ${minefieldSpent}/${minefieldBudget}:</span>${(minefieldRules.permitted_types || []).map(type => `<button class="${lobbyMinefieldMode===type?'selected':''}" onclick="setLobbyMinefieldMode('${type}')" title="Keep this tool selected while placing ${type} minefields.">${type === 'vibrabomb' ? 'Vibrabomb' : 'Conventional'}</button>`).join('')}<label class="deployment-help">Density <select onchange="lobbyMinefieldDensity=Number(this.value);loadLobbyUI()">${(minefieldRules.permitted_densities || [10,20,30]).map(value=>`<option ${lobbyMinefieldDensity===Number(value)?'selected':''}>${value}</option>`).join('')}</select></label>${lobbyMinefieldMode==='vibrabomb'?`<label class="deployment-help">Trigger weight <select onchange="lobbyVibrabombSensitivity=Number(this.value)">${(minefieldRules.vibrabomb_sensitivities || [50]).map(value=>`<option ${lobbyVibrabombSensitivity===Number(value)?'selected':''}>${value}</option>`).join('')}</select> t</label>`:''}<button ${myMinefields.length?'':'disabled'} onclick="resetLobbyMinefields()">Clear Plan</button></div>${minePlan}` : '<span class="deployment-help">This scenario does not permit minefields.</span>';
   target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Hidden units require concealing terrain. Select a minefield type, then a legal unoccupied hex; enemy fields remain concealed.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}${hiddenControl}</div>` : ''}${mineControls}<svg class="deployment-map" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" aria-label="Battlefield deployment hexes">${cells.join('')}</svg><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
 }
 
@@ -733,16 +739,16 @@ async function placeLobbyMinefield(col,row) {
   if(!lobbyMinefieldMode)return;
   const state=await currentLobbyState();
   if(!state)return;
-  const plan=(state.minefields||[]).filter(field=>Number(field.owner)===Number(mySeatNumber)).map(lobbyMinefieldDeclaration);
+  const plan=lobbyMinefieldView.filter(field=>Number(field.owner)===Number(mySeatNumber)).map(lobbyMinefieldDeclaration);
   plan.push({col,row,type:lobbyMinefieldMode,density:lobbyMinefieldDensity,sensitivity:lobbyVibrabombSensitivity});
   if(await saveLobbyMinefieldPlan(plan))await loadLobbyUI();
 }
 
-async function currentLobbyState(){const {data:game,error}=await db.from('btech_games').select('state').eq('id',currentGameId).single();if(error||!game){document.getElementById('lobby-status').textContent=`Could not load the current minefield plan: ${error?.message||'match unavailable'}`;return null;}return game.state?(typeof game.state==='string'?JSON.parse(game.state):game.state):{};}
+async function currentLobbyState(){const {data:game,error}=await db.from('btech_games').select('state').eq('id',currentGameId).single();if(error||!game){document.getElementById('lobby-status').textContent=`Could not load the current minefield plan: ${error?.message||'match unavailable'}`;return null;}const state=game.state?(typeof game.state==='string'?JSON.parse(game.state):game.state):{};state.minefields=lobbyMinefieldView;return state;}
 function lobbyMinefieldDeclaration(field){return{col:Number(field.col),row:Number(field.row),type:field.type,density:Number(field.density),sensitivity:Number(field.sensitivity||50)};}
-async function saveLobbyMinefieldPlan(plan){const {error}=await db.rpc('set_match_minefield_plan',{p_game_id:currentGameId,p_minefields:plan});if(error){document.getElementById('lobby-status').textContent=`Minefield plan rejected: ${error.message}. Apply SQL 127 before using the revised planner.`;return false;}isReady=false;return true;}
-async function removeLobbyMinefield(index){const state=await currentLobbyState();if(!state)return;const plan=(state.minefields||[]).filter(field=>Number(field.owner)===Number(mySeatNumber)).map(lobbyMinefieldDeclaration);if(index<0||index>=plan.length)return;plan.splice(index,1);if(await saveLobbyMinefieldPlan(plan))await loadLobbyUI();}
-async function resetLobbyMinefields(){const state=await currentLobbyState();if(!state)return;const count=(state.minefields||[]).filter(field=>Number(field.owner)===Number(mySeatNumber)).length;if(!count)return;if(!confirm(`Remove all ${count} minefield${count===1?'':'s'} from your plan?`))return;if(await saveLobbyMinefieldPlan([])){lobbyMinefieldMode=null;await loadLobbyUI();}}
+async function saveLobbyMinefieldPlan(plan){const {error}=await db.rpc('set_match_minefield_plan',{p_game_id:currentGameId,p_minefields:plan});if(error){document.getElementById('lobby-status').textContent=`Minefield plan rejected: ${error.message}. Apply SQL 130 before using private minefield planning.`;return false;}isReady=false;return true;}
+async function removeLobbyMinefield(index){const plan=lobbyMinefieldView.filter(field=>Number(field.owner)===Number(mySeatNumber)).map(lobbyMinefieldDeclaration);if(index<0||index>=plan.length)return;plan.splice(index,1);if(await saveLobbyMinefieldPlan(plan))await loadLobbyUI();}
+async function resetLobbyMinefields(){const count=lobbyMinefieldView.filter(field=>Number(field.owner)===Number(mySeatNumber)).length;if(!count)return;if(!confirm(`Remove all ${count} minefield${count===1?'':'s'} from your plan?`))return;if(await saveLobbyMinefieldPlan([])){lobbyMinefieldMode=null;await loadLobbyUI();}}
 
 async function selectLobbyDeploymentUnit(index) {
   const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
@@ -894,6 +900,10 @@ async function handleStartGame() {
     document.getElementById('lobby-status').textContent = 'Each force must be legal and fully deployed before the match can start.';
     return;
   }
+  if (vsAiMode) {
+    const { error } = await db.rpc('seed_ai_minefield_plan', { p_game_id:currentGameId });
+    if (error) { document.getElementById('lobby-status').textContent = `AI minefield setup rejected: ${error.message}`; return; }
+  }
   // SQL 123 forbids replacing units after play starts. Persist the complete
   // configured roster before any human or AI phase action can be submitted.
   gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars, gameState.deployment_positions, gameState.c3_assignments, gameState);
@@ -994,6 +1004,8 @@ function subscribeGameStateSync() {
         currentGameState.phase = remote.current_phase || currentGameState.phase;
         currentGameState.initiative_winner = remote.initiative_winner;
         const gs = remote.state ? (typeof remote.state === 'string' ? JSON.parse(remote.state) : remote.state) : {};
+        const minefieldView = await db.rpc('get_match_minefield_view', { p_game_id:currentGameId });
+        gs.minefields = minefieldView.error ? [] : (minefieldView.data || []);
         if (remote.catalogue_version) await loadUnitCatalogue(remote.catalogue_version);
         setActiveMap(gs.map_id);
         currentMatchConfig = {
@@ -1003,6 +1015,7 @@ function subscribeGameStateSync() {
           ...(typeof gs.vs_ai_mode === 'boolean' ? { vs_ai_mode: gs.vs_ai_mode } : {}),
           ...(gs.ai_difficulty ? { ai_difficulty: gs.ai_difficulty } : {}),
           ...(gs.ai_personality ? { ai_personality: gs.ai_personality } : {}),
+          minefields: gs.minefields,
           ...(remote.catalogue_version ? { catalogue_version: remote.catalogue_version } : {})
         };
         // Realtime updates must update this too: a tab may previously have

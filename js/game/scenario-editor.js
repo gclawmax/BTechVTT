@@ -17,6 +17,14 @@ let scenarioEditorState = null;
 let scenarioEditorTool = { type: 'terrain', value: 'light_woods' };
 let scenarioEditorPainting = false;
 
+function normalizeMinefieldRules(input) {
+  const source = input && typeof input === 'object' ? input : {};
+  const permittedTypes = [...new Set((Array.isArray(source.permitted_types) ? source.permitted_types : ['conventional', 'vibrabomb']).filter(type => ['conventional', 'vibrabomb'].includes(type)))];
+  const permittedDensities = [...new Set((Array.isArray(source.permitted_densities) ? source.permitted_densities : [10, 20, 30]).map(Number).filter(value => [10, 20, 30].includes(value)))];
+  const sensitivities = [...new Set((Array.isArray(source.vibrabomb_sensitivities) ? source.vibrabomb_sensitivities : [20,30,40,50,60,70,80,90,100]).map(Number).filter(value => value >= 20 && value <= 100 && value % 10 === 0))];
+  return { budget:Math.max(0, Math.min(120, Number(source.budget) || 40)), permitted_types:permittedTypes.length ? permittedTypes : ['conventional'], permitted_densities:permittedDensities.length ? permittedDensities : [10], vibrabomb_sensitivities:sensitivities.length ? sensitivities : [50] };
+}
+
 const SCENARIO_SIZE_PRESETS = Object.freeze([
   ['single', 16, 17, 'Standard single sheet · 16 × 17'],
   ['dual-vertical', 16, 34, 'Dual sheets end-to-end · 16 × 34'],
@@ -54,7 +62,8 @@ function newScenarioEditorState() {
     victory_mode: 'annihilation',
     terrain: {}, elevation: {},
     deployment_zones: defaultScenarioDeploymentZones(),
-    objective_hexes: []
+    objective_hexes: [],
+    minefield_rules: normalizeMinefieldRules()
   };
 }
 
@@ -86,7 +95,8 @@ function normalizeScenarioDefinition(input) {
     victory_mode: ['annihilation', 'control', 'breakthrough'].includes(source.victory_mode) ? source.victory_mode : 'annihilation',
     terrain, elevation,
     deployment_zones: { '1': zoneOne, '2': cleanZone(2).filter(code => !zoneOneSet.has(code)) },
-    objective_hexes: [...new Set((Array.isArray(source.objective_hexes) ? source.objective_hexes : []).filter(valid))]
+    objective_hexes: [...new Set((Array.isArray(source.objective_hexes) ? source.objective_hexes : []).filter(valid))],
+    minefield_rules: normalizeMinefieldRules(source.minefield_rules)
   };
 }
 
@@ -154,6 +164,16 @@ function scenarioEditorSetField(field, value) {
   const status = document.getElementById('scenario-editor-status');
   if (status) status.textContent = '';
   if (field === 'victory_mode') renderScenarioEditorMap();
+}
+function scenarioEditorSetMinefieldRule(field, value) {
+  if (!scenarioEditorState) return;
+  scenarioEditorState.minefield_rules = normalizeMinefieldRules({ ...scenarioEditorState.minefield_rules, [field]: field === 'budget' ? Number(value) : value });
+  renderScenarioEditor();
+}
+function scenarioEditorToggleMinefieldType(type) {
+  const rules = normalizeMinefieldRules(scenarioEditorState?.minefield_rules);
+  const types = rules.permitted_types.includes(type) ? rules.permitted_types.filter(item => item !== type) : [...rules.permitted_types, type];
+  scenarioEditorSetMinefieldRule('permitted_types', types.length ? types : ['conventional']);
 }
 
 function selectScenarioEditorTool(type, value) {
@@ -228,6 +248,7 @@ function renderScenarioEditor() {
       <label>Player instructions<textarea maxlength="600" oninput="scenarioEditorSetField('instructions',this.value)">${scenarioEditorEscape(scenarioEditorState.instructions)}</textarea></label>
       <label>Tonnage per player<select onchange="scenarioEditorSetField('dropship_tonnage',this.value)">${[100,150,200,250].map(value => `<option value="${value}" ${scenarioEditorState.dropship_tonnage === value ? 'selected' : ''}>${value} tons</option>`).join('')}</select></label>
       <label>Victory condition<select onchange="scenarioEditorSetField('victory_mode',this.value)"><option value="annihilation" ${scenarioEditorState.victory_mode === 'annihilation' ? 'selected' : ''}>Annihilation</option><option value="control" ${scenarioEditorState.victory_mode === 'control' ? 'selected' : ''}>Objective Control</option><option value="breakthrough" ${scenarioEditorState.victory_mode === 'breakthrough' ? 'selected' : ''}>Breakthrough</option></select></label>
+      <fieldset class="scenario-minefield-rules"><legend>Minefield rules</legend><label>Budget per side<select onchange="scenarioEditorSetMinefieldRule('budget',this.value)">${[0,10,20,30,40,50,60,80,100,120].map(value => `<option value="${value}" ${scenarioEditorState.minefield_rules.budget === value ? 'selected' : ''}>${value} points</option>`).join('')}</select></label><span class="deployment-help">Density costs the same number of points: 10 / 20 / 30.</span><label class="scenario-editor-check"><input type="checkbox" ${scenarioEditorState.minefield_rules.permitted_types.includes('conventional') ? 'checked' : ''} onchange="scenarioEditorToggleMinefieldType('conventional')"> Conventional fields</label><label class="scenario-editor-check"><input type="checkbox" ${scenarioEditorState.minefield_rules.permitted_types.includes('vibrabomb') ? 'checked' : ''} onchange="scenarioEditorToggleMinefieldType('vibrabomb')"> Vibrabombs</label></fieldset>
       <label>Generation seed<input id="scenario-seed" maxlength="64" value="${scenarioEditorEscape(scenarioEditorState.generation_seed)}"></label><label>Terrain density<select id="scenario-density"><option value="15">Light</option><option value="25" selected>Balanced</option><option value="40">Dense</option></select></label><label>Terrain pattern<select id="scenario-pattern"><option value="balanced">Balanced terrain</option><option value="ridge">Ridge line</option><option value="river">River crossing</option><option value="urban">Industrial district</option></select></label><label class="scenario-editor-check"><input id="scenario-symmetry" type="checkbox" checked> Mirror for a fair duel</label><button class="scenario-generate" onclick="generateScenarioEditorMap()">Generate Terrain</button><div class="scenario-editor-file-actions"><button onclick="saveScenarioEditorDraft()">Save Draft</button><button onclick="exportScenarioEditor()">Export JSON</button><label class="scenario-import-button">Import JSON<input id="scenario-import-input" type="file" accept="application/json,.json" onchange="importScenarioEditor(this.files[0])"></label></div>
       <button class="scenario-launch" onclick="launchScenarioEditorMatch()">Create Two-Player Lobby</button><button class="scenario-launch scenario-launch-ai" onclick="launchScenarioEditorVsAI()">Play This Map vs AI</button><div id="scenario-editor-status" role="status"></div>
     </aside><main class="scenario-editor-workspace"><div class="scenario-editor-tools"><section><strong>Terrain</strong><div>${terrainButtons}</div></section><section><strong>Elevation</strong><div>${elevationButtons}</div></section><section><strong>Scenario markers</strong><div><button data-scenario-tool="zone:1" class="scenario-tool zone-one-tool" onclick="selectScenarioEditorTool('zone','1')">Player 1 Deployment</button><button data-scenario-tool="zone:2" class="scenario-tool zone-two-tool" onclick="selectScenarioEditorTool('zone','2')">Player 2 Deployment</button><button data-scenario-tool="objective:toggle" class="scenario-tool objective-tool" onclick="selectScenarioEditorTool('objective','toggle')">Objective</button></div></section><section><strong>Starting layout</strong><div><select id="scenario-template-map">${Object.entries(BT_MAPS).map(([id,map]) => `<option value="${id}">${scenarioEditorEscape(map.name)}</option>`).join('')}</select><button onclick="loadScenarioEditorTemplate()">Load Built-in Map</button><button onclick="clearScenarioEditorMap()">Clear Map</button></div></section></div><div id="scenario-editor-map"></div><p class="scenario-editor-help">Click or drag to paint terrain/elevation. Deployment and objective tools toggle one hex at a time. Blue is Player 1; red is Player 2; ◆ marks objectives.</p></main></div>`;

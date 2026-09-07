@@ -88,17 +88,19 @@ are deleted automatically and a failed fixture is retained by its game code.
 
 ## GM-4 — complete minefield setup and counterplay
 
-- Replace the temporary field-count allowance with an explicit scenario budget
-  and document how density spends that budget.
-- Add scenario-editor controls for allowance, permitted mine types, density and
-  vibrabomb sensitivity.
-- Audit private-state delivery so unrevealed enemy fields are not present in a
-  player-readable payload.
-- Add legal deployment, trigger, depletion, probe detection, ECM interference,
-  replay and AAR live fixtures.
+- **Implemented in build `20260907-gm4-private-minefields-78`; SQL 130 is
+  required.** Minefields are stored outside participant-readable match state.
+  Each player receives only owned or detected fields; the server retains the
+  complete field for movement, detection, ECM and detonation. Custom scenarios
+  now define a per-side point budget (density costs 10/20/30 points), permitted
+  mine types, densities and vibrabomb sensitivities.
+- The ordinary deployment, movement, probe, ECM, detonation and replay/AAR
+  regressions now cover the shared rules path; run the dedicated GM-4 static
+  contract after each build, then the live soak after SQL 130 is deployed.
 
-Acceptance: setup choices, hidden information and every supported trigger are
-authoritative and reproducible.
+Acceptance: `node tools/test-private-minefields.mjs` verifies the release
+contract locally; deployed soak and focused movement fixtures verify the
+authoritative trigger path.
 
 ## GM-5 — balance and long-run evaluation
 

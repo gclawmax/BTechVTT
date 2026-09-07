@@ -86,6 +86,10 @@ async function loadGameState() {
   if (gameState.custom_scenario) registerCustomMapDefinition(gameState.custom_scenario);
   const scenarioRepair = await repairScenarioCatalogueUnitIds(game, gameState);
   gameState = scenarioRepair.state;
+  // SQL 130 keeps unrevealed minefields outside shared match state. Fetch the
+  // per-seat view before rendering the board or passing a state to the AI.
+  const minefieldView = await db.rpc('get_match_minefield_view', { p_game_id:currentGameId });
+  gameState.minefields = minefieldView.error ? [] : (minefieldView.data || []);
   if (scenarioRepair.repaired) await loadUnitCatalogue(scenarioRepair.game.catalogue_version, true);
   const unavailableCatalogueUnits = await verifyMatchCatalogueUnits(game.catalogue_version, gameState.mech_instances);
   if (unavailableCatalogueUnits.length) {
@@ -115,8 +119,8 @@ async function loadGameState() {
     ...(gameState.terrain_advanced_after_round != null ? { terrain_advanced_after_round: gameState.terrain_advanced_after_round } : {}),
     ...(gameState.wind_direction != null ? { wind_direction: gameState.wind_direction } : {}),
     ...(gameState.terrain_events ? { terrain_events: gameState.terrain_events } : {}),
-    ...(gameState.minefields ? { minefields: gameState.minefields } : {}),
-    ...(gameState.minefield_allowance ? { minefield_allowance: gameState.minefield_allowance } : {}),
+    minefields: gameState.minefields,
+    ...(gameState.minefield_rules ? { minefield_rules: gameState.minefield_rules } : {}),
     ...(gameState.detection_events ? { detection_events: gameState.detection_events } : {}),
     ...(gameState.victory_mode ? { victory_mode: gameState.victory_mode } : {}),
     ...(gameState.objective_hexes ? { objective_hexes: gameState.objective_hexes } : {}),

@@ -71,6 +71,7 @@ try {
   await run('node', ['tools/test-ai-evaluation.mjs'], {}, 'AI-7 evaluation and retention regression');
   await run('node', ['tools/test-game-modes-regression.mjs'], {}, 'objective modes and minefield planning regression');
   await run('node', ['tools/test-game-modes-matrix.mjs'], {}, 'authoritative game-mode matrix regression');
+  await run('node', ['tools/test-private-minefields.mjs'], {}, 'private minefield and scenario-budget regression');
   await run('node', ['tools/test-vs-ai-game-modes.mjs'], {}, 'configurable Play vs AI regression');
   if (!suppliedUrl) {
     server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
