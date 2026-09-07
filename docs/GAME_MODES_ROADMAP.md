@@ -65,6 +65,12 @@ the GM-2 setup regression; live mode-matrix coverage remains GM-3.
 
 ## GM-3 — authoritative live mode matrix
 
+- **Implemented in build `20260907-gm3-authoritative-modes-76`; SQL 128 is
+  required.** The server records each point-awarding Control objective and
+  unique Breakthrough crossing in `scenario_score_events`. They become part of
+  immutable replay snapshots and sealed reports, so an outcome can be
+  explained without reconstructing it from the prose log. Minefields remain
+  excluded from shared snapshots until GM-4 can provide private views.
 - Add dedicated live fixtures for uncontested and contested Control scoring,
   threshold victory, simultaneous threshold draws and elimination fallback.
 - Test two unique Breakthrough scorers, repeat-entry idempotence, custom
@@ -73,7 +79,9 @@ the GM-2 setup regression; live mode-matrix coverage remains GM-3.
   Reports for each result reason.
 
 Acceptance: every rules case is proven through the deployed server functions,
-not only browser simulation.
+not only browser simulation. Run `node tools/test-game-modes-live.mjs` after
+SQL 128 to exercise the deployed Heat round-end lifecycle; passing fixtures
+are deleted automatically and a failed fixture is retained by its game code.
 
 ## GM-4 — complete minefield setup and counterplay
 
