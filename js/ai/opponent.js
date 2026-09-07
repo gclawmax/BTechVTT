@@ -941,6 +941,7 @@ async function executeAIPlan(aiPlan) {
 
   if (['movement', 'reaction', 'weapon_attack', 'physical_attack'].includes(plannedPhase)) await finalizeAIDecisionRecord();
   else if (plannedPhase === 'heat') await syncMechInstances();
+  return !decisionFailed;
 }
 
 async function executeAISpecialMovement(action) {
@@ -1087,10 +1088,10 @@ async function aiTurnHandler() {
     const aiPlan = generateAIPlan(difficulty, null, gameState, []);
 
     // Execute AI plan
-    await executeAIPlan(aiPlan);
+    const completed = await executeAIPlan(aiPlan);
 
-    logEvent('AI turn complete.', 'system');
-    return true;
+    logEvent(completed ? 'AI turn complete.' : 'AI turn paused after a failed action.', completed ? 'system' : 'error');
+    return completed;
   } finally {
     aiTurnInProgress = false;
   }

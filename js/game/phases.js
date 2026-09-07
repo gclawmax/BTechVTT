@@ -13,6 +13,7 @@ const AUTO_ADVANCE_AI_STORAGE_KEY = 'btech-vtt-auto-advance-after-ai';
 let autoAdvanceAfterAi = localStorage.getItem(AUTO_ADVANCE_AI_STORAGE_KEY) === 'true';
 let autoAdvanceRetryTimer = null;
 let scheduledAiTurnKey = null;
+let failedAiTurnKey = null;
 let myInitiativePlayerId = null;
 const roundOneAmmoChoices = {};
 const roundOneAmmoPrompted = new Set();
@@ -365,6 +366,8 @@ function scheduleActiveAiTurn() {
   if (!vsAiMode || !activeEntry?.is_ai || !aiPhase) return;
 
   const turnKey = `${currentGameId}:${currentGameState.round}:${currentGameState.phase}:${currentGameState.active_player_id}`;
+  if (failedAiTurnKey && failedAiTurnKey !== turnKey) failedAiTurnKey = null;
+  if (failedAiTurnKey === turnKey) return;
   if (scheduledAiTurnKey === turnKey || aiTurnInProgress) return;
   scheduledAiTurnKey = turnKey;
   setTimeout(async () => {
@@ -375,6 +378,10 @@ function scheduleActiveAiTurn() {
     const aiCompleted = await aiTurnHandler();
     updateAdvanceButtonState();
     if (aiCompleted) await autoAdvanceAfterAiTurn();
+    else {
+      failedAiTurnKey = turnKey;
+      logEvent('AI activation paused after a failed action. It will not retry until the match state changes or the game is reloaded.', 'error');
+    }
   }, 500);
 }
 
