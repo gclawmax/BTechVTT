@@ -7,7 +7,7 @@ const AI_EVALUATION_DIFFICULTIES = ['beginner','intermediate','advanced','expert
 const AI_EVALUATION_PERSONALITIES = ['balanced','aggressive','cautious','brawler','sniper','objective'];
 const AI_EVALUATION_MAPS = ['training-grounds','woodland-approach','ridge-and-ford','industrial-crossing','weathered-frontier','standard-single-sheet'];
 const AI_EVALUATION_VICTORIES = ['annihilation','control','breakthrough'];
-const AI_EVALUATION_BALANCE_LIMITS = Object.freeze({ minimumAppearances:3, seatWinRateGap:25, timeoutRate:40, noScoreRate:60 });
+const AI_EVALUATION_BALANCE_LIMITS = Object.freeze({ minimumAppearances:3, minimumPairedComparisons:10, seatWinRateGap:25, roundLimitAdjudicationRate:40, noScoreRate:60 });
 
 function aiEvaluationRegisterGM5Maps() {
   // These are deliberately generated fixtures rather than saved player maps.
@@ -248,8 +248,8 @@ async function runSingleAIEvaluation(config) {
       seatMetrics.unusedWeaponRate=Number((seatMetrics.unusedViableWeapons/Math.max(1,seatMetrics.viableWeapons)*100).toFixed(1));
     }
     const objectiveWinner=config.victory==='control' ? Math.max(Number(match.objectiveScores['1']),Number(match.objectiveScores['2']))>=5 : config.victory==='breakthrough' ? Math.max(Number(match.objectiveScores['1']),Number(match.objectiveScores['2']))>=2 : false;
-    const timedOut=winner!==null&&match.round>=config.maxRounds&&!objectiveWinner&&mechInstances.some(mech=>mech.owner===1&&!mech.destroyed)&&mechInstances.some(mech=>mech.owner===2&&!mech.destroyed);
-    return {id:config.id,pairId:config.pairId||null,mirrored:Boolean(config.mirrored),seed:config.seed,mapId:config.mapId,mapKind:config.mapKind||'built-in',victory:config.victory,ruleset:config.ruleset,sides:config.sides,units:{'1':forceOne,'2':forceTwo},rounds:match.round,winner,timedOut,timeToObjectiveRound:match.timeToObjectiveRound,
+    const roundLimitAdjudication=winner!==null&&match.round>=config.maxRounds&&!objectiveWinner&&mechInstances.some(mech=>mech.owner===1&&!mech.destroyed)&&mechInstances.some(mech=>mech.owner===2&&!mech.destroyed);
+    return {id:config.id,pairId:config.pairId||null,mirrored:Boolean(config.mirrored),seed:config.seed,mapId:config.mapId,mapKind:config.mapKind||'built-in',victory:config.victory,ruleset:config.ruleset,sides:config.sides,units:{'1':forceOne,'2':forceTwo},rounds:match.round,winner,roundLimitAdjudication,timeToObjectiveRound:match.timeToObjectiveRound,
       objectiveScores:match.objectiveScores,remainingDurability:Object.fromEntries([1,2].map(seat=>[String(seat),Number((mechInstances.filter(mech=>mech.owner===seat&&!mech.destroyed).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)/Math.max(1,match.startDurability[String(seat)])*100).toFixed(1))])),
       metrics:{...metrics,meanDecisionMs:Number((metrics.decisionMs/Math.max(1,metrics.decisions)).toFixed(3)),maxDecisionMs:Number(metrics.maxDecisionMs.toFixed(3)),heatEfficiency:Number((metrics.damage/Math.max(1,metrics.heatGenerated)).toFixed(3)),unusedWeaponRate:Number((metrics.unusedViableWeapons/Math.max(1,metrics.viableWeapons)*100).toFixed(1)),durationMs:Number(duration.toFixed(1))},
       metricsBySeat,
@@ -263,7 +263,7 @@ async function runSingleAIEvaluation(config) {
 
 function summarizeAIEvaluation(matches) {
   const summary={matches:matches.length,completed:0,draws:0,failures:0,illegalActions:0,stalls:0,rounds:0,decisions:0,damage:0,heatGenerated:0,heatDissipated:0,unusedViableWeapons:0,viableWeapons:0,decisionMs:0,maxDecisionMs:0,objectivePoints:0,byDifficulty:{},byPersonality:{},byMap:{},byVictory:{}};
-  const group=(collection,key)=>collection[key]||(collection[key]={appearances:0,wins:0,losses:0,draws:0,seatOneWins:0,seatTwoWins:0,winRate:0,damage:0,heatGenerated:0,heatEfficiency:0,viableWeapons:0,unusedViableWeapons:0,unusedWeaponRate:0,objectivePoints:0,scoreDifferential:0,timeToObjectiveTotal:0,timeToObjectiveSamples:0,timeouts:0,nonScoring:0});
+  const group=(collection,key)=>collection[key]||(collection[key]={appearances:0,wins:0,losses:0,draws:0,seatOneWins:0,seatTwoWins:0,pairedComparisons:0,pairedSeatOneAdvantages:0,pairedSeatTwoAdvantages:0,pairedSplitOutcomes:0,winRate:0,damage:0,heatGenerated:0,heatEfficiency:0,viableWeapons:0,unusedViableWeapons:0,unusedWeaponRate:0,objectivePoints:0,scoreDifferential:0,timeToObjectiveTotal:0,timeToObjectiveSamples:0,roundLimitAdjudications:0,nonScoring:0});
   for(const match of matches) {
     summary.completed+=match.winner===null?0:1; summary.draws+=match.winner===0?1:0; summary.failures+=match.failed?1:0;
     for(const key of ['illegalActions','stalls','decisions','damage','heatGenerated','heatDissipated','unusedViableWeapons','viableWeapons']) summary[key]+=Number(match.metrics?.[key]||0);
@@ -273,12 +273,18 @@ function summarizeAIEvaluation(matches) {
       if(!key) continue; const item=group(collection,key),seatMetrics=match.metricsBySeat?.[String(seat)]||{}; item.appearances++; if(match.winner===0)item.draws++;else if(match.winner===seat)item.wins++;else item.losses++;
       item.damage+=Number(seatMetrics.damage||0); item.heatGenerated+=Number(seatMetrics.heatGenerated||0); item.viableWeapons+=Number(seatMetrics.viableWeapons||0); item.unusedViableWeapons+=Number(seatMetrics.unusedViableWeapons||0); item.objectivePoints+=Number(match.objectiveScores?.[String(seat)]||0);
     }
-    for(const [collection,key] of [[summary.byMap,match.mapId],[summary.byVictory,match.victory]]) {const item=group(collection,key);item.appearances++;item.completed=(item.completed||0)+(match.winner===null?0:1);item.draws+=match.winner===0?1:0;item.seatOneWins+=(match.winner===1?1:0);item.seatTwoWins+=(match.winner===2?1:0);item.failures=(item.failures||0)+(match.failed?1:0);item.rounds=(item.rounds||0)+Number(match.rounds||0);item.objectivePoints+=Number(match.objectiveScores?.['1']||0)+Number(match.objectiveScores?.['2']||0);item.scoreDifferential+=Math.abs(Number(match.objectiveScores?.['1']||0)-Number(match.objectiveScores?.['2']||0));item.timeouts+=match.timedOut?1:0;if(match.victory!=='annihilation'&&!(Number(match.objectiveScores?.['1'])+Number(match.objectiveScores?.['2'])))item.nonScoring++;if(Number.isFinite(match.timeToObjectiveRound)){item.timeToObjectiveTotal+=match.timeToObjectiveRound;item.timeToObjectiveSamples++;}}
+    for(const [collection,key] of [[summary.byMap,match.mapId],[summary.byVictory,match.victory]]) {const item=group(collection,key);item.appearances++;item.completed=(item.completed||0)+(match.winner===null?0:1);item.draws+=match.winner===0?1:0;item.seatOneWins+=(match.winner===1?1:0);item.seatTwoWins+=(match.winner===2?1:0);item.failures=(item.failures||0)+(match.failed?1:0);item.rounds=(item.rounds||0)+Number(match.rounds||0);item.objectivePoints+=Number(match.objectiveScores?.['1']||0)+Number(match.objectiveScores?.['2']||0);item.scoreDifferential+=Math.abs(Number(match.objectiveScores?.['1']||0)-Number(match.objectiveScores?.['2']||0));item.roundLimitAdjudications+=match.roundLimitAdjudication?1:0;if(match.victory!=='annihilation'&&!(Number(match.objectiveScores?.['1'])+Number(match.objectiveScores?.['2'])))item.nonScoring++;if(Number.isFinite(match.timeToObjectiveRound)){item.timeToObjectiveTotal+=match.timeToObjectiveRound;item.timeToObjectiveSamples++;}}
   }
   for(const collection of [summary.byDifficulty,summary.byPersonality]) for(const item of Object.values(collection)) {
     item.winRate=Number((item.wins/Math.max(1,item.wins+item.losses)*100).toFixed(1)); item.heatEfficiency=Number((item.damage/Math.max(1,item.heatGenerated)).toFixed(3)); item.unusedWeaponRate=Number((item.unusedViableWeapons/Math.max(1,item.viableWeapons)*100).toFixed(1));
   }
-  for(const collection of [summary.byMap,summary.byVictory]) for(const item of Object.values(collection)) {item.averageRounds=Number(((item.rounds||0)/Math.max(1,item.appearances)).toFixed(2));item.averageObjectivePoints=Number((item.objectivePoints/Math.max(1,item.appearances)).toFixed(2));item.averageScoreDifferential=Number((item.scoreDifferential/Math.max(1,item.appearances)).toFixed(2));item.averageTimeToObjective=item.timeToObjectiveSamples?Number((item.timeToObjectiveTotal/item.timeToObjectiveSamples).toFixed(2)):null;item.timeoutRate=Number((item.timeouts/Math.max(1,item.appearances)*100).toFixed(1));item.noScoreRate=Number((item.nonScoring/Math.max(1,item.appearances)*100).toFixed(1));item.seatOneWinRate=Number((item.seatOneWins/Math.max(1,item.seatOneWins+item.seatTwoWins)*100).toFixed(1));}
+  const paired=new Map();
+  for(const match of matches) if(match.pairId) {const entry=paired.get(match.pairId)||[];entry.push(match);paired.set(match.pairId,entry);}
+  for(const pair of paired.values()) if(pair.length===2&&pair[0].mapId===pair[1].mapId&&pair[0].victory===pair[1].victory) {
+    const [first,second]=pair, winnerOne=first.winner,winnerTwo=second.winner;
+    for(const item of [summary.byMap[first.mapId],summary.byVictory[first.victory]]) {item.pairedComparisons++;if(winnerOne===winnerTwo&&[1,2].includes(winnerOne)) {if(winnerOne===1)item.pairedSeatOneAdvantages++;else item.pairedSeatTwoAdvantages++;} else item.pairedSplitOutcomes++;}
+  }
+  for(const collection of [summary.byMap,summary.byVictory]) for(const item of Object.values(collection)) {item.averageRounds=Number(((item.rounds||0)/Math.max(1,item.appearances)).toFixed(2));item.averageObjectivePoints=Number((item.objectivePoints/Math.max(1,item.appearances)).toFixed(2));item.averageScoreDifferential=Number((item.scoreDifferential/Math.max(1,item.appearances)).toFixed(2));item.averageTimeToObjective=item.timeToObjectiveSamples?Number((item.timeToObjectiveTotal/item.timeToObjectiveSamples).toFixed(2)):null;item.roundLimitAdjudicationRate=Number((item.roundLimitAdjudications/Math.max(1,item.appearances)*100).toFixed(1));item.noScoreRate=Number((item.nonScoring/Math.max(1,item.appearances)*100).toFixed(1));item.seatOneWinRate=Number((item.seatOneWins/Math.max(1,item.seatOneWins+item.seatTwoWins)*100).toFixed(1));const pairedDecisive=item.pairedSeatOneAdvantages+item.pairedSeatTwoAdvantages;item.pairedSeatOneAdvantageRate=pairedDecisive?Number((item.pairedSeatOneAdvantages/pairedDecisive*100).toFixed(1)):null;}
   summary.averageRounds=Number((summary.rounds/Math.max(1,summary.matches)).toFixed(2));
   summary.meanDecisionMs=Number((summary.decisionMs/Math.max(1,summary.decisions)).toFixed(3));
   summary.heatEfficiency=Number((summary.damage/Math.max(1,summary.heatGenerated)).toFixed(3));
@@ -290,10 +296,9 @@ function flagAIEvaluationBalance(summary, limits = AI_EVALUATION_BALANCE_LIMITS)
   const flags=[];
   for(const [scope,groups] of [['mode',summary.byVictory||{}],['map',summary.byMap||{}]]) for(const [key,item] of Object.entries(groups)) {
     if(Number(item.appearances||0)<limits.minimumAppearances) continue;
-    const decisive=Math.max(1,Number(item.seatOneWins||0)+Number(item.seatTwoWins||0));
-    const seatGap=Math.abs(Number(item.seatOneWins||0)-Number(item.seatTwoWins||0))/decisive*100;
-    if(seatGap>limits.seatWinRateGap) flags.push({scope,key,type:'seat_bias',value:Number(seatGap.toFixed(1)),limit:limits.seatWinRateGap,detail:`seat 1 won ${item.seatOneWins}/${decisive} decisive matches`});
-    if(Number(item.timeoutRate||0)>limits.timeoutRate) flags.push({scope,key,type:'timeouts',value:item.timeoutRate,limit:limits.timeoutRate,detail:`${item.timeouts}/${item.appearances} reached the round limit`});
+    const pairedDecisive=Number(item.pairedSeatOneAdvantages||0)+Number(item.pairedSeatTwoAdvantages||0),pairedGap=pairedDecisive?Math.abs(Number(item.pairedSeatOneAdvantages||0)-Number(item.pairedSeatTwoAdvantages||0))/pairedDecisive*100:0;
+    if(Number(item.pairedComparisons||0)>=limits.minimumPairedComparisons&&pairedDecisive&&pairedGap>limits.seatWinRateGap) flags.push({scope,key,type:'seat_bias',value:Number(pairedGap.toFixed(1)),limit:limits.seatWinRateGap,detail:`seat 1 advantage in ${item.pairedSeatOneAdvantages}/${pairedDecisive} decisive mirrored pairs (${item.pairedComparisons} compared)`});
+    if(Number(item.roundLimitAdjudicationRate||0)>limits.roundLimitAdjudicationRate) flags.push({scope,key,type:'round_limit_adjudications',value:item.roundLimitAdjudicationRate,limit:limits.roundLimitAdjudicationRate,detail:`${item.roundLimitAdjudications}/${item.appearances} were decided at the evaluator round limit`});
     if(scope==='mode'&&key!=='annihilation'&&Number(item.noScoreRate||0)>limits.noScoreRate) flags.push({scope,key,type:'objectives_ignored',value:item.noScoreRate,limit:limits.noScoreRate,detail:`${item.nonScoring}/${item.appearances} matches never scored an objective`});
   }
   return {limits,flags,healthy:flags.length===0};
