@@ -7,7 +7,7 @@ const AI_EVALUATION_DIFFICULTIES = ['beginner','intermediate','advanced','expert
 const AI_EVALUATION_PERSONALITIES = ['balanced','aggressive','cautious','brawler','sniper','objective'];
 const AI_EVALUATION_MAPS = ['training-grounds','woodland-approach','ridge-and-ford','industrial-crossing','weathered-frontier','standard-single-sheet'];
 const AI_EVALUATION_VICTORIES = ['annihilation','control','breakthrough'];
-const AI_EVALUATION_BALANCE_LIMITS = Object.freeze({ minimumAppearances:3, minimumPairedComparisons:10, seatWinRateGap:25, roundLimitAdjudicationRate:40, noScoreRate:60 });
+const AI_EVALUATION_BALANCE_LIMITS = Object.freeze({ minimumAppearances:3, minimumPairedComparisons:10, minimumDecisivePairedComparisons:10, seatWinRateGap:25, roundLimitAdjudicationRate:40, noScoreRate:60 });
 
 function aiEvaluationRegisterGM5Maps() {
   // These are deliberately generated fixtures rather than saved player maps.
@@ -297,7 +297,7 @@ function flagAIEvaluationBalance(summary, limits = AI_EVALUATION_BALANCE_LIMITS)
   for(const [scope,groups] of [['mode',summary.byVictory||{}],['map',summary.byMap||{}]]) for(const [key,item] of Object.entries(groups)) {
     if(Number(item.appearances||0)<limits.minimumAppearances) continue;
     const pairedDecisive=Number(item.pairedSeatOneAdvantages||0)+Number(item.pairedSeatTwoAdvantages||0),pairedGap=pairedDecisive?Math.abs(Number(item.pairedSeatOneAdvantages||0)-Number(item.pairedSeatTwoAdvantages||0))/pairedDecisive*100:0;
-    if(Number(item.pairedComparisons||0)>=limits.minimumPairedComparisons&&pairedDecisive&&pairedGap>limits.seatWinRateGap) flags.push({scope,key,type:'seat_bias',value:Number(pairedGap.toFixed(1)),limit:limits.seatWinRateGap,detail:`seat 1 advantage in ${item.pairedSeatOneAdvantages}/${pairedDecisive} decisive mirrored pairs (${item.pairedComparisons} compared)`});
+    if(Number(item.pairedComparisons||0)>=limits.minimumPairedComparisons&&pairedDecisive>=limits.minimumDecisivePairedComparisons&&pairedGap>limits.seatWinRateGap) flags.push({scope,key,type:'seat_bias',value:Number(pairedGap.toFixed(1)),limit:limits.seatWinRateGap,detail:`seat 1 advantage in ${item.pairedSeatOneAdvantages}/${pairedDecisive} decisive mirrored pairs (${item.pairedComparisons} compared)`});
     if(Number(item.roundLimitAdjudicationRate||0)>limits.roundLimitAdjudicationRate) flags.push({scope,key,type:'round_limit_adjudications',value:item.roundLimitAdjudicationRate,limit:limits.roundLimitAdjudicationRate,detail:`${item.roundLimitAdjudications}/${item.appearances} were decided at the evaluator round limit`});
     if(scope==='mode'&&key!=='annihilation'&&Number(item.noScoreRate||0)>limits.noScoreRate) flags.push({scope,key,type:'objectives_ignored',value:item.noScoreRate,limit:limits.noScoreRate,detail:`${item.nonScoring}/${item.appearances} matches never scored an objective`});
   }
