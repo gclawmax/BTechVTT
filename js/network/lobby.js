@@ -841,8 +841,11 @@ async function toggleRosterUnit(unitId) {
   const roster = [...(state.rosters?.[rosterKey] || [])];
   const index = roster.indexOf(unitId);
   if (index >= 0) roster.splice(index, 1);
-  else if (rosterTonnage(roster) + getSupportedUnit(unitId).tonnage <= Number(state.dropship_tonnage)) roster.push(unitId);
-  else return;
+  else {
+    const candidate = [...roster, unitId];
+    if (!isRosterLegal(candidate, state.dropship_tonnage, matchRuleset(state), state, mySeatNumber)) return;
+    roster.push(unitId);
+  }
   state.rosters = { ...(state.rosters || {}), [rosterKey]: roster };
   const { error: updateError } = await db.rpc('update_lobby_roster', {
     p_game_id: currentGameId,

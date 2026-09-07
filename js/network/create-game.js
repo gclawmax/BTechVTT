@@ -19,8 +19,10 @@ function readForceLimitControls(prefix) {
 function syncForceFormatControls(prefix) {
   const bv = document.getElementById(`${prefix}-force-format-select`)?.value === 'bv2';
   const controls = document.getElementById(`${prefix}-bv-limit-controls`);
+  const tonnageControls = document.getElementById(`${prefix}-tonnage-controls`);
   const custom = document.getElementById(`${prefix}-bv-limit-select`)?.value === 'custom';
   if (controls) controls.hidden = !bv;
+  if (tonnageControls) tonnageControls.hidden = bv;
   const customInput = document.getElementById(`${prefix}-bv-custom-limit`);
   if (customInput) customInput.hidden = !bv || !custom;
 }
@@ -95,13 +97,13 @@ function cancelCreateGameSetup() {
 async function handleCreateConfiguredGame() {
   if (!currentUser) return;
   const mapId = document.getElementById('create-map-select').value;
-  const dropshipTonnage = Number.parseInt(document.getElementById('create-tonnage-select').value, 10);
   const victoryMode = document.getElementById('create-victory-select').value;
   const ruleset = document.getElementById('create-ruleset-select').value;
   let forceLimit;
   try { forceLimit = readForceLimitControls('create'); }
   catch (error) { alert(error.message); return; }
-  if (!BT_MAPS[mapId] || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
+  const dropshipTonnage = forceLimit.mode === 'tonnage' ? Number.parseInt(document.getElementById('create-tonnage-select').value, 10) : null;
+  if (!BT_MAPS[mapId] || (forceLimit.mode === 'tonnage' && (!Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0))) return;
   await createHumanGame({ mapId, dropshipTonnage, victoryMode, ruleset, forceLimit });
 }
 
@@ -146,7 +148,8 @@ async function handleCreateDesertHillsScenario() {
 }
 
 async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation', customScenario = null, ruleset = 'advanced_3060', forceLimit = null }) {
-  if ((!BT_MAPS[mapId] && !BT_CUSTOM_MAPS[mapId]) || !Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0) return;
+  const sealedForceLimit = normaliseMatchForceLimit(forceLimit || customScenario?.force_limit);
+  if ((!BT_MAPS[mapId] && !BT_CUSTOM_MAPS[mapId]) || (sealedForceLimit.mode === 'tonnage' && (!Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0))) return;
   showLoading(true);
   try {
     const catalogueVersion = await loadLatestUnitCatalogue();
@@ -155,7 +158,6 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
     const resolvedRosters = Object.fromEntries(Object.entries(rosters).map(([seat, unitIds]) => [seat, unitIds.map(resolveCatalogueId)]));
     const code = generateGameCode();
     const dimensions = mapDimensions(mapId);
-    const sealedForceLimit = normaliseMatchForceLimit(forceLimit || customScenario?.force_limit);
     const customTerrain = customScenario?.terrain && typeof customScenario.terrain === 'object' ? customScenario.terrain : null;
     const customBuildings = customTerrain ? Object.fromEntries(Object.entries(customTerrain).filter(([, terrain]) => terrain === 'building').map(([code]) => [code, 40])) : null;
     const { data: game, error: gameErr } = await db
@@ -166,7 +168,8 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
         catalogue_version: catalogueVersion,
         state: JSON.stringify({
           units: [], turn: 0, phase: 'setup', vs_ai_mode: false,
-          map_id: mapId, map_dimensions: dimensions, dropship_tonnage: dropshipTonnage,
+          map_id: mapId, map_dimensions: dimensions,
+          ...(sealedForceLimit.mode === 'tonnage' ? { dropship_tonnage:dropshipTonnage } : {}),
           ...(sealedForceLimit.mode === 'bv2' ? { force_limit:sealedForceLimit } : {}),
           catalogue_version: catalogueVersion,
           ruleset: BT_RULESETS?.[ruleset] ? ruleset : 'advanced_3060',

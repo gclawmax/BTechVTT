@@ -9,10 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260907-career-resume-91">
+  <link rel="stylesheet" href="css/main.css?v=20260907-bv2-force-format-92">
 </head>
-<body data-build="20260907-career-resume-91">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260907-career-resume-91</div>
+<body data-build="20260907-bv2-force-format-92">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260907-bv2-force-format-92</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 <div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
   <section class="game-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
@@ -190,10 +190,11 @@
         <select id="vs-ai-force-format-select" onchange="syncForceFormatControls('vs-ai')" title="Tonnage is the classic limit. BV2 accounts for each BattleMech's combat value and pilot skill.">
           <option value="tonnage" selected>Tonnage — classic force limit</option><option value="bv2">BV2 — combat-value force limit</option>
         </select>
-        <label for="vs-ai-tonnage-select">Dropship tonnage</label>
-        <select id="vs-ai-tonnage-select">
-          <option value="100">100 tons</option><option value="150">150 tons</option><option value="200" selected>200 tons</option><option value="250">250 tons</option>
-        </select>
+        <div id="vs-ai-tonnage-controls"><label for="vs-ai-tonnage-select">Dropship tonnage</label>
+          <select id="vs-ai-tonnage-select">
+            <option value="100">100 tons</option><option value="150">150 tons</option><option value="200" selected>200 tons</option><option value="250">250 tons</option>
+          </select>
+        </div>
         <div id="vs-ai-bv-limit-controls" hidden><label for="vs-ai-bv-limit-select">BV2 limit</label><select id="vs-ai-bv-limit-select" onchange="syncForceFormatControls('vs-ai')"><option value="2500">2,500 BV</option><option value="5000" selected>5,000 BV</option><option value="7500">7,500 BV</option><option value="10000">10,000 BV</option><option value="custom">Custom BV limit…</option></select><input id="vs-ai-bv-custom-limit" type="number" min="100" max="50000" step="1" inputmode="numeric" hidden placeholder="Custom BV limit" aria-label="Custom BV2 limit"></div>
         <label for="vs-ai-victory-select">Victory condition</label>
         <select id="vs-ai-victory-select" onchange="renderVsAIMapPreview()">
@@ -232,13 +233,14 @@
     <select id="create-force-format-select" onchange="syncForceFormatControls('create')" title="Tonnage is the classic limit. BV2 uses verified MegaMek Battle Value plus each pilot's skills.">
       <option value="tonnage" selected>Tonnage — classic force limit</option><option value="bv2">BV2 — combat-value force limit</option>
     </select>
-    <label for="create-tonnage-select">Dropship tonnage per player</label>
-    <select id="create-tonnage-select">
-      <option value="100">100 tons</option>
-      <option value="150">150 tons</option>
-      <option value="200" selected>200 tons</option>
-      <option value="250">250 tons</option>
-    </select>
+    <div id="create-tonnage-controls"><label for="create-tonnage-select">Dropship tonnage per player</label>
+      <select id="create-tonnage-select">
+        <option value="100">100 tons</option>
+        <option value="150">150 tons</option>
+        <option value="200" selected>200 tons</option>
+        <option value="250">250 tons</option>
+      </select>
+    </div>
     <div id="create-bv-limit-controls" hidden><label for="create-bv-limit-select">BV2 limit per player</label><select id="create-bv-limit-select" onchange="syncForceFormatControls('create')"><option value="2500">2,500 BV</option><option value="5000" selected>5,000 BV</option><option value="7500">7,500 BV</option><option value="10000">10,000 BV</option><option value="custom">Custom BV limit…</option></select><input id="create-bv-custom-limit" type="number" min="100" max="50000" step="1" inputmode="numeric" hidden placeholder="Custom BV limit" aria-label="Custom BV2 limit"></div>
     <label for="create-victory-select">Victory condition</label>
     <select id="create-victory-select" onchange="renderCreateMapPreview()">
@@ -333,7 +335,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260907-career-resume-91</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260907-bv2-force-format-92</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -378,13 +380,13 @@
 <script src="js/game/specialist-physical-equipment.js?v=20260904-specialist-physical-64"></script>
 <script src="js/game/mech-designer.js?v=20260902-signature-electronics-62"></script>
 <script src="js/game/critical-hits.js?v=20260904-specialist-physical-64"></script>
-<script src="js/network/create-game.js?v=20260907-bv2-matches-86"></script>
-<script src="js/game/scenario-editor.js?v=20260907-bv2-matches-86"></script>
+<script src="js/network/create-game.js?v=20260907-bv2-force-format-92"></script>
+<script src="js/game/scenario-editor.js?v=20260907-bv2-force-format-92"></script>
 <script src="js/game/career-avatar.js?v=20260907-career-1b-88"></script>
 <script src="js/game/career-hq.js?v=20260907-career-resume-91"></script>
-<script src="js/network/create-vs-ai.js?v=20260907-bv2-matches-86"></script>
+<script src="js/network/create-vs-ai.js?v=20260907-bv2-force-format-92"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
-<script src="js/network/lobby.js?v=20260907-bv2-matches-86"></script>
+<script src="js/network/lobby.js?v=20260907-bv2-force-format-92"></script>
 <script src="js/game/telemetry.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/replay-viewer.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/phases.js?v=20260907-career-ai-bridge-90"></script>

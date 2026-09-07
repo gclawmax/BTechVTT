@@ -94,7 +94,7 @@ function normalizeScenarioDefinition(input) {
     columns: dimensions.cols, rows: dimensions.rows,
     generation_seed: String(source.generation_seed || '').slice(0, 64),
     instructions: String(source.instructions || '').trim().slice(0, 600),
-    dropship_tonnage: [100, 150, 200, 250].includes(Number(source.dropship_tonnage)) ? Number(source.dropship_tonnage) : 200,
+    ...(forceLimit.mode === 'tonnage' ? { dropship_tonnage:[100, 150, 200, 250].includes(Number(source.dropship_tonnage)) ? Number(source.dropship_tonnage) : 200 } : {}),
     force_limit: forceLimit,
     victory_mode: ['annihilation', 'control', 'breakthrough'].includes(source.victory_mode) ? source.victory_mode : 'annihilation',
     terrain, elevation,
@@ -171,7 +171,13 @@ function scenarioEditorSetField(field, value) {
 }
 function scenarioEditorSetForceFormat(mode) {
   if (!scenarioEditorState) return;
-  scenarioEditorState.force_limit = mode === 'bv2' ? { mode:'bv2', limit:Number(scenarioEditorState.force_limit?.limit) || 5000, bv_version:'BV2.1' } : { mode:'tonnage' };
+  if (mode === 'bv2') {
+    scenarioEditorState.force_limit = { mode:'bv2', limit:Number(scenarioEditorState.force_limit?.limit) || 5000, bv_version:'BV2.1' };
+    delete scenarioEditorState.dropship_tonnage;
+  } else {
+    scenarioEditorState.force_limit = { mode:'tonnage' };
+    if (![100,150,200,250].includes(Number(scenarioEditorState.dropship_tonnage))) scenarioEditorState.dropship_tonnage = 200;
+  }
   renderScenarioEditor();
 }
 function scenarioEditorSetBvLimit(value) {
@@ -263,7 +269,7 @@ function renderScenarioEditor() {
       <label>Description<textarea maxlength="240" oninput="scenarioEditorSetField('description',this.value)">${scenarioEditorEscape(scenarioEditorState.description)}</textarea></label>
       <label>Player instructions<textarea maxlength="600" oninput="scenarioEditorSetField('instructions',this.value)">${scenarioEditorEscape(scenarioEditorState.instructions)}</textarea></label>
       <label>Force format<select onchange="scenarioEditorSetForceFormat(this.value)"><option value="tonnage" ${!bvMode ? 'selected' : ''}>Tonnage — classic limit</option><option value="bv2" ${bvMode ? 'selected' : ''}>BV2 — combat-value limit</option></select></label>
-      <label>Dropship tonnage per player<select onchange="scenarioEditorSetField('dropship_tonnage',this.value)">${[100,150,200,250].map(value => `<option value="${value}" ${scenarioEditorState.dropship_tonnage === value ? 'selected' : ''}>${value} tons</option>`).join('')}</select></label>
+      ${!bvMode ? `<label>Dropship tonnage per player<select onchange="scenarioEditorSetField('dropship_tonnage',this.value)">${[100,150,200,250].map(value => `<option value="${value}" ${scenarioEditorState.dropship_tonnage === value ? 'selected' : ''}>${value} tons</option>`).join('')}</select></label>` : ''}
       ${bvMode ? `<label>BV2 limit per player<input type="number" min="100" max="50000" step="1" value="${scenarioEditorState.force_limit.limit}" oninput="scenarioEditorSetBvLimit(this.value)"><small>Use 2,500, 5,000, 7,500, 10,000, or a custom whole-number cap.</small></label>` : ''}
       <label>Victory condition<select onchange="scenarioEditorSetField('victory_mode',this.value)"><option value="annihilation" ${scenarioEditorState.victory_mode === 'annihilation' ? 'selected' : ''}>Annihilation</option><option value="control" ${scenarioEditorState.victory_mode === 'control' ? 'selected' : ''}>Objective Control</option><option value="breakthrough" ${scenarioEditorState.victory_mode === 'breakthrough' ? 'selected' : ''}>Breakthrough</option></select></label>
       <fieldset class="scenario-minefield-rules"><legend>Minefield rules</legend><label>Budget per side<select onchange="scenarioEditorSetMinefieldRule('budget',this.value)">${[0,10,20,30,40,50,60,80,100,120].map(value => `<option value="${value}" ${scenarioEditorState.minefield_rules.budget === value ? 'selected' : ''}>${value} points</option>`).join('')}</select></label><span class="deployment-help">Density costs the same number of points: 10 / 20 / 30.</span><label class="scenario-editor-check"><input type="checkbox" ${scenarioEditorState.minefield_rules.permitted_types.includes('conventional') ? 'checked' : ''} onchange="scenarioEditorToggleMinefieldType('conventional')"> Conventional fields</label><label class="scenario-editor-check"><input type="checkbox" ${scenarioEditorState.minefield_rules.permitted_types.includes('vibrabomb') ? 'checked' : ''} onchange="scenarioEditorToggleMinefieldType('vibrabomb')"> Vibrabombs</label></fieldset>
@@ -335,7 +341,7 @@ async function launchScenarioEditorMatch() {
   localStorage.setItem(SCENARIO_EDITOR_STORAGE_KEY, JSON.stringify(scenarioEditorState));
   await createHumanGame({
     mapId,
-    dropshipTonnage: scenarioEditorState.dropship_tonnage,
+    dropshipTonnage: scenarioEditorState.force_limit?.mode === 'tonnage' ? scenarioEditorState.dropship_tonnage : null,
     victoryMode: scenarioEditorState.victory_mode,
     customScenario, forceLimit:scenarioEditorState.force_limit
   });
@@ -354,7 +360,7 @@ async function launchScenarioEditorVsAI() {
   const customScenario = { ...scenarioEditorState, map_id:mapId, id:mapId, visual:'custom' };
   registerCustomMapDefinition(customScenario);
   localStorage.setItem(SCENARIO_EDITOR_STORAGE_KEY, JSON.stringify(scenarioEditorState));
-  await createVsAIGame({ mapId, dropshipTonnage:scenarioEditorState.dropship_tonnage, victoryMode:scenarioEditorState.victory_mode, customScenario, forceLimit:scenarioEditorState.force_limit });
+  await createVsAIGame({ mapId, dropshipTonnage:scenarioEditorState.force_limit?.mode === 'tonnage' ? scenarioEditorState.dropship_tonnage : null, victoryMode:scenarioEditorState.victory_mode, customScenario, forceLimit:scenarioEditorState.force_limit });
 }
 
 window.addEventListener('pointerup', () => { scenarioEditorPainting = false; });
