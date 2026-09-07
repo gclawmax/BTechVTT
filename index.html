@@ -9,10 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260907-bv2-matches-86">
+  <link rel="stylesheet" href="css/main.css?v=20260907-career-1a-87">
 </head>
-<body data-build="20260907-bv2-matches-86">
-<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260907-bv2-matches-86</div>
+<body data-build="20260907-career-1a-87">
+<div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260907-career-1a-87</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 <div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
   <section class="game-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
@@ -84,7 +84,7 @@
     <h1>BT-VTT</h1>
     <div class="tagline">BattleTech Virtual Tabletop</div>
     <div class="username-display" id="menu-username"></div>
-    <button class="btn-large career" onclick="openCareerAvatarCreator()" title="Create or update the persistent commander identity stored with your account.">Start Career <small>Create your persistent commander avatar</small></button>
+    <button class="btn-large career" onclick="openCareerHQ()" title="Create or open your persistent mercenary company. Skirmish results never affect it.">Start Career <small>Open your persistent mercenary company</small></button>
     <button class="btn-large primary" onclick="handleCreateGame()" title="Create a configurable two-player skirmish with your choice of map, tonnage and victory condition.">Create Custom Skirmish</button>
     <div class="ai-opponent-options" aria-label="Computer opponent settings">
       <label for="ai-difficulty-select">Difficulty
@@ -134,6 +134,11 @@
     <div id="active-games-list" style="margin-top:16px;"></div>
     <button class="btn-logout" onclick="handleLogout()" title="Sign out of BT-VTT on this browser.">Logout</button>
   </div>
+</div>
+
+<!-- ── COMPANY HQ (CAREER-1A) ─────────────────────────── -->
+<div id="career-hq-screen" class="screen">
+  <div id="career-hq-box" aria-live="polite"></div>
 </div>
 
 <!-- ── CAREER COMMANDER AVATAR ─────────────────────────── -->
@@ -328,7 +333,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260907-bv2-matches-86</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260907-career-1a-87</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -375,7 +380,8 @@
 <script src="js/game/critical-hits.js?v=20260904-specialist-physical-64"></script>
 <script src="js/network/create-game.js?v=20260907-bv2-matches-86"></script>
 <script src="js/game/scenario-editor.js?v=20260907-bv2-matches-86"></script>
-<script src="js/game/career-avatar.js?v=20260826-dropship-navigation-22"></script>
+<script src="js/game/career-avatar.js?v=20260907-career-1a-87"></script>
+<script src="js/game/career-hq.js?v=20260907-career-1a-87"></script>
 <script src="js/network/create-vs-ai.js?v=20260907-bv2-matches-86"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
 <script src="js/network/lobby.js?v=20260907-bv2-matches-86"></script>

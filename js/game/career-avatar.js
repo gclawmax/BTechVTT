@@ -61,7 +61,12 @@ async function saveCareerAvatar(event) {
     const { data, error } = await db.auth.updateUser({ data: { ...(currentUser?.user_metadata || {}), career_avatar: careerAvatar } });
     if (error) throw error;
     currentUser = data.user || { ...currentUser, user_metadata: { ...(currentUser?.user_metadata || {}), career_avatar: careerAvatar } };
-    status.textContent = 'Career commander saved. This identity will be available whenever you sign in.';
+    const { error: companyError } = await db.rpc('create_btech_career_company', {
+      p_name:companyName,p_commander_callsign:callsign,p_affiliation:affiliation,p_banner_color:color
+    });
+    if (companyError) throw companyError;
+    status.textContent = 'Persistent company created. Opening Company HQ…';
+    await openCareerHQ();
   } catch (error) {
     status.textContent = `Could not save the Career commander: ${error.message || 'please try again.'}`;
   } finally {

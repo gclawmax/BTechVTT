@@ -32,9 +32,9 @@ documents, but their implementation order is governed here.
 | Presentation | In progress | Record sheets, combat-log pacing, sound effects, resizable panels and accessibility improvements |
 | After Action / Replay | Done | Sealed telemetry, statistics, report/replay exports, 30-day skirmish retention and offline replay viewer |
 | Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
-| Career | Designed | Campaign is intentionally isolated until Career-1 persistence and settlement are implemented |
+| Career | In progress | Career-1a persistent company foundation is the active slice; skirmishes remain isolated |
 
-## Current development priority — Career-1
+## Current development priority — Career-1a
 
 The next feature is an opt-in, persistent Mercenary Company loop. It must use
 the existing sealed report and match engine without weakening skirmish
@@ -42,7 +42,9 @@ isolation. The authoritative scope, data model, safeguards, and incremental
 delivery plan are in [Persistent Campaign Design](PERSISTENT_CAMPAIGN_DESIGN.md).
 
 Career-1a establishes persistent company, BattleMech, pilot, contract, ledger
-and settlement-receipt records with RLS and skirmish-isolation tests.
+and settlement-receipt records with RLS and skirmish-isolation tests. It is
+the current active implementation slice. It does not launch contracts, settle
+battles, repair equipment, or allow skirmishes to modify persistent data.
 Career-1b launches deterministic AI contracts from a company's current,
 possibly damaged force and settles the sealed result exactly once. Career-1c
 adds Company HQ and authoritative repair/reload actions.
@@ -59,21 +61,27 @@ adds Company HQ and authoritative repair/reload actions.
 - **GM-1 through GM-5:** implemented through SQL 127–130 and build
   `20260907-gm5-decisive-pairs-81`. The modes roadmap records the acceptance
   commands and the paired balance methodology.
+- **BV-1 through BV-3:** implemented through SQL 132–133 and build
+  `20260907-bv2-matches-86`. Verified MegaMek BV2 values, pilot-adjusted
+  server checks, selectable match formats, deterministic BV-limited AI forces,
+  and final force sealing are now available. BV-4 remains dependent on
+  Career-1 settlement; BV-5 remains deferred custom-design work.
 
 ## Later work
 
-1. **BV-1 through BV-5:** optional BV2 force balancing, starting with
-   catalogue provenance and server-authoritative roster checks. See
-   [Battle Value Design](BATTLE_VALUE_DESIGN.md). BV2 will complement rather
-   than replace tonnage limits.
-2. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
+1. **Career-1b then Career-1c:** deterministic AI contracts and exactly-once
+   settlement, followed by the Company HQ repair/reload loop.
+2. **BV-4:** Career contract BV bands after settlement exists. **BV-5:**
+   validated custom-design BV2 breakdowns, deferred until MechLab support is
+   sufficiently complete. See [Battle Value Design](BATTLE_VALUE_DESIGN.md).
+3. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
    factions and alternate origins — only after Career-1 settlement is proven.
-3. **Level 2 catalogue additions:** curated, catalogue-led systems not already
+4. **Level 2 catalogue additions:** curated, catalogue-led systems not already
    covered by the specialist-rules programme below. Each remains gated by an
    authoritative resolver and a representative live battle.
-4. **Operations:** scheduled retention cleanup verification, deployment
+5. **Operations:** scheduled retention cleanup verification, deployment
    observability/backups, and production monitoring.
-5. **Presentation:** accessibility, mobile, map/editor and audio polish driven
+6. **Presentation:** accessibility, mobile, map/editor and audio polish driven
    by player feedback.
 
 ## BattleMech specialist-rules programme
