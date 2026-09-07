@@ -4,7 +4,7 @@
 // Battle Value header, so values must come from MegaMek's own calculator.
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const DEFAULT_CONFIG = 'config/supported-megamek-units.json';
 const DEFAULT_INPUT = 'local-data/megamek-bv2/Units.txt';
@@ -51,7 +51,15 @@ async function main() {
   const sourceRevision = option('--source-revision');
   if (!megaMekRelease || !sourceRevision) throw new Error('Pass --megamek-release and --source-revision from the MegaMek release used to make the export.');
 
-  const config = JSON.parse(await readFile(configPath, 'utf8'));
+  const selectedConfig = JSON.parse(await readFile(configPath, 'utf8'));
+  // Match the content-pack builder: small reviewed expansions inherit the
+  // released allowlist, but retain their own immutable catalogue version.
+  const baseConfig = selectedConfig.extends
+    ? JSON.parse(await readFile(join(dirname(configPath), selectedConfig.extends), 'utf8'))
+    : null;
+  const config = baseConfig
+    ? { ...baseConfig, ...selectedConfig, units:[...(baseConfig.units || []), ...(selectedConfig.units || [])] }
+    : selectedConfig;
   if (!Array.isArray(config.units) || !config.units.length) throw new Error('Supported-unit configuration contains no units.');
   const rows = parsePipeTable(await readFile(inputPath, 'utf8'));
   const rowsBySource = new Map();

@@ -41,6 +41,9 @@ const WEAPONS = {
   'Rotary AC/10': { key: 'rac10', damage: 10, heat: 3, range: [4, 8, 12], ammoType: 'rac10', rotary: true },
   'Rotary AC/20': { key: 'rac20', damage: 20, heat: 7, range: [3, 6, 9], ammoType: 'rac20', rotary: true },
   'LB 10-X AC': { key: 'lb10x', damage: 10, heat: 2, range: [6, 12, 18], ammoType: 'lb10x' },
+  'LB 5-X AC': { key: 'lb5x', damage: 5, heat: 1, range: [6, 12, 18], ammoType: 'lb5x' },
+  'AP Gauss Rifle': { key: 'ap_gauss', damage: 2, heat: 0, range: [1, 2, 3], ammoType: 'ap_gauss' },
+  'HAG/20': { key: 'hag20', damage: 20, heat: 4, range: [8, 16, 24], ammoType: 'hag20', clusterSize: 20, damagePerMissile: 1, missileWeapon: true },
   'Light Gauss Rifle': { key: 'light_gauss', damage: 8, heat: 1, range: [8, 17, 25], minimumRange: 3, ammoType: 'light_gauss' },
   'Heavy Gauss Rifle': { key: 'heavy_gauss', damage: 25, damageByRange: [25, 20, 10], heat: 2, range: [6, 13, 20], minimumRange: 4, ammoType: 'heavy_gauss' },
   'ATM 3': { key: 'atm3', damage: 6, heat: 2, range: [5, 10, 15], minimumRange: 4, ammoType: 'atm3', clusterSize: 3, damagePerMissile: 2, missileWeapon: true, atm: true },
@@ -67,6 +70,10 @@ const WEAPONS = {
   'ER Medium Laser': { key: 'er_med_laser', damage: 5, heat: 5, range: [4, 8, 12] },
   'ER Large Laser': { key: 'er_large_laser', damage: 8, heat: 12, range: [7, 14, 19] },
   'ER PPC': { key: 'er_ppc', damage: 10, heat: 15, range: [7, 14, 23] },
+  'Micro Pulse Laser': { key: 'micro_pulse_laser', damage: 3, heat: 1, range: [1, 2, 3], toHitModifier: -2 },
+  'Heavy Large Laser': { key: 'heavy_large_laser', damage: 16, heat: 18, range: [6, 12, 18], toHitModifier: 1 },
+  'Improved Heavy Medium Laser': { key: 'improved_heavy_med_laser', damage: 10, heat: 7, range: [3, 6, 9], toHitModifier: 1 },
+  'ER Large Pulse Laser': { key: 'er_large_pulse_laser', damage: 10, heat: 10, range: [7, 14, 20], toHitModifier: -2 },
   'Medium Pulse Laser': { key: 'med_pulse_laser', damage: 6, heat: 4, range: [2, 4, 6], toHitModifier: -2 },
   'Small Pulse Laser': { key: 'small_pulse_laser', damage: 3, heat: 2, range: [1, 2, 3], toHitModifier: -2 },
   'Large Pulse Laser': { key: 'large_pulse_laser', damage: 9, heat: 10, range: [3, 7, 10], toHitModifier: -2 },
@@ -87,6 +94,7 @@ const WEAPONS = {
   'Snub-Nose PPC': { key: 'snub_ppc', damage: 10, damageByRange: [10, 8, 5], heat: 10, range: [9, 13, 15] },
   'C3 Computer (Master)': { key: 'c3_master_tag', damage: 0, heat: 0, range: [5, 9, 15], supportOnly: true },
   'Anti-Missile System': { key: 'ams', damage: 0, heat: 1, range: [1, 1, 1], ammoType: 'ams', supportOnly: true },
+  'Laser AMS': { key: 'laser_ams', damage: 0, heat: 1, range: [1, 1, 1], supportOnly: true },
   Narc: { key: 'narc', damage: 0, heat: 0, range: [3, 6, 9], ammoType: 'narc' },
   TAG: { key: 'tag', damage: 0, heat: 0, range: [5, 10, 15] }
 };
@@ -119,10 +127,10 @@ const CLAN_WEAPON_OVERRIDES = {
 };
 const AMMO = [
   [/Ammo AC\/20/i, 'ac20', 5], [/Ammo AC\/10/i, 'ac10', 10], [/Ammo AC\/5/i, 'ac5', 20], [/Ammo AC\/2/i, 'ac2', 45],
-  [/Ultra AC\/5 Ammo/i, 'uac5', 20], [/LB 10-X AC Ammo/i, 'lb10x', 10],
+  [/Ultra AC\/5 Ammo/i, 'uac5', 20], [/LB 10-X AC Ammo/i, 'lb10x', 10], [/LB 5-X AC Ammo/i, 'lb5x', 20],
   [/Ultra AC\/2 Ammo/i, 'uac2', 45], [/Ultra AC\/10 Ammo/i, 'uac10', 10], [/Ultra AC\/20 Ammo/i, 'uac20', 5],
-  [/Light Gauss Ammo/i, 'light_gauss', 16], [/Heavy Gauss Ammo/i, 'heavy_gauss', 4],
-  [/Rotary AC\/2 Ammo/i, 'rac2', 45], [/Rotary AC\/5 Ammo/i, 'rac5', 20],
+  [/Light Gauss Ammo/i, 'light_gauss', 16], [/Heavy Gauss Ammo/i, 'heavy_gauss', 4], [/APGaussRifle Ammo/i, 'ap_gauss', 40], [/Hyper-Assault Gauss Rifle\/20 Ammo/i, 'hag20', 6],
+  [/Rotary AC\/2 Ammo/i, 'rac2', 45], [/CLRotaryAC2 Ammo/i, 'rac2', 45], [/Rotary AC\/5 Ammo/i, 'rac5', 20],
   [/Rotary AC\/10 Ammo/i, 'rac10', 10], [/Rotary AC\/20 Ammo/i, 'rac20', 5],
   [/Ammo ATM-?3(?: ER| HE)?/i, 'atm3', 20], [/Ammo ATM-?6(?: ER| HE)?/i, 'atm6', 10], [/Ammo ATM-?9(?: ER| HE)?/i, 'atm9', 7], [/Ammo ATM-?12(?: ER| HE)?/i, 'atm12', 5],
   [/Ammo Thunderbolt-?5/i, 'tbolt5', 12], [/Ammo Thunderbolt-?10/i, 'tbolt10', 6], [/Ammo Thunderbolt-?15/i, 'tbolt15', 4], [/Ammo Thunderbolt-?20/i, 'tbolt20', 3],
