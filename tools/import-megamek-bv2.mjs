@@ -26,9 +26,20 @@ function parsePipeTable(text) {
   const headers = (lines.shift() || '').split('|').map(value => value.trim());
   const indexOf = name => headers.indexOf(name);
   for (const name of ['BV', 'File Location']) if (indexOf(name) < 0) throw new Error(`MegaMek BV export is missing its ${name} column.`);
+  const fileLocationIndex = indexOf('File Location');
   return lines.map((line, lineNumber) => {
     const values = line.split('|');
-    return Object.fromEntries(headers.map((header, index) => [header, (values[index] || '').trim()]));
+    // MekCacheCSVTool does not quote pipe characters in several free-text
+    // columns (such as manufacturers). The fields we need are stable: BV is
+    // before those fields, while File Location and File Modified are last.
+    // Reading File Location from the right keeps the provenance join exact.
+    return {
+      'MUL ID': (values[indexOf('MUL ID')] || '').trim(),
+      Chassis: (values[indexOf('Chassis')] || '').trim(),
+      Model: (values[indexOf('Model')] || '').trim(),
+      BV: (values[indexOf('BV')] || '').trim(),
+      'File Location': (values[values.length - (headers.length - fileLocationIndex)] || '').trim()
+    };
   }).filter(row => row['File Location'] || row.BV);
 }
 
