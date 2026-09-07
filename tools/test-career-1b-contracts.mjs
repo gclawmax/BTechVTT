@@ -24,6 +24,7 @@ check('settlement requires the sealed Career report and rejects invalid mappings
 check('settlement is exactly once and writes an immutable receipt', sql.includes('btech_career_settlements WHERE game_id=game.id') && sql.includes('INSERT INTO btech_career_settlements') && sql.includes('RETURN existing.receipt'));
 check('settlement persists condition, ammunition, pilot injuries, credits and reputation', ['armor=coalesce(final_unit', 'ammo_bins=coalesce(final_unit', 'injuries=coalesce(final_unit', 'credits=credits+reward', 'reputation=least'].every(marker => sql.includes(marker)));
 check('the browser launches contracts and requests settlement only after match end', hq.includes("db.rpc('launch_btech_career_contract'") && hq.includes("db.rpc('settle_btech_career_contract'") && phases.includes('settleCareerMatchIfNeeded'));
+check('Company HQ finds and visibly resumes an active Career contract', hq.includes('getActiveCareerMatch') && hq.includes('Resume Contract') && hq.includes('resumeCareerContract'));
 check('completed Career matches stay visible as settled records', helpers.includes("g.match_type === 'career'") && helpers.includes('Career result settled in Company HQ'));
 check('Company HQ uses a full-width, scrollable workspace', css.includes('width:min(1500px,100%)') && css.includes('overflow:auto') && css.includes('min-height:calc(100vh - 48px)'));
 check('the roadmap identifies Career-1b as the active slice', roadmap.includes('Current development priority — Career-1b'));

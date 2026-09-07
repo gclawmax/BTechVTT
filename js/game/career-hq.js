@@ -17,6 +17,35 @@ function careerContractTerms(contract) {
   return `${String(terms.map_id || 'training-grounds').replaceAll('-', ' ')} · up to ${careerCredits(reward)} · +${Number(terms.reputation || 0)} reputation`;
 }
 
+async function getActiveCareerMatch() {
+  const { data, error } = await db
+    .from('btech_players')
+    .select('seat_number,btech_games!btech_players_game_id_fkey(id,game_code,status,current_round,current_phase,match_type,state)')
+    .eq('user_id', currentUser.id);
+  if (error) {
+    console.warn('Unable to find an active Career contract:', error);
+    return null;
+  }
+  const active = (data || [])
+    .map(entry => ({ ...(entry.btech_games || {}), seat_number: Number(entry.seat_number) }))
+    .find(game => game.match_type === 'career' && game.status === 'in-progress');
+  if (!active) return null;
+  let state = {};
+  try { state = typeof active.state === 'string' ? JSON.parse(active.state) : (active.state || {}); } catch (_) { /* malformed legacy snapshot */ }
+  return {
+    gameId: active.id,
+    gameCode: active.game_code,
+    round: Number(active.current_round || 1),
+    phase: active.current_phase || 'initiative',
+    contractId: state.career_context?.contract_id || null
+  };
+}
+
+function resumeCareerContract(gameCode) {
+  if (!gameCode) return;
+  handleRejoinGame(gameCode);
+}
+
 async function launchCareerContract(contractId) {
   const root = document.getElementById('career-hq-box');
   root?.querySelectorAll('[data-career-contract]').forEach(button => { button.disabled = true; });
@@ -57,6 +86,7 @@ async function openCareerHQ() {
     return;
   }
   if (!data?.company) { openCareerAvatarCreator(); return; }
+  data.activeMatch = await getActiveCareerMatch();
   renderCareerHQ(data);
 }
 
@@ -64,6 +94,7 @@ function renderCareerHQ(hq) {
   const root = document.getElementById('career-hq-box');
   if (!root) return;
   const company = hq.company, pilots = hq.pilots || [], pilotsById = new Map(pilots.map(pilot => [pilot.id, pilot]));
+  const activeMatch = hq.activeMatch || null;
   const mechs = (hq.mechs || []).map(mech => {
     const pilot = pilotsById.get(mech.pilot_id);
     const damage = mech.status === 'operational' ? 'Operational' : careerEscape(mech.status.replaceAll('_',' '));
@@ -71,10 +102,11 @@ function renderCareerHQ(hq) {
   }).join('') || '<p>No persistent BattleMechs yet.</p>';
   const pilotRows = pilots.map(pilot => `<tr><td>${careerEscape(pilot.name)}</td><td>G${pilot.gunnery} / P${pilot.piloting}</td><td>${careerEscape(pilot.specialty)}</td><td>${careerEscape(pilot.status)}</td></tr>`).join('') || '<tr><td colspan="4">No pilots yet.</td></tr>';
   const ledger = (hq.ledger || []).map(entry => `<li><b class="${Number(entry.amount) >= 0 ? 'credit' : 'debit'}">${Number(entry.amount) >= 0 ? '+' : ''}${careerCredits(entry.amount)}</b> · ${careerEscape(entry.note || entry.kind)}</li>`).join('') || '<li>No transactions yet.</li>';
-  const contracts = (hq.contracts || []).map(contract => `<article class="career-hq-card"><strong>${careerEscape(contract.title)}</strong><span>${careerEscape(contract.tier)} risk · ${careerEscape(contract.status)}</span><small>${careerEscape(careerContractTerms(contract))}</small>${contract.status === 'available' ? `<button class="primary" data-career-contract onclick="launchCareerContract('${careerEscape(contract.id)}')">Launch Contract</button>` : contract.status === 'accepted' ? '<small>Contract is active. Rejoin it from the Dropship if needed.</small>' : ''}</article>`).join('') || '<p>No contracts are available.</p>';
+  const activeContract = activeMatch ? `<section class="career-hq-active-contract"><div><p class="career-kicker">Active deployment</p><h3>Contract in progress</h3><p>Game ${careerEscape(activeMatch.gameCode)} · Round ${activeMatch.round} · ${careerEscape(String(activeMatch.phase).replaceAll('_', ' '))}</p></div><button class="primary" onclick="resumeCareerContract('${careerEscape(activeMatch.gameCode)}')" title="Return to this active Career contract.">Resume Contract</button></section>` : '';
+  const contracts = (hq.contracts || []).map(contract => `<article class="career-hq-card"><strong>${careerEscape(contract.title)}</strong><span>${careerEscape(contract.tier)} risk · ${careerEscape(contract.status)}</span><small>${careerEscape(careerContractTerms(contract))}</small>${contract.status === 'available' ? `<button class="primary" data-career-contract onclick="launchCareerContract('${careerEscape(contract.id)}')">Launch Contract</button>` : contract.status === 'accepted' && activeMatch?.contractId === contract.id ? `<button class="secondary" onclick="resumeCareerContract('${careerEscape(activeMatch.gameCode)}')">Resume Contract</button>` : contract.status === 'accepted' ? '<small>Contract is active. Return to the active deployment above.</small>' : ''}</article>`).join('') || '<p>No contracts are available.</p>';
   root.innerHTML = `<header class="career-hq-heading"><div><p class="career-kicker">Persistent Mercenary Company</p><h2>${careerEscape(company.name)}</h2><p>${careerEscape(company.commander_callsign)} · ${careerEscape(company.affiliation)}</p></div><button class="secondary" onclick="showScreen('menu-screen')">Back to Dropship</button></header>
     <section class="career-hq-summary"><div><small>Credits</small><b>${careerCredits(company.credits)}</b></div><div><small>Reputation</small><b>${company.reputation} / 100</b></div><div><small>Dropship capacity</small><b>${company.dropship_tonnage} tons</b></div></section>
-    <p class="career-hq-notice">Career contracts launch from this persistent hangar and settle only from their sealed battle report. Skirmishes remain completely isolated. Repairs and reloads arrive in Career-1c.</p>
+    ${activeContract}<p class="career-hq-notice">Career contracts launch from this persistent hangar and settle only from their sealed battle report. Skirmishes remain completely isolated. Repairs and reloads arrive in Career-1c.</p>
     <section><h3>Hangar</h3><div class="career-hq-cards">${mechs}</div></section>
     <section><h3>Pilots</h3><div class="career-hq-table-wrap"><table><thead><tr><th>Pilot</th><th>Skills</th><th>Specialty</th><th>Status</th></tr></thead><tbody>${pilotRows}</tbody></table></div></section>
     <section><h3>Contract Board</h3><div class="career-hq-cards">${contracts}</div></section>
