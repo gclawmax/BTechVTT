@@ -109,6 +109,7 @@ async function loadGameState() {
     ...(gameState.ai_difficulty ? { ai_difficulty: gameState.ai_difficulty } : {}),
     ...(gameState.ai_personality ? { ai_personality: gameState.ai_personality } : {}),
     ...(gameState.ai_seed ? { ai_seed: gameState.ai_seed } : {}),
+    ...(gameState.career_context ? { career_context: gameState.career_context } : {}),
     ...(gameState.special_ammo_setup_v1 ? { special_ammo_setup_v1: true } : {}),
     ...(gameState.terrain_overrides ? { terrain_overrides: gameState.terrain_overrides } : {}),
     ...(gameState.elevation_overrides ? { elevation_overrides: gameState.elevation_overrides } : {}),
@@ -690,7 +691,10 @@ function confirmConcedeCurrentMatch() {
 // result lives in the shared state so both browsers, rejoining players, and
 // spectators receive the same definitive outcome.
 async function checkForMatchEnd() {
-  if (currentGameState.match_result) return currentGameState.match_result;
+  if (currentGameState.match_result) {
+    if (typeof settleCareerMatchIfNeeded === 'function') await settleCareerMatchIfNeeded();
+    return currentGameState.match_result;
+  }
   if (!vsAiMode) {
     const { data, error } = await db.rpc('resolve_btech_match_end', { p_game_id: currentGameId });
     if (error) {
@@ -728,6 +732,7 @@ async function checkForMatchEnd() {
   const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   if (gameState.match_result) {
     currentGameState.match_result = gameState.match_result;
+    if (typeof settleCareerMatchIfNeeded === 'function') await settleCareerMatchIfNeeded();
     return gameState.match_result;
   }
   gameState.match_result = result;
@@ -747,6 +752,7 @@ async function checkForMatchEnd() {
   currentGameState.active_player_id = null;
   currentGameState.match_result = result;
   logEvent(result.winner_seat == null ? 'Match complete — all forces destroyed. Draw.' : `Match complete — Player ${result.winner_seat} wins.`, 'phase');
+  if (typeof settleCareerMatchIfNeeded === 'function') await settleCareerMatchIfNeeded();
   updateGameHeader();
   renderEndPanel();
   updateAdvanceButtonState();

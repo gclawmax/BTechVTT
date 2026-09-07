@@ -74,8 +74,8 @@ async function populateActiveGames() {
   const games = players
     .map(p => ({ ...p.btech_games, seat_number: Number(p.seat_number) }))
     .filter(g => g && (g.status === 'lobby' || g.status === 'in-progress' ||
-      (g.status === 'finished' && g.match_type === 'skirmish' &&
-       Number.isFinite(new Date(g.completed_at).getTime()) && new Date(g.completed_at).getTime() >= retainedAfter)));
+      (g.status === 'finished' && (g.match_type === 'career' ||
+       (g.match_type === 'skirmish' && Number.isFinite(new Date(g.completed_at).getTime()) && new Date(g.completed_at).getTime() >= retainedAfter)))));
 
   if (games.length === 0) {
     listEl.innerHTML = '';
@@ -95,7 +95,7 @@ async function populateActiveGames() {
     ? '<div class="game-label">Active Games</div>' + activeGames.map(g => `<div class="game-entry" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span style="color:#666">[${g.status}]</span><button class="close-btn" onclick="event.stopPropagation(); handleConcedeGame('${g.game_code}')" title="Concede game">&times;</button></div>`).join('')
     : '';
   const finishedHtml = finishedGames.length
-    ? '<div class="game-label">Recent Finished Games</div>' + finishedGames.map(g => `<div class="game-entry game-entry-finished" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span class="game-finished-result">${resultLabel(g)}</span><small>Report &amp; replay available for 30 days</small></div>`).join('')
+    ? '<div class="game-label">Recent Finished Games</div>' + finishedGames.map(g => `<div class="game-entry game-entry-finished" onclick="handleRejoinGame('${g.game_code}')">${g.game_code} <span class="game-finished-result">${resultLabel(g)}</span><small>${g.match_type === 'career' ? 'Career result settled in Company HQ' : 'Report &amp; replay available for 30 days'}</small></div>`).join('')
     : '';
   listEl.innerHTML = activeHtml + finishedHtml;
 }

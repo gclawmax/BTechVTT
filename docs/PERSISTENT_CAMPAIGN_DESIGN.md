@@ -1,6 +1,6 @@
 # Persistent Campaign Design
 
-Status: **approved design baseline — Career-1a persistent foundation in progress**
+Status: **approved design baseline — Career-1b contract launch and settlement in progress**
 
 This is the authoritative design for persistent play. It supersedes the scope
 of the older local `CAREER_MODE_DESIGN.md` proposal for implementation order;

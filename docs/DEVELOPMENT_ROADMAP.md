@@ -34,20 +34,18 @@ documents, but their implementation order is governed here.
 | Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
 | Career | In progress | Career-1a persistent company foundation is the active slice; skirmishes remain isolated |
 
-## Current development priority — Career-1a
+## Current development priority — Career-1b
 
 The next feature is an opt-in, persistent Mercenary Company loop. It must use
 the existing sealed report and match engine without weakening skirmish
 isolation. The authoritative scope, data model, safeguards, and incremental
 delivery plan are in [Persistent Campaign Design](PERSISTENT_CAMPAIGN_DESIGN.md).
 
-Career-1a establishes persistent company, BattleMech, pilot, contract, ledger
-and settlement-receipt records with RLS and skirmish-isolation tests. It is
-the current active implementation slice. It does not launch contracts, settle
-battles, repair equipment, or allow skirmishes to modify persistent data.
-Career-1b launches deterministic AI contracts from a company's current,
-possibly damaged force and settles the sealed result exactly once. Career-1c
-adds Company HQ and authoritative repair/reload actions.
+Career-1a established persistent company, BattleMech, pilot, contract, ledger
+and settlement-receipt records with RLS and skirmish-isolation tests.
+Career-1b is the current active implementation slice: deterministic AI
+contracts launch from a company's current condition and settle the sealed
+result exactly once. Career-1c adds condition-aware repair/reload actions.
 
 ## Completed recent programmes
 

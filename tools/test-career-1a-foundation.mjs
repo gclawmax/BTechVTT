@@ -21,8 +21,8 @@ check('HQ data is returned through an owner-only RPC', sql.includes('get_btech_c
 check('future match mutations are explicitly guarded against skirmishes', sql.includes('btech_career_require_match') && sql.includes("game_match_type IS DISTINCT FROM 'career'"));
 check('Career-1a does not introduce a settlement or match-end hook', !/CREATE OR REPLACE FUNCTION public\.btech_settle|resolve_btech_match_end[\s\S]*btech_career_/i.test(sql));
 check('Start Career opens Company HQ and onboarding creates the persistent company', index.includes('onclick="openCareerHQ()"') && avatar.includes("db.rpc('create_btech_career_company'"));
-check('Company HQ is a read-only foundation UI', hq.includes('Career-1a foundation complete') && (hq.match(/db\.rpc\(/g) || []).length === 1 && hq.includes("db.rpc('get_btech_career_hq'"));
-check('the roadmap makes Career-1a the active programme', roadmap.includes('Current development priority — Career-1a'));
+check('Company HQ uses only scoped Career RPCs rather than direct table writes', hq.includes("db.rpc('get_btech_career_hq'") && hq.includes("db.rpc('launch_btech_career_contract'") && hq.includes("db.rpc('settle_btech_career_contract'") && !hq.includes(".from('btech_career_"));
+check('the roadmap records the Career programme as active', roadmap.includes('Current development priority — Career-1b'));
 
 if (failures) { console.error(`Career-1a foundation regression failed: ${failures} check(s).`); process.exitCode = 1; }
 else console.log('Career-1a foundation regression passed.');
