@@ -171,9 +171,12 @@ and skirmish isolation tests are complete.
 
 GM-1 mode contracts, objective-aware AI, map-aware deployment zones and atomic
 minefield planning are implemented in build `20260907-game-modes-74` with SQL
-127. Configurable Play vs AI scenarios, the authoritative live mode matrix,
-complete minefield budgeting/privacy and per-mode balance evaluation follow in
-GM-2 through GM-5. See `docs/GAME_MODES_ROADMAP.md`.
+127. GM-2 configurable Play vs AI scenarios are implemented in build
+`20260907-gm2-ai-skirmish-75`: map, ruleset, budget, mission, player Hangar,
+deterministic comparable AI force, map-aware formation and custom-editor launch.
+The authoritative live mode matrix, complete minefield budgeting/privacy and
+per-mode balance evaluation remain GM-3 through GM-5. See
+`docs/GAME_MODES_ROADMAP.md`.
 
 ## BattleMech specialist-rules programme
 

@@ -268,7 +268,7 @@ async function loadLobbyUI() {
 
   // Every human player receives a temporary Avatar when opening a skirmish
   // lobby. It belongs to this match only; campaign persistence comes later.
-  if (!vsAiMode && mySeatNumber && !skirmishAvatarForSeat(gameState, mySeatNumber) && !skirmishAvatarEnsureInFlight) {
+  if (mySeatNumber && !skirmishAvatarForSeat(gameState, mySeatNumber) && !skirmishAvatarEnsureInFlight) {
     skirmishAvatarEnsureInFlight = true;
     const { error } = await db.rpc('ensure_skirmish_avatar', { p_game_id: currentGameId });
     skirmishAvatarEnsureInFlight = false;
@@ -312,7 +312,7 @@ async function loadLobbyUI() {
         const readyText = player.ready ? 'READY' : 'NOT READY';
         const currentTag = isCurrentPlayer ? ' (you)' : '';
         const aiTag = isAI ? ' 🤖' : '';
-        const rosterSummary = !isAI && !vsAiMode && gameState.map_id
+        const rosterSummary = gameState.map_id
           ? `<div class="seat-roster">${rosterSummaryForSeat(gameState, player.seat_number)}</div>`
           : '';
 
@@ -359,10 +359,11 @@ async function loadLobbyUI() {
   }
   if (btnStart) {
     const playerSeats = (players || []).filter(player => player.role === 'player');
-    const rostersReady = vsAiMode || playerSeats.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState)));
+    const rostersReady = playerSeats.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState)));
+    const deploymentsReady = playerSeats.every(player => (gameState.deployment_positions?.[String(player.seat_number)] || []).length === (gameState.rosters?.[String(player.seat_number)] || []).length);
     const canStart = vsAiMode
-      ? playerSeats.length === 2 && playerSeats.some(player => !player.is_ai && player.ready)
-      : playerSeats.length === 2 && playerSeats.every(player => player.ready) && rostersReady;
+      ? playerSeats.length === 2 && playerSeats.some(player => !player.is_ai && player.ready) && rostersReady && deploymentsReady
+      : playerSeats.length === 2 && playerSeats.every(player => player.ready) && rostersReady && deploymentsReady;
     btnStart.disabled = !isHost || !canStart;
   }
 
@@ -441,7 +442,7 @@ async function saveSkirmishHangar(hangar, deployed) {
 }
 
 async function addMechToSkirmishHangar(unitId) {
-  if (!currentGameId || !currentUser || vsAiMode || !isSupportedUnit(unitId)) return;
+  if (!currentGameId || !currentUser || !isSupportedUnit(unitId)) return;
   const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
   if (error || !game) return;
   const state = typeof game.state === 'string' ? JSON.parse(game.state) : (game.state || {});
@@ -454,7 +455,7 @@ async function addMechToSkirmishHangar(unitId) {
 }
 
 async function saveSkirmishPilot(entryId) {
-  if (!currentGameId || !currentUser || vsAiMode) return;
+  if (!currentGameId || !currentUser) return;
   const nameInput = document.getElementById(`hangar-pilot-name-${entryId}`);
   const gunneryInput = document.getElementById(`hangar-pilot-gunnery-${entryId}`);
   const pilotingInput = document.getElementById(`hangar-pilot-piloting-${entryId}`);
@@ -481,7 +482,7 @@ async function saveSkirmishPilot(entryId) {
 }
 
 async function removeSkirmishHangarMech(entryId) {
-  if (!currentGameId || !currentUser || vsAiMode) return;
+  if (!currentGameId || !currentUser) return;
   const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
   if (error || !game) return;
   const state = typeof game.state === 'string' ? JSON.parse(game.state) : (game.state || {});
@@ -492,7 +493,7 @@ async function removeSkirmishHangarMech(entryId) {
 }
 
 async function toggleSkirmishDeployment(entryId) {
-  if (!currentGameId || !currentUser || vsAiMode) return;
+  if (!currentGameId || !currentUser) return;
   const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
   if (error || !game) return;
   const state = typeof game.state === 'string' ? JSON.parse(game.state) : (game.state || {});
@@ -512,8 +513,8 @@ function renderLobbyMatchSetup(gameState, players) {
   const rosterEl = document.getElementById('lobby-roster-builder');
   if (!settingsEl || !rosterSection || !rosterEl) return;
 
-  if (vsAiMode || !gameState.map_id) {
-    settingsEl.innerHTML = `<div class="match-setting-summary">AI skirmish using the current demonstration map and test roster.<br>Opponent: <strong>${escapeHtml(titleCase(aiDifficulty))} · ${escapeHtml(AI_PERSONALITY_LABELS[aiPersonality])}</strong><br><small>Difficulty changes decision quality; personality changes tactical preferences. Neither changes the rules or dice.</small></div>`;
+  if (!gameState.map_id) {
+    settingsEl.innerHTML = '<div class="match-setting-summary">Match setup is incomplete.</div>';
     rosterSection.hidden = true;
     return;
   }
@@ -524,7 +525,11 @@ function renderLobbyMatchSetup(gameState, players) {
   const beginnerScenario = gameState.beginner_scenario;
   const customScenario = gameState.custom_scenario;
   const victoryLabel = ({ annihilation: 'Annihilation', control: 'Objective Control (first to 5)', breakthrough: 'Breakthrough (2 BattleMechs)' })[gameState.victory_mode] || 'Annihilation';
-  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${escapeHtml(beginnerScenario?.title || customScenario?.name || map.name)}</strong><br>${escapeHtml(beginnerScenario?.instructions || customScenario?.instructions || map.description)}<br>Battlefield: <strong>${escapeHtml(map.name)}</strong><br>Force limit: <strong>${limit} tons per player</strong><br>Victory: <strong>${victoryLabel}</strong><br>Ruleset: <strong>${escapeHtml(rulesetLabel(gameState))}</strong></div>`;
+  const aiRoster = (gameState.rosters?.['2'] || []).map(unitId => {
+    const unit = getSupportedUnit(unitId); return unit ? `${unit.chassis} ${unit.variant}` : unitId;
+  }).join(', ') || 'not generated';
+  const aiDetails = vsAiMode ? `<br>Opponent: <strong>${escapeHtml(titleCase(aiDifficulty))} · ${escapeHtml(AI_PERSONALITY_LABELS[aiPersonality])}</strong><br>AI force: <strong>${escapeHtml(aiRoster)}</strong><br><small>Build and deploy your force below. The AI is already deployed for this battlefield and mission.</small>` : '';
+  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${escapeHtml(beginnerScenario?.title || customScenario?.name || map.name)}</strong><br>${escapeHtml(beginnerScenario?.instructions || customScenario?.instructions || map.description)}<br>Battlefield: <strong>${escapeHtml(map.name)}</strong><br>Force limit: <strong>${limit} tons per player</strong><br>Victory: <strong>${victoryLabel}</strong><br>Ruleset: <strong>${escapeHtml(rulesetLabel(gameState))}</strong>${aiDetails}</div>`;
   if (beginnerScenario) {
     rosterSection.hidden = true;
     rosterEl.innerHTML = '';
@@ -672,7 +677,7 @@ function renderLobbyDeployment(gameState) {
   const section = document.getElementById('lobby-deployment-section');
   const target = document.getElementById('lobby-deployment');
   if (!section || !target) return;
-  if (vsAiMode || !mySeatNumber || !gameState.map_id) { section.hidden = true; return; }
+  if (!mySeatNumber || !gameState.map_id) { section.hidden = true; return; }
   section.hidden = false;
   const roster = gameState.rosters?.[String(mySeatNumber)] || [];
   const positions = gameState.deployment_positions?.[String(mySeatNumber)] || [];
@@ -781,7 +786,7 @@ async function resetLobbyDeployment() {
 }
 
 async function toggleRosterUnit(unitId) {
-  if (!currentGameId || !currentUser || vsAiMode || !isSupportedUnit(unitId)) return;
+  if (!currentGameId || !currentUser || !isSupportedUnit(unitId)) return;
   const { data: game, error } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
   if (error || !game) return;
   const state = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
@@ -826,11 +831,11 @@ async function handleReadyUp() {
   if (newReady) {
     const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
     const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-    if (!vsAiMode && !isRosterLegal(state.rosters?.[String(player.seat_number)], state.dropship_tonnage, matchRuleset(state))) {
+    if (!isRosterLegal(state.rosters?.[String(player.seat_number)], state.dropship_tonnage, matchRuleset(state))) {
       document.getElementById('lobby-status').textContent = 'Choose a roster that is legal for this force limit and ruleset before readying up.';
       return;
     }
-    if (!vsAiMode && (state.deployment_positions?.[String(player.seat_number)] || []).length !== (state.rosters?.[String(player.seat_number)] || []).length) {
+    if ((state.deployment_positions?.[String(player.seat_number)] || []).length !== (state.rosters?.[String(player.seat_number)] || []).length) {
       document.getElementById('lobby-status').textContent = 'Place every BattleMech in your deployment zone before readying up.';
       return;
     }
@@ -866,6 +871,9 @@ async function handleStartGame() {
       document.getElementById('lobby-status').textContent = 'All players must be ready!';
       return;
     }
+  } else if (!players.some(player => !player.is_ai && player.ready)) {
+    document.getElementById('lobby-status').textContent = 'Finish your force and deployment, then Ready Up before starting the AI match.';
+    return;
   }
 
   // Store AI difficulty and mode in game state
@@ -880,19 +888,15 @@ async function handleStartGame() {
     await loadUnitCatalogue(game.catalogue_version);
     gameState.catalogue_version = game.catalogue_version;
   }
-  if (!vsAiMode) {
-    const rostersValid = players.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState)));
-    if (!rostersValid) {
-      document.getElementById('lobby-status').textContent = 'Each player needs a legal roster within the force limit and selected ruleset.';
-      return;
-    }
-    gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars, gameState.deployment_positions, gameState.c3_assignments);
-  } else {
-    // SQL 123 forbids adding or replacing units after play starts. Persist the
-    // canonical demonstration roster in the same transaction that starts the
-    // match, before any human or AI phase action can be submitted.
-    gameState.mech_instances = buildDefaultVsAIMechInstances();
+  const rostersValid = players.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState)));
+  const deploymentsValid = players.every(player => (gameState.deployment_positions?.[String(player.seat_number)] || []).length === (gameState.rosters?.[String(player.seat_number)] || []).length);
+  if (!rostersValid || !deploymentsValid) {
+    document.getElementById('lobby-status').textContent = 'Each force must be legal and fully deployed before the match can start.';
+    return;
   }
+  // SQL 123 forbids replacing units after play starts. Persist the complete
+  // configured roster before any human or AI phase action can be submitted.
+  gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars, gameState.deployment_positions, gameState.c3_assignments, gameState);
   if (vsAiMode && typeof prepareAIAmmoLoadouts === 'function') prepareAIAmmoLoadouts(gameState.mech_instances);
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
@@ -913,19 +917,14 @@ async function handleStartGame() {
   startGameScreen();
 }
 
-function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions = {}, c3Assignments = {}) {
-  const deployment = {
-    1: [
-      { col: 4, row: 4, facing: 0 }, { col: 3, row: 5, facing: 0 },
-      { col: 4, row: 6, facing: 0 }, { col: 3, row: 7, facing: 0 },
-      { col: 4, row: 8, facing: 0 }, { col: 5, row: 6, facing: 0 }
-    ],
-    2: [
-      { col: 11, row: 4, facing: 3 }, { col: 12, row: 5, facing: 3 },
-      { col: 11, row: 6, facing: 3 }, { col: 12, row: 7, facing: 3 },
-      { col: 11, row: 8, facing: 3 }, { col: 10, row: 6, facing: 3 }
-    ]
-  };
+function defaultRosterDeployment(seat, count, mapState = {}) {
+  const zone = scenarioDeploymentZoneHexes(seat, mapState).map(code => ({ col:Number(code.slice(0,2)), row:Number(code.slice(2,4)) }));
+  const dimensions = mapDimensions(mapState.map_id);
+  return Array.from({ length:count }, (_, index) => ({ ...(zone[index] || { col:seat === 1 ? 0 : dimensions.cols - 1, row:index }), facing:seat === 1 ? 0 : 3, hidden:false }));
+}
+
+function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions = {}, c3Assignments = {}, mapState = {}) {
+  const deployment = { 1:defaultRosterDeployment(1, (rosters?.['1'] || []).length, mapState), 2:defaultRosterDeployment(2, (rosters?.['2'] || []).length, mapState) };
   return [1, 2].flatMap(seat => (rosters?.[String(seat)] || []).map((unitId, index) => {
     const position = deploymentPositions?.[String(seat)]?.[index] || deployment[seat][index];
     const unit = getSupportedUnit(unitId);

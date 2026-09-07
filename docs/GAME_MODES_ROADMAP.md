@@ -44,16 +44,24 @@ minefield-plan acceptance passes.
 
 ## GM-2 — configurable Play vs AI scenarios
 
-- Route Play vs AI through a setup screen for map, ruleset, force budget and
-  victory mode instead of the fixed demonstration battle.
-- Let the player build a legal force and generate a legal, comparable AI force.
-- Deploy the AI for the selected map and mode, including objective coverage and
-  breakthrough lanes.
-- Give the AI a private minefield plan based only on its own force and map
-  information; never reveal the human plan to its decision code.
+- **Implemented in build `20260907-gm2-ai-skirmish-75`.** Route Play vs AI
+  through a setup screen for map, ruleset, force budget, victory mode,
+  difficulty and personality instead of the fixed demonstration battle.
+- Seed a legal suggested human force into the normal match-only Hangar; the
+  player can alter it, then deploy every BattleMech in the existing lobby.
+- Generate a deterministic, legal, comparable AI force and map-aware formation.
+  Formations spread toward Control objectives or Breakthrough lanes where the
+  selected mission has them.
+- Let the Map & Scenario Editor launch its saved custom battlefield directly
+  into this same Play vs AI lobby.
+- AI minefields deliberately remain deferred: the present browser-hosted AI
+  cannot keep an unrevealed field private from the human-controlled browser.
+  GM-4 will add the required private authoritative delivery before enabling
+  computer mine placement.
 
 Acceptance: a player can complete all three modes against AI on standard,
-dual-board and custom maps without manual database setup.
+dual-board and custom maps without manual database setup. This is covered by
+the GM-2 setup regression; live mode-matrix coverage remains GM-3.
 
 ## GM-3 — authoritative live mode matrix
 

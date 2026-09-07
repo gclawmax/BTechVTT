@@ -57,7 +57,7 @@ async function signIn() {
 
 try {
   await signIn();
-  await page.evaluate(async () => { await handleCreateVsAI(); });
+  await page.evaluate(async () => { handleCreateVsAI(); await handleCreateConfiguredVsAI(); });
   if (!await waitForScreen('lobby-screen')) throw new Error('Play vs AI did not open its lobby.');
   await page.evaluate(async () => { await handleStartGame(); });
   if (!await waitForScreen('game-screen',25000)) throw new Error('Play vs AI did not reach the battlefield.');

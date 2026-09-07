@@ -67,6 +67,8 @@ try {
 
   // ── Create vs-AI game -> lobby ───────────────────────────────────────
   await page.evaluate(() => { const b = Array.from(document.querySelectorAll('#menu-screen button')).find(x => /play vs ai/i.test(x.textContent)); b?.click(); });
+  await waitActive('vs-ai-setup-screen', 10000);
+  await page.click('#vs-ai-setup-screen .primary');
   await waitActive('lobby-screen', 20000);
   await sleep(1500);
 

@@ -70,6 +70,7 @@ try {
   await run('node', ['tools/test-ai-difficulty-personality.mjs'], {}, 'AI-6 difficulty and personality regression');
   await run('node', ['tools/test-ai-evaluation.mjs'], {}, 'AI-7 evaluation and retention regression');
   await run('node', ['tools/test-game-modes-regression.mjs'], {}, 'objective modes and minefield planning regression');
+  await run('node', ['tools/test-vs-ai-game-modes.mjs'], {}, 'configurable Play vs AI regression');
   if (!suppliedUrl) {
     server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
     await waitForServer(baseUrl);

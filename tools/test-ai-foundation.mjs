@@ -158,11 +158,12 @@ check('no legal physical target produces an explicit pass', physicalPlan.actions
 const movementSource = fs.readFileSync(path.join(ROOT, 'js/movement/movement.js'), 'utf8');
 const movementRulesSource = fs.readFileSync(path.join(ROOT, 'js/movement/rules.js'), 'utf8');
 const lobbySource = fs.readFileSync(path.join(ROOT, 'js/network/lobby.js'), 'utf8');
+const createVsAiSource = fs.readFileSync(path.join(ROOT, 'js/network/create-vs-ai.js'), 'utf8');
 const sqlSource = fs.readFileSync(path.join(ROOT, 'SQL/123_ai_authoritative_foundation.sql'), 'utf8');
 const ai3SqlSource = fs.readFileSync(path.join(ROOT, 'SQL/125_ai_authoritative_tactical_movement.sql'), 'utf8');
 const ai5SqlSource = fs.readFileSync(path.join(ROOT, 'SQL/126_ai_authoritative_reactions_and_physical.sql'), 'utf8');
 check('Play vs AI snapshots use the guarded RPC rather than a direct table update', movementSource.includes("db.rpc('submit_ai_phase_state'") && !movementSource.includes("db.from('btech_games').update({ state: JSON.stringify(gameState)"));
-check('a fresh AI match persists the same canonical starting force that the board displays', movementRulesSource.includes('function buildDefaultVsAIMechInstances()') && lobbySource.includes('gameState.mech_instances = buildDefaultVsAIMechInstances()'));
+check('a fresh AI match persists the configured, pinned roster that the board displays', createVsAiSource.includes('buildVsAiSuggestedForce') && lobbySource.includes('buildRosterInstances(gameState.rosters') && !lobbySource.includes('gameState.mech_instances = buildDefaultVsAIMechInstances()'));
 check('SQL 123 verifies controller, AI turn, unit identities and phase actions', ['Only the seated human participant', 'An AI decision was submitted outside the AI turn', 'attempted to replace a deployed BattleMech identity', 'outside the active phase'].every(marker => sqlSource.includes(marker)));
 check('SQL 123 keeps a durable participant-readable decision record', sqlSource.includes('CREATE TABLE IF NOT EXISTS public.btech_ai_decisions') && sqlSource.includes('Participants can view AI decisions'));
 check('SQL 125 routes AI movement through the authoritative human resolver', ai3SqlSource.includes('btech_authorized_movement_player') && ai3SqlSource.includes('submit_battlemech_movement(uuid,text,text,jsonb)'));

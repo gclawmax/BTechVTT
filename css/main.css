@@ -225,6 +225,7 @@ html, body {
 .scenario-editor-file-actions button,.scenario-import-button,.scenario-launch { padding:8px; border:1px solid #717970; background:transparent; color:#e5e5dc; font:9px var(--mono); text-align:center; cursor:pointer; }
 .scenario-import-button input { display:none; }
 .scenario-launch { width:100%; margin-top:10px; background:#87600d; border-color:#bf8b1b; color:#fff; font:12px var(--display); letter-spacing:.08em; text-transform:uppercase; }
+.scenario-launch-ai { margin-top:6px; background:#263d60; border-color:#6283b3; }
 #scenario-editor-status { min-height:36px; margin-top:9px; color:#e0b55a; font:10px/1.4 var(--mono); }
 .scenario-editor-tools { display:grid; grid-template-columns:2fr .8fr 1fr 1fr; gap:10px; margin-bottom:10px; }
 .scenario-editor-tools section { min-width:0; }

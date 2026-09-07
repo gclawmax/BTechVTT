@@ -86,7 +86,7 @@ const index=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
 const state=fs.readFileSync(path.join(ROOT,'js/ai/state.js'),'utf8');
 const create=fs.readFileSync(path.join(ROOT,'js/network/create-vs-ai.js'),'utf8');
 check('Dropship exposes difficulty and personality controls',index.includes('ai-difficulty-select')&&index.includes('ai-personality-select'));
-check('AI selections are retained locally and pinned into each new match',state.includes('btech-vtt-ai-personality')&&create.includes('ai_personality: aiPersonality'));
+check('AI selections are retained locally and pinned into each new match',state.includes('btech-vtt-ai-personality')&&create.includes('ai_personality:AI_PERSONALITY_KEYS.includes(personality)'));
 const stored=new Map();
 const elements={
   'ai-difficulty-select':{value:'beginner'},

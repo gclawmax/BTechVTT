@@ -53,7 +53,7 @@ try {
   await page.selectOption('#ai-difficulty-select','advanced');
   await page.selectOption('#ai-personality-select','sniper');
   await page.evaluate(() => updateAIOpponentOptions());
-  await page.evaluate(async () => { await handleCreateVsAI(); });
+  await page.evaluate(async () => { handleCreateVsAI(); await handleCreateConfiguredVsAI(); });
   if (!await waitForScreen('lobby-screen')) throw new Error('Play vs AI did not open its lobby.');
   await page.evaluate(async () => { await handleStartGame(); });
   if (!await waitForScreen('game-screen',25000)) throw new Error('Play vs AI did not reach the battlefield.');

@@ -229,7 +229,7 @@ function renderScenarioEditor() {
       <label>Tonnage per player<select onchange="scenarioEditorSetField('dropship_tonnage',this.value)">${[100,150,200,250].map(value => `<option value="${value}" ${scenarioEditorState.dropship_tonnage === value ? 'selected' : ''}>${value} tons</option>`).join('')}</select></label>
       <label>Victory condition<select onchange="scenarioEditorSetField('victory_mode',this.value)"><option value="annihilation" ${scenarioEditorState.victory_mode === 'annihilation' ? 'selected' : ''}>Annihilation</option><option value="control" ${scenarioEditorState.victory_mode === 'control' ? 'selected' : ''}>Objective Control</option><option value="breakthrough" ${scenarioEditorState.victory_mode === 'breakthrough' ? 'selected' : ''}>Breakthrough</option></select></label>
       <label>Generation seed<input id="scenario-seed" maxlength="64" value="${scenarioEditorEscape(scenarioEditorState.generation_seed)}"></label><label>Terrain density<select id="scenario-density"><option value="15">Light</option><option value="25" selected>Balanced</option><option value="40">Dense</option></select></label><label>Terrain pattern<select id="scenario-pattern"><option value="balanced">Balanced terrain</option><option value="ridge">Ridge line</option><option value="river">River crossing</option><option value="urban">Industrial district</option></select></label><label class="scenario-editor-check"><input id="scenario-symmetry" type="checkbox" checked> Mirror for a fair duel</label><button class="scenario-generate" onclick="generateScenarioEditorMap()">Generate Terrain</button><div class="scenario-editor-file-actions"><button onclick="saveScenarioEditorDraft()">Save Draft</button><button onclick="exportScenarioEditor()">Export JSON</button><label class="scenario-import-button">Import JSON<input id="scenario-import-input" type="file" accept="application/json,.json" onchange="importScenarioEditor(this.files[0])"></label></div>
-      <button class="scenario-launch" onclick="launchScenarioEditorMatch()">Create Two-Player Lobby</button><div id="scenario-editor-status" role="status"></div>
+      <button class="scenario-launch" onclick="launchScenarioEditorMatch()">Create Two-Player Lobby</button><button class="scenario-launch scenario-launch-ai" onclick="launchScenarioEditorVsAI()">Play This Map vs AI</button><div id="scenario-editor-status" role="status"></div>
     </aside><main class="scenario-editor-workspace"><div class="scenario-editor-tools"><section><strong>Terrain</strong><div>${terrainButtons}</div></section><section><strong>Elevation</strong><div>${elevationButtons}</div></section><section><strong>Scenario markers</strong><div><button data-scenario-tool="zone:1" class="scenario-tool zone-one-tool" onclick="selectScenarioEditorTool('zone','1')">Player 1 Deployment</button><button data-scenario-tool="zone:2" class="scenario-tool zone-two-tool" onclick="selectScenarioEditorTool('zone','2')">Player 2 Deployment</button><button data-scenario-tool="objective:toggle" class="scenario-tool objective-tool" onclick="selectScenarioEditorTool('objective','toggle')">Objective</button></div></section><section><strong>Starting layout</strong><div><select id="scenario-template-map">${Object.entries(BT_MAPS).map(([id,map]) => `<option value="${id}">${scenarioEditorEscape(map.name)}</option>`).join('')}</select><button onclick="loadScenarioEditorTemplate()">Load Built-in Map</button><button onclick="clearScenarioEditorMap()">Clear Map</button></div></section></div><div id="scenario-editor-map"></div><p class="scenario-editor-help">Click or drag to paint terrain/elevation. Deployment and objective tools toggle one hex at a time. Blue is Player 1; red is Player 2; ◆ marks objectives.</p></main></div>`;
   renderScenarioEditorMap();
 }
@@ -300,6 +300,22 @@ async function launchScenarioEditorMatch() {
     victoryMode: scenarioEditorState.victory_mode,
     customScenario
   });
+}
+
+async function launchScenarioEditorVsAI() {
+  if (!currentUser || !scenarioEditorState) return;
+  scenarioEditorState = normalizeScenarioDefinition(scenarioEditorState);
+  const errors = validateScenarioDefinition(scenarioEditorState);
+  const status = document.getElementById('scenario-editor-status');
+  if (errors.length) { if (status) status.textContent = errors.join(' '); return; }
+  if (status) status.textContent = 'Saving the scenario and creating its AI lobby…';
+  const { data: scenarioId, error } = await db.rpc('save_btech_custom_scenario', { p_definition: scenarioEditorState });
+  if (error) { if (status) status.textContent = `Scenario could not be saved: ${error.message}`; return; }
+  const mapId = `custom:${scenarioId}`;
+  const customScenario = { ...scenarioEditorState, map_id:mapId, id:mapId, visual:'custom' };
+  registerCustomMapDefinition(customScenario);
+  localStorage.setItem(SCENARIO_EDITOR_STORAGE_KEY, JSON.stringify(scenarioEditorState));
+  await createVsAIGame({ mapId, dropshipTonnage:scenarioEditorState.dropship_tonnage, victoryMode:scenarioEditorState.victory_mode, customScenario });
 }
 
 window.addEventListener('pointerup', () => { scenarioEditorPainting = false; });
