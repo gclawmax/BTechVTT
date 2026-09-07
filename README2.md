@@ -111,10 +111,11 @@ profiles. For example, Clan ER Medium Lasers use 7 damage and 5/10/15 range.
 
 ## Remaining work
 
-The active priorities and their acceptance criteria are maintained only in
-`docs/DEVELOPMENT_ROADMAP.md`. The current slice is the After-Action Report and
-Replay Foundation, followed by the Battle Replay Viewer and persistent Career
-settlement.
+The active priorities and acceptance criteria are maintained in
+`docs/DEVELOPMENT_ROADMAP.md`. AAR, replay viewing, game modes and their
+balance tooling are complete. The next delivery programme is Career-1: an
+opt-in, server-authoritative Mercenary Company loop. Its scope and safeguards
+are in `docs/PERSISTENT_CAMPAIGN_DESIGN.md`.
 
 ## Tech stack
 

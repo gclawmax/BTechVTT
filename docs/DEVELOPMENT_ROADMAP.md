@@ -1,7 +1,7 @@
 # BTechVTT — Development Roadmap
 
 Status: **authoritative roadmap**  
-Last updated: **2026-09-02**
+Last updated: **2026-09-07**
 
 This document is the single source of truth for development priorities. It
 supersedes the roadmap sections in `README.md`, `README2.md`, and
@@ -30,153 +30,47 @@ documents, but their implementation order is governed here.
 | Scenarios | Done | Annihilation, Objective Control, Breakthrough and custom map/scenario editor |
 | Construction | Done | Custom IS/Clan BattleMechs and supported advanced construction equipment |
 | Presentation | In progress | Record sheets, combat-log pacing, sound effects, resizable panels and accessibility improvements |
-| Career | Design only | Persistent company proposal exists; no skirmish currently awards persistent progression |
+| After Action / Replay | Done | Sealed telemetry, statistics, report/replay exports, 30-day skirmish retention and offline replay viewer |
+| Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
+| Career | Designed | Campaign is intentionally isolated until Career-1 persistence and settlement are implemented |
 
-## Current development slice — After-Action Report and Replay Foundation
+## Current development priority — Career-1
 
-### Objective
+The next feature is an opt-in, persistent Mercenary Company loop. It must use
+the existing sealed report and match engine without weakening skirmish
+isolation. The authoritative scope, data model, safeguards, and incremental
+delivery plan are in [Persistent Campaign Design](PERSISTENT_CAMPAIGN_DESIGN.md).
 
-Replace the minimal victory message with a trustworthy, replay-ready match
-report. Skirmishes may demonstrate salvage, repairs, injuries and advancement,
-but must never apply those outcomes to a persistent player record.
+Career-1a establishes persistent company, BattleMech, pilot, contract, ledger
+and settlement-receipt records with RLS and skirmish-isolation tests.
+Career-1b launches deterministic AI contracts from a company's current,
+possibly damaged force and settles the sealed result exactly once. Career-1c
+adds Company HQ and authoritative repair/reload actions.
 
-### 1. Authoritative match telemetry
+## Completed recent programmes
 
-Implementation status: **implemented through SQL 103; live migration and
-battle validation pending**. Telemetry records ordered combat results,
-purpose-labelled dice, damage attribution, unit state changes, phase changes,
-round checkpoints and a sealed report envelope. SQL 101 calculates statistics,
-and SQL 103 adds the isolated preview, portable exports and skirmish retention.
-
-- Record every dice result with its owner, purpose, target number and outcome.
-- Record movement, facing, reaction, heat and pilot-state changes as structured
-  events rather than relying on prose log parsing.
-- Add shot distance, weapon identity, attacker/target identity and damage
-  attribution at resolution time.
-- Record per-round heat checkpoints so average and peak heat are reproducible.
-- Seal a versioned match report when a victory condition resolves.
-- Include periodic state checkpoints so a future viewer can seek through a
-  replay without rerunning the rules.
-
-### 2. Victory and statistics screen
-
-Implementation status: **implemented; live battle validation pending**.
-
-- Show the correct result for Annihilation, Objective Control, Breakthrough or
-  a draw.
-- Summarize rounds, survivors, objective scores and total damage.
-- Show damage, accuracy, criticals, kills, longest successful shot, highest
-  damage BattleMech/weapon, average heat and peak heat.
-- Show a 2D6 distribution chart split by player and roll type.
-- Compare actual successes with their expected probabilities; do not label a
-  player lucky merely because their raw average roll was high.
-- Keep the complete battle log available from the result screen.
-
-### 3. Non-persistent Career Preview
-
-Implementation status: **implemented; deliberately read-only**.
-
-- Assess recoverable wrecks and their condition.
-- Estimate repairs, rearming and salvage value.
-- Calculate illustrative pilot experience and possible skill advancement.
-- Mark the entire section **Skirmish preview only — nothing here is saved**.
-- Prove with server tests that a skirmish cannot mutate company, hangar, pilot,
-  credit, reputation or salvage records.
-
-### 4. Export and retention
-
-Implementation status: **implemented; scheduler activation and live cleanup
-validation pending**. SQL 103 schedules the daily cleanup automatically when
-the database has `pg_cron`; otherwise the same server-only function can be
-scheduled by the hosting environment.
-
-- Add **Export Battle Replay** and **Export Battle Report** actions.
-- Use a self-contained, versioned `.btvtt-replay.json` format containing the
-  map/scenario snapshot, catalogue version, initial forces, ordered events,
-  checkpoints, final state and report.
-- Exclude authentication IDs, game codes and other private database values.
-- Add explicit match type and completion time instead of inferring retention
-  eligibility from mutable state.
-- Retain completed non-Career skirmishes online for 30 days.
-- Run a daily cleanup which never removes an active match or Career battle;
-  related combat/log records should be deleted through database cascades.
-- Explain the retention period on the victory screen before the player leaves.
-
-### Acceptance criteria
-
-- Both players receive the same sealed report and calculated statistics.
-- Reloading or rejoining a completed match reproduces the same report.
-- Exported replay data is sufficient to reproduce the battle without rerolling
-  dice or invoking contemporary combat rules.
-- A replay/report export still opens after its online skirmish is deleted.
-- Cleanup tests cover active, recent, expired and Career matches.
-- Existing Human-v-Human and focused rules regressions remain green.
-
-## Next slice — Battle Replay Viewer
-
-Place **Battle Replay Viewer** under the Dropship's Editors submenu. It will:
-
-- Import `.btvtt-replay.json` files without uploading them.
-- Validate the replay format and report unsupported/corrupt files clearly.
-- Reconstruct the exported map and initial forces.
-- Play recorded events without rerolling or recalculating rules.
-- Provide play/pause, speed, previous/next event, round/phase navigation and
-  timeline scrubbing.
-- Synchronize battlefield animation, unit inspection and the combat log.
-- Prefer recorded unit/map snapshots when current catalogue content differs.
-
-The viewer is deliberately separate from the current slice. The current slice
-must nevertheless produce the complete file and event contract it will use.
-
-## Following slice — Persistent Career settlement
-
-Implement the persistent company, hangar, pilot, contract, economy and repair
-model after its detailed design has been reviewed. Career settlement will
-consume the same sealed match report used by skirmishes:
-
-```text
-Completed battle
-      ↓
-Sealed match report
-      ↓
-Skirmish → report and preview only
-Career   → authoritative settlement
-             ├─ salvage ownership
-             ├─ persistent damage and repairs
-             ├─ pilot injuries and advancement
-             └─ contract pay and reputation
-```
-
-No persistent Career mutation should be implemented until the report contract
-and skirmish isolation tests are complete.
+- **AAR and replay:** implemented through SQL 103, including sealed reports,
+  exports, skirmish retention, a non-persistent Career preview, and the
+  Dropship Replay Viewer.
+- **AI-1 through AI-7:** implemented through SQL 126. AI now has complete
+  legal planning across all phases, difficulty/personality policies, and a
+  deterministic evaluator. Future AI changes must be baseline-led rather than
+  speculative; see `docs/AI_OPPONENT_ROADMAP.md` and `docs/AI_EVALUATION.md`.
+- **GM-1 through GM-5:** implemented through SQL 127–130 and build
+  `20260907-gm5-decisive-pairs-81`. The modes roadmap records the acceptance
+  commands and the paired balance methodology.
 
 ## Later work
 
-- Expand remaining specialist equipment and catalogue-led rule batches (see
-  **BattleMech specialist-rules programme** below).
-- Improve AI decision-making through the staged programme in
-  `docs/AI_OPPONENT_ROADMAP.md`. AI-1 is live; AI-2 complete weapon-package
-  planning is implemented in SQL 124, with dedicated live acceptance and soak
-  coverage and hardened AI ammunition setup. AI-3 tactical movement, AI-4
-  force coordination, AI-5 specialist reactions/physical tactics and AI-6
-  difficulty/personality policy and AI-7 deterministic evaluation are
-  implemented through build `20260906-ai7-evaluation-73` and SQL 126. The
-  opponent foundation is complete; subsequent tuning should be measured
-  against saved AI-7 baselines rather than added as an untested rules layer.
-- Production hosting, observability, backups and deployment beyond the current
-  GitHub Pages/Supabase development setup.
-- Further visual, audio, accessibility and mobile polish.
-
-### Game modes and minefields
-
-GM-1 mode contracts, objective-aware AI, map-aware deployment zones and atomic
-minefield planning are implemented in build `20260907-game-modes-74` with SQL
-127. GM-2 configurable Play vs AI scenarios are implemented in build
-`20260907-gm2-ai-skirmish-75`: map, ruleset, budget, mission, player Hangar,
-deterministic comparable AI force, map-aware formation and custom-editor launch.
-The authoritative live mode matrix, complete minefield budgeting/privacy and
-per-mode balance evaluation remain GM-3 through GM-5. See
-`docs/GAME_MODES_ROADMAP.md`.
+1. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
+   factions and alternate origins — only after Career-1 settlement is proven.
+2. **Level 2 catalogue additions:** curated, catalogue-led systems not already
+   covered by the specialist-rules programme below. Each remains gated by an
+   authoritative resolver and a representative live battle.
+3. **Operations:** scheduled retention cleanup verification, deployment
+   observability/backups, and production monitoring.
+4. **Presentation:** accessibility, mobile, map/editor and audio polish driven
+   by player feedback.
 
 ## BattleMech specialist-rules programme
 
