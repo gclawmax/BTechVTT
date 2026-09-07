@@ -155,6 +155,19 @@ html, body {
   background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
 }
 
+/* Solo setup is deliberately a full-window workspace. Unlike the compact
+   two-player setup card it can contain a tall 16 × 17 map preview plus all
+   opponent controls, so the screen itself owns a visible scroll container. */
+#vs-ai-setup-screen {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  padding: 32px clamp(24px, 4vw, 72px);
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2a 100%);
+}
+
 #match-setup-box {
   width: 420px;
   max-width: 100%;
@@ -171,8 +184,8 @@ html, body {
 #match-setup-box p { margin: 0 0 22px; color: var(--phosphor-dim); font-size: 11px; line-height: 1.5; }
 #match-setup-box label { display:block; margin: 14px 0 6px; color: var(--phosphor-dim); font-size:10px; letter-spacing:.1em; text-transform:uppercase; }
 #match-setup-box select { width:100%; padding:10px; border:1px solid var(--panel-line); background:var(--void); color:var(--paper); font:12px var(--mono); }
-.vs-ai-setup-box { width:min(1080px, calc(100vw - 48px)) !important; padding:30px 36px !important; }
-.vs-ai-setup-layout { display:grid; grid-template-columns:minmax(460px,1.35fr) minmax(280px,.65fr); align-items:start; gap:28px; }
+.vs-ai-setup-box { width:min(1500px, 100%) !important; min-height:calc(100vh - 64px); margin:0 auto !important; padding:30px 36px !important; }
+.vs-ai-setup-layout { display:grid; grid-template-columns:minmax(560px,1.45fr) minmax(360px,.55fr); align-items:start; gap:36px; }
 .vs-ai-setup-layout label:first-child { margin-top:0; }
 .vs-ai-options-column { padding:2px 0 4px 24px; border-left:1px solid var(--panel-line); }
 .vs-ai-options-column label:first-child { margin-top:0; }
@@ -212,7 +225,8 @@ html, body {
 .setup-actions button { flex:1; padding:10px 14px; border:1px solid var(--phosphor); background:var(--phosphor); color:#fff; font:11px var(--display); letter-spacing:.1em; text-transform:uppercase; cursor:pointer; }
 .setup-actions button.secondary { background:transparent; color:var(--phosphor); }
 @media (max-width:760px) {
-  .vs-ai-setup-box { width:min(520px, calc(100vw - 28px)) !important; padding:24px 20px !important; }
+  #vs-ai-setup-screen { padding:14px; }
+  .vs-ai-setup-box { width:100% !important; min-height:0; padding:24px 20px !important; }
   .vs-ai-setup-layout { grid-template-columns:1fr; gap:14px; }
   .vs-ai-options-column { padding:0; border-left:0; }
 }
