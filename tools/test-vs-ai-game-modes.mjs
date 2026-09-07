@@ -14,9 +14,15 @@ const create = fs.readFileSync(path.join(ROOT, 'js/network/create-vs-ai.js'), 'u
 const lobby = fs.readFileSync(path.join(ROOT, 'js/network/lobby.js'), 'utf8');
 const editor = fs.readFileSync(path.join(ROOT, 'js/game/scenario-editor.js'), 'utf8');
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const maps = fs.readFileSync(path.join(ROOT, 'js/game/maps.js'), 'utf8');
+const mapSql = fs.readFileSync(path.join(ROOT, 'SQL/131_expanded_builtin_map_catalogue.sql'), 'utf8');
 
 check('Play vs AI opens a dedicated scenario setup screen', html.includes('id="vs-ai-setup-screen"') && create.includes("showScreen('vs-ai-setup-screen')"));
 check('the solo setup exposes map, budget, victory, ruleset and opponent controls', ['vs-ai-map-select','vs-ai-tonnage-select','vs-ai-victory-select','vs-ai-ruleset-select','vs-ai-difficulty-setup-select','vs-ai-personality-setup-select'].every(id => html.includes(id)));
+check('the solo setup keeps its battlefield preview and match controls in readable columns', html.includes('vs-ai-setup-layout') && html.includes('vs-ai-map-column') && html.includes('vs-ai-options-column'));
+const expandedMaps = ['river-delta', 'city-ruins', 'forest-lanes', 'rolling-highlands', 'badlands-run'];
+check('the built-in map catalogue includes the new varied tactical layouts', expandedMaps.every(id => maps.includes(`'${id}'`)));
+check('new built-in maps are grouped for selection and have matching authoritative terrain and objectives', maps.includes('function builtInMapOptions') && expandedMaps.every(id => mapSql.includes(`'${id}'`)));
 check('configured AI games persist map, budget, ruleset, victory and deterministic seed', ['map_id:mapId','dropship_tonnage:Number(dropshipTonnage)','victory_mode:validMode','ruleset:validRuleset','ai_seed:aiSeed'].every(marker => create.includes(marker)));
 check('AI deployment is mission-aware and map-aware', ['buildVsAiDeployment','objectiveHexesForMap','scenarioDeploymentZoneHexes','generated_deployment'].every(marker => create.includes(marker)));
 check('both suggested forces begin with legal editable deployments', ["deployment_positions['1'] = buildVsAiDeployment(humanRoster, 1, setupState)", "deployment_positions['2'] = buildVsAiDeployment(aiRoster, 2, setupState)"].every(marker => create.includes(marker)));

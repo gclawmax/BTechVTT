@@ -73,20 +73,24 @@ function renderVsAIMapPreview() {
   const zoneOne = new Set(victoryMode === 'breakthrough' ? scenarioDeploymentZoneHexes(1, previewState) : []);
   const zoneTwo = new Set(victoryMode === 'breakthrough' ? scenarioDeploymentZoneHexes(2, previewState) : []);
   const cells = [];
+  const terrainCounts = {};
   for (let row = 0; row < dimensions.rows; row++) for (let col = 0; col < dimensions.cols; col++) {
     const code = hexCode(col, row), terrain = map.terrain?.[code] || 'clear', level = map.elevation?.[code] || 0;
+    if (terrain !== 'clear') terrainCounts[terrain] = (terrainCounts[terrain] || 0) + 1;
     const marker = objectives.has(code) ? ' objective' : zoneOne.has(code) ? ' breakthrough-zone-one' : zoneTwo.has(code) ? ' breakthrough-zone-two' : '';
     cells.push(`<polygon class="map-preview-hex ${terrain}${level ? ' elevated' : ''}${marker}" points="${mapPreviewHexPoints(col, row)}"><title>${code}: ${terrain.replaceAll('_', ' ')}</title></polygon>`);
   }
   const mode = victoryModeDetails(victoryMode), mapWidth = Math.sqrt(3) * (dimensions.cols + .5), mapHeight = (dimensions.rows - 1) * 1.5 + 2;
-  preview.innerHTML = `<h3>${escapeHtml(map.name)}</h3><p>${escapeHtml(map.description)}</p><svg class="map-preview-grid" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" role="img" aria-label="${dimensions.cols} by ${dimensions.rows} hex terrain preview">${cells.join('')}</svg><div class="map-preview-legend">${dimensions.cols} × ${dimensions.rows} hexes · the AI force and deployment are generated when the lobby is created.</div><div class="map-preview-mode"><strong>${mode.label}:</strong> ${mode.guidance}</div>`;
+  const terrainSummary = Object.entries(terrainCounts).map(([terrain, count]) => `${count} ${terrain.replaceAll('_', ' ')}`).join(' · ') || 'Open ground';
+  const levels = Object.values(map.elevation || {}).filter(level => Number(level) > 0);
+  preview.innerHTML = `<h3>${escapeHtml(map.name)}</h3><p>${escapeHtml(map.description)}</p><svg class="map-preview-grid" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" role="img" aria-label="${dimensions.cols} by ${dimensions.rows} hex terrain preview">${cells.join('')}</svg><div class="map-preview-legend">${dimensions.cols} × ${dimensions.rows} hexes · ${terrainSummary}${levels.length ? ` · ${levels.length} elevated hexes (up to level ${Math.max(...levels)})` : ''}</div><div class="map-preview-mode"><strong>${mode.label}:</strong> ${mode.guidance}</div>`;
 }
 
 function handleCreateVsAI() {
   if (!currentUser) return;
   updateAIOpponentOptions();
   const mapSelect = document.getElementById('vs-ai-map-select');
-  mapSelect.innerHTML = Object.entries(BT_MAPS).map(([id, map]) => `<option value="${id}">${escapeHtml(map.name)}</option>`).join('');
+  mapSelect.innerHTML = builtInMapOptions();
   mapSelect.value = DEFAULT_MAP_ID;
   document.getElementById('vs-ai-tonnage-select').value = '200';
   document.getElementById('vs-ai-victory-select').value = 'annihilation';

@@ -125,6 +125,48 @@ const BT_MAPS = Object.freeze({
       '0308':'magma_crust','0408':'magma_crust','0508':'magma_liquid','0309':'magma_crust','0409':'magma_crust',
       '1009':'ice','1109':'ice','1209':'deep_snow','1010':'mud','1110':'swamp'
     }
+  },
+  // These are original VTT layouts. They borrow broad tactical ideas from the
+  // locally supplied map references (river crossings, broken city blocks,
+  // wood lanes and rolling hills) without reproducing published map artwork.
+  'river-delta': {
+    name: 'River Delta', description: 'A winding waterway splits the field; two bridges and wooded banks create competing crossing points.', visual: 'river',
+    terrain: {
+      '0400':'shallow_water','0401':'shallow_water','0501':'shallow_water','0502':'deep_water','0602':'deep_water','0703':'deep_water','0803':'deep_water','0904':'deep_water','1004':'shallow_water','1005':'shallow_water','1106':'shallow_water','1107':'deep_water','1208':'deep_water','1209':'shallow_water','0704':'bridge','1105':'bridge',
+      '0203':'light_woods','0303':'light_woods','0204':'heavy_woods','0304':'light_woods','0404':'light_woods','1202':'light_woods','1302':'heavy_woods','1402':'light_woods','1203':'light_woods','1303':'light_woods','0709':'light_woods','0809':'heavy_woods','0909':'light_woods','0808':'light_woods','0908':'light_woods'
+    }
+  },
+  'city-ruins': {
+    name: 'City Ruins', description: 'Rubble-choked avenues and intact structures divide the city into brutal short-range fire lanes.', visual: 'urban',
+    terrain: {
+      '0302':'building','0402':'building','0303':'building','0403':'rubble','0503':'rubble','0603':'pavement','0703':'pavement','0803':'pavement','0903':'pavement','1003':'pavement','1103':'pavement','1203':'rubble',
+      '0604':'pavement','0704':'pavement','0804':'pavement','0904':'pavement','1004':'pavement','0605':'pavement','0705':'pavement','0805':'pavement','0905':'pavement','1005':'pavement','0606':'pavement','0706':'pavement','0806':'pavement','0906':'pavement','1006':'pavement','0607':'pavement','0707':'pavement','0807':'pavement','0907':'pavement','1007':'pavement','0608':'pavement','0708':'pavement','0808':'pavement','0908':'pavement','1008':'pavement','0609':'pavement','0709':'pavement','0809':'pavement','0909':'pavement','1009':'pavement','0610':'pavement','0710':'pavement','0810':'pavement','0910':'pavement','1010':'pavement',
+      '1107':'building','1207':'building','1108':'rubble','1208':'rubble','0309':'building','0409':'rubble','0308':'rubble','0408':'building','1305':'light_smoke','1306':'heavy_smoke','0206':'fire'
+    }
+  },
+  'forest-lanes': {
+    name: 'Forest Lanes', description: 'Three broken woodland belts provide concealment while preserving a few long, dangerous lanes of fire.', visual: 'woodland',
+    terrain: {
+      '0301':'light_woods','0401':'heavy_woods','0501':'light_woods','0302':'heavy_woods','0402':'heavy_woods','0502':'light_woods','0203':'light_woods','0303':'heavy_woods','0403':'light_woods',
+      '0804':'light_woods','0904':'heavy_woods','1004':'light_woods','0705':'light_woods','0805':'heavy_woods','0905':'heavy_woods','1005':'light_woods','0806':'light_woods','0906':'heavy_woods','1006':'light_woods',
+      '0309':'light_woods','0409':'heavy_woods','0509':'light_woods','0310':'heavy_woods','0410':'heavy_woods','0510':'light_woods','0211':'light_woods','0311':'heavy_woods','0411':'light_woods','1311':'light_woods','1411':'heavy_woods','1312':'heavy_woods','1412':'light_woods'
+    }
+  },
+  'rolling-highlands': {
+    name: 'Rolling Highlands', description: 'Interlocking hills and rough gullies reward elevation control without turning the map into a single ridge fight.', visual: 'highland',
+    terrain: { '0404':'rough','0504':'rough','0604':'rough','0405':'rough','0505':'rough','0605':'rough','1006':'rough','1106':'rough','1206':'rough','1007':'rough','1107':'rough','1207':'rough','0710':'rough','0810':'rough','0910':'rough','0811':'rough' },
+    elevation: {
+      '0403':1,'0503':1,'0603':1,'0304':1,'0404':2,'0504':2,'0604':2,'0704':1,'0305':1,'0405':2,'0505':3,'0605':2,'0705':1,'0406':1,'0506':2,'0606':1,
+      '1005':1,'1105':1,'1205':1,'0906':1,'1006':2,'1106':3,'1206':2,'1306':1,'0907':1,'1007':2,'1107':2,'1207':2,'1307':1,'1008':1,'1108':1,
+      '0709':1,'0809':1,'0909':1,'0710':1,'0810':2,'0910':1,'0811':1
+    }
+  },
+  'badlands-run': {
+    name: 'Badlands Run', description: 'Sand flats, rocky badlands and a hazardous magma shelf make speed and route choice equally important.', visual: 'badlands',
+    terrain: {
+      '0202':'sand','0302':'sand','0402':'sand','0203':'sand','0303':'sand','0403':'sand','0503':'sand','0802':'rough','0902':'rough','1002':'rough','0803':'rough','0903':'rough','1003':'rough','1103':'rough','0904':'rough','1004':'rough',
+      '0509':'magma_crust','0609':'magma_crust','0709':'magma_crust','0610':'magma_liquid','0710':'magma_crust','0810':'magma_crust','0711':'magma_crust','1208':'light_woods','1308':'heavy_woods','1408':'light_woods','1209':'light_woods','1309':'light_woods','1409':'heavy_woods'
+    }
   }
 });
 
@@ -153,6 +195,23 @@ function setActiveMapDimensions(mapId = activeMapId) {
 
 function getMapDefinition(mapId) {
   return BT_CUSTOM_MAPS[mapId] || BT_MAPS[mapId] || BT_MAPS[DEFAULT_MAP_ID];
+}
+
+function builtInMapCategory(mapId) {
+  if (mapId.startsWith('standard-')) return 'Standard sizes';
+  if (['training-grounds', 'woodland-approach', 'open-engagement', 'flatlands-open-terrain', 'forest-lanes'].includes(mapId)) return 'Open and woodland';
+  if (['ridge-and-ford', 'desert-hills', 'rolling-highlands', 'badlands-run'].includes(mapId)) return 'Hills and badlands';
+  return 'Special terrain';
+}
+
+function builtInMapOptions() {
+  const groups = new Map();
+  for (const [id, map] of Object.entries(BT_MAPS)) {
+    const category = builtInMapCategory(id);
+    if (!groups.has(category)) groups.set(category, []);
+    groups.get(category).push(`<option value="${id}">${escapeHtml(map.name)}</option>`);
+  }
+  return [...groups.entries()].map(([category, options]) => `<optgroup label="${category}">${options.join('')}</optgroup>`).join('');
 }
 
 function setActiveMap(mapId) {
@@ -210,7 +269,12 @@ function objectiveHexesForMap(mapId) {
     'desert-hills': ['0302', '0906', '1108'],
     'flatlands-open-terrain': ['0505', '0806', '1108'],
     'ridge-and-ford': ['0704', '0804', '0805']
-    ,'weathered-frontier': ['0403', '1005', '0408']
+    ,'weathered-frontier': ['0403', '1005', '0408'],
+    'river-delta': ['0704', '1105', '0909'],
+    'city-ruins': ['0705', '0908', '1207'],
+    'forest-lanes': ['0503', '0905', '0410'],
+    'rolling-highlands': ['0505', '1106', '0810'],
+    'badlands-run': ['0903', '0709', '1308']
   })[mapId] || ['0704', '0806', '0808'];
 }
 

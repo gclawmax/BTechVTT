@@ -5,9 +5,7 @@ function handleCreateGame() {
   // lobby into an AI game merely because the browser retained local state.
   vsAiMode = false;
   const mapSelect = document.getElementById('create-map-select');
-  mapSelect.innerHTML = Object.entries(BT_MAPS).map(([id, map]) =>
-    `<option value="${id}">${map.name}</option>`
-  ).join('');
+  mapSelect.innerHTML = builtInMapOptions();
   mapSelect.value = DEFAULT_MAP_ID;
   renderCreateMapPreview();
   document.getElementById('create-tonnage-select').value = '200';
