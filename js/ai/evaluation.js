@@ -7,6 +7,19 @@ const AI_EVALUATION_DIFFICULTIES = ['beginner','intermediate','advanced','expert
 const AI_EVALUATION_PERSONALITIES = ['balanced','aggressive','cautious','brawler','sniper','objective'];
 const AI_EVALUATION_MAPS = ['training-grounds','woodland-approach','ridge-and-ford','industrial-crossing','weathered-frontier','standard-single-sheet'];
 const AI_EVALUATION_VICTORIES = ['annihilation','control','breakthrough'];
+const AI_EVALUATION_BALANCE_LIMITS = Object.freeze({ minimumAppearances:3, seatWinRateGap:25, timeoutRate:40, noScoreRate:60 });
+
+function aiEvaluationRegisterGM5Maps() {
+  // These are deliberately generated fixtures rather than saved player maps.
+  // They exercise the same custom-map registration path as the editor while
+  // keeping a release evaluation repeatable from its seed.
+  const definitions=[
+    { id:'custom:gm5-procedural-symmetric', name:'GM-5 Symmetric Ridge', columns:16, rows:17, objective_hexes:['0605','0808','1005'], terrain:{'0702':'light_woods','0802':'light_woods','0703':'rough','0803':'rough','0704':'heavy_woods','0804':'heavy_woods','0705':'shallow_water','0805':'shallow_water','0706':'rough','0806':'rough','0707':'light_woods','0807':'light_woods','0708':'light_woods','0808':'light_woods','0709':'rough','0809':'rough','0710':'heavy_woods','0810':'heavy_woods','0711':'shallow_water','0811':'shallow_water','0712':'rough','0812':'rough','0713':'light_woods','0813':'light_woods'}, elevation:{'0703':1,'0803':1,'0704':1,'0804':1,'0706':1,'0806':1,'0709':1,'0809':1,'0710':1,'0810':1,'0712':1,'0812':1} },
+    { id:'custom:gm5-procedural-asymmetric', name:'GM-5 Asymmetric Crossing', columns:20, rows:16, objective_hexes:['0704','1008','1405'], terrain:{'0503':'light_woods','0603':'heavy_woods','0703':'rough','0803':'rough','0903':'pavement','0904':'pavement','0905':'pavement','0906':'pavement','0907':'pavement','0908':'pavement','0909':'pavement','0910':'pavement','1005':'shallow_water','1006':'deep_water','1007':'deep_water','1008':'shallow_water','1106':'bridge','1107':'bridge','1208':'rubble','1308':'building','1407':'light_woods','1507':'heavy_woods'}, elevation:{'0603':1,'0703':2,'0803':1,'1308':1,'1407':1} }
+  ];
+  for (const definition of definitions) registerCustomMapDefinition(definition);
+  return definitions;
+}
 
 function aiEvaluationCopy(value) {
   return JSON.parse(JSON.stringify(value));
@@ -185,9 +198,9 @@ async function runSingleAIEvaluation(config) {
     const forceOne=config.unitsOne||[config.unitOne],forceTwo=config.unitsTwo||[config.unitTwo];
     const placeForce=(unitIds,owner,col)=>unitIds.map((unitId,index)=>{const position=aiEvaluationOpenHex(col,Math.max(0,Math.min(dimensions.rows-1,row+(index*2)-Math.floor(unitIds.length/2))),occupied);occupied.push(position);return aiEvaluationMech(unitId,owner,position,index);});
     mechInstances=[...placeForce(forceOne,1,Math.max(1,Math.floor(dimensions.cols*.2))),...placeForce(forceTwo,2,Math.min(dimensions.cols-2,Math.floor(dimensions.cols*.8)))];
-    const match={seed:config.seed,round:0,mapId:config.mapId,victory:config.victory,objectives:objectiveHexesForMap(config.mapId),objectiveScores:{'1':0,'2':0},
+    const match={seed:config.seed,round:0,mapId:config.mapId,victory:config.victory,objectives:config.objectives||objectiveHexesForMap(config.mapId),objectiveScores:{'1':0,'2':0},timeToObjectiveRound:null,
       breakthroughScored:[],startDurability:Object.fromEntries([1,2].map(seat=>[String(seat),mechInstances.filter(mech=>mech.owner===seat).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)]))};
-    currentMatchConfig={map_id:config.mapId,ruleset:config.ruleset,victory_mode:config.victory,objective_hexes:match.objectives,objective_scores:match.objectiveScores,breakthrough_scored_units:match.breakthroughScored,terrain_overrides:{}};
+    currentMatchConfig={map_id:config.mapId,ruleset:config.ruleset,victory_mode:config.victory,objective_hexes:match.objectives,objective_scores:match.objectiveScores,breakthrough_scored_units:match.breakthroughScored,terrain_overrides:{},...(config.deployment_zones?{deployment_zones:config.deployment_zones}:{})};
     const players=[{id:'eval-p1',player_id:'eval-p1',seat_number:1,is_ai:true},{id:'eval-p2',player_id:'eval-p2',seat_number:2,is_ai:true}];
     const blankMetrics=()=>({decisions:0,decisionMs:0,maxDecisionMs:0,illegalActions:0,stalls:0,damage:0,plannedDamage:0,heatGenerated:0,heatDissipated:0,overheatRounds:0,viableWeapons:0,selectedWeapons:0,unusedViableWeapons:0});
     const metricsBySeat={'1':blankMetrics(),'2':blankMetrics()};
@@ -220,7 +233,7 @@ async function runSingleAIEvaluation(config) {
           }
           replay.push({round,phase,seat,difficulty:side.difficulty,personality:side.personality,decision_ms:Number(elapsed.toFixed(3)),actions:plan.actions.map(publicAIAction)});
         }
-        if(phase==='heat'&&config.victory!=='annihilation') aiEvaluationObjectives(match);
+        if(phase==='heat'&&config.victory!=='annihilation') { aiEvaluationObjectives(match); if(match.timeToObjectiveRound===null&&(Number(match.objectiveScores['1'])+Number(match.objectiveScores['2']))>0) match.timeToObjectiveRound=round; }
         winner=aiEvaluationWinner(match,config.maxRounds); if(winner!==null) break;
       }
     }
@@ -234,7 +247,9 @@ async function runSingleAIEvaluation(config) {
       seatMetrics.heatEfficiency=Number((seatMetrics.damage/Math.max(1,seatMetrics.heatGenerated)).toFixed(3));
       seatMetrics.unusedWeaponRate=Number((seatMetrics.unusedViableWeapons/Math.max(1,seatMetrics.viableWeapons)*100).toFixed(1));
     }
-    return {id:config.id,seed:config.seed,mapId:config.mapId,victory:config.victory,ruleset:config.ruleset,sides:config.sides,units:{'1':forceOne,'2':forceTwo},rounds:match.round,winner,
+    const objectiveWinner=config.victory==='control' ? Math.max(Number(match.objectiveScores['1']),Number(match.objectiveScores['2']))>=5 : config.victory==='breakthrough' ? Math.max(Number(match.objectiveScores['1']),Number(match.objectiveScores['2']))>=2 : false;
+    const timedOut=winner!==null&&match.round>=config.maxRounds&&!objectiveWinner&&mechInstances.some(mech=>mech.owner===1&&!mech.destroyed)&&mechInstances.some(mech=>mech.owner===2&&!mech.destroyed);
+    return {id:config.id,pairId:config.pairId||null,mirrored:Boolean(config.mirrored),seed:config.seed,mapId:config.mapId,mapKind:config.mapKind||'built-in',victory:config.victory,ruleset:config.ruleset,sides:config.sides,units:{'1':forceOne,'2':forceTwo},rounds:match.round,winner,timedOut,timeToObjectiveRound:match.timeToObjectiveRound,
       objectiveScores:match.objectiveScores,remainingDurability:Object.fromEntries([1,2].map(seat=>[String(seat),Number((mechInstances.filter(mech=>mech.owner===seat&&!mech.destroyed).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)/Math.max(1,match.startDurability[String(seat)])*100).toFixed(1))])),
       metrics:{...metrics,meanDecisionMs:Number((metrics.decisionMs/Math.max(1,metrics.decisions)).toFixed(3)),maxDecisionMs:Number(metrics.maxDecisionMs.toFixed(3)),heatEfficiency:Number((metrics.damage/Math.max(1,metrics.heatGenerated)).toFixed(3)),unusedWeaponRate:Number((metrics.unusedViableWeapons/Math.max(1,metrics.viableWeapons)*100).toFixed(1)),durationMs:Number(duration.toFixed(1))},
       metricsBySeat,
@@ -248,7 +263,7 @@ async function runSingleAIEvaluation(config) {
 
 function summarizeAIEvaluation(matches) {
   const summary={matches:matches.length,completed:0,draws:0,failures:0,illegalActions:0,stalls:0,rounds:0,decisions:0,damage:0,heatGenerated:0,heatDissipated:0,unusedViableWeapons:0,viableWeapons:0,decisionMs:0,maxDecisionMs:0,objectivePoints:0,byDifficulty:{},byPersonality:{},byMap:{},byVictory:{}};
-  const group=(collection,key)=>collection[key]||(collection[key]={appearances:0,wins:0,losses:0,draws:0,winRate:0,damage:0,heatGenerated:0,heatEfficiency:0,viableWeapons:0,unusedViableWeapons:0,unusedWeaponRate:0,objectivePoints:0});
+  const group=(collection,key)=>collection[key]||(collection[key]={appearances:0,wins:0,losses:0,draws:0,seatOneWins:0,seatTwoWins:0,winRate:0,damage:0,heatGenerated:0,heatEfficiency:0,viableWeapons:0,unusedViableWeapons:0,unusedWeaponRate:0,objectivePoints:0,scoreDifferential:0,timeToObjectiveTotal:0,timeToObjectiveSamples:0,timeouts:0,nonScoring:0});
   for(const match of matches) {
     summary.completed+=match.winner===null?0:1; summary.draws+=match.winner===0?1:0; summary.failures+=match.failed?1:0;
     for(const key of ['illegalActions','stalls','decisions','damage','heatGenerated','heatDissipated','unusedViableWeapons','viableWeapons']) summary[key]+=Number(match.metrics?.[key]||0);
@@ -258,17 +273,30 @@ function summarizeAIEvaluation(matches) {
       if(!key) continue; const item=group(collection,key),seatMetrics=match.metricsBySeat?.[String(seat)]||{}; item.appearances++; if(match.winner===0)item.draws++;else if(match.winner===seat)item.wins++;else item.losses++;
       item.damage+=Number(seatMetrics.damage||0); item.heatGenerated+=Number(seatMetrics.heatGenerated||0); item.viableWeapons+=Number(seatMetrics.viableWeapons||0); item.unusedViableWeapons+=Number(seatMetrics.unusedViableWeapons||0); item.objectivePoints+=Number(match.objectiveScores?.[String(seat)]||0);
     }
-    for(const [collection,key] of [[summary.byMap,match.mapId],[summary.byVictory,match.victory]]) {const item=group(collection,key);item.appearances++;item.completed=(item.completed||0)+(match.winner===null?0:1);item.draws+=match.winner===0?1:0;item.failures=(item.failures||0)+(match.failed?1:0);item.rounds=(item.rounds||0)+Number(match.rounds||0);item.objectivePoints+=Number(match.objectiveScores?.['1']||0)+Number(match.objectiveScores?.['2']||0);}
+    for(const [collection,key] of [[summary.byMap,match.mapId],[summary.byVictory,match.victory]]) {const item=group(collection,key);item.appearances++;item.completed=(item.completed||0)+(match.winner===null?0:1);item.draws+=match.winner===0?1:0;item.seatOneWins+=(match.winner===1?1:0);item.seatTwoWins+=(match.winner===2?1:0);item.failures=(item.failures||0)+(match.failed?1:0);item.rounds=(item.rounds||0)+Number(match.rounds||0);item.objectivePoints+=Number(match.objectiveScores?.['1']||0)+Number(match.objectiveScores?.['2']||0);item.scoreDifferential+=Math.abs(Number(match.objectiveScores?.['1']||0)-Number(match.objectiveScores?.['2']||0));item.timeouts+=match.timedOut?1:0;if(match.victory!=='annihilation'&&!(Number(match.objectiveScores?.['1'])+Number(match.objectiveScores?.['2'])))item.nonScoring++;if(Number.isFinite(match.timeToObjectiveRound)){item.timeToObjectiveTotal+=match.timeToObjectiveRound;item.timeToObjectiveSamples++;}}
   }
   for(const collection of [summary.byDifficulty,summary.byPersonality]) for(const item of Object.values(collection)) {
     item.winRate=Number((item.wins/Math.max(1,item.wins+item.losses)*100).toFixed(1)); item.heatEfficiency=Number((item.damage/Math.max(1,item.heatGenerated)).toFixed(3)); item.unusedWeaponRate=Number((item.unusedViableWeapons/Math.max(1,item.viableWeapons)*100).toFixed(1));
   }
-  for(const collection of [summary.byMap,summary.byVictory]) for(const item of Object.values(collection)) {item.averageRounds=Number(((item.rounds||0)/Math.max(1,item.appearances)).toFixed(2));item.averageObjectivePoints=Number((item.objectivePoints/Math.max(1,item.appearances)).toFixed(2));}
+  for(const collection of [summary.byMap,summary.byVictory]) for(const item of Object.values(collection)) {item.averageRounds=Number(((item.rounds||0)/Math.max(1,item.appearances)).toFixed(2));item.averageObjectivePoints=Number((item.objectivePoints/Math.max(1,item.appearances)).toFixed(2));item.averageScoreDifferential=Number((item.scoreDifferential/Math.max(1,item.appearances)).toFixed(2));item.averageTimeToObjective=item.timeToObjectiveSamples?Number((item.timeToObjectiveTotal/item.timeToObjectiveSamples).toFixed(2)):null;item.timeoutRate=Number((item.timeouts/Math.max(1,item.appearances)*100).toFixed(1));item.noScoreRate=Number((item.nonScoring/Math.max(1,item.appearances)*100).toFixed(1));item.seatOneWinRate=Number((item.seatOneWins/Math.max(1,item.seatOneWins+item.seatTwoWins)*100).toFixed(1));}
   summary.averageRounds=Number((summary.rounds/Math.max(1,summary.matches)).toFixed(2));
   summary.meanDecisionMs=Number((summary.decisionMs/Math.max(1,summary.decisions)).toFixed(3));
   summary.heatEfficiency=Number((summary.damage/Math.max(1,summary.heatGenerated)).toFixed(3));
   summary.unusedWeaponRate=Number((summary.unusedViableWeapons/Math.max(1,summary.viableWeapons)*100).toFixed(1));
   return summary;
+}
+
+function flagAIEvaluationBalance(summary, limits = AI_EVALUATION_BALANCE_LIMITS) {
+  const flags=[];
+  for(const [scope,groups] of [['mode',summary.byVictory||{}],['map',summary.byMap||{}]]) for(const [key,item] of Object.entries(groups)) {
+    if(Number(item.appearances||0)<limits.minimumAppearances) continue;
+    const decisive=Math.max(1,Number(item.seatOneWins||0)+Number(item.seatTwoWins||0));
+    const seatGap=Math.abs(Number(item.seatOneWins||0)-Number(item.seatTwoWins||0))/decisive*100;
+    if(seatGap>limits.seatWinRateGap) flags.push({scope,key,type:'seat_bias',value:Number(seatGap.toFixed(1)),limit:limits.seatWinRateGap,detail:`seat 1 won ${item.seatOneWins}/${decisive} decisive matches`});
+    if(Number(item.timeoutRate||0)>limits.timeoutRate) flags.push({scope,key,type:'timeouts',value:item.timeoutRate,limit:limits.timeoutRate,detail:`${item.timeouts}/${item.appearances} reached the round limit`});
+    if(scope==='mode'&&key!=='annihilation'&&Number(item.noScoreRate||0)>limits.noScoreRate) flags.push({scope,key,type:'objectives_ignored',value:item.noScoreRate,limit:limits.noScoreRate,detail:`${item.nonScoring}/${item.appearances} matches never scored an objective`});
+  }
+  return {limits,flags,healthy:flags.length===0};
 }
 
 function selectAIEvaluationReplays(matches, representativeLimit = 6) {
@@ -286,17 +314,26 @@ async function runAIEvaluationTournament(options = {}) {
   const runs=Math.max(1,Math.min(500,Number(options.runs||12))), maxRounds=Math.max(1,Math.min(50,Number(options.maxRounds||12)));
   const seed=String(options.seed||'ai7-evaluation'),ruleset=String(options.ruleset||'advanced_3060');
   const candidates=aiEvaluationEligibleUnits(ruleset); if(candidates.length<4)throw new Error(`Only ${candidates.length} catalogue BattleMechs are eligible for AI evaluation; four are required for objective forces.`);
-  const random=createSeededAIRandom(seed),matches=[];
+  const matches=[],customMaps=aiEvaluationRegisterGM5Maps();
+  const mapCoverage=[...AI_EVALUATION_MAPS,...customMaps.map(definition=>definition.id)];
   for(let index=0;index<runs;index++) {
-    const selected=[];while(selected.length<4){const candidate=Math.floor(random()*candidates.length);if(!selected.includes(candidate))selected.push(candidate);}
-    const forceSize=index%AI_EVALUATION_VICTORIES.length===0?1:2;
-    const config={id:`ai7-${String(index+1).padStart(4,'0')}`,seed:`${seed}:${index+1}`,ruleset,maxRounds,
-      mapId:AI_EVALUATION_MAPS[index%AI_EVALUATION_MAPS.length],victory:AI_EVALUATION_VICTORIES[index%AI_EVALUATION_VICTORIES.length],
-      unitOne:candidates[selected[0]].unitId,unitTwo:candidates[selected[2]].unitId,
-      unitsOne:selected.slice(0,forceSize).map(candidate=>candidates[candidate].unitId),unitsTwo:selected.slice(2,2+forceSize).map(candidate=>candidates[candidate].unitId),
-      sides:{'1':{difficulty:AI_EVALUATION_DIFFICULTIES[index%4],personality:AI_EVALUATION_PERSONALITIES[index%6]},'2':{difficulty:AI_EVALUATION_DIFFICULTIES[(index+2)%4],personality:AI_EVALUATION_PERSONALITIES[(index*3+1)%6]}}};
+    // A mirrored pair swaps forces and AI policies between seats. This keeps a
+    // seat-bias flag meaningful instead of mistaking a stronger force or
+    // personality for a map advantage.
+    const pair=Math.floor(index/2),mirror=index%2===1,selected=[];
+    const pairRandom=createSeededAIRandom(`${seed}:pair:${pair}`);
+    while(selected.length<4){const candidate=Math.floor(pairRandom()*candidates.length);if(!selected.includes(candidate))selected.push(candidate);}
+    const forceSize=pair%AI_EVALUATION_VICTORIES.length===0?1:2;
+    const firstForce=selected.slice(0,forceSize).map(candidate=>candidates[candidate].unitId),secondForce=selected.slice(2,2+forceSize).map(candidate=>candidates[candidate].unitId);
+    const firstSide={difficulty:AI_EVALUATION_DIFFICULTIES[pair%4],personality:AI_EVALUATION_PERSONALITIES[pair%6]},secondSide={difficulty:AI_EVALUATION_DIFFICULTIES[(pair+2)%4],personality:AI_EVALUATION_PERSONALITIES[(pair*3+1)%6]};
+    const coverageIndex=pair%mapCoverage.length;
+    const config={id:`ai7-${String(index+1).padStart(4,'0')}`,pairId:`ai7-pair-${String(pair+1).padStart(4,'0')}`,mirrored:mirror,seed:`${seed}:pair:${pair}:${mirror?'mirror':'base'}`,ruleset,maxRounds,
+      mapId:mapCoverage[coverageIndex],mapKind:coverageIndex<AI_EVALUATION_MAPS.length?'built-in':coverageIndex%2?'procedural-asymmetric':'procedural-symmetric',victory:AI_EVALUATION_VICTORIES[pair%AI_EVALUATION_VICTORIES.length],
+      unitOne:(mirror?secondForce:firstForce)[0],unitTwo:(mirror?firstForce:secondForce)[0],
+      unitsOne:mirror?secondForce:firstForce,unitsTwo:mirror?firstForce:secondForce,
+      sides:{'1':mirror?secondSide:firstSide,'2':mirror?firstSide:secondSide}};
     matches.push(await runSingleAIEvaluation(config));
   }
-  const representativeLimit=options.representativeLimit===undefined?6:Number(options.representativeLimit);
-  return {engineVersion:BT_AI_ENGINE_VERSION,seed,runs,maxRounds,ruleset,eligibleUnits:candidates.length,summary:summarizeAIEvaluation(matches),retention:selectAIEvaluationReplays(matches,representativeLimit),matches:matches.map(({replay,...match})=>match)};
+  const representativeLimit=options.representativeLimit===undefined?6:Number(options.representativeLimit),summary=summarizeAIEvaluation(matches),balance=flagAIEvaluationBalance(summary,options.balanceLimits);
+  return {engineVersion:BT_AI_ENGINE_VERSION,seed,runs,maxRounds,ruleset,eligibleUnits:candidates.length,summary,balance,retention:selectAIEvaluationReplays(matches,representativeLimit),matches:matches.map(({replay,...match})=>match)};
 }

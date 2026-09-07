@@ -23,6 +23,7 @@ const suppliedUrl=process.env.SHOT_URL;
 const baseUrl=suppliedUrl||`http://127.0.0.1:${port}/index.html`;
 const reportDir=process.env.BT_AI7_REPORT_DIR||join(tmpdir(),'btechvtt-ai-evaluation');
 const baselinePath=process.env.BT_AI7_BASELINE||null;
+const failOnBalanceFlag=process.env.BT_GM5_FAIL_ON_FLAG==='1';
 const user=String(process.env.BT_AI7_USER||'ai7-evaluation');
 const password=String(process.env.BT_AI7_PASS||'AI7!Evaluate01');
 
@@ -52,7 +53,7 @@ async function signIn(page){
 
 if(process.env.BT_AI7_LIST==='1'){
   console.log(`AI-7 evaluation: ${runs} deterministic duel(s), maximum ${maxRounds} rounds, seed ${seed}.`);
-  console.log('Coverage rotates four difficulties, six personalities, six maps, three victory conditions and seeded catalogue BattleMechs.');
+  console.log('Coverage rotates four difficulties, six personalities, built-in plus procedural custom maps, three victory conditions and seeded catalogue BattleMechs.');
   console.log(`Artifacts: ${reportDir}. No database match is created.`);
   process.exit(0);
 }
@@ -75,7 +76,7 @@ try{
     return runAIEvaluationTournament(options);
   },{runs,maxRounds,representativeLimit,seed,ruleset});
   const baseline=baselinePath?JSON.parse(await readFile(baselinePath,'utf8')):null;
-  const artifact={generatedAt:new Date().toISOString(),build:await page.evaluate(()=>BT_BUILD_ID),source:baseUrl,config:{runs,maxRounds,representativeLimit,seed,ruleset},summary:result.summary,comparison:compareBaseline(result.summary,baseline),matches:result.matches,browserErrors};
+  const artifact={generatedAt:new Date().toISOString(),build:await page.evaluate(()=>BT_BUILD_ID),source:baseUrl,config:{runs,maxRounds,representativeLimit,seed,ruleset},summary:result.summary,balance:result.balance,comparison:compareBaseline(result.summary,baseline),matches:result.matches,browserErrors};
   await writeFile(join(reportDir,'ai7-summary.json'),JSON.stringify(artifact,null,2));
   for(const [kind,matches] of [['failure',result.retention.failures],['representative',result.retention.representatives]]) for(const match of matches) {
     await writeFile(join(replayDir,`${kind}-${match.id}.json`),JSON.stringify({format:'btvtt-ai-evaluation-replay-v1',engineVersion:result.engineVersion,...match},null,2));
@@ -84,10 +85,13 @@ try{
   console.log(`Illegal actions ${result.summary.illegalActions} · stalls ${result.summary.stalls} · mean decision ${result.summary.meanDecisionMs} ms · maximum ${result.summary.maxDecisionMs} ms`);
   console.log(`Average ${result.summary.averageRounds} rounds · heat efficiency ${result.summary.heatEfficiency} damage/heat · unused viable weapons ${result.summary.unusedWeaponRate}%`);
   console.log(`Modes: ${Object.entries(result.summary.byVictory).map(([mode,item])=>`${mode} ${item.completed}/${item.appearances} complete, ${item.averageRounds} rounds${item.objectivePoints?`, ${item.objectivePoints} objective points`:''}`).join(' · ')}`);
+  console.log(`Balance: ${Object.entries(result.summary.byVictory).map(([mode,item])=>`${mode} seat 1 ${item.seatOneWinRate}% · score gap ${item.averageScoreDifferential} · timeout ${item.timeoutRate}%${item.averageTimeToObjective===null?' · no objective score':` · first score R${item.averageTimeToObjective}`}`).join(' | ')}`);
+  if(result.balance.flags.length) console.log(`BALANCE REVIEW FLAGS (${result.balance.flags.length}):\n${result.balance.flags.map(flag=>`- ${flag.scope} ${flag.key}: ${flag.type} ${flag.value}% (limit ${flag.limit}%) — ${flag.detail}`).join('\n')}`);
+  else console.log('Balance review: no sampled mode or map exceeded the GM-5 thresholds.');
   console.log(`Retained ${result.retention.failures.length} failure and ${result.retention.representatives.length} representative replay(s); discarded ${result.retention.discarded} routine replay(s).`);
   console.log(`Summary: ${join(reportDir,'ai7-summary.json')}`);
   if(browserErrors.length)console.log(`Browser errors: ${browserErrors.length}`);
-  if(result.summary.failures||result.summary.illegalActions||result.summary.stalls||browserErrors.length)process.exitCode=1;
+  if(result.summary.failures||result.summary.illegalActions||result.summary.stalls||browserErrors.length||(failOnBalanceFlag&&result.balance.flags.length))process.exitCode=1;
 }catch(error){
   console.error(`AI-7 EVALUATION FAILED: ${error.message}`); process.exitCode=1;
 }finally{

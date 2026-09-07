@@ -104,12 +104,18 @@ authoritative trigger path.
 
 ## GM-5 — balance and long-run evaluation
 
-- Add per-mode AI-7 completion, score differential and time-to-objective
-  baselines.
-- Rotate standard, procedural and custom maps with asymmetric and symmetric
-  objective layouts.
-- Flag modes that routinely time out, never score, favour one seat or cause AI
-  units to ignore viable objectives.
+- **Implemented in build `20260907-gm5-balance-evaluation-79`.** The
+  deterministic AI evaluator now records per-mode and per-map seat wins, score
+  differential, time-to-first-objective, timeout rate and no-score rate.
+- Coverage rotates built-in maps plus repeatable symmetric and asymmetric
+  custom-map fixtures through the same registration path used by the scenario
+  editor.
+- Balance review flags call out a meaningful seat advantage, excessive
+  round-limit adjudications, or objective modes that never score. They are
+  informational by default; set `BT_GM5_FAIL_ON_FLAG=1` when using an agreed
+  baseline as a release gate.
 
-Acceptance: release soaks publish meaningful per-mode pass and balance results,
-with failures retaining compact replays.
+Acceptance: `node tools/test-ai-evaluation.mjs` protects the aggregation
+contract. Run `BT_AI7_RUNS=100 node tools/run-ai-evaluation.mjs` for a release
+sample; it writes `ai7-summary.json`, retains failures and bounded
+representative replays, and prints every balance-review flag.
