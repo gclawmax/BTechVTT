@@ -62,14 +62,18 @@ adds Company HQ and authoritative repair/reload actions.
 
 ## Later work
 
-1. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
+1. **BV-1 through BV-5:** optional BV2 force balancing, starting with
+   catalogue provenance and server-authoritative roster checks. See
+   [Battle Value Design](BATTLE_VALUE_DESIGN.md). BV2 will complement rather
+   than replace tonnage limits; BV1 remains legacy import metadata only.
+2. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
    factions and alternate origins — only after Career-1 settlement is proven.
-2. **Level 2 catalogue additions:** curated, catalogue-led systems not already
+3. **Level 2 catalogue additions:** curated, catalogue-led systems not already
    covered by the specialist-rules programme below. Each remains gated by an
    authoritative resolver and a representative live battle.
-3. **Operations:** scheduled retention cleanup verification, deployment
+4. **Operations:** scheduled retention cleanup verification, deployment
    observability/backups, and production monitoring.
-4. **Presentation:** accessibility, mobile, map/editor and audio polish driven
+5. **Presentation:** accessibility, mobile, map/editor and audio polish driven
    by player feedback.
 
 ## BattleMech specialist-rules programme
