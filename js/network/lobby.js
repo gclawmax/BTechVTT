@@ -363,7 +363,7 @@ async function loadLobbyUI() {
   }
   if (btnStart) {
     const playerSeats = (players || []).filter(player => player.role === 'player');
-    const rostersReady = playerSeats.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState)));
+    const rostersReady = playerSeats.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState), gameState, player.seat_number));
     const deploymentsReady = playerSeats.every(player => (gameState.deployment_positions?.[String(player.seat_number)] || []).length === (gameState.rosters?.[String(player.seat_number)] || []).length);
     const canStart = vsAiMode
       ? playerSeats.length === 2 && playerSeats.some(player => !player.is_ai && player.ready) && rostersReady && deploymentsReady
@@ -411,12 +411,48 @@ function rosterTonnage(roster) {
   return (roster || []).reduce((total, unitId) => total + (getSupportedUnit(unitId)?.tonnage || 0), 0);
 }
 
-function isRosterLegal(roster, tonnageLimit, ruleset = 'advanced_3060') {
+// BV-2 uses the same published, versioned G/P factors as the server. This is
+// display/preflight only; update_skirmish_hangar remains the authority.
+const BV2_GUNNERY_FACTORS = Object.freeze([2.32, 1.93, 1.61, 1.32, 1, .8, .68, .55, .43]);
+const BV2_PILOTING_FACTORS = Object.freeze([1.6, 1.5, 1.4, 1.3, 1.2, 1, .9, .8, .7]);
+
+function bv2ForceLimit(state) {
+  const forceLimit = state?.force_limit;
+  if (!forceLimit || forceLimit.mode !== 'bv2') return null;
+  const limit = Number(forceLimit.limit);
+  return Number.isInteger(limit) && limit > 0 && (forceLimit.bv_version || 'BV2.1') === 'BV2.1' ? limit : null;
+}
+
+function bv2EntryValue(unit, pilot = {}) {
+  const stock = Number(unit?.battleValue?.stock);
+  const gunnery = Number(pilot?.gunnery ?? 4);
+  const piloting = Number(pilot?.piloting ?? 5);
+  if (!Number.isInteger(stock) || stock <= 0 || !Number.isInteger(gunnery) || !Number.isInteger(piloting) || !BV2_GUNNERY_FACTORS[gunnery] || !BV2_PILOTING_FACTORS[piloting]) return null;
+  return { stock, gunnery, piloting, adjusted:Math.round(stock * BV2_GUNNERY_FACTORS[gunnery] * BV2_PILOTING_FACTORS[piloting]) };
+}
+
+function bv2RosterValue(roster, gameState = null, seatNumber = mySeatNumber) {
+  const avatar = skirmishAvatarForSeat(gameState, seatNumber);
+  const entriesById = new Map((avatar?.hangar || []).map(entry => [entry.id, entry]));
+  const deployed = avatar?.deployed || [];
+  const selected = deployed.length ? deployed.map(id => entriesById.get(id)).filter(Boolean) : (roster || []).map(unitId => ({ unit_id:unitId, pilot:{ gunnery:4, piloting:5 } }));
+  const values = selected.map(entry => bv2EntryValue(getSupportedUnit(entry.unit_id), skirmishPilotForEntry(entry))).filter(Boolean);
+  return values.length === selected.length ? values.reduce((total, value) => ({ stock:total.stock + value.stock, adjusted:total.adjusted + value.adjusted }), { stock:0, adjusted:0 }) : null;
+}
+
+function isRosterLegal(roster, tonnageLimit, ruleset = 'advanced_3060', gameState = null, seatNumber = mySeatNumber) {
   const units = roster || [];
-  return units.length > 0 && units.every(unitId => {
+  const baseLegal = units.length > 0 && units.every(unitId => {
     const unit = getSupportedUnit(unitId);
     return isSupportedUnit(unitId) && unitRulesetStatus(unitId, unit, ruleset).allowed;
-  }) && rosterTonnage(units) <= Number(tonnageLimit || 0);
+  });
+  if (!baseLegal) return false;
+  const bvLimit = bv2ForceLimit(gameState);
+  if (bvLimit != null) {
+    const value = bv2RosterValue(units, gameState, seatNumber);
+    return Boolean(value && value.adjusted <= bvLimit);
+  }
+  return rosterTonnage(units) <= Number(tonnageLimit || 0);
 }
 
 function rosterSummaryForSeat(gameState, seatNumber) {
@@ -526,6 +562,7 @@ function renderLobbyMatchSetup(gameState, players) {
   const map = getMapDefinition(gameState.map_id);
   const ruleset = matchRuleset(gameState);
   const limit = Number(gameState.dropship_tonnage || 0);
+  const bvLimit = bv2ForceLimit(gameState);
   const beginnerScenario = gameState.beginner_scenario;
   const customScenario = gameState.custom_scenario;
   const victoryLabel = ({ annihilation: 'Annihilation', control: 'Objective Control (first to 5)', breakthrough: 'Breakthrough (2 BattleMechs)' })[gameState.victory_mode] || 'Annihilation';
@@ -533,7 +570,7 @@ function renderLobbyMatchSetup(gameState, players) {
     const unit = getSupportedUnit(unitId); return unit ? `${unit.chassis} ${unit.variant}` : unitId;
   }).join(', ') || 'not generated';
   const aiDetails = vsAiMode ? `<br>Opponent: <strong>${escapeHtml(titleCase(aiDifficulty))} · ${escapeHtml(AI_PERSONALITY_LABELS[aiPersonality])}</strong><br>AI force: <strong>${escapeHtml(aiRoster)}</strong><br><small>Build and deploy your force below. The AI is already deployed for this battlefield and mission.</small>` : '';
-  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${escapeHtml(beginnerScenario?.title || customScenario?.name || map.name)}</strong><br>${escapeHtml(beginnerScenario?.instructions || customScenario?.instructions || map.description)}<br>Battlefield: <strong>${escapeHtml(map.name)}</strong><br>Force limit: <strong>${limit} tons per player</strong><br>Victory: <strong>${victoryLabel}</strong><br>Ruleset: <strong>${escapeHtml(rulesetLabel(gameState))}</strong>${aiDetails}</div>`;
+  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${escapeHtml(beginnerScenario?.title || customScenario?.name || map.name)}</strong><br>${escapeHtml(beginnerScenario?.instructions || customScenario?.instructions || map.description)}<br>Battlefield: <strong>${escapeHtml(map.name)}</strong><br>Force limit: <strong>${bvLimit != null ? `${bvLimit.toLocaleString()} BV2` : `${limit} tons per player`}</strong><br>Victory: <strong>${victoryLabel}</strong><br>Ruleset: <strong>${escapeHtml(rulesetLabel(gameState))}</strong>${aiDetails}</div>`;
   if (beginnerScenario) {
     rosterSection.hidden = true;
     rosterEl.innerHTML = '';
@@ -578,7 +615,8 @@ function renderLobbyMatchSetup(gameState, players) {
     const favourite = favouriteUnitIds.has(id);
     const favouriteTitle = favourite ? 'Remove this exact variant from favourites' : 'Add this exact variant to favourites';
     const variantName = unit.variant || id;
-    return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''} title="${rules.allowed ? 'Add to your match-only Hangar' : `Unavailable in ${BT_RULESETS[ruleset].name}: ${rules.reason}`}" ><span class="roster-option-name">${escapeHtml(variantName)}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span><span class="roster-option-speed">${movementSummary(unit)}</span><span class="roster-option-weapons" title="${escapeHtml(weaponSummary(unit))}">${escapeHtml(weaponSummary(unit))}</span></button></div>`;
+    const bv = bv2EntryValue(unit);
+    return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''} title="${rules.allowed ? 'Add to your match-only Hangar' : `Unavailable in ${BT_RULESETS[ruleset].name}: ${rules.reason}`}" ><span class="roster-option-name">${escapeHtml(variantName)}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${bv ? ` · ${bv.stock.toLocaleString()} BV2` : ' · BV pending'}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span><span class="roster-option-speed">${movementSummary(unit)}</span><span class="roster-option-weapons" title="${escapeHtml(weaponSummary(unit))}">${escapeHtml(weaponSummary(unit))}</span></button></div>`;
   };
   const chassisGroups = entries => {
     const groups = new Map();
@@ -599,8 +637,9 @@ function renderLobbyMatchSetup(gameState, players) {
     const unit = getSupportedUnit(entry.unit_id);
     const isDeployed = deployed.includes(entry.id);
     const pilot = skirmishPilotForEntry(entry);
+    const bv = bv2EntryValue(unit, pilot);
     return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}">
-      <div class="hangar-mech"><strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${isDeployed ? ' · DEPLOYED' : ''}</span></div>
+      <div class="hangar-mech"><strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${bv ? ` · ${bv.stock.toLocaleString()} BV2 stock · ${bv.adjusted.toLocaleString()} adjusted` : ' · BV pending'}${isDeployed ? ' · DEPLOYED' : ''}</span></div>
       <div class="hangar-pilot-fields">
         <label>Pilot<input id="hangar-pilot-name-${entry.id}" maxlength="48" value="${escapeHtml(pilot.name)}"></label>
         <label>Gunnery<select id="hangar-pilot-gunnery-${entry.id}">${skirmishSkillOptions(pilot.gunnery)}</select></label>
@@ -610,7 +649,9 @@ function renderLobbyMatchSetup(gameState, players) {
       <div class="hangar-actions"><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Withdraw' : 'Deploy'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div>
     </div>`;
   }).join('') || '<div class="roster-empty">Add BattleMechs below to build your Hangar.</div>';
-  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Match-only Avatar · each BattleMech has its own pilot</span><button onclick="openMechDesigner()">Open MechLab</button></div><div class="roster-summary">Ruleset: <strong>${BT_RULESETS[ruleset].name}</strong> · ${escapeHtml(BT_RULESETS[ruleset].description)}</div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected</div>
+  const bvDeployment = bv2RosterValue(roster, gameState, mySeatNumber);
+  const deploymentSummary = bvLimit != null ? `Deployment: ${bvDeployment ? bvDeployment.adjusted.toLocaleString() : 'BV pending'} / ${bvLimit.toLocaleString()} BV2 · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected` : `Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected`;
+  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Match-only Avatar · each BattleMech has its own pilot</span><button onclick="openMechDesigner()">Open MechLab</button></div><div class="roster-summary">Ruleset: <strong>${BT_RULESETS[ruleset].name}</strong> · ${escapeHtml(BT_RULESETS[ruleset].description)}</div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">${deploymentSummary}</div>
     <div class="roster-search"><label for="lobby-roster-search">Find a BattleMech</label><div><input id="lobby-roster-search" type="search" autocomplete="off" placeholder="Chassis, variant, tonnage or tech base" value="${lobbyRosterFilters.search.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}" oninput="filterLobbyRosterSearch(this.value)"><button id="lobby-roster-search-clear" type="button" onclick="clearLobbyRosterSearch()">Clear</button></div></div>
     <div class="roster-filter-bar"><span>Quick find</span><button class="roster-filter ${lobbyRosterFilters.favouritesOnly ? 'active' : ''}" onclick="toggleLobbyFavouritesFilter()">★ Favourites</button></div>
     <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
@@ -837,7 +878,7 @@ async function handleReadyUp() {
   if (newReady) {
     const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
     const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-    if (!isRosterLegal(state.rosters?.[String(player.seat_number)], state.dropship_tonnage, matchRuleset(state))) {
+    if (!isRosterLegal(state.rosters?.[String(player.seat_number)], state.dropship_tonnage, matchRuleset(state), state, player.seat_number)) {
       document.getElementById('lobby-status').textContent = 'Choose a roster that is legal for this force limit and ruleset before readying up.';
       return;
     }
@@ -894,7 +935,7 @@ async function handleStartGame() {
     await loadUnitCatalogue(game.catalogue_version);
     gameState.catalogue_version = game.catalogue_version;
   }
-  const rostersValid = players.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState)));
+  const rostersValid = players.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState), gameState, player.seat_number));
   const deploymentsValid = players.every(player => (gameState.deployment_positions?.[String(player.seat_number)] || []).length === (gameState.rosters?.[String(player.seat_number)] || []).length);
   if (!rostersValid || !deploymentsValid) {
     document.getElementById('lobby-status').textContent = 'Each force must be legal and fully deployed before the match can start.';

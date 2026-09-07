@@ -1,6 +1,7 @@
 # Battle Value Design
 
-Status: **planned — no BV format is active yet**
+Status: **BV-1 complete; BV-2 ready for SQL deployment.** No existing match
+becomes a BV match automatically: tonnage remains the default format.
 
 ## Purpose
 
@@ -79,6 +80,9 @@ tolerance published in the match state.
 
 ### BV-1 — catalogue provenance and validation
 
+**Complete.** The `megamek-2026-09-bv2-01` pinned catalogue release carries
+verified MegaMek BV2 stock values for all reviewed supported BattleMechs.
+
 1. Extend the MegaMek import pipeline to capture stock BV2 and source-release
    provenance for every supported catalogue unit.
 2. Backfill a new catalogue release; do not mutate old pinned releases.
@@ -91,6 +95,10 @@ tolerance published in the match state.
 for every verified fixture; no legacy match changes after the backfill.
 
 ### BV-2 — shared calculator and authoritative roster checks
+
+**Ready for deployment.** SQL 132 supplies the published pilot-skill factors,
+sealed per-entry BV records, server-side cap checks, and Hangar preflight
+display. BV2 creation controls remain BV-3 work.
 
 1. Add a versioned Gunnery/Piloting adjustment implementation with fixtures
    checked against MegaMek for the supported skill range.
