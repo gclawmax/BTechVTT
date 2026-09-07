@@ -211,6 +211,18 @@ function draw() {
       const terrain = terrainAt(col, row);
       const elevation = elevationAt(col, row);
       drawMapHex(px, py, col, row, terrain, elevation);
+      if (typeof currentMatchConfig !== 'undefined' && currentMatchConfig.victory_mode === 'breakthrough') {
+        const zoneOne = scenarioDeploymentZoneContains(1,col,row,currentMatchConfig);
+        const zoneTwo = scenarioDeploymentZoneContains(2,col,row,currentMatchConfig);
+        if (zoneOne || zoneTwo) {
+          ctx.save();
+          drawHex(px,py,HEX_SIZE-3,zoneOne?'rgba(76,158,217,.10)':'rgba(216,103,103,.10)',zoneOne?'rgba(76,158,217,.42)':'rgba(216,103,103,.42)');
+          if (row === Math.floor(GRID_ROWS/2) && (zoneOne ? col === Math.min(4,GRID_COLS-1) : col === Math.max(0,GRID_COLS-5))) {
+            ctx.fillStyle=zoneOne?'#27638e':'#9b3838';ctx.font='bold 7px "IBM Plex Mono", monospace';ctx.textAlign='center';ctx.fillText(zoneOne?'P2 GOAL':'P1 GOAL',px,py-15);
+          }
+          ctx.restore();
+        }
+      }
       if (typeof currentMatchConfig !== 'undefined' && currentMatchConfig.victory_mode === 'control' && (currentMatchConfig.objective_hexes || []).includes(hexCode(col, row))) {
         ctx.save(); ctx.strokeStyle = '#d4800a'; ctx.lineWidth = 2.5; ctx.setLineDash([4, 3]);
         ctx.beginPath(); ctx.arc(px, py, 18, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);

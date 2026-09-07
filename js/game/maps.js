@@ -203,12 +203,44 @@ function terrainStatusAt(col, row) {
 function objectiveHexesForMap(mapId) {
   if (BT_CUSTOM_MAPS[mapId]) return [...(BT_CUSTOM_MAPS[mapId].objective_hexes || [])];
   return ({
+    'standard-single-sheet': ['0406', '0808', '1110'],
+    'standard-dual-vertical': ['0408', '0816', '1125'],
+    'standard-dual-horizontal': ['0806', '1508', '2310'],
     'industrial-crossing': ['0703', '0806', '0809'],
     'desert-hills': ['0302', '0906', '1108'],
     'flatlands-open-terrain': ['0505', '0806', '1108'],
     'ridge-and-ford': ['0704', '0804', '0805']
     ,'weathered-frontier': ['0403', '1005', '0408']
   })[mapId] || ['0704', '0806', '0808'];
+}
+
+function scenarioDeploymentZoneHexes(seat, state = null) {
+  state = state || (typeof currentMatchConfig !== 'undefined' ? currentMatchConfig : {});
+  const dimensions = mapDimensions(state.map_id || activeMapId);
+  const authored = state.deployment_zones?.[String(seat)];
+  if (Array.isArray(authored)) return authored.filter(code => {
+    const col = Number(String(code).slice(0, 2)), row = Number(String(code).slice(2, 4));
+    return /^\d{4}$/.test(String(code)) && col >= 0 && col < dimensions.cols && row >= 0 && row < dimensions.rows;
+  });
+  const depth = Math.min(5, dimensions.cols);
+  const start = Number(seat) === 1 ? 0 : dimensions.cols - depth;
+  const end = Number(seat) === 1 ? depth : dimensions.cols;
+  const result = [];
+  for (let col = start; col < end; col++) for (let row = 0; row < dimensions.rows; row++) result.push(hexCode(col, row));
+  return result;
+}
+
+function scenarioDeploymentZoneContains(seat, col, row, state = null) {
+  if (col < 0 || row < 0) return false;
+  return scenarioDeploymentZoneHexes(seat, state).includes(hexCode(col, row));
+}
+
+function victoryModeDetails(mode) {
+  return ({
+    annihilation: { label:'Annihilation', target:0, guidance:'Destroy every opposing BattleMech.' },
+    control: { label:'Objective Control', target:5, guidance:'Each uncontested objective scores 1 point at round end. First to 5 wins.' },
+    breakthrough: { label:'Breakthrough', target:2, guidance:'Move 2 different BattleMechs into the enemy deployment zone. Each unit scores once.' }
+  })[mode] || { label:'Annihilation', target:0, guidance:'Destroy every opposing BattleMech.' };
 }
 
 function elevationAt(col, row) {

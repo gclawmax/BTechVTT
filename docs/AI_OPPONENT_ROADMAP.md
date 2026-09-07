@@ -166,3 +166,7 @@ AI-6 is client-side decision policy. It adds no new combat authority or SQL.
 See `docs/AI_EVALUATION.md` for commands, measurements and retention details.
 AI-1 through AI-7 now form the completed opponent-development foundation;
 future AI work should be evidence-led tuning against saved AI-7 baselines.
+
+Build `20260907-game-modes-74` advances the engine envelope to `ai-7.1`:
+Control and Breakthrough movement now values progress toward legal scoring
+areas, and objective evaluation uses two-unit forces with end-of-round scoring.

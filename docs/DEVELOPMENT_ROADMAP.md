@@ -167,6 +167,14 @@ and skirmish isolation tests are complete.
   GitHub Pages/Supabase development setup.
 - Further visual, audio, accessibility and mobile polish.
 
+### Game modes and minefields
+
+GM-1 mode contracts, objective-aware AI, map-aware deployment zones and atomic
+minefield planning are implemented in build `20260907-game-modes-74` with SQL
+127. Configurable Play vs AI scenarios, the authoritative live mode matrix,
+complete minefield budgeting/privacy and per-mode balance evaluation follow in
+GM-2 through GM-5. See `docs/GAME_MODES_ROADMAP.md`.
+
 ## BattleMech specialist-rules programme
 
 This is the authoritative plan for completing the remaining **BattleMech duel**

@@ -83,6 +83,7 @@ try{
   console.log(`AI-7 EVALUATION ${result.summary.failures?'FAILED':'PASSED'} — ${result.summary.matches} deterministic duels, ${result.eligibleUnits} eligible catalogue BattleMechs`);
   console.log(`Illegal actions ${result.summary.illegalActions} · stalls ${result.summary.stalls} · mean decision ${result.summary.meanDecisionMs} ms · maximum ${result.summary.maxDecisionMs} ms`);
   console.log(`Average ${result.summary.averageRounds} rounds · heat efficiency ${result.summary.heatEfficiency} damage/heat · unused viable weapons ${result.summary.unusedWeaponRate}%`);
+  console.log(`Modes: ${Object.entries(result.summary.byVictory).map(([mode,item])=>`${mode} ${item.completed}/${item.appearances} complete, ${item.averageRounds} rounds${item.objectivePoints?`, ${item.objectivePoints} objective points`:''}`).join(' · ')}`);
   console.log(`Retained ${result.retention.failures.length} failure and ${result.retention.representatives.length} representative replay(s); discarded ${result.retention.discarded} routine replay(s).`);
   console.log(`Summary: ${join(reportDir,'ai7-summary.json')}`);
   if(browserErrors.length)console.log(`Browser errors: ${browserErrors.length}`);

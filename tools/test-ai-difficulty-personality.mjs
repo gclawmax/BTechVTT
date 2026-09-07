@@ -18,6 +18,7 @@ const sandbox = {
   hexNeighbor:(col,row,direction)=>({col:col+[1,1,0,-1,-1,0][direction],row:row+[0,-1,-1,0,1,1][direction]}),
   terrainMovementBlocked:()=>false, terrainAt:()=> 'clear', movementTerrainCost:()=>0, movementElevationCost:()=>0,
   criticalMovementProfile:()=>({walk:5,run:8,jump:0}), heatMovementPenalty:()=>0, mascTargetNumber:()=>13, hasOperationalMASC:()=>false,
+  scenarioDeploymentZoneHexes:seat=>seat===1?['0208']:['1308'],
   weaponProfile:entry=>entry?.weapon||sandbox.BT_WEAPONS[entry?.key], mechLabel:mech=>mech?.unitId||'Unknown',
   currentActivationAllowance:()=>1, physicalAttackTypesFor:()=>[], physicalLimbCandidates:()=>[], evaluatePhysicalAttack:()=>({valid:false}),
   canSearchForImprovisedClub:()=>false, isEnemyHiddenUnit:()=>false,
@@ -58,12 +59,21 @@ const brawlerNear=sandbox.aiScoreDestination(ai,near,[enemy],'walk',brawlerCoord
 const brawlerFar=sandbox.aiScoreDestination(ai,far,[enemy],'walk',brawlerCoord).total;
 check('brawler doctrine values closing range more strongly than cautious doctrine',(brawlerNear-brawlerFar)>(cautiousNear-cautiousFar),JSON.stringify({cautiousNear,cautiousFar,brawlerNear,brawlerFar}));
 
+sandbox.currentMatchConfig.victory_mode='control';
 sandbox.currentMatchConfig.objective_hexes=['1008'];
 const balanced=sandbox.aiSettingsFor('advanced','balanced');
 const objective=sandbox.aiSettingsFor('advanced','objective');
 const balancedScore=sandbox.aiScoreDestination(ai,far,[enemy],'walk',sandbox.buildAIForceCoordination([ai],[enemy],balanced,null));
 const objectiveScore=sandbox.aiScoreDestination(ai,far,[enemy],'walk',sandbox.buildAIForceCoordination([ai],[enemy],objective,null));
 check('objective personality gives objective hexes additional weight',objectiveScore.objectiveScore>balancedScore.objectiveScore,`${objectiveScore.objectiveScore} vs ${balancedScore.objectiveScore}`);
+const approachScore=sandbox.aiScoreDestination(ai,{...far,col:9},[enemy],'walk',sandbox.buildAIForceCoordination([ai],[enemy],balanced,null));
+check('control-mode AI values progress toward an objective before reaching its exact hex',approachScore.objectiveProgress>0&&approachScore.objectiveDistance===1,JSON.stringify(approachScore));
+sandbox.currentMatchConfig.victory_mode='breakthrough';sandbox.currentMatchConfig.objective_hexes=[];
+const breakthroughScore=sandbox.aiScoreDestination(ai,near,[enemy],'walk',sandbox.buildAIForceCoordination([ai],[enemy],balanced,null));
+check('breakthrough-mode AI advances toward the opposing deployment zone',breakthroughScore.objectiveProgress>0&&breakthroughScore.objectiveTarget==='0208',JSON.stringify(breakthroughScore));
+sandbox.currentMatchConfig.breakthrough_scored_units=[ai.instanceId];
+check('a BattleMech that already scored a breakthrough returns to ordinary tactics',sandbox.aiVictoryTargets(ai).length===0);
+sandbox.currentMatchConfig={map_id:'training-grounds',ruleset:'advanced_3060',victory_mode:'annihilation',objective_hexes:[]};
 
 const contextA=sandbox.createAIPlanningContext('advanced',{ai_seed:'ai6',ai_personality:'sniper'},[ai,enemy]);
 const contextB=sandbox.createAIPlanningContext('advanced',{ai_seed:'ai6',ai_personality:'sniper'},[ai,enemy]);

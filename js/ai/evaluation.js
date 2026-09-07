@@ -27,19 +27,20 @@ function aiEvaluationEligibleUnits(ruleset = 'advanced_3060') {
 }
 
 function aiEvaluationOpenHex(preferredCol, preferredRow, occupied = null) {
+  const occupiedHexes=new Set((Array.isArray(occupied)?occupied:occupied?[occupied]:[]).map(hex=>`${hex.col},${hex.row}`));
   const candidates=[];
   for(let radius=0;radius<Math.max(GRID_COLS,GRID_ROWS);radius++) for(let col=0;col<GRID_COLS;col++) for(let row=0;row<GRID_ROWS;row++) {
     if(Math.abs(col-preferredCol)+Math.abs(row-preferredRow)!==radius) continue;
-    if(occupied&&occupied.col===col&&occupied.row===row) continue;
+    if(occupiedHexes.has(`${col},${row}`)) continue;
     if(typeof terrainMovementBlocked!=='function'||!terrainMovementBlocked(col,row)) candidates.push({col,row});
   }
   return candidates[0]||{col:preferredCol,row:preferredRow};
 }
 
-function aiEvaluationMech(unitId, owner, position) {
+function aiEvaluationMech(unitId, owner, position, index = 0) {
   const unit=typeof getSupportedUnit==='function'?getSupportedUnit(unitId):BT_UNITS[unitId];
   const mech={
-    instanceId:`eval-p${owner}-${unitId}`,unitId,owner,col:position.col,row:position.row,
+    instanceId:`eval-p${owner}-${index}-${unitId}`,unitId,owner,col:position.col,row:position.row,
     facing:owner===1?0:3,torsoFacing:owner===1?0:3,
     armor:{...(unit.armor||{})},structure:{...(unit.structure||{})},
     ammoBins:(unit.ammoBins||[]).map(bin=>({...bin,maxShots:bin.maxShots??bin.shots})),
@@ -140,7 +141,20 @@ function aiEvaluationApplyAction(action, phase, match, seat, metrics) {
 }
 
 function aiEvaluationObjectives(match) {
-  for(const seat of [1,2]) if(mechInstances.some(mech=>mech.owner===seat&&!mech.destroyed&&match.objectives.includes(hexCode(mech.col,mech.row)))) match.objectiveScores[String(seat)]++;
+  if(match.victory==='control') {
+    for(const code of match.objectives) {
+      const occupants=new Set(mechInstances.filter(mech=>!mech.destroyed&&hexCode(mech.col,mech.row)===code).map(mech=>Number(mech.owner)));
+      if(occupants.size===1){const [seat]=occupants;match.objectiveScores[String(seat)]++;}
+    }
+  } else if(match.victory==='breakthrough') {
+    for(const mech of mechInstances.filter(candidate=>!candidate.destroyed&&!match.breakthroughScored.includes(candidate.instanceId))) {
+      const enemySeat=Number(mech.owner)===1?2:1;
+      if(scenarioDeploymentZoneContains(enemySeat,mech.col,mech.row,currentMatchConfig)) {
+        match.breakthroughScored.push(mech.instanceId);match.objectiveScores[String(mech.owner)]++;
+      }
+    }
+    currentMatchConfig.breakthrough_scored_units=[...match.breakthroughScored];
+  }
 }
 
 function aiEvaluationWinner(match, maxRounds) {
@@ -153,8 +167,8 @@ function aiEvaluationWinner(match, maxRounds) {
     if(match.objectiveScores['2']>=5) return 2;
   }
   if(match.victory==='breakthrough') {
-    if(alive(1).some(mech=>mech.col>=Math.floor(GRID_COLS*.8))) return 1;
-    if(alive(2).some(mech=>mech.col<=Math.ceil(GRID_COLS*.2))) return 2;
+    if(match.objectiveScores['1']>=2) return 1;
+    if(match.objectiveScores['2']>=2) return 2;
   }
   if(match.round<maxRounds) return null;
   const remaining=seat=>alive(seat).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)/Math.max(1,match.startDurability[String(seat)]);
@@ -167,13 +181,13 @@ async function runSingleAIEvaluation(config) {
   const started=performance.now();
   try {
     setActiveMap(config.mapId); setActiveTerrainState({});
-    const dimensions=mapDimensions(config.mapId), row=Math.floor(dimensions.rows/2);
-    const one=aiEvaluationOpenHex(Math.max(1,Math.floor(dimensions.cols*.2)),row);
-    const two=aiEvaluationOpenHex(Math.min(dimensions.cols-2,Math.floor(dimensions.cols*.8)),row,one);
-    mechInstances=[aiEvaluationMech(config.unitOne,1,one),aiEvaluationMech(config.unitTwo,2,two)];
+    const dimensions=mapDimensions(config.mapId), row=Math.floor(dimensions.rows/2),occupied=[];
+    const forceOne=config.unitsOne||[config.unitOne],forceTwo=config.unitsTwo||[config.unitTwo];
+    const placeForce=(unitIds,owner,col)=>unitIds.map((unitId,index)=>{const position=aiEvaluationOpenHex(col,Math.max(0,Math.min(dimensions.rows-1,row+(index*2)-Math.floor(unitIds.length/2))),occupied);occupied.push(position);return aiEvaluationMech(unitId,owner,position,index);});
+    mechInstances=[...placeForce(forceOne,1,Math.max(1,Math.floor(dimensions.cols*.2))),...placeForce(forceTwo,2,Math.min(dimensions.cols-2,Math.floor(dimensions.cols*.8)))];
     const match={seed:config.seed,round:0,mapId:config.mapId,victory:config.victory,objectives:objectiveHexesForMap(config.mapId),objectiveScores:{'1':0,'2':0},
-      startDurability:{'1':aiEvaluationDurability(mechInstances[0]),'2':aiEvaluationDurability(mechInstances[1])}};
-    currentMatchConfig={map_id:config.mapId,ruleset:config.ruleset,victory_mode:config.victory,objective_hexes:match.objectives,objective_scores:match.objectiveScores,terrain_overrides:{}};
+      breakthroughScored:[],startDurability:Object.fromEntries([1,2].map(seat=>[String(seat),mechInstances.filter(mech=>mech.owner===seat).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)]))};
+    currentMatchConfig={map_id:config.mapId,ruleset:config.ruleset,victory_mode:config.victory,objective_hexes:match.objectives,objective_scores:match.objectiveScores,breakthrough_scored_units:match.breakthroughScored,terrain_overrides:{}};
     const players=[{id:'eval-p1',player_id:'eval-p1',seat_number:1,is_ai:true},{id:'eval-p2',player_id:'eval-p2',seat_number:2,is_ai:true}];
     const blankMetrics=()=>({decisions:0,decisionMs:0,maxDecisionMs:0,illegalActions:0,stalls:0,damage:0,plannedDamage:0,heatGenerated:0,heatDissipated:0,overheatRounds:0,viableWeapons:0,selectedWeapons:0,unusedViableWeapons:0});
     const metricsBySeat={'1':blankMetrics(),'2':blankMetrics()};
@@ -206,7 +220,7 @@ async function runSingleAIEvaluation(config) {
           }
           replay.push({round,phase,seat,difficulty:side.difficulty,personality:side.personality,decision_ms:Number(elapsed.toFixed(3)),actions:plan.actions.map(publicAIAction)});
         }
-        if(phase==='movement'&&config.victory!=='annihilation') aiEvaluationObjectives(match);
+        if(phase==='heat'&&config.victory!=='annihilation') aiEvaluationObjectives(match);
         winner=aiEvaluationWinner(match,config.maxRounds); if(winner!==null) break;
       }
     }
@@ -220,13 +234,13 @@ async function runSingleAIEvaluation(config) {
       seatMetrics.heatEfficiency=Number((seatMetrics.damage/Math.max(1,seatMetrics.heatGenerated)).toFixed(3));
       seatMetrics.unusedWeaponRate=Number((seatMetrics.unusedViableWeapons/Math.max(1,seatMetrics.viableWeapons)*100).toFixed(1));
     }
-    return {id:config.id,seed:config.seed,mapId:config.mapId,victory:config.victory,ruleset:config.ruleset,sides:config.sides,units:{'1':config.unitOne,'2':config.unitTwo},rounds:match.round,winner,
+    return {id:config.id,seed:config.seed,mapId:config.mapId,victory:config.victory,ruleset:config.ruleset,sides:config.sides,units:{'1':forceOne,'2':forceTwo},rounds:match.round,winner,
       objectiveScores:match.objectiveScores,remainingDurability:Object.fromEntries([1,2].map(seat=>[String(seat),Number((mechInstances.filter(mech=>mech.owner===seat&&!mech.destroyed).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)/Math.max(1,match.startDurability[String(seat)])*100).toFixed(1))])),
       metrics:{...metrics,meanDecisionMs:Number((metrics.decisionMs/Math.max(1,metrics.decisions)).toFixed(3)),maxDecisionMs:Number(metrics.maxDecisionMs.toFixed(3)),heatEfficiency:Number((metrics.damage/Math.max(1,metrics.heatGenerated)).toFixed(3)),unusedWeaponRate:Number((metrics.unusedViableWeapons/Math.max(1,metrics.viableWeapons)*100).toFixed(1)),durationMs:Number(duration.toFixed(1))},
       metricsBySeat,
       failed:metrics.illegalActions>0||metrics.stalls>0,replay};
   } catch(error) {
-    return {id:config.id,seed:config.seed,mapId:config.mapId,victory:config.victory,sides:config.sides,units:{'1':config.unitOne,'2':config.unitTwo},rounds:0,winner:null,failed:true,error:error.message||String(error),metrics:{illegalActions:0,stalls:1},replay:[]};
+    return {id:config.id,seed:config.seed,mapId:config.mapId,victory:config.victory,sides:config.sides,units:{'1':config.unitsOne||[config.unitOne],'2':config.unitsTwo||[config.unitTwo]},rounds:0,winner:null,failed:true,error:error.message||String(error),metrics:{illegalActions:0,stalls:1},replay:[]};
   } finally {
     mechInstances=previous.mechs; currentGameState=previous.state; currentMatchConfig=previous.match; setActiveMap(previous.map); setActiveTerrainState(previous.match||{});
   }
@@ -244,12 +258,12 @@ function summarizeAIEvaluation(matches) {
       if(!key) continue; const item=group(collection,key),seatMetrics=match.metricsBySeat?.[String(seat)]||{}; item.appearances++; if(match.winner===0)item.draws++;else if(match.winner===seat)item.wins++;else item.losses++;
       item.damage+=Number(seatMetrics.damage||0); item.heatGenerated+=Number(seatMetrics.heatGenerated||0); item.viableWeapons+=Number(seatMetrics.viableWeapons||0); item.unusedViableWeapons+=Number(seatMetrics.unusedViableWeapons||0); item.objectivePoints+=Number(match.objectiveScores?.[String(seat)]||0);
     }
-    for(const [collection,key] of [[summary.byMap,match.mapId],[summary.byVictory,match.victory]]) {const item=group(collection,key);item.appearances++;item.draws+=match.winner===0?1:0;item.failures=(item.failures||0)+(match.failed?1:0);item.rounds=(item.rounds||0)+Number(match.rounds||0);}
+    for(const [collection,key] of [[summary.byMap,match.mapId],[summary.byVictory,match.victory]]) {const item=group(collection,key);item.appearances++;item.completed=(item.completed||0)+(match.winner===null?0:1);item.draws+=match.winner===0?1:0;item.failures=(item.failures||0)+(match.failed?1:0);item.rounds=(item.rounds||0)+Number(match.rounds||0);item.objectivePoints+=Number(match.objectiveScores?.['1']||0)+Number(match.objectiveScores?.['2']||0);}
   }
   for(const collection of [summary.byDifficulty,summary.byPersonality]) for(const item of Object.values(collection)) {
     item.winRate=Number((item.wins/Math.max(1,item.wins+item.losses)*100).toFixed(1)); item.heatEfficiency=Number((item.damage/Math.max(1,item.heatGenerated)).toFixed(3)); item.unusedWeaponRate=Number((item.unusedViableWeapons/Math.max(1,item.viableWeapons)*100).toFixed(1));
   }
-  for(const collection of [summary.byMap,summary.byVictory]) for(const item of Object.values(collection)) item.averageRounds=Number(((item.rounds||0)/Math.max(1,item.appearances)).toFixed(2));
+  for(const collection of [summary.byMap,summary.byVictory]) for(const item of Object.values(collection)) {item.averageRounds=Number(((item.rounds||0)/Math.max(1,item.appearances)).toFixed(2));item.averageObjectivePoints=Number((item.objectivePoints/Math.max(1,item.appearances)).toFixed(2));}
   summary.averageRounds=Number((summary.rounds/Math.max(1,summary.matches)).toFixed(2));
   summary.meanDecisionMs=Number((summary.decisionMs/Math.max(1,summary.decisions)).toFixed(3));
   summary.heatEfficiency=Number((summary.damage/Math.max(1,summary.heatGenerated)).toFixed(3));
@@ -271,13 +285,15 @@ function selectAIEvaluationReplays(matches, representativeLimit = 6) {
 async function runAIEvaluationTournament(options = {}) {
   const runs=Math.max(1,Math.min(500,Number(options.runs||12))), maxRounds=Math.max(1,Math.min(50,Number(options.maxRounds||12)));
   const seed=String(options.seed||'ai7-evaluation'),ruleset=String(options.ruleset||'advanced_3060');
-  const candidates=aiEvaluationEligibleUnits(ruleset); if(candidates.length<2)throw new Error(`Only ${candidates.length} catalogue BattleMech is eligible for AI evaluation.`);
+  const candidates=aiEvaluationEligibleUnits(ruleset); if(candidates.length<4)throw new Error(`Only ${candidates.length} catalogue BattleMechs are eligible for AI evaluation; four are required for objective forces.`);
   const random=createSeededAIRandom(seed),matches=[];
   for(let index=0;index<runs;index++) {
-    const first=Math.floor(random()*candidates.length),secondOffset=1+Math.floor(random()*(candidates.length-1)),second=(first+secondOffset)%candidates.length;
+    const selected=[];while(selected.length<4){const candidate=Math.floor(random()*candidates.length);if(!selected.includes(candidate))selected.push(candidate);}
+    const forceSize=index%AI_EVALUATION_VICTORIES.length===0?1:2;
     const config={id:`ai7-${String(index+1).padStart(4,'0')}`,seed:`${seed}:${index+1}`,ruleset,maxRounds,
       mapId:AI_EVALUATION_MAPS[index%AI_EVALUATION_MAPS.length],victory:AI_EVALUATION_VICTORIES[index%AI_EVALUATION_VICTORIES.length],
-      unitOne:candidates[first].unitId,unitTwo:candidates[second].unitId,
+      unitOne:candidates[selected[0]].unitId,unitTwo:candidates[selected[2]].unitId,
+      unitsOne:selected.slice(0,forceSize).map(candidate=>candidates[candidate].unitId),unitsTwo:selected.slice(2,2+forceSize).map(candidate=>candidates[candidate].unitId),
       sides:{'1':{difficulty:AI_EVALUATION_DIFFICULTIES[index%4],personality:AI_EVALUATION_PERSONALITIES[index%6]},'2':{difficulty:AI_EVALUATION_DIFFICULTIES[(index+2)%4],personality:AI_EVALUATION_PERSONALITIES[(index*3+1)%6]}}};
     matches.push(await runSingleAIEvaluation(config));
   }

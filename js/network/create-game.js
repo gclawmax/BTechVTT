@@ -23,6 +23,11 @@ function renderCreateMapPreview() {
   if (!preview || !map) return;
   const terrain = map.terrain || {};
   const elevation = map.elevation || {};
+  const victoryMode = document.getElementById('create-victory-select')?.value || 'annihilation';
+  const previewState = { map_id:mapSelect?.value };
+  const objectives = new Set(victoryMode === 'control' ? objectiveHexesForMap(mapSelect?.value) : []);
+  const zoneOne = new Set(victoryMode === 'breakthrough' ? scenarioDeploymentZoneHexes(1,previewState) : []);
+  const zoneTwo = new Set(victoryMode === 'breakthrough' ? scenarioDeploymentZoneHexes(2,previewState) : []);
   const cells = [];
   const counts = {};
   const dimensions = mapDimensions(mapSelect?.value);
@@ -33,14 +38,17 @@ function renderCreateMapPreview() {
       if (type !== 'clear') counts[type] = (counts[type] || 0) + 1;
       const level = elevation[key] || 0;
       const description = `${key}: ${type.replaceAll('_', ' ')}${level ? ` · level ${level}` : ''}`;
-      cells.push(`<polygon class="map-preview-hex ${type}${level ? ' elevated' : ''}" points="${mapPreviewHexPoints(col, row)}"><title>${description}</title></polygon>`);
+      const code = hexCode(col,row);
+      const marker = objectives.has(code) ? ' objective' : zoneOne.has(code) ? ' breakthrough-zone-one' : zoneTwo.has(code) ? ' breakthrough-zone-two' : '';
+      cells.push(`<polygon class="map-preview-hex ${type}${level ? ' elevated' : ''}${marker}" points="${mapPreviewHexPoints(col, row)}"><title>${description}${objectives.has(code)?' · objective':zoneOne.has(code)?' · Player 2 breakthrough goal':zoneTwo.has(code)?' · Player 1 breakthrough goal':''}</title></polygon>`);
     }
   }
   const legend = Object.entries(counts).map(([type, count]) => `${count} ${type.replace('_', ' ')}`).join(' · ') || 'Open ground';
   const levels = Object.values(elevation).filter(level => level > 0);
   const mapWidth = Math.sqrt(3) * (dimensions.cols + 0.5);
   const mapHeight = (dimensions.rows - 1) * 1.5 + 2;
-  preview.innerHTML = `<h3>${map.name}</h3><p>${map.description}</p><svg class="map-preview-grid" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" role="img" aria-label="${dimensions.cols} by ${dimensions.rows} hex terrain preview">${cells.join('')}</svg><div class="map-preview-legend">${dimensions.cols} × ${dimensions.rows} hexes · ${legend}${levels.length ? ` · ${levels.length} elevated hexes (up to level ${Math.max(...levels)})` : ''}</div>`;
+  const mode = victoryModeDetails(victoryMode);
+  preview.innerHTML = `<h3>${map.name}</h3><p>${map.description}</p><svg class="map-preview-grid" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" role="img" aria-label="${dimensions.cols} by ${dimensions.rows} hex terrain preview">${cells.join('')}</svg><div class="map-preview-legend">${dimensions.cols} × ${dimensions.rows} hexes · ${legend}${levels.length ? ` · ${levels.length} elevated hexes (up to level ${Math.max(...levels)})` : ''}</div><div class="map-preview-mode"><strong>${mode.label}:</strong> ${mode.guidance}</div>`;
 }
 
 function mapPreviewHexPoints(col, row) {

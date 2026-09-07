@@ -367,6 +367,37 @@ function aiKnownEnemyMinefield(mech, col, row) {
     (field.revealed_to || []).map(Number).includes(Number(mech.owner))) || null;
 }
 
+function aiVictoryTargets(mech) {
+  const state = typeof currentMatchConfig === 'undefined' ? {} : currentMatchConfig;
+  const mode = state.victory_mode || 'annihilation';
+  if (mode === 'annihilation') return [];
+  if (mode === 'breakthrough' && (state.breakthrough_scored_units || []).includes(mech.instanceId)) return [];
+  const codes = mode === 'control'
+    ? (Array.isArray(state.objective_hexes) ? state.objective_hexes : [])
+    : (typeof scenarioDeploymentZoneHexes === 'function'
+      ? scenarioDeploymentZoneHexes(Number(mech.owner) === 1 ? 2 : 1, state)
+      : []);
+  const targets = codes.map(code => ({ code, col:Number(String(code).slice(0,2)), row:Number(String(code).slice(2,4)) }))
+    .filter(target => /^\d{4}$/.test(String(target.code)) && target.col >= 0 && target.col < GRID_COLS && target.row >= 0 && target.row < GRID_ROWS && !terrainMovementBlocked(target.col,target.row));
+  if (mode !== 'control') return targets;
+  const unclaimed = targets.filter(target => !mechInstances.some(unit => unit.instanceId !== mech.instanceId && !unit.destroyed && Number(unit.owner) === Number(mech.owner) && unit.col === target.col && unit.row === target.row));
+  return unclaimed.length ? unclaimed : targets;
+}
+
+function aiVictoryProgress(mech, candidate, doctrine) {
+  const mode = typeof currentMatchConfig === 'undefined' ? 'annihilation' : currentMatchConfig.victory_mode || 'annihilation';
+  const targets = aiVictoryTargets(mech);
+  if (!targets.length) return { score:0, progress:0, distance:null, target:null, mode };
+  const distanceFrom = position => Math.min(...targets.map(target => axialDistance(position.col,position.row,target.col,target.row)));
+  const before = distanceFrom(mech), after = distanceFrom(candidate), progress = before - after;
+  const onTarget = after === 0;
+  const base = mode === 'breakthrough'
+    ? progress * 8 + Math.max(0,12-after*2) + (onTarget ? 28 : 0)
+    : progress * 6 + Math.max(0,8-after) + (onTarget ? 20 : 0);
+  const target = [...targets].sort((left,right)=>axialDistance(candidate.col,candidate.row,left.col,left.row)-axialDistance(candidate.col,candidate.row,right.col,right.row)||left.code.localeCompare(right.code))[0];
+  return { score:base*Number(doctrine.objectiveWeight||1), progress, distance:after, target:target?.code||null, mode };
+}
+
 function aiMovementCandidates(mech, mode, mpMax) {
   const width = Number(typeof GRID_COLS === 'undefined' ? 16 : GRID_COLS);
   const height = Number(typeof GRID_ROWS === 'undefined' ? 17 : GRID_ROWS);
@@ -404,7 +435,9 @@ function aiScoreDestination(mech, candidate, playerMechs, mode, coordination = n
   const doctrine = settings.personalityProfile || AI_PERSONALITIES.balanced;
   const unit = BT_UNITS[mech.unitId] || {};
   const visibleTarget = [...playerMechs].sort((a, b) => axialDistance(candidate.col, candidate.row, a.col, a.row) - axialDistance(candidate.col, candidate.row, b.col, b.row))[0] || null;
-  const nearest = visibleTarget || aiSearchWaypoint(mech);
+  const victoryTargets = aiVictoryTargets(mech);
+  const nearestVictoryTarget = [...victoryTargets].sort((a,b)=>axialDistance(mech.col,mech.row,a.col,a.row)-axialDistance(mech.col,mech.row,b.col,b.row)||a.code.localeCompare(b.code))[0];
+  const nearest = visibleTarget || nearestVictoryTarget || aiSearchWaypoint(mech);
   const range = axialDistance(candidate.col, candidate.row, nearest.col, nearest.row);
   const weaponRanges = (unit.weapons || []).map(entry => Number((typeof weaponProfile === 'function' ? weaponProfile(entry) : null)?.ranges?.medium || 0)).filter(Boolean);
   const basePreferred = weaponRanges.length ? Math.max(2, Math.round(weaponRanges.reduce((a, b) => a + b, 0) / weaponRanges.length)) : 3;
@@ -422,8 +455,8 @@ function aiScoreDestination(mech, candidate, playerMechs, mode, coordination = n
   const preservation = armor + structure < Number(unit.tons || 50) ? coverScore * 0.75 : 0;
   const probe = { ...mech, col: candidate.col, row: candidate.row, facing: candidate.facing, torsoFacing: candidate.facing };
   const losScore = visibleTarget && typeof weaponLineOfSight === 'function' ? (weaponLineOfSight(probe, nearest).valid ? 4 : -8) : 0;
-  const objectives = typeof currentMatchConfig !== 'undefined' && Array.isArray(currentMatchConfig.objective_hexes) ? currentMatchConfig.objective_hexes : [];
-  const objectiveScore = objectives.includes(typeof hexCode === 'function' ? hexCode(candidate.col, candidate.row) : '') ? 8 * doctrine.objectiveWeight : 0;
+  const objective = aiVictoryProgress(mech,candidate,doctrine);
+  const objectiveScore = objective.score;
   const nextRoundOptions = Array.from({ length: 6 }, (_, direction) => hexNeighbor(candidate.col, candidate.row, direction))
     .filter(hex => hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS && !terrainMovementBlocked(hex.col, hex.row)).length * 0.4;
   const allyDistances = mechInstances.filter(unit => unit.owner === mech.owner && unit.instanceId !== mech.instanceId && !unit.destroyed).map(unit => axialDistance(candidate.col, candidate.row, unit.col, unit.row));
@@ -438,7 +471,7 @@ function aiScoreDestination(mech, candidate, playerMechs, mode, coordination = n
   }).filter(Boolean)).values()];
   const minefieldPenalty = knownMines.reduce((total, field) => total + Math.max(10, Number(field.density || 10)), 0);
   const total = rangeScore + coverScore + movementScore + preservation + losScore + objectiveScore + nextRoundOptions + formationScore + retreatScore + ecmCoverScore + probeSearchScore - hazardPenalty - minefieldPenalty - heatPenalty - facingPenalty;
-  return { total, rangeScore, coverScore, movementScore, preservation, losScore, objectiveScore, nextRoundOptions, formationScore, retreatScore, ecmCoverScore, probeSearchScore, hazardPenalty, minefieldPenalty, heatPenalty, range, preferred, searching: !visibleTarget };
+  return { total, rangeScore, coverScore, movementScore, preservation, losScore, objectiveScore, objectiveProgress:objective.progress, objectiveDistance:objective.distance, objectiveTarget:objective.target, victoryMode:objective.mode, nextRoundOptions, formationScore, retreatScore, ecmCoverScore, probeSearchScore, hazardPenalty, minefieldPenalty, heatPenalty, range, preferred, searching: !visibleTarget };
 }
 
 // Generate a deterministic, rules-legal movement action by enumerating final

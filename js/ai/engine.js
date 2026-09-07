@@ -2,7 +2,7 @@
 // Pure, deterministic planning helpers. The phase-specific opponent code may
 // improve over time without changing this replay/audit contract.
 
-var BT_AI_ENGINE_VERSION = 'ai-7.0';
+var BT_AI_ENGINE_VERSION = 'ai-7.1';
 var pendingAIDecisionEnvelope = null;
 var aiDecisionHistory = [];
 

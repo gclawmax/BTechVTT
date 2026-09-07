@@ -236,7 +236,8 @@ function updateGameHeader() {
   statusEl.textContent = `Round ${currentGameState.round} — ${phaseLabel}`;
   if (currentMatchConfig.victory_mode && currentMatchConfig.victory_mode !== 'annihilation') {
     const scores = currentMatchConfig.objective_scores || { '1': 0, '2': 0 };
-    statusEl.textContent += ` — Objectives P1 ${scores['1'] || 0} : P2 ${scores['2'] || 0}`;
+    const mode = victoryModeDetails(currentMatchConfig.victory_mode);
+    statusEl.textContent += ` — ${mode.label} P1 ${scores['1'] || 0}/${mode.target} : P2 ${scores['2'] || 0}/${mode.target}`;
   }
   const phaseGuidance = {
     initiative: 'Roll 2D6 initiative when ready. Both players must roll before Movement begins.',
@@ -248,6 +249,9 @@ function updateGameHeader() {
     end: 'The host advances to the next round once all end-of-round work is complete.'
   };
   if (guidanceEl) guidanceEl.textContent = phaseGuidance[currentGameState.phase] || '';
+  if (guidanceEl && currentMatchConfig.victory_mode && currentMatchConfig.victory_mode !== 'annihilation') {
+    guidanceEl.textContent += ` ${victoryModeDetails(currentMatchConfig.victory_mode).guidance}`;
+  }
 
   if (currentGameState.active_player_id) {
     const activePlayer = getActivePlayerRecord();

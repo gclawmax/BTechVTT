@@ -9,6 +9,9 @@ The evaluator uses expected damage to advance its private tournament state.
 It is intended to compare decision quality and expose illegal or stalled plans;
 the dedicated Play-vs-AI live acceptances remain responsible for proving that
 real server dice, damage, ammunition and phase authority accept those plans.
+Objective modes use two BattleMechs per side. Control is scored after Heat;
+Breakthrough requires two different units to enter the enemy deployment zone,
+matching the live mode contract.
 
 ## Run it
 

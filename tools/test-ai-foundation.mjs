@@ -71,7 +71,7 @@ const weaponPlanA = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-see
 const weaponPlanB = sandbox.generateAIPlan('expert', null, { ai_seed: 'fixed-seed' }, []);
 check('every eligible AI BattleMech receives an explicit weapon action or pass', weaponPlanA.actions.length === 1 && ['attack', 'no_fire'].includes(weaponPlanA.actions[0].type), JSON.stringify(weaponPlanA.actions));
 check('the same phase snapshot produces the same planned action', JSON.stringify(weaponPlanA.actions) === JSON.stringify(weaponPlanB.actions));
-check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-7.0' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed && weaponPlanA.decision?.personality === 'balanced');
+check('plans carry the replay and audit envelope', weaponPlanA.decision?.engine_version === 'ai-7.1' && weaponPlanA.decision?.snapshot_hash && weaponPlanA.decision?.seed && weaponPlanA.decision?.personality === 'balanced');
 
 const seatOnePlan = sandbox.generateAIPlan('expert', 'human-player', { ai_seed:'seat-one', ai_personality:'balanced', ai_evaluation_seat:1 }, [{ id:'human-player', seat_number:1 }]);
 check('AI-7 can evaluate either force without changing unit ownership',seatOnePlan.seat===1&&seatOnePlan.actions[0]?.instanceId===human.instanceId,JSON.stringify(seatOnePlan.actions));
