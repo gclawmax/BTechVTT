@@ -35,7 +35,11 @@ async function fixture(spec){
   const units=buildRosterInstances(rosters,{},positions);
   for(const unit of units){Object.assign(unit,{destroyed:false,shutdown:false,prone:false,hasMoved:true,hasReacted:true,hasFired:true,hasPhysicalAttacked:true,hasManagedHeat:unit.owner===2,heat:0,roundStartingHeat:0,movementHeat:0,weaponHeat:0,externalHeat:0});}
   for(const index of spec.destroyedAi||[]){if(units.filter(unit=>unit.owner===2)[index])units.filter(unit=>unit.owner===2)[index].destroyed=true;}
-  const state={map_id:'standard-single-sheet',map_dimensions:{cols:16,rows:17},catalogue_version:game.catalogue_version,ruleset:'advanced_3060',vs_ai_mode:true,victory_mode:spec.mode,objective_hexes:spec.objectives||[],objective_scores:spec.scores||{'1':0,'2':0},breakthrough_scored_units:spec.priorHumanScorer?[units.find(unit=>unit.owner===1)?.instanceId]:[],deployment_zones:spec.zones,mech_instances:units,initiative_order:[{player_id:human.id,seat_number:1},{player_id:ai.id,seat_number:2,is_ai:true}],active_player_player_id:human.id,round:1};
+  // The AI production path submits its own Heat decision after the human. A
+  // fixture invokes one public Heat RPC, so its initiative list contains only
+  // that authenticated activation; this forces the exact authoritative
+  // round-end transition (and scorer) rather than stopping at an AI hand-off.
+  const state={map_id:'standard-single-sheet',map_dimensions:{cols:16,rows:17},catalogue_version:game.catalogue_version,ruleset:'advanced_3060',vs_ai_mode:true,victory_mode:spec.mode,objective_hexes:spec.objectives||[],objective_scores:spec.scores||{'1':0,'2':0},breakthrough_scored_units:spec.priorHumanScorer?[units.find(unit=>unit.owner===1)?.instanceId]:[],deployment_zones:spec.zones,mech_instances:units,initiative_order:[{player_id:human.id,seat_number:1}],active_player_player_id:human.id,round:1};
   const update=await db.from('btech_games').update({current_round:1,current_phase:spec.elimination?'movement':'heat',active_player_id:human.id,state}).eq('id',currentGameId);if(update.error)throw update.error;
   const resolution=spec.elimination?await db.rpc('resolve_btech_match_end',{p_game_id:currentGameId}):await db.rpc('resolve_heat_management',{p_game_id:currentGameId});
   if(resolution.error)throw new Error(`${spec.elimination?'Elimination':'Heat'} fixture failed: ${resolution.error.message}`);
@@ -49,7 +53,7 @@ async function fixture(spec){
 async function cleanup(result,ok){if(!result?.gameId)return;if(!ok||KEEP){retained.push(result.gameCode);return;}const message=await page.evaluate(async id=>(await db.from('btech_games').delete().eq('id',id)).error?.message||null,result.gameId);check('passing GM-3 fixture is removed',!message,message||result.gameCode);}
 try{
  await signIn();
- const build=await page.evaluate(()=>BT_BUILD_ID);check('the deployed browser includes GM-3',/^20260907-gm3-authoritative-modes-76$/.test(build),build);
+ const build=await page.evaluate(()=>BT_BUILD_ID);check('the deployed browser includes GM-3',/^20260907-gm3-authoritative-modes-(76|77)$/.test(build),build);
  const cases=[
   ['uncontested Control scores and reaches its threshold',{mode:'control',objectives:['0406'],scores:{'1':4,'2':1},human:[{col:4,row:6}],ai:[{col:12,row:10}]},result=>result.state.objective_scores?.['1']===5&&result.state.match_result?.winner_seat===1&&result.state.match_result?.reason==='control'],
   ['contested Control awards no point',{mode:'control',objectives:['0406'],human:[{col:4,row:6}],ai:[{col:4,row:6}]},result=>result.state.objective_scores?.['1']===0&&result.state.objective_scores?.['2']===0&&!result.state.match_result],

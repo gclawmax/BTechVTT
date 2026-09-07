@@ -32,8 +32,10 @@ check('Breakthrough repeat entry is idempotent',outcome.scores['1']===1&&!outcom
 outcome=score({mode:'breakthrough',zones:{'1':['0210'],'2':['1210']},units:[{instanceId:'custom',owner:1,col:12,row:10}]});
 check('Breakthrough honors explicit custom deployment zones',outcome.scores['1']===1&&outcome.events[0]?.type==='unit_broke_through',JSON.stringify(outcome));
 const sql=fs.readFileSync(path.join(ROOT,'SQL/128_authoritative_game_mode_matrix.sql'),'utf8');
+const hook=fs.readFileSync(path.join(ROOT,'SQL/129_restore_authoritative_round_end_scenario_scoring.sql'),'utf8');
 check('SQL 128 keeps scoring private and idempotent',['REVOKE ALL ON FUNCTION public.btech_score_scenario_round','objectives_scored_after_round','FOR UPDATE'].every(marker=>sql.includes(marker)));
 check('SQL 128 records Control and Breakthrough decisions',['objective_controlled','unit_broke_through','scenario_score_events'].every(marker=>sql.includes(marker)));
 check('SQL 128 writes a completed scenario through the server phase and match result',["current_phase='end'",'match_result','winner IS NULL'].every(marker=>sql.includes(marker)));
 check('replay snapshots retain outcome evidence but not minefield state',sql.includes("'scenario_score_events'")&&!sql.includes("'minefields',p_state"));
+check('SQL 129 restores the score hook after authoritative Heat phase advancement',['submit_phase_state_nonphysical_core','btech_score_scenario_round','gm3_round_end_scenario_scoring_v1'].every(marker=>hook.includes(marker)));
 if(failures.length){console.error(`\n${failures.length} GM-3 mode-matrix regression failure(s).`);process.exitCode=1;}else console.log('\nGM-3 game-mode matrix regression passed.');

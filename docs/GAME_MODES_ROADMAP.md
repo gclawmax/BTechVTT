@@ -71,6 +71,9 @@ the GM-2 setup regression; live mode-matrix coverage remains GM-3.
   immutable replay snapshots and sealed reports, so an outcome can be
   explained without reconstructing it from the prose log. Minefields remain
   excluded from shared snapshots until GM-4 can provide private views.
+- **SQL 129 is also required.** It restores the direct round-end call from the
+  maintained Heat resolver to the scenario scorer. This is necessary because
+  later Heat updates replaced the older SQL 75 injection point.
 - Add dedicated live fixtures for uncontested and contested Control scoring,
   threshold victory, simultaneous threshold draws and elimination fallback.
 - Test two unique Breakthrough scorers, repeat-entry idempotence, custom
