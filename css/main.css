@@ -1596,8 +1596,8 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
 .bv-force-comparison > div { flex:1; min-width:180px; }
 .bv-force-comparison p { flex-basis:100%; margin:0; }
 
-#match-setup-screen { align-items:flex-start; overflow-y:auto; padding:32px 20px 64px; }
-#match-setup-box { width:min(780px, 100%); margin:auto; }
+#match-setup-screen { align-items:center; justify-content:flex-start; overflow-y:auto; padding:32px 20px 64px; }
+#match-setup-box { width:min(780px, 100%); margin:0 auto; }
 #match-setup-box .map-setup-preview h3 { color:#f1f5eb; }
 .log-entry details { min-width:0; }
 .log-entry summary { cursor:pointer; line-height:1.6; }
