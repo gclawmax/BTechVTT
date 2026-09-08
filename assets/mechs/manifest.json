@@ -2382,6 +2382,633 @@
         84,
         72
       ]
+    },
+    "wolverine-wvr-6k": {
+      "file": "wolverine-wvr-6k.png",
+      "source_file": "meks/Wolverine_6K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        24840,
+        84,
+        72
+      ]
+    },
+    "wolverine-wvr-6m": {
+      "file": "wolverine-wvr-6m.png",
+      "source_file": "meks/Wolverine_6M.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        24840,
+        84,
+        72
+      ]
+    },
+    "wolverine-wvr-7d": {
+      "file": "wolverine-wvr-7d.png",
+      "source_file": "meks/Wolverine.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        24840,
+        84,
+        72
+      ]
+    },
+    "wolverine-wvr-7k": {
+      "file": "wolverine-wvr-7k.png",
+      "source_file": "meks/Wolverine_7K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        24912,
+        84,
+        72
+      ]
+    },
+    "wolverine-wvr-7m": {
+      "file": "wolverine-wvr-7m.png",
+      "source_file": "meks/Wolverine_7M.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        24912,
+        84,
+        72
+      ]
+    },
+    "puma-adder-a": {
+      "file": "puma-adder-a.png",
+      "source_file": "meks/Puma_A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-b": {
+      "file": "puma-adder-b.png",
+      "source_file": "meks/Puma_B.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-c": {
+      "file": "puma-adder-c.png",
+      "source_file": "meks/Puma_C.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-d": {
+      "file": "puma-adder-d.png",
+      "source_file": "meks/Puma_D.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-e": {
+      "file": "puma-adder-e.png",
+      "source_file": "meks/Puma_E.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-h": {
+      "file": "puma-adder-h.png",
+      "source_file": "meks/Puma_H.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-j": {
+      "file": "puma-adder-j.png",
+      "source_file": "meks/Puma_J.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-tc": {
+      "file": "puma-adder-tc.png",
+      "source_file": "meks/Puma_TC.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        17712,
+        84,
+        72
+      ]
+    },
+    "puma-adder-i": {
+      "file": "puma-adder-i.png",
+      "source_file": "meks/Puma_I.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-k": {
+      "file": "puma-adder-k.png",
+      "source_file": "meks/Puma_K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        17640,
+        84,
+        72
+      ]
+    },
+    "puma-adder-l": {
+      "file": "puma-adder-l.png",
+      "source_file": "meks/Puma_L.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        17712,
+        84,
+        72
+      ]
+    },
+    "puma-adder-s": {
+      "file": "puma-adder-s.png",
+      "source_file": "meks/Puma_S.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        17712,
+        84,
+        72
+      ]
+    },
+    "puma-adder-t": {
+      "file": "puma-adder-t.png",
+      "source_file": "meks/Puma.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        17640,
+        84,
+        72
+      ]
+    },
+    "dragon-drg-1c": {
+      "file": "dragon-drg-1c.png",
+      "source_file": "meks/Dragon_1C.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        6480,
+        84,
+        72
+      ]
+    },
+    "grand-dragon-drg-1g": {
+      "file": "grand-dragon-drg-1g.png",
+      "source_file": "meks/GrandDragon.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        8496,
+        84,
+        72
+      ]
+    },
+    "dragon-drg-5n": {
+      "file": "dragon-drg-5n.png",
+      "source_file": "meks/Dragon_5N.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        6480,
+        84,
+        72
+      ]
+    },
+    "grand-dragon-drg-5k-dc": {
+      "file": "grand-dragon-drg-5k-dc.png",
+      "source_file": "meks/GrandDragon_5K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        8568,
+        84,
+        72
+      ]
+    },
+    "grand-dragon-drg-5k": {
+      "file": "grand-dragon-drg-5k.png",
+      "source_file": "meks/GrandDragon_5K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        8568,
+        84,
+        72
+      ]
+    },
+    "grand-dragon-drg-c": {
+      "file": "grand-dragon-drg-c.png",
+      "source_file": "meks/GrandDragon_5K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        8568,
+        84,
+        72
+      ]
+    },
+    "dragon-drg-7n": {
+      "file": "dragon-drg-7n.png",
+      "source_file": "meks/Dragon_7N.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        6552,
+        84,
+        72
+      ]
+    },
+    "grand-dragon-drg-7k": {
+      "file": "grand-dragon-drg-7k.png",
+      "source_file": "meks/GrandDragon_7K.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        8568,
+        84,
+        72
+      ]
+    },
+    "grand-dragon-drg-9kc": {
+      "file": "grand-dragon-drg-9kc.png",
+      "source_file": "meks/GrandDragon_9KC.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        8568,
+        84,
+        72
+      ]
+    },
+    "assassin-asn-21": {
+      "file": "assassin-asn-21.png",
+      "source_file": "meks/Assassin.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        864,
+        84,
+        72
+      ]
+    },
+    "cicada-cda-2a": {
+      "file": "cicada-cda-2a.png",
+      "source_file": "meks/Cicada.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        4392,
+        84,
+        72
+      ]
+    },
+    "clint-clnt-2-3t": {
+      "file": "clint-clnt-2-3t.png",
+      "source_file": "meks/Clint.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        4392,
+        84,
+        72
+      ]
+    },
+    "hermes-ii-her-2s": {
+      "file": "hermes-ii-her-2s.png",
+      "source_file": "meks/Hermes_II.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        10224,
+        84,
+        72
+      ]
+    },
+    "vindicator-vnd-1r": {
+      "file": "vindicator-vnd-1r.png",
+      "source_file": "meks/Vindicator.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        23328,
+        84,
+        72
+      ]
+    },
+    "trebuchet-tbt-5n": {
+      "file": "trebuchet-tbt-5n.png",
+      "source_file": "meks/Trebuchet.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        22464,
+        84,
+        72
+      ]
+    },
+    "whitworth-wth-1": {
+      "file": "whitworth-wth-1.png",
+      "source_file": "meks/Whitworth.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        24552,
+        84,
+        72
+      ]
+    },
+    "kintaro-kto-18": {
+      "file": "kintaro-kto-18.png",
+      "source_file": "meks/Kintaro_18.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        11880,
+        84,
+        72
+      ]
+    },
+    "jagermech-jm6-s": {
+      "file": "jagermech-jm6-s.png",
+      "source_file": "meks/Jagermech.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        11232,
+        84,
+        72
+      ]
+    },
+    "ostsol-otl-4d": {
+      "file": "ostsol-otl-4d.png",
+      "source_file": "meks/Ostsol.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        15912,
+        84,
+        72
+      ]
+    },
+    "quickdraw-qkd-4g": {
+      "file": "quickdraw-qkd-4g.png",
+      "source_file": "meks/Quickdraw.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        17784,
+        84,
+        72
+      ]
+    },
+    "grasshopper-ghr-5h": {
+      "file": "grasshopper-ghr-5h.png",
+      "source_file": "meks/Grasshopper.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        8568,
+        84,
+        72
+      ]
+    },
+    "orion-on1-k": {
+      "file": "orion-on1-k.png",
+      "source_file": "meks/Orion.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        15552,
+        84,
+        72
+      ]
+    },
+    "zeus-zeu-6s": {
+      "file": "zeus-zeu-6s.png",
+      "source_file": "meks/Zeus.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        588,
+        25344,
+        84,
+        72
+      ]
+    },
+    "highlander-hgn-733": {
+      "file": "highlander-hgn-733.png",
+      "source_file": "meks/Highlander_733.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        10368,
+        84,
+        72
+      ]
+    },
+    "fire-moth-prime": {
+      "file": "fire-moth-prime.png",
+      "source_file": "meks/Dasher.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        5760,
+        84,
+        72
+      ]
+    },
+    "mist-lynx-c": {
+      "file": "mist-lynx-c.png",
+      "source_file": "meks/Koshi_C.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        252,
+        12096,
+        84,
+        72
+      ]
+    },
+    "kit-fox-a": {
+      "file": "kit-fox-a.png",
+      "source_file": "meks/Uller_A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        168,
+        22680,
+        84,
+        72
+      ]
+    },
+    "viper-prime": {
+      "file": "viper-prime.png",
+      "source_file": "meks/Dragonfly.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        6336,
+        84,
+        72
+      ]
+    },
+    "nova-prime": {
+      "file": "nova-prime.png",
+      "source_file": "meks/BlackHawk.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        0,
+        2232,
+        84,
+        72
+      ]
+    },
+    "mad-dog-prime": {
+      "file": "mad-dog-prime.png",
+      "source_file": "meks/Vulture.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        23616,
+        84,
+        72
+      ]
+    },
+    "hellbringer-a": {
+      "file": "hellbringer-a.png",
+      "source_file": "meks/Loki_A.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        12888,
+        84,
+        72
+      ]
+    },
+    "gargoyle-b": {
+      "file": "gargoyle-b.png",
+      "source_file": "meks/manowar_b.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        84,
+        13680,
+        84,
+        72
+      ]
+    },
+    "warhawk-prime": {
+      "file": "warhawk-prime.png",
+      "source_file": "meks/Masakari.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        672,
+        14184,
+        84,
+        72
+      ]
+    },
+    "executioner-prime": {
+      "file": "executioner-prime.png",
+      "source_file": "meks/Gladiator.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        8136,
+        84,
+        72
+      ]
+    },
+    "battle-cobra-prime": {
+      "file": "battle-cobra-prime.png",
+      "source_file": "meks/BattleCobra.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        1656,
+        84,
+        72
+      ]
+    },
+    "shadow-cat-prime": {
+      "file": "shadow-cat-prime.png",
+      "source_file": "meks/ShadowCat.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        336,
+        19512,
+        84,
+        72
+      ]
+    },
+    "crossbow-prime": {
+      "file": "crossbow-prime.png",
+      "source_file": "meks/Crossbow.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        504,
+        5040,
+        84,
+        72
+      ]
+    },
+    "stone-rhino": {
+      "file": "stone-rhino.png",
+      "source_file": "meks/Behemoth.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        420,
+        2016,
+        84,
+        72
+      ]
+    },
+    "black-lanner-prime": {
+      "file": "black-lanner-prime.png",
+      "source_file": "meks/BlackLanner.png",
+      "atlas_file": "meks/meks_atlas.png",
+      "crop": [
+        756,
+        2592,
+        84,
+        72
+      ]
     }
   },
   "unresolved": []

@@ -649,7 +649,7 @@ function renderLobbyMatchSetup(gameState, players) {
     const pilot = skirmishPilotForEntry(entry);
     const bv = bv2EntryValue(unit, pilot);
     return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}">
-      <div class="hangar-mech"><strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${bv ? ` · ${bv.stock.toLocaleString()} BV2 stock · ${bv.adjusted.toLocaleString()} adjusted` : ' · BV pending'}${isDeployed ? ' · DROPSHIP' : ''}</span></div>
+      <div class="hangar-mech">${unitArtworkThumbnail(entry.unit_id)}<strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${bv ? ` · ${bv.stock.toLocaleString()} BV2 stock · ${bv.adjusted.toLocaleString()} adjusted` : ' · BV pending'}${isDeployed ? ' · DROPSHIP' : ''}</span></div>
       <div class="hangar-pilot-fields">
         <label>Pilot<input id="hangar-pilot-name-${entry.id}" maxlength="48" value="${escapeHtml(pilot.name)}"></label>
         <label>Gunnery<select id="hangar-pilot-gunnery-${entry.id}">${skirmishSkillOptions(pilot.gunnery)}</select></label>

@@ -72,3 +72,20 @@ async function createProfile(username) {
     console.warn('Profile table may not exist yet:', err.message);
   }
 }
+
+// Persistent signed-in identity, independent of Career participation.
+function renderSignedInIdentity() {
+  const badge = document.getElementById('signed-in-identity');
+  if (!badge) return;
+  const signedIn = Boolean(currentUser);
+  badge.hidden = !signedIn;
+  document.body.classList.toggle('signed-in', signedIn);
+  if (!signedIn) return;
+  const metadata = currentUser.user_metadata || {};
+  const avatar = metadata.career_avatar || {};
+  const callsign = String(metadata.callsign || avatar.callsign || metadata.username || currentUser.email?.split('@')[0] || 'MechWarrior');
+  document.getElementById('signed-in-callsign').textContent = callsign;
+  const emblem = document.getElementById('signed-in-emblem');
+  emblem.textContent = callsign.trim().split(/\s+/).slice(0,2).map(word => word[0] || '').join('').toUpperCase();
+  emblem.style.borderColor = /^#[0-9a-f]{6}$/i.test(avatar.color || '') ? avatar.color : '#b87d28';
+}

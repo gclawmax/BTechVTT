@@ -23,6 +23,7 @@
       if (session?.user) {
         const isNewSession = !currentUser;
         currentUser = session.user;
+        renderSignedInIdentity();
         if (event === 'SIGNED_IN' && isNewSession) showMainMenu();
       }
     });

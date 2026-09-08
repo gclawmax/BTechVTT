@@ -1602,3 +1602,11 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
 .log-entry details { min-width:0; }
 .log-entry summary { cursor:pointer; line-height:1.6; }
 .log-unit-reference { color:#07596b; font-weight:700; background:#eef6f4; padding:0 2px; }
+
+/* Reserve a top row so the signed-in badge never covers game controls. */
+#signed-in-identity { height:48px; display:flex; align-items:center; justify-content:flex-end; gap:10px; padding:5px 18px; background:#202823; color:#f5f1e6; border-bottom:1px solid #586052; }
+#signed-in-identity[hidden] { display:none; }
+#signed-in-emblem { display:grid; place-items:center; width:34px; height:34px; flex:none; border:2px solid #b87d28; border-radius:50%; background:#344239; color:#fff; font-weight:bold; }
+#signed-in-callsign { max-width:min(70vw,400px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+body.signed-in > .screen, body.signed-in #game-screen.active { height:calc(100vh - 48px); }
+.hangar-unit-art { width:64px; height:56px; object-fit:contain; float:left; margin-right:10px; }

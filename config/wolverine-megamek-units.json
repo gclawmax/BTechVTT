@@ -1,0 +1,92 @@
+{
+  "extends": "supported-megamek-units.json",
+  "catalogue_version": "megamek-2026-09-wolverine-variants-01",
+  "require_verified_bv2": true,
+  "units": [
+    {
+      "id": "puma-adder-a",
+      "source": "data/mekfiles/meks/3050U/Puma (Adder) A.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-b",
+      "source": "data/mekfiles/meks/3050U/Puma (Adder) B.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-c",
+      "source": "data/mekfiles/meks/3050U/Puma (Adder) C.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-d",
+      "source": "data/mekfiles/meks/3050U/Puma (Adder) D.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-e",
+      "source": "data/mekfiles/meks/3050U/Puma (Adder) E.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-h",
+      "source": "data/mekfiles/meks/3050U/Puma (Adder) H.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-j",
+      "source": "data/mekfiles/meks/3050U/Puma (Adder) J.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-tc",
+      "source": "data/mekfiles/meks/Tukayyid/Puma (Adder) TC.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-i",
+      "source": "data/mekfiles/meks/Rec Guides ilClan/Vol 3/Puma (Adder) I.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-k",
+      "source": "data/mekfiles/meks/Rec Guides ilClan/Vol 3/Puma (Adder) K.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-l",
+      "source": "data/mekfiles/meks/Rec Guides ilClan/Vol 3/Puma (Adder) L.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-s",
+      "source": "data/mekfiles/meks/Rec Guides ilClan/Vol 3/Puma (Adder) S.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "puma-adder-t",
+      "source": "data/mekfiles/meks/Rec Guides ilClan/Vol 3/Puma (Adder) T.mtf",
+      "display_chassis": "Adder / Puma"
+    },
+    {
+      "id": "wolverine-wvr-6k",
+      "source": "data/mekfiles/meks/3039u/Wolverine WVR-6K.mtf"
+    },
+    {
+      "id": "wolverine-wvr-6m",
+      "source": "data/mekfiles/meks/3039u/Wolverine WVR-6M.mtf"
+    },
+    {
+      "id": "wolverine-wvr-7d",
+      "source": "data/mekfiles/meks/Rec Guides ilClan/Vol 18/Wolverine WVR-7D.mtf"
+    },
+    {
+      "id": "wolverine-wvr-7k",
+      "source": "data/mekfiles/meks/Rec Guides ilClan/Vol 18/Wolverine WVR-7K.mtf"
+    },
+    {
+      "id": "wolverine-wvr-7m",
+      "source": "data/mekfiles/meks/Rec Guides ilClan/Vol 18/Wolverine WVR-7M.mtf"
+    }
+  ]
+}
