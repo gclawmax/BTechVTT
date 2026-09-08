@@ -1,6 +1,6 @@
 # Persistent Campaign Design
 
-Status: **Career-2 complete — Career-3 regional planning next**
+Status: **Career-3 complete — Career-4 optional extensions next**
 
 This is the authoritative design for persistent play. It supersedes the scope
 of the older local `CAREER_MODE_DESIGN.md` proposal for implementation order;
@@ -177,6 +177,12 @@ Breakthrough missions without modifying signed offers.
 Add a small curated star map, travel, faction standing, repair/supply
 differences, and map/contract theming. Start with a handful of readable worlds
 and expand only when the economic loop is balanced.
+
+**Implementation status: implemented in SQL 142 and build
+`20260908-career3-regions-96`.** Five connected worlds provide local map
+sets, supply and market multipliers. Travel consumes credits and campaign days
+and refreshes unsigned local offers. New settlements adjust employer and
+opposition standing exactly once.
 
 ### Career-4 — optional multiplayer and origins
 

@@ -32,9 +32,9 @@ documents, but their implementation order is governed here.
 | Presentation | In progress | Record sheets, combat-log pacing, sound effects, resizable panels and accessibility improvements |
 | After Action / Replay | Done | Sealed telemetry, statistics, report/replay exports, 30-day skirmish retention and offline replay viewer |
 | Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
-| Career | Done: growth loop | Persistent company, contracts, settlement, repairs, BV bands, salvage, markets, pilot advancement and capacity; skirmishes remain isolated |
+| Career | Done: regional loop | Persistent company, settlement, repairs, BV bands, salvage, markets, pilot advancement, travel, local supply and factions; skirmishes remain isolated |
 
-## Current development priority — Career-3 planning
+## Current development priority — Career-4 review
 
 The next feature is an opt-in, persistent Mercenary Company loop. It must use
 the existing sealed report and match engine without weakening skirmish
@@ -52,8 +52,10 @@ and seals the signed value at launch. Pilot names and optional callsigns are
 owner-editable in Company HQ. Destroyed BattleMechs remain recoverable wrecks.
 Career-2 adds sealed-result salvage, idempotent pilot XP, advancement, pilot
 assignment, rotating purchase/hire markets, richer objective contracts, and
-reputation-gated company capacity. The next Career work is the deliberately
-smaller Career-3 regional-operations design.
+reputation-gated company capacity. Career-3 adds five connected operational
+worlds, travel time and cost, local supply/market pricing, themed contracts,
+and idempotent faction standing. The next decision is whether Career-4's PvP
+tenders and alternate origins are worth prioritising over battle/UI work.
 
 ## Completed recent programmes
 
@@ -77,8 +79,8 @@ smaller Career-3 regional-operations design.
 
 1. **BV-5:** validated custom-design BV2 breakdowns, deferred until MechLab support is
    sufficiently complete. See [Battle Value Design](BATTLE_VALUE_DESIGN.md).
-2. **Career-3+:** curated planets, travel, factions and supply differences;
-   PvP tenders and alternate origins remain later extensions.
+2. **Career-4:** optional PvP tenders and alternate origins, pending a product
+   review rather than assumed as the immediate priority.
 3. **Level 2 catalogue additions:** curated, catalogue-led systems not already
    covered by the specialist-rules programme below. Each remains gated by an
    authoritative resolver and a representative live battle.

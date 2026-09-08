@@ -18,7 +18,7 @@ check('pilot assignment and XP advancement are owner-only commands', sql.include
 check('capacity growth requires both reputation and credits', sql.includes('upgrade_btech_career_capacity') && sql.includes('required_reputation') && sql.includes('company.credits'));
 check('contract boards rotate all three authoritative victory modes', ["'annihilation'","'control'","'breakthrough'"].every(x=>sql.includes(x)));
 check('Company HQ exposes every Career-2 decision', ['claimCareerSalvage','purchaseCareerOffer','advanceCareerPilot','assignCareerPilot','upgradeCareerCapacity'].every(x=>hq.includes(x)));
-check('the roadmap advances to Career-3', roadmap.includes('Current development priority — Career-3 planning') && design.includes('implemented in SQL 141'));
-check('the browser exposes the Career-2 build', index.includes('20260908-career2-growth-95'));
+check('Career-2 remains recorded as complete', roadmap.includes('Career-2 adds sealed-result salvage') && design.includes('implemented in SQL 141'));
+check('the browser includes Career-2 or a later Career build', index.includes('20260908-career2-growth-95') || index.includes('20260908-career3-regions-96'));
 check('How to Play explains the persistent growth loop and skirmish isolation', guide.includes('Victories can provide one recoverable enemy wreck') && guide.includes('skirmishes and imported replays never change the company'));
 if(failures){console.error(`Career-2 growth regression failed: ${failures} check(s).`);process.exitCode=1;}else console.log('Career-2 growth regression passed.');
