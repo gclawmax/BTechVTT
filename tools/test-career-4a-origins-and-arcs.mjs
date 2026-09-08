@@ -19,5 +19,5 @@ check('a won or failed campaign operation immediately offers the appropriate nex
 check('origin preview and Company HQ explain the selected arc',avatar.includes('Trial by Fire arc')&&hq.includes('campaignArc')&&hq.includes('Campaign operation:'));
 check('guidance documents the permanent origin choice',guide.includes('permanently chooses an Independent, Inner Sphere, or Clan origin'));
 check('roadmap separates consensual PvP as Career-4b',roadmap.includes('Current development priority — Career-4b PvP tender design')&&design.includes('Career-4b — consensual PvP tenders'));
-check('the browser exposes the Career-4a build',index.includes('20260908-career4a-arcs-97'));
+check('the browser exposes Career-4a or a later build',['20260908-career4a-arcs-97','20260908-weapon-inventory-98'].some(build=>index.includes(build)));
 if(failures){console.error(`Career-4a origin/arc regression failed: ${failures} check(s).`);process.exitCode=1;}else console.log('Career-4a origin/arc regression passed.');

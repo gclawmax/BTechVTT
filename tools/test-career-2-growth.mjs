@@ -19,6 +19,6 @@ check('capacity growth requires both reputation and credits', sql.includes('upgr
 check('contract boards rotate all three authoritative victory modes', ["'annihilation'","'control'","'breakthrough'"].every(x=>sql.includes(x)));
 check('Company HQ exposes every Career-2 decision', ['claimCareerSalvage','purchaseCareerOffer','advanceCareerPilot','assignCareerPilot','upgradeCareerCapacity'].every(x=>hq.includes(x)));
 check('Career-2 remains recorded as complete', roadmap.includes('Career-2 adds sealed-result salvage') && design.includes('implemented in SQL 141'));
-check('the browser includes Career-2 or a later Career build', ['20260908-career2-growth-95','20260908-career3-regions-96','20260908-career4a-arcs-97'].some(build => index.includes(build)));
+check('the browser includes Career-2 or a later build', ['20260908-career2-growth-95','20260908-career3-regions-96','20260908-career4a-arcs-97','20260908-weapon-inventory-98'].some(build => index.includes(build)));
 check('How to Play explains the persistent growth loop and skirmish isolation', guide.includes('Victories can provide one recoverable enemy wreck') && guide.includes('skirmishes and imported replays never change the company'));
 if(failures){console.error(`Career-2 growth regression failed: ${failures} check(s).`);process.exitCode=1;}else console.log('Career-2 growth regression passed.');

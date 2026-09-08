@@ -18,5 +18,5 @@ check('new contracts carry their world, employer and opposition', ['employer_fac
 check('faction settlement is exactly once', sql.includes('btech_career_regional_awards') && sql.includes('ON CONFLICT DO NOTHING') && sql.includes('GET DIAGNOSTICS inserted=ROW_COUNT'));
 check('Company HQ renders travel, local supply and faction standing', ['travelCareerCompany','Regional Operations','Local supply','career-faction-list'].every(x=>hq.includes(x)));
 check('guidance and roadmap retain Career-3 completion', guide.includes('Regional Operations connects five worlds') && roadmap.includes('Career-3 adds five connected operational') && design.includes('implemented in SQL 142'));
-check('the browser includes Career-3 or a later Career build',['20260908-career3-regions-96','20260908-career4a-arcs-97'].some(build=>index.includes(build)));
+check('the browser includes Career-3 or a later build',['20260908-career3-regions-96','20260908-career4a-arcs-97','20260908-weapon-inventory-98'].some(build=>index.includes(build)));
 if(failures){console.error(`Career-3 regional regression failed: ${failures} check(s).`);process.exitCode=1;}else console.log('Career-3 regional regression passed.');

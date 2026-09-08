@@ -1138,6 +1138,16 @@ html, body {
   margin-bottom: 12px;
 }
 
+.weapon-inventory-wrap { width:100%; overflow-x:auto; overscroll-behavior-inline:contain; border:1px solid var(--panel-line); background:#fafaf7; }
+.weapon-inventory { width:100%; min-width:410px; border-collapse:collapse; color:var(--ink); font:9px/1.25 var(--mono); font-variant-numeric:tabular-nums; }
+.weapon-inventory th,.weapon-inventory td { padding:5px 4px; border-bottom:1px solid #deded8; text-align:center; white-space:nowrap; }
+.weapon-inventory thead th { position:sticky; top:0; z-index:1; background:#e8e8e2; color:#4e4e49; font:8px var(--display); letter-spacing:.04em; text-transform:uppercase; }
+.weapon-inventory tbody th { min-width:118px; text-align:left; white-space:normal; color:var(--ink); font-weight:500; }
+.weapon-inventory tbody tr:last-child th,.weapon-inventory tbody tr:last-child td { border-bottom:0; }
+.weapon-inventory tbody tr:nth-child(even) { background:#f3f3ee; }
+.weapon-tech-mark { color:var(--phosphor-dim); font-size:8px; }
+.weapon-inventory-empty { margin:0; color:var(--phosphor-dim); font:9px var(--mono); }
+
 #panel {
   grid-area: 2 / 3 / 3 / 4;
   position: relative;
@@ -1398,6 +1408,9 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
 .record-sheet p { margin:0; color:var(--phosphor-dim); font:10px var(--mono); }
 .record-sheet header button { align-self:start; padding:7px 10px; border:1px solid var(--panel-line); background:transparent; color:var(--paper); font:10px var(--display); cursor:pointer; }
 .record-note { margin:12px 0; color:var(--phosphor-dim); font:10px var(--mono); }
+.record-weapon-inventory { margin:0 0 14px; }
+.record-weapon-inventory h3 { margin:0 0 7px; color:var(--ink); font:17px var(--display); letter-spacing:.04em; }
+.record-weapon-table .weapon-inventory { min-width:620px; font-size:10px; }
 .record-grid {
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));

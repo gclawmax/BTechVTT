@@ -139,6 +139,50 @@ function signatureSystemControls(inst) {
   }).join('')}`;
 }
 
+const WEAPON_LOCATION_CODES = {
+  'head':'HD','left arm':'LA','right arm':'RA','left torso':'LT',
+  'center torso':'CT','centre torso':'CT','right torso':'RT',
+  'left leg':'LL','right leg':'RL'
+};
+
+function weaponInventoryLocation(location) {
+  const value = String(location || '—').trim();
+  const rear = /rear/i.test(value);
+  const key = value.toLowerCase().replace(/\s*\([^)]*rear[^)]*\)\s*/g, '').replace(/\s+rear(?:ward)?\s*/g, '').trim();
+  const code = WEAPON_LOCATION_CODES[key] || value.toUpperCase();
+  return `${code}${rear ? ' (R)' : ''}`;
+}
+
+function weaponInventoryDamage(profile) {
+  if (Array.isArray(profile.damageByRange) && profile.damageByRange.length) return profile.damageByRange.join('/');
+  if (profile.damage != null) return profile.damage;
+  if (profile.damagePerMissile != null && profile.clusterSize) return `${profile.damagePerMissile}×${profile.clusterSize}`;
+  return '—';
+}
+
+function weaponInventoryRows(unit) {
+  const clan = /^clan$/i.test(unit?.techBase || '');
+  const grouped = new Map();
+  for (const mount of unit?.weapons || []) {
+    const profile = { ...(BT_WEAPONS?.[mount.key] || {}), ...(mount.weapon || {}) };
+    const ranges = Array.isArray(profile.range) ? profile.range : [];
+    const row = {
+      count:Number(mount.count || 1), name:profile.name || mount.key?.replaceAll('_',' ') || 'Unknown weapon',
+      location:weaponInventoryLocation(mount.location), heat:profile.heat ?? '—', damage:weaponInventoryDamage(profile),
+      minimum:profile.minimumRange ?? 0, short:ranges[0] ?? '—', medium:ranges[1] ?? '—', long:ranges[2] ?? '—', clan
+    };
+    const key = [row.name,row.location,row.heat,row.damage,row.minimum,row.short,row.medium,row.long].join('|');
+    if (grouped.has(key)) grouped.get(key).count += row.count; else grouped.set(key,row);
+  }
+  return [...grouped.values()];
+}
+
+function renderWeaponInventory(unit, extraClass = '') {
+  const rows = weaponInventoryRows(unit);
+  if (!rows.length) return '<p class="weapon-inventory-empty">No weapons fitted.</p>';
+  return `<div class="weapon-inventory-wrap ${extraClass}"><table class="weapon-inventory"><thead><tr><th scope="col">#</th><th scope="col">Weapon</th><th scope="col" title="Location">Loc.</th><th scope="col">Heat</th><th scope="col" title="Damage">Dmg</th><th scope="col" title="Minimum range">Min.</th><th scope="col" title="Short range">Short</th><th scope="col" title="Medium range">Med.</th><th scope="col" title="Long range">Long</th></tr></thead><tbody>${rows.map(row => `<tr><td>${row.count}</td><th scope="row">${escapeHtml(row.name)}${row.clan ? ' <span class="weapon-tech-mark" title="Clan weapon">(C)</span>' : ''}</th><td>${escapeHtml(row.location)}</td><td>${row.heat}</td><td>${row.damage}</td><td>${row.minimum}</td><td>${row.short}</td><td>${row.medium}</td><td>${row.long}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
 function renderDetail() {
   const body = document.getElementById('detail-body');
   const inst = mechInstances.find(m => m.instanceId === selectedInstanceId);
@@ -160,7 +204,6 @@ function renderDetail() {
     return;
   }
   const unit = displayUnitFor(inst.unitId);
-  const clanWeaponSuffix = /^clan$/i.test(unit.techBase || '') ? ' (C)' : '';
   const axial = offsetToAxial(inst.col, inst.row);
   const pilot = inst.pilot || { hits: 0, consciousness: 'conscious' };
   const pilotState = String(pilot.consciousness || 'conscious').toUpperCase();
@@ -184,9 +227,7 @@ function renderDetail() {
       ${inst.hasMoved ? `<div class="k">This Turn</div><div class="v">${titleCaseMode(inst.movementMode)} · ${inst.hexesMoved} hex${inst.hexesMoved===1?'':'es'}</div>` : ''}
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>
-    <div class="stat-grid">
-      ${unit.weapons.map(w => `<div class="k">${w.weapon?.name || w.key.replaceAll('_',' ')}${clanWeaponSuffix}</div><div class="v">×${w.count} — ${w.location.toUpperCase()}</div>`).join('')}
-    </div>
+    ${renderWeaponInventory(unit)}
     ${(inst.ammoBins || []).length ? `<div class="panel-eyebrow" style="margin-top:14px;">Ammunition</div><div class="stat-grid">${inst.ammoBins.map(bin => `<div class="k">${bin.type.replace('_',' ')}${bin.loadType ? ` · ${bin.loadType}` : ''} · ${bin.location}</div><div class="v">${bin.shots} / ${bin.maxShots} shots</div>${roundOneAmmoControl(inst, bin)}`).join('')}</div>` : ''}
     ${signatureSystemControls(inst)}
     <div class="panel-eyebrow" style="margin-top:14px;">Armour / Internal Structure</div>
