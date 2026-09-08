@@ -22,7 +22,7 @@ check('future match mutations are explicitly guarded against skirmishes', sql.in
 check('Career-1a does not introduce a settlement or match-end hook', !/CREATE OR REPLACE FUNCTION public\.btech_settle|resolve_btech_match_end[\s\S]*btech_career_/i.test(sql));
 check('Start Career opens Company HQ and onboarding creates the persistent company', index.includes('onclick="openCareerHQ()"') && avatar.includes("db.rpc('create_btech_career_company'"));
 check('Company HQ uses only scoped Career RPCs rather than direct table writes', hq.includes("db.rpc('get_btech_career_hq'") && hq.includes("db.rpc('launch_btech_career_contract'") && hq.includes("db.rpc('settle_btech_career_contract'") && !hq.includes(".from('btech_career_"));
-check('the roadmap records Career-1 as a completed isolated foundation', roadmap.includes('Career | Done: first loop') && roadmap.includes('Current development priority — Career-2 planning'));
+check('the roadmap records Career as an isolated persistent system', roadmap.includes('Career | Done: growth loop') && roadmap.includes('Current development priority — Career-3 planning'));
 
 if (failures) { console.error(`Career-1a foundation regression failed: ${failures} check(s).`); process.exitCode = 1; }
 else console.log('Career-1a foundation regression passed.');

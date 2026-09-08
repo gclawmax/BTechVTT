@@ -1,6 +1,6 @@
 # Persistent Campaign Design
 
-Status: **Career-1 complete — Career-2 growth planning next**
+Status: **Career-2 complete — Career-3 regional planning next**
 
 This is the authoritative design for persistent play. It supersedes the scope
 of the older local `CAREER_MODE_DESIGN.md` proposal for implementation order;
@@ -165,6 +165,13 @@ Add salvage decisions, a curated purchase/hire market, richer contract
 variety, pilot experience/advancement, and reputation-gated company capacity.
 Every reward remains a server-side consequence of a sealed Career battle.
 
+**Implementation status: implemented in SQL 141 and build
+`20260908-career2-growth-95`.** Settlement creates experience awards and a
+single salvage decision idempotently from the sealed report. Company HQ adds
+the rotating market, pilot assignment and advancement, and reputation-gated
+capacity upgrades. Contract boards rotate Annihilation, Control, and
+Breakthrough missions without modifying signed offers.
+
 ### Career-3 — regional operations
 
 Add a small curated star map, travel, faction standing, repair/supply
@@ -186,7 +193,7 @@ same settlement contract, never parallel persistence systems.
 - Damage and ammunition persist; repair/reload restores only what is paid for.
 - A completed skirmish, imported replay, or modified browser state cannot
   mutate a Career company.
-- All monetary changes, rewards, injuries and repairs are explainable from
+- All monetary changes, rewards, injuries, progression, salvage and repairs are explainable from
   immutable server records.
 
 ## Deferred decisions

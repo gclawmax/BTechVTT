@@ -27,7 +27,7 @@ check('the browser launches contracts and requests settlement only after match e
 check('Company HQ finds and visibly resumes an active Career contract', hq.includes('getActiveCareerMatch') && hq.includes('Resume Contract') && hq.includes('resumeCareerContract'));
 check('completed Career matches stay visible as settled records', helpers.includes("g.match_type === 'career'") && helpers.includes('Career result settled in Company HQ'));
 check('Company HQ uses a full-width, scrollable workspace', css.includes('width:min(1500px,100%)') && css.includes('overflow:auto') && css.includes('min-height:calc(100vh - 48px)'));
-check('the roadmap records Career-1b as a completed prerequisite', roadmap.includes('Career-1b adds deterministic AI contracts') && roadmap.includes('Current development priority — Career-2 planning'));
+check('the roadmap records Career-1b as a completed prerequisite', roadmap.includes('Career-1b adds deterministic AI contracts') && roadmap.includes('Current development priority — Career-3 planning'));
 
 if (failures) { console.error(`Career-1b regression failed: ${failures} check(s).`); process.exitCode = 1; }
 else console.log('Career-1b contract and settlement regression passed.');

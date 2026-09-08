@@ -32,9 +32,9 @@ documents, but their implementation order is governed here.
 | Presentation | In progress | Record sheets, combat-log pacing, sound effects, resizable panels and accessibility improvements |
 | After Action / Replay | Done | Sealed telemetry, statistics, report/replay exports, 30-day skirmish retention and offline replay viewer |
 | Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
-| Career | Done: first loop | Persistent company, AI contracts, settlement, Repair Bay and reloads; skirmishes remain isolated |
+| Career | Done: growth loop | Persistent company, contracts, settlement, repairs, BV bands, salvage, markets, pilot advancement and capacity; skirmishes remain isolated |
 
-## Current development priority — Career-2 planning
+## Current development priority — Career-3 planning
 
 The next feature is an opt-in, persistent Mercenary Company loop. It must use
 the existing sealed report and match engine without weakening skirmish
@@ -50,7 +50,10 @@ transactions. BV-4 now values the assigned operational lance using its pinned
 stock configuration and current pilots, advertises enforceable contract bands,
 and seals the signed value at launch. Pilot names and optional callsigns are
 owner-editable in Company HQ. Destroyed BattleMechs remain recoverable wrecks.
-The next Career work is Career-2 salvage and growth.
+Career-2 adds sealed-result salvage, idempotent pilot XP, advancement, pilot
+assignment, rotating purchase/hire markets, richer objective contracts, and
+reputation-gated company capacity. The next Career work is the deliberately
+smaller Career-3 regional-operations design.
 
 ## Completed recent programmes
 
@@ -74,8 +77,8 @@ The next Career work is Career-2 salvage and growth.
 
 1. **BV-5:** validated custom-design BV2 breakdowns, deferred until MechLab support is
    sufficiently complete. See [Battle Value Design](BATTLE_VALUE_DESIGN.md).
-2. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
-   factions and alternate origins — only after Career-1 settlement is proven.
+2. **Career-3+:** curated planets, travel, factions and supply differences;
+   PvP tenders and alternate origins remain later extensions.
 3. **Level 2 catalogue additions:** curated, catalogue-led systems not already
    covered by the specialist-rules programme below. Each remains gated by an
    authoritative resolver and a representative live battle.

@@ -1,4 +1,4 @@
-// BV-4 Company HQ: persistent service, pilot identity and signed force value.
+// Career-2 Company HQ: persistent growth, salvage, markets and pilot command.
 
 function careerEscape(value) {
   return String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
@@ -33,6 +33,35 @@ async function renameCareerPilot(pilotId) {
   if (error) { showGameToast(`Pilot could not be renamed: ${error.message || 'please try again.'}`, 'error'); return; }
   showGameToast(`${careerPilotDisplay(data)} saved.`, 'success');
   await openCareerHQ();
+}
+
+async function runCareerGrowthAction(rpc, args, confirmation, success) {
+  if (confirmation && !window.confirm(confirmation)) return;
+  const root = document.getElementById('career-hq-box');
+  root?.querySelectorAll('[data-career-growth]').forEach(button => { button.disabled = true; });
+  const { data, error } = await db.rpc(rpc, args || {});
+  if (error) {
+    showGameToast(`Company action failed: ${error.message || 'please try again.'}`, 'error');
+    root?.querySelectorAll('[data-career-growth]').forEach(button => { button.disabled = false; });
+    return;
+  }
+  showGameToast(typeof success === 'function' ? success(data) : success, 'success');
+  await openCareerHQ();
+}
+
+let careerHqMarketDirectory = new Map(), careerHqSalvageDirectory = new Map();
+function claimCareerSalvage(offerId, optionId) {
+  const option = careerHqSalvageDirectory.get(`${offerId}:${optionId}`) || {}, label = `${option.chassis || option.unit_id || 'this wreck'} ${option.variant || ''}`.trim();
+  return runCareerGrowthAction('claim_btech_career_salvage', { p_offer_id:offerId, p_option_id:optionId }, `Claim ${label} as a damaged recoverable BattleMech? It will consume company capacity and still require repairs and a pilot.`, `${label} transferred to your hangar.`);
+}
+function declineCareerSalvage(offerId) { return runCareerGrowthAction('decline_btech_career_salvage', { p_offer_id:offerId }, 'Decline all salvage from this battle? This cannot be undone.', 'Salvage declined.'); }
+function purchaseCareerOffer(offerId) { const offer = careerHqMarketDirectory.get(offerId) || {}, payload = offer.payload || {}, label = offer.kind === 'mech' ? `${payload.chassis || payload.unit_id || 'BattleMech'} ${payload.variant || ''}`.trim() : careerPilotDisplay(payload); return runCareerGrowthAction('purchase_btech_career_market_offer', { p_offer_id:offerId }, `Purchase ${label} for ${careerCredits(offer.price)}?`, `${label} added to the company.`); }
+function advanceCareerPilot(pilotId, skill, cost) { return runCareerGrowthAction('advance_btech_career_pilot', { p_pilot_id:pilotId, p_skill:skill }, `Spend ${cost} XP to improve ${skill}? Lower ratings are better.`, `${skill[0].toUpperCase()}${skill.slice(1)} improved.`); }
+function upgradeCareerCapacity(price) { return runCareerGrowthAction('upgrade_btech_career_capacity', {}, `Spend ${careerCredits(price)} on the next company-capacity upgrade?`, 'Company capacity upgraded.'); }
+function assignCareerPilot(mechId) {
+  const select = document.getElementById(`career-pilot-for-${mechId}`);
+  if (!select?.value) { showGameToast('Choose a pilot first.', 'error'); return; }
+  return runCareerGrowthAction('assign_btech_career_pilot', { p_mech_id:mechId, p_pilot_id:select.value }, 'Assign this pilot to the BattleMech? Existing assignments will be changed.', 'Pilot assignment saved.');
 }
 
 function careerServiceSummary(mech, activeMatch) {
@@ -142,13 +171,21 @@ function renderCareerHQ(hq) {
   careerHqPilotDirectory = pilotsById;
   const activeMatch = hq.activeMatch || null;
   const forceValue = hq.force_value || null, forceEntries = new Map((forceValue?.entries || []).map(entry => [entry.mech_id, entry]));
+  careerHqMarketDirectory = new Map((hq.market || []).map(offer => [offer.id, offer]));
+  careerHqSalvageDirectory = new Map((hq.salvage || []).flatMap(offer => (offer.options || []).map(option => [`${offer.id}:${option.option_id}`, option])));
   const mechs = (hq.mechs || []).map(mech => {
     const pilot = pilotsById.get(mech.pilot_id);
     const bv = forceEntries.get(mech.id);
     const damage = mech.status === 'operational' ? 'Operational' : careerEscape(mech.status.replaceAll('_',' '));
-    return `<article class="career-hq-card"><strong>${careerEscape(careerUnitLabel(mech))}</strong><span>${careerEscape(mech.callsign)} · ${damage}</span><small>${pilot ? `${careerEscape(careerPilotDisplay(pilot))} · G${pilot.gunnery}/P${pilot.piloting}` : 'No pilot assigned'}${bv ? ` · ${Number(bv.adjusted).toLocaleString()} BV` : ''} · ${mech.catalogue_version}</small>${careerServiceSummary(mech, activeMatch)}</article>`;
+    const assignable = pilots.filter(candidate => ['available','assigned'].includes(candidate.status));
+    const assignment = !activeMatch && mech.status !== 'destroyed' ? `<div class="career-hq-assignment"><select id="career-pilot-for-${careerEscape(mech.id)}" aria-label="Pilot for ${careerEscape(careerUnitLabel(mech))}"><option value="">Choose pilot…</option>${assignable.map(candidate => `<option value="${careerEscape(candidate.id)}" ${candidate.id === pilot?.id ? 'selected' : ''}>${careerEscape(careerPilotDisplay(candidate))} · G${candidate.gunnery}/P${candidate.piloting}</option>`).join('')}</select><button class="secondary" data-career-growth onclick="assignCareerPilot('${careerEscape(mech.id)}')">Assign Pilot</button></div>` : '';
+    return `<article class="career-hq-card"><strong>${careerEscape(careerUnitLabel(mech))}</strong><span>${careerEscape(mech.callsign)} · ${damage}</span><small>${pilot ? `${careerEscape(careerPilotDisplay(pilot))} · G${pilot.gunnery}/P${pilot.piloting}` : 'No pilot assigned'}${bv ? ` · ${Number(bv.adjusted).toLocaleString()} BV` : ''} · ${mech.catalogue_version}</small>${assignment}${careerServiceSummary(mech, activeMatch)}</article>`;
   }).join('') || '<p>No persistent BattleMechs yet.</p>';
-  const pilotRows = pilots.map(pilot => `<tr><td>${careerEscape(careerPilotDisplay(pilot))}</td><td>G${pilot.gunnery} / P${pilot.piloting}</td><td>${careerEscape(pilot.specialty)}</td><td>${careerEscape(pilot.status)}</td><td><button class="secondary career-pilot-rename" onclick="renameCareerPilot('${careerEscape(pilot.id)}')" title="Change this persistent pilot's name and callsign.">Rename</button></td></tr>`).join('') || '<tr><td colspan="5">No pilots yet.</td></tr>';
+  const pilotRows = pilots.map(pilot => {
+    const gunCost = (9 - Number(pilot.gunnery)) * 100, pilotCost = (9 - Number(pilot.piloting)) * 100;
+    const advances = activeMatch ? '' : `<div class="career-pilot-actions">${pilot.gunnery > 0 ? `<button data-career-growth ${pilot.experience < gunCost ? 'disabled' : ''} onclick="advanceCareerPilot('${careerEscape(pilot.id)}','gunnery',${gunCost})">Gunnery · ${gunCost} XP</button>` : ''}${pilot.piloting > 0 ? `<button data-career-growth ${pilot.experience < pilotCost ? 'disabled' : ''} onclick="advanceCareerPilot('${careerEscape(pilot.id)}','piloting',${pilotCost})">Piloting · ${pilotCost} XP</button>` : ''}</div>`;
+    return `<tr><td>${careerEscape(careerPilotDisplay(pilot))}</td><td>G${pilot.gunnery} / P${pilot.piloting}</td><td>${Number(pilot.experience || 0).toLocaleString()} XP</td><td>${careerEscape(pilot.specialty)}</td><td>${careerEscape(pilot.status)}</td><td><button class="secondary career-pilot-rename" onclick="renameCareerPilot('${careerEscape(pilot.id)}')" title="Change this persistent pilot's name and callsign.">Rename</button>${advances}</td></tr>`;
+  }).join('') || '<tr><td colspan="6">No pilots yet.</td></tr>';
   const ledger = (hq.ledger || []).map(entry => `<li><b class="${Number(entry.amount) >= 0 ? 'credit' : 'debit'}">${Number(entry.amount) >= 0 ? '+' : ''}${careerCredits(entry.amount)}</b> · ${careerEscape(entry.note || entry.kind)}</li>`).join('') || '<li>No transactions yet.</li>';
   const activeContract = activeMatch ? `<section class="career-hq-active-contract"><div><p class="career-kicker">Active deployment</p><h3>Contract in progress</h3><p>Game ${careerEscape(activeMatch.gameCode)} · Round ${activeMatch.round} · ${careerEscape(String(activeMatch.phase).replaceAll('_', ' '))}</p></div><button class="primary" onclick="resumeCareerContract('${careerEscape(activeMatch.gameCode)}')" title="Return to this active Career contract.">Resume Contract</button></section>` : '';
   const forceTotal = Number(forceValue?.adjusted || 0);
@@ -160,11 +197,16 @@ function renderCareerHQ(hq) {
       : contract.status === 'accepted' && activeMatch?.contractId === contract.id ? `<button class="secondary" onclick="resumeCareerContract('${careerEscape(activeMatch.gameCode)}')">Resume Contract</button>` : contract.status === 'accepted' ? '<small>Contract is active. Return to the active deployment above.</small>' : '';
     return `<article class="career-hq-card"><strong>${careerEscape(contract.title)}</strong><span>${careerEscape(contract.tier)} risk · ${careerEscape(contract.status)}</span><small>${careerEscape(careerContractTerms(contract))}</small>${action}</article>`;
   }).join('') || '<p>No contracts are available.</p>';
+  const salvage = (hq.salvage || []).map(offer => `<article class="career-growth-panel"><div><strong>Battle salvage</strong><small>Choose one recoverable wreck, or decline the lot.</small></div><div class="career-salvage-options">${(offer.options || []).map(option => { const label = `${option.chassis || option.unit_id} ${option.variant || ''}`.trim(); return `<button data-career-growth ${activeMatch ? 'disabled' : ''} onclick="claimCareerSalvage('${careerEscape(offer.id)}','${careerEscape(option.option_id)}')"><b>${careerEscape(label)}</b><span>${Number(option.mass || 0)} tons · damaged</span></button>`; }).join('')}<button class="career-decline" data-career-growth ${activeMatch ? 'disabled' : ''} onclick="declineCareerSalvage('${careerEscape(offer.id)}')">Decline salvage</button></div></article>`).join('') || '<p class="career-empty">No salvage decisions are waiting.</p>';
+  const market = (hq.market || []).map(offer => { const payload = offer.payload || {}; const label = offer.kind === 'mech' ? `${payload.chassis || payload.unit_id} ${payload.variant || ''}`.trim() : careerPilotDisplay(payload); const detail = offer.kind === 'mech' ? `${payload.mass} tons · ${Number(payload.bv || 0).toLocaleString()} stock BV` : `G${payload.gunnery}/P${payload.piloting} · ${payload.specialty}`; return `<article class="career-hq-card"><strong>${careerEscape(label)}</strong><span>${careerEscape(offer.kind)} offer · ${detail}</span><small>${careerCredits(offer.price)}</small><button class="primary" data-career-growth ${activeMatch || Number(company.credits) < Number(offer.price) ? 'disabled' : ''} onclick="purchaseCareerOffer('${careerEscape(offer.id)}')">${offer.kind === 'pilot' ? 'Hire Pilot' : 'Purchase BattleMech'}</button></article>`; }).join('') || '<p>No market offers are available.</p>';
+  const capacity = hq.capacity_upgrade || {}, capacityAction = capacity.available ? `<button class="secondary" data-career-growth ${!capacity.eligible || activeMatch ? 'disabled' : ''} onclick="upgradeCareerCapacity(${Number(capacity.price || 0)})">Upgrade to ${capacity.next} tons · ${careerCredits(capacity.price)}</button><small>Requires ${capacity.required_reputation} reputation.</small>` : '<small>Career-2 company capacity is fully upgraded.</small>';
   root.innerHTML = `<header class="career-hq-heading"><div><p class="career-kicker">Persistent Mercenary Company</p><h2>${careerEscape(company.name)}</h2><p>${careerEscape(company.commander_callsign)} · ${careerEscape(company.affiliation)}</p></div><button class="secondary" onclick="showScreen('menu-screen')">Back to Dropship</button></header>
-    <section class="career-hq-summary"><div><small>Credits</small><b>${careerCredits(company.credits)}</b></div><div><small>Reputation</small><b>${company.reputation} / 100</b></div><div><small>Dropship capacity</small><b>${company.dropship_tonnage} tons</b></div><div><small>Assigned lance</small><b>${forceValue ? `${forceTotal.toLocaleString()} BV` : 'BV unavailable'}</b></div></section>
+    <section class="career-hq-summary"><div><small>Credits</small><b>${careerCredits(company.credits)}</b></div><div><small>Reputation</small><b>${company.reputation} / 100</b></div><div><small>Company capacity</small><b>${Number(hq.hangar_tonnage || 0)} / ${company.dropship_tonnage} tons</b>${capacityAction}</div><div><small>Assigned lance</small><b>${forceValue ? `${forceTotal.toLocaleString()} BV` : 'BV unavailable'}</b></div></section>
     ${activeContract}<p class="career-hq-notice">Career contracts launch from this persistent hangar and settle only from their sealed battle report. The Repair Bay calculates service from the pinned BattleMech record; skirmishes remain completely isolated.</p>
     <section><h3>Hangar</h3><div class="career-hq-cards">${mechs}</div></section>
-    <section><h3>Pilots</h3><div class="career-hq-table-wrap"><table><thead><tr><th>Pilot</th><th>Skills</th><th>Specialty</th><th>Status</th><th>Identity</th></tr></thead><tbody>${pilotRows}</tbody></table></div></section>
+    <section><h3>Pilots</h3><div class="career-hq-table-wrap"><table><thead><tr><th>Pilot</th><th>Skills</th><th>Experience</th><th>Specialty</th><th>Status</th><th>Command</th></tr></thead><tbody>${pilotRows}</tbody></table></div></section>
+    <section><h3>Salvage</h3>${salvage}</section>
+    <section><h3>Market</h3><div class="career-hq-cards">${market}</div></section>
     <section><h3>Contract Board</h3><div class="career-hq-cards">${contracts}</div></section>
     <section><h3>Ledger</h3><ul class="career-hq-ledger">${ledger}</ul></section>`;
 }

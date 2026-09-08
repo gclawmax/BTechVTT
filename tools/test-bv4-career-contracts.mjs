@@ -23,8 +23,8 @@ check('the renamed pre-BV launcher cannot be called to bypass enforcement', sql.
 check('launch seals the force value and band into Career match state', sql.includes("'{career_context,signed_force_bv}'") && sql.includes("'{career_context,contract_bv_band}'") && sql.includes("'{force_values,1}'"));
 check('pilot renaming validates identity and limits mutation to the owner', sql.includes('rename_btech_career_pilot') && sql.includes('c.user_id=auth.uid()') && sql.includes('Pilot names must be between 1 and 48 characters'));
 check('Company HQ shows force BV, bands, eligibility, and pilot rename controls', ['Assigned lance','Lance Outside BV Band','renameCareerPilot','careerPilotDisplay'].every(marker => hq.includes(marker)));
-check('BV-4 is recorded as complete and Career-2 is next', design.includes('Implementation status: implemented in SQL 140') && roadmap.includes('Current development priority — Career-2 planning'));
-check('the browser cache stamp exposes the BV-4 build', index.includes('20260908-career-bv4-94'));
+check('BV-4 remains recorded as complete', design.includes('Implementation status: implemented in SQL 140') && roadmap.includes('BV-1 through BV-4'));
+check('the browser build includes BV-4 or a later Career release', index.includes('20260908-career-bv4-94') || index.includes('20260908-career2-growth-95'));
 
 if (failures) { console.error(`BV-4 Career regression failed: ${failures} check(s).`); process.exitCode = 1; }
 else console.log('BV-4 Career regression passed.');
