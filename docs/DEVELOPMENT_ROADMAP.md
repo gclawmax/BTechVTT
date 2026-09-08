@@ -34,7 +34,7 @@ documents, but their implementation order is governed here.
 | Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
 | Career | Done: first loop | Persistent company, AI contracts, settlement, Repair Bay and reloads; skirmishes remain isolated |
 
-## Current development priority — BV-4 and Career-2 planning
+## Current development priority — Career-2 planning
 
 The next feature is an opt-in, persistent Mercenary Company loop. It must use
 the existing sealed report and match engine without weakening skirmish
@@ -46,8 +46,11 @@ and settlement-receipt records with RLS and skirmish-isolation tests.
 Career-1b adds deterministic AI contracts that launch from current condition
 and settle sealed results exactly once. Career-1c completes the initial loop
 with owner-only, catalogue-pinned Repair Bay quotes and confirmed repair/reload
-transactions. Destroyed BattleMechs remain recoverable wrecks. The next Career
-work is BV-4 contract bands followed by Career-2 salvage and growth.
+transactions. BV-4 now values the assigned operational lance using its pinned
+stock configuration and current pilots, advertises enforceable contract bands,
+and seals the signed value at launch. Pilot names and optional callsigns are
+owner-editable in Company HQ. Destroyed BattleMechs remain recoverable wrecks.
+The next Career work is Career-2 salvage and growth.
 
 ## Completed recent programmes
 
@@ -61,17 +64,15 @@ work is BV-4 contract bands followed by Career-2 salvage and growth.
 - **GM-1 through GM-5:** implemented through SQL 127–130 and build
   `20260907-gm5-decisive-pairs-81`. The modes roadmap records the acceptance
   commands and the paired balance methodology.
-- **BV-1 through BV-3:** implemented through SQL 132–133 and build
-  `20260907-bv2-matches-86`. Verified MegaMek BV2 values, pilot-adjusted
+- **BV-1 through BV-4:** implemented through SQL 132–133 and SQL 140, ending
+  at build `20260908-career-bv4-94`. Verified MegaMek BV2 values, pilot-adjusted
   server checks, selectable match formats, deterministic BV-limited AI forces,
-  and final force sealing are now available. BV-4 remains dependent on
-  Career-1 settlement; BV-5 remains deferred custom-design work.
+  final force sealing, and Career contract bands are now available. BV-5
+  remains deferred custom-design work.
 
 ## Later work
 
-1. **BV-4:** Career contract BV bands now that the complete Career-1 loop
-   exists. **BV-5:**
-   validated custom-design BV2 breakdowns, deferred until MechLab support is
+1. **BV-5:** validated custom-design BV2 breakdowns, deferred until MechLab support is
    sufficiently complete. See [Battle Value Design](BATTLE_VALUE_DESIGN.md).
 2. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
    factions and alternate origins — only after Career-1 settlement is proven.

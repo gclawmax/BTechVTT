@@ -117,6 +117,8 @@ entries. A Campaign contract reuses the existing Hangar/deployment flow, but
 labels every selected unit as persistent and displays its current condition.
 The completion screen distinguishes the sealed battle report from the Career
 settlement receipt and offers repair/reload actions only after settlement.
+Persistent pilots can be renamed and given an optional callsign from HQ; this
+changes their identity only and cannot alter an already-running battle copy.
 
 ## Delivery plan
 
@@ -143,6 +145,17 @@ armour, structure, critical-component and ammunition quotes from the
 BattleMech's pinned catalogue record. It locks the owner company, refuses an
 active contract, records each debit in the immutable ledger, and leaves a
 destroyed BattleMech as a recoverable wreck.
+
+### BV-4 — Career force bands
+
+Advertise a BV2.1 band on each contract, show the assigned operational lance's
+pilot-adjusted value in HQ, enforce that band at launch, and seal the signed
+value with the match. Valuation reads pinned stock configurations and current
+pilot skills only; damage, expended ammunition, and browser totals are never
+inputs.
+
+**Implementation status: implemented in SQL 140.** The same slice adds the
+owner-only pilot name/callsign action used by Company HQ.
 
 ## Longer campaign roadmap
 

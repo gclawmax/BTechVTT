@@ -132,6 +132,9 @@ unrated custom design.
 
 ### BV-4 — Career integration
 
+**Implementation status: implemented in SQL 140 and build
+`20260908-career-bv4-94`.**
+
 Career contracts may advertise a BV band after Career-1 settlement exists.
 Contract eligibility uses the owned unit’s pinned **stock configuration plus
 current pilot skills**, not battle damage. This avoids making unrepaired damage
@@ -141,6 +144,11 @@ remain independent of BV.
 **Acceptance:** changing a persistent pilot’s skills changes the displayed
 contract force value; battle damage does not rewrite the signed contract value;
 settlement/rejoin remains idempotent.
+
+Company HQ now shows the pilot-adjusted value of the assigned operational
+lance and the BV2.1 band on every offer. The launch RPC recalculates eligibility
+from the pinned catalogue, seals both the value and band into `career_context`,
+and never reads current armour, structure, critical damage, or ammunition.
 
 ### BV-5 — custom design BV2 (deferred)
 

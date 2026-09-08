@@ -1,4 +1,4 @@
-// Career-1c Company HQ: persistent condition and server-authoritative service.
+// BV-4 Company HQ: persistent service, pilot identity and signed force value.
 
 function careerEscape(value) {
   return String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
@@ -13,7 +13,26 @@ function careerUnitLabel(mech) {
 
 function careerContractTerms(contract) {
   const terms = contract?.terms || {}, reward = Number(terms.base_pay || 0) + Number(terms.success_bonus || 0);
-  return `${String(terms.map_id || 'training-grounds').replaceAll('-', ' ')} · up to ${careerCredits(reward)} · +${Number(terms.reputation || 0)} reputation`;
+  const band = Number(terms.bv_min) > 0 && Number(terms.bv_max) > 0 ? ` · BV ${Number(terms.bv_min).toLocaleString()}–${Number(terms.bv_max).toLocaleString()}` : '';
+  return `${String(terms.map_id || 'training-grounds').replaceAll('-', ' ')}${band} · up to ${careerCredits(reward)} · +${Number(terms.reputation || 0)} reputation`;
+}
+
+function careerPilotDisplay(pilot) {
+  return pilot?.callsign ? `${pilot.name} “${pilot.callsign}”` : String(pilot?.name || 'MechWarrior');
+}
+
+let careerHqPilotDirectory = new Map();
+
+async function renameCareerPilot(pilotId) {
+  const pilot = careerHqPilotDirectory.get(pilotId) || {};
+  const name = window.prompt('Pilot name (1–48 characters)', pilot.name || '');
+  if (name === null) return;
+  const callsign = window.prompt('Callsign (optional, 1–32 characters)', pilot.callsign || '');
+  if (callsign === null) return;
+  const { data, error } = await db.rpc('rename_btech_career_pilot', { p_pilot_id:pilotId, p_name:name, p_callsign:callsign });
+  if (error) { showGameToast(`Pilot could not be renamed: ${error.message || 'please try again.'}`, 'error'); return; }
+  showGameToast(`${careerPilotDisplay(data)} saved.`, 'success');
+  await openCareerHQ();
 }
 
 function careerServiceSummary(mech, activeMatch) {
@@ -120,21 +139,32 @@ function renderCareerHQ(hq) {
   const root = document.getElementById('career-hq-box');
   if (!root) return;
   const company = hq.company, pilots = hq.pilots || [], pilotsById = new Map(pilots.map(pilot => [pilot.id, pilot]));
+  careerHqPilotDirectory = pilotsById;
   const activeMatch = hq.activeMatch || null;
+  const forceValue = hq.force_value || null, forceEntries = new Map((forceValue?.entries || []).map(entry => [entry.mech_id, entry]));
   const mechs = (hq.mechs || []).map(mech => {
     const pilot = pilotsById.get(mech.pilot_id);
+    const bv = forceEntries.get(mech.id);
     const damage = mech.status === 'operational' ? 'Operational' : careerEscape(mech.status.replaceAll('_',' '));
-    return `<article class="career-hq-card"><strong>${careerEscape(careerUnitLabel(mech))}</strong><span>${careerEscape(mech.callsign)} · ${damage}</span><small>${pilot ? `${careerEscape(pilot.name)} · G${pilot.gunnery}/P${pilot.piloting}` : 'No pilot assigned'} · ${mech.catalogue_version}</small>${careerServiceSummary(mech, activeMatch)}</article>`;
+    return `<article class="career-hq-card"><strong>${careerEscape(careerUnitLabel(mech))}</strong><span>${careerEscape(mech.callsign)} · ${damage}</span><small>${pilot ? `${careerEscape(careerPilotDisplay(pilot))} · G${pilot.gunnery}/P${pilot.piloting}` : 'No pilot assigned'}${bv ? ` · ${Number(bv.adjusted).toLocaleString()} BV` : ''} · ${mech.catalogue_version}</small>${careerServiceSummary(mech, activeMatch)}</article>`;
   }).join('') || '<p>No persistent BattleMechs yet.</p>';
-  const pilotRows = pilots.map(pilot => `<tr><td>${careerEscape(pilot.name)}</td><td>G${pilot.gunnery} / P${pilot.piloting}</td><td>${careerEscape(pilot.specialty)}</td><td>${careerEscape(pilot.status)}</td></tr>`).join('') || '<tr><td colspan="4">No pilots yet.</td></tr>';
+  const pilotRows = pilots.map(pilot => `<tr><td>${careerEscape(careerPilotDisplay(pilot))}</td><td>G${pilot.gunnery} / P${pilot.piloting}</td><td>${careerEscape(pilot.specialty)}</td><td>${careerEscape(pilot.status)}</td><td><button class="secondary career-pilot-rename" onclick="renameCareerPilot('${careerEscape(pilot.id)}')" title="Change this persistent pilot's name and callsign.">Rename</button></td></tr>`).join('') || '<tr><td colspan="5">No pilots yet.</td></tr>';
   const ledger = (hq.ledger || []).map(entry => `<li><b class="${Number(entry.amount) >= 0 ? 'credit' : 'debit'}">${Number(entry.amount) >= 0 ? '+' : ''}${careerCredits(entry.amount)}</b> · ${careerEscape(entry.note || entry.kind)}</li>`).join('') || '<li>No transactions yet.</li>';
   const activeContract = activeMatch ? `<section class="career-hq-active-contract"><div><p class="career-kicker">Active deployment</p><h3>Contract in progress</h3><p>Game ${careerEscape(activeMatch.gameCode)} · Round ${activeMatch.round} · ${careerEscape(String(activeMatch.phase).replaceAll('_', ' '))}</p></div><button class="primary" onclick="resumeCareerContract('${careerEscape(activeMatch.gameCode)}')" title="Return to this active Career contract.">Resume Contract</button></section>` : '';
-  const contracts = (hq.contracts || []).map(contract => `<article class="career-hq-card"><strong>${careerEscape(contract.title)}</strong><span>${careerEscape(contract.tier)} risk · ${careerEscape(contract.status)}</span><small>${careerEscape(careerContractTerms(contract))}</small>${contract.status === 'available' ? `<button class="primary" data-career-contract onclick="launchCareerContract('${careerEscape(contract.id)}')">Launch Contract</button>` : contract.status === 'accepted' && activeMatch?.contractId === contract.id ? `<button class="secondary" onclick="resumeCareerContract('${careerEscape(activeMatch.gameCode)}')">Resume Contract</button>` : contract.status === 'accepted' ? '<small>Contract is active. Return to the active deployment above.</small>' : ''}</article>`).join('') || '<p>No contracts are available.</p>';
+  const forceTotal = Number(forceValue?.adjusted || 0);
+  const contracts = (hq.contracts || []).map(contract => {
+    const minimum = Number(contract.terms?.bv_min || 0), maximum = Number(contract.terms?.bv_max || 0);
+    const eligible = !minimum || !maximum || (forceTotal >= minimum && forceTotal <= maximum);
+    const action = contract.status === 'available'
+      ? eligible ? `<button class="primary" data-career-contract onclick="launchCareerContract('${careerEscape(contract.id)}')">Launch Contract</button>` : `<button class="primary" disabled title="The assigned operational lance is outside this contract's BV band.">Lance Outside BV Band</button><small>Assign an operational lance worth BV ${minimum.toLocaleString()}–${maximum.toLocaleString()}.</small>`
+      : contract.status === 'accepted' && activeMatch?.contractId === contract.id ? `<button class="secondary" onclick="resumeCareerContract('${careerEscape(activeMatch.gameCode)}')">Resume Contract</button>` : contract.status === 'accepted' ? '<small>Contract is active. Return to the active deployment above.</small>' : '';
+    return `<article class="career-hq-card"><strong>${careerEscape(contract.title)}</strong><span>${careerEscape(contract.tier)} risk · ${careerEscape(contract.status)}</span><small>${careerEscape(careerContractTerms(contract))}</small>${action}</article>`;
+  }).join('') || '<p>No contracts are available.</p>';
   root.innerHTML = `<header class="career-hq-heading"><div><p class="career-kicker">Persistent Mercenary Company</p><h2>${careerEscape(company.name)}</h2><p>${careerEscape(company.commander_callsign)} · ${careerEscape(company.affiliation)}</p></div><button class="secondary" onclick="showScreen('menu-screen')">Back to Dropship</button></header>
-    <section class="career-hq-summary"><div><small>Credits</small><b>${careerCredits(company.credits)}</b></div><div><small>Reputation</small><b>${company.reputation} / 100</b></div><div><small>Dropship capacity</small><b>${company.dropship_tonnage} tons</b></div></section>
+    <section class="career-hq-summary"><div><small>Credits</small><b>${careerCredits(company.credits)}</b></div><div><small>Reputation</small><b>${company.reputation} / 100</b></div><div><small>Dropship capacity</small><b>${company.dropship_tonnage} tons</b></div><div><small>Assigned lance</small><b>${forceValue ? `${forceTotal.toLocaleString()} BV` : 'BV unavailable'}</b></div></section>
     ${activeContract}<p class="career-hq-notice">Career contracts launch from this persistent hangar and settle only from their sealed battle report. The Repair Bay calculates service from the pinned BattleMech record; skirmishes remain completely isolated.</p>
     <section><h3>Hangar</h3><div class="career-hq-cards">${mechs}</div></section>
-    <section><h3>Pilots</h3><div class="career-hq-table-wrap"><table><thead><tr><th>Pilot</th><th>Skills</th><th>Specialty</th><th>Status</th></tr></thead><tbody>${pilotRows}</tbody></table></div></section>
+    <section><h3>Pilots</h3><div class="career-hq-table-wrap"><table><thead><tr><th>Pilot</th><th>Skills</th><th>Specialty</th><th>Status</th><th>Identity</th></tr></thead><tbody>${pilotRows}</tbody></table></div></section>
     <section><h3>Contract Board</h3><div class="career-hq-cards">${contracts}</div></section>
     <section><h3>Ledger</h3><ul class="career-hq-ledger">${ledger}</ul></section>`;
 }
