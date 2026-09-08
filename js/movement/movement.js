@@ -464,6 +464,7 @@ async function startMovementMode(instanceId, mode) {
     origFacing: mech.facing,
     origTorsoFacing: mech.torsoFacing,
     path: [],
+    history: [],
     jumpFacing: false
   };
   renderMovementPanel();
@@ -484,6 +485,7 @@ function attemptMoveStep(col, row) {
     if (terrainMovementBlocked(col, row)) { flashMoveWarning('That hex cannot be used as a jump landing.'); return; }
     const dist = axialDistance(moveState.origCol, moveState.origRow, col, row);
     if (dist > moveState.mpMax) { flashMoveWarning('Not enough Jump MP for that hex.'); return; }
+    rememberMovementSegment(mech);
     const dir = directionBetween(moveState.origCol, moveState.origRow, col, row);
     mech.col = col;
     mech.row = row;
@@ -510,6 +512,7 @@ function attemptMoveStep(col, row) {
     if (moveState.mode === 'run' && ['shallow_water', 'deep_water'].includes(terrainAt(col, row))) { flashMoveWarning("A running BattleMech cannot enter water."); return; }
     const cost = (dir === mech.facing ? 1 : (isRear ? 1 : facingTurnCost(mech.facing, dir) + 1)) + movementTerrainCost(col, row) + levelCost;
     if (cost > mpLeft) { flashMoveWarning('Not enough MP for that move.'); return; }
+    rememberMovementSegment(mech);
     mech.col = col;
     mech.row = row;
     if (!isRear) mech.facing = dir; // backing up doesn't change which way you're facing
@@ -543,6 +546,7 @@ function turnMovementFacing(instanceId, direction) {
     }
   }
 
+  rememberMovementSegment(mech);
   // Direction indices increase counter-clockwise on the rendered board.
   const delta = direction === 'left' ? 1 : -1;
   mech.facing = (mech.facing + delta + 6) % 6;
@@ -740,6 +744,24 @@ async function declareChargeAttack(targetId) {
 }
 
 // Abandon the in-progress move and snap the 'Mech back to where it started this action.
+function rememberMovementSegment(mech) {
+  moveState.history ||= [];
+  moveState.history.push({ col:mech.col, row:mech.row, facing:mech.facing, torsoFacing:mech.torsoFacing,
+    mpUsed:moveState.mpUsed, hexesMoved:moveState.hexesMoved, jumpFacing:moveState.jumpFacing,
+    path:(moveState.path || []).map(step => ({...step})) });
+}
+
+function undoMovementSegment(reset = false) {
+  if (!moveState.active || !isMyActiveTurn() || currentGameState.phase !== 'movement') return;
+  const mech = mechInstances.find(unit => unit.instanceId === moveState.instanceId);
+  if (!mech || mech.owner !== mySeatNumber || !moveState.history?.length) return;
+  const previous = reset ? moveState.history[0] : moveState.history[moveState.history.length-1];
+  for (const key of ['col','row','facing','torsoFacing']) mech[key] = previous[key];
+  for (const key of ['mpUsed','hexesMoved','jumpFacing','path']) moveState[key] = previous[key];
+  if (reset) moveState.history = []; else moveState.history.pop();
+  renderMovementPanel(); renderReactionPanel(); renderRoster(); renderDetail(); draw();
+}
+
 function cancelMovement() {
   if (moveState.active) {
     const mech = mechInstances.find(m => m.instanceId === moveState.instanceId);
@@ -863,7 +885,7 @@ function renderMovementPanel() {
       ${dfaPicker}
       ${chargePicker}
       <div style="display:flex;gap:8px;">
-        <button onclick="confirmMove()" style="flex:1;${MOVE_BTN_STYLE}text-align:center;">Confirm Move</button>
+        <button onclick="undoMovementSegment()" ${moveState.history?.length ? '' : 'disabled'} style="flex:1;${MOVE_BTN_STYLE}">Undo last</button><button onclick="undoMovementSegment(true)" ${moveState.history?.length ? '' : 'disabled'} style="flex:1;${MOVE_BTN_STYLE}">Reset move</button><button onclick="confirmMove()" style="flex:1;${MOVE_BTN_STYLE}text-align:center;">Confirm Move</button>
         <button onclick="cancelMovement()" style="flex:1;padding:9px 10px;border:1px solid var(--panel-line);background:transparent;color:var(--phosphor);font-family:var(--display);font-size:10px;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Cancel</button>
       </div>`;
     return;

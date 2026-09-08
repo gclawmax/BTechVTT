@@ -309,7 +309,7 @@ async function loadLobbyUI() {
         const isAI = player.is_ai === true;
         const username = isAI 
           ? `AI ${titleCase(aiDifficulty)} · ${AI_PERSONALITY_LABELS[aiPersonality]}`
-          : titleCase(player.user_id?.substring(0, 8) || `Player ${player.seat_number}`);
+          : escapeHtml(skirmishAvatarForSeat(gameState, player.seat_number)?.callsign || `Commander ${player.seat_number}`);
         const isCurrentPlayer = !isAI && player.user_id === currentUser?.id;
         if (isCurrentPlayer) isReady = player.ready === true;
         const isReadyClass = player.ready ? 'ready' : '';
@@ -413,8 +413,8 @@ function rosterTonnage(roster) {
 
 // BV-2 uses the same published, versioned G/P factors as the server. This is
 // display/preflight only; update_skirmish_hangar remains the authority.
-const BV2_GUNNERY_FACTORS = Object.freeze([2.32, 1.93, 1.61, 1.32, 1, .8, .68, .55, .43]);
-const BV2_PILOTING_FACTORS = Object.freeze([1.6, 1.5, 1.4, 1.3, 1.2, 1, .9, .8, .7]);
+// Combined Gunnery/Piloting table: TechManual p.315, verified against MegaMek BVCalculator.
+const BV2_SKILL_MULTIPLIERS = Object.freeze([[2.42, 2.31, 2.21, 2.1, 1.93, 1.75, 1.68, 1.59, 1.5], [2.21, 2.11, 2.02, 1.92, 1.76, 1.6, 1.54, 1.46, 1.38], [1.93, 1.85, 1.76, 1.68, 1.54, 1.4, 1.35, 1.28, 1.21], [1.66, 1.58, 1.51, 1.44, 1.32, 1.2, 1.16, 1.1, 1.04], [1.38, 1.32, 1.26, 1.2, 1.1, 1.0, 0.95, 0.9, 0.85], [1.31, 1.19, 1.13, 1.08, 0.99, 0.9, 0.86, 0.81, 0.77], [1.24, 1.12, 1.07, 1.02, 0.94, 0.85, 0.81, 0.77, 0.72], [1.17, 1.06, 1.01, 0.96, 0.88, 0.8, 0.76, 0.72, 0.68], [1.1, 0.99, 0.95, 0.9, 0.83, 0.75, 0.71, 0.68, 0.64]].map(row => Object.freeze(row)));
 
 function bv2ForceLimit(state) {
   const forceLimit = state?.force_limit;
@@ -427,8 +427,8 @@ function bv2EntryValue(unit, pilot = {}) {
   const stock = Number(unit?.battleValue?.stock);
   const gunnery = Number(pilot?.gunnery ?? 4);
   const piloting = Number(pilot?.piloting ?? 5);
-  if (!Number.isInteger(stock) || stock <= 0 || !Number.isInteger(gunnery) || !Number.isInteger(piloting) || !BV2_GUNNERY_FACTORS[gunnery] || !BV2_PILOTING_FACTORS[piloting]) return null;
-  return { stock, gunnery, piloting, adjusted:Math.round(stock * BV2_GUNNERY_FACTORS[gunnery] * BV2_PILOTING_FACTORS[piloting]) };
+  if (!Number.isInteger(stock) || stock <= 0 || !Number.isInteger(gunnery) || !Number.isInteger(piloting) || !BV2_SKILL_MULTIPLIERS[gunnery]?.[piloting]) return null;
+  return { stock, gunnery, piloting, adjusted:Math.round(stock * BV2_SKILL_MULTIPLIERS[gunnery][piloting]) };
 }
 
 function bv2RosterValue(roster, gameState = null, seatNumber = mySeatNumber) {
@@ -490,7 +490,8 @@ async function addMechToSkirmishHangar(unitId) {
   const hangar = [...(avatar?.hangar || [])];
   if (hangar.length >= 12) { document.getElementById('lobby-status').textContent = 'A Skirmish Hangar can hold up to 12 BattleMechs.'; return; }
   const entryId = skirmishHangarId();
-  hangar.push({ id: entryId, unit_id: unitId, pilot: { id: `pilot-${entryId}`, name: 'MechWarrior', gunnery: 4, piloting: 5 } });
+  const clanPilot = techBaseForUnit(getSupportedUnit(unitId)) === 'clan';
+  hangar.push({ id: entryId, unit_id: unitId, pilot: { id: `pilot-${entryId}`, name: 'MechWarrior', gunnery: clanPilot ? 3 : 4, piloting: clanPilot ? 4 : 5 } });
   await saveSkirmishHangar(hangar, [...(avatar?.deployed || [])]);
 }
 
@@ -571,6 +572,15 @@ function renderLobbyMatchSetup(gameState, players) {
   }).join(', ') || 'not generated';
   const aiDetails = vsAiMode ? `<br>Opponent: <strong>${escapeHtml(titleCase(aiDifficulty))} · ${escapeHtml(AI_PERSONALITY_LABELS[aiPersonality])}</strong><br>AI force: <strong>${escapeHtml(aiRoster)}</strong><br><small>Build and deploy your force below. The AI is already deployed for this battlefield and mission.</small>` : '';
   settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${escapeHtml(beginnerScenario?.title || customScenario?.name || map.name)}</strong><br>${escapeHtml(beginnerScenario?.instructions || customScenario?.instructions || map.description)}<br>Battlefield: <strong>${escapeHtml(map.name)}</strong><br>Force limit: <strong>${bvLimit != null ? `${bvLimit.toLocaleString()} BV2` : `${limit} tons per player`}</strong><br>Victory: <strong>${victoryLabel}</strong><br>Ruleset: <strong>${escapeHtml(rulesetLabel(gameState))}</strong>${aiDetails}</div>`;
+  if (bvLimit != null) {
+    const sides = [1, 2].map(seat => ({
+      label: skirmishAvatarForSeat(gameState, seat)?.callsign || `Commander ${seat}`,
+      count: (gameState.rosters?.[String(seat)] || []).length,
+      value: bv2RosterValue(gameState.rosters?.[String(seat)] || [], gameState, seat)
+    }));
+    const difference = sides.every(side => side.value && side.count) ? Math.abs(sides[0].value.adjusted - sides[1].value.adjusted) : null;
+    settingsEl.innerHTML += `<div class="bv-force-comparison">${sides.map(side => `<div><strong>${escapeHtml(side.label)}</strong><br>${side.count} BattleMech${side.count === 1 ? '' : 's'} · ${side.value ? `${side.value.adjusted.toLocaleString()} BV · ${(bvLimit - side.value.adjusted).toLocaleString()} remaining` : 'BV pending'}</div>`).join('')}<p>${difference == null ? 'Select both forces to compare their BV.' : `Force difference: ${difference.toLocaleString()} BV.`} Values include saved pilot skills.</p></div>`;
+  }
   if (beginnerScenario) {
     rosterSection.hidden = true;
     rosterEl.innerHTML = '';
@@ -631,7 +641,7 @@ function renderLobbyMatchSetup(gameState, players) {
   const chassisGroup = group => {
     const expanded = expandedLobbyChassis.has(group.chassisKey);
     const variantLabel = `${group.entries.length} variant${group.entries.length === 1 ? '' : 's'}`;
-    return `<section class="roster-chassis-group ${expanded ? 'expanded' : ''}" data-chassis-key="${group.chassisKey}"><button class="roster-chassis-toggle" type="button" aria-expanded="${expanded}" onclick="toggleLobbyChassis('${group.chassisKey}')"><span class="roster-chassis-chevron" aria-hidden="true">›</span><strong>${escapeHtml(group.chassisName)}</strong><span class="roster-chassis-count">${variantLabel}</span></button><div class="roster-chassis-variants roster-options" ${expanded ? '' : 'hidden'}>${group.entries.map(card).join('')}</div></section>`;
+    return `<section class="roster-chassis-group ${expanded ? 'expanded' : ''}" data-chassis-key="${group.chassisKey}"><button class="roster-chassis-toggle" type="button" aria-expanded="${expanded}" onclick="toggleLobbyChassis('${group.chassisKey}')"><span class="roster-chassis-chevron" aria-hidden="true">›</span><strong>${escapeHtml(group.chassisName)} · ${[...new Set(group.entries.map(([, unit]) => unit.tonnage))].sort((a,b) => a-b).join(" / ")} t</strong><span class="roster-chassis-count">${variantLabel}</span></button><div class="roster-chassis-variants roster-options" ${expanded ? '' : 'hidden'}>${group.entries.map(card).join('')}</div></section>`;
   };
   const hangarCards = hangar.map(entry => {
     const unit = getSupportedUnit(entry.unit_id);
@@ -639,19 +649,19 @@ function renderLobbyMatchSetup(gameState, players) {
     const pilot = skirmishPilotForEntry(entry);
     const bv = bv2EntryValue(unit, pilot);
     return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}">
-      <div class="hangar-mech"><strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${bv ? ` · ${bv.stock.toLocaleString()} BV2 stock · ${bv.adjusted.toLocaleString()} adjusted` : ' · BV pending'}${isDeployed ? ' · DEPLOYED' : ''}</span></div>
+      <div class="hangar-mech"><strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${bv ? ` · ${bv.stock.toLocaleString()} BV2 stock · ${bv.adjusted.toLocaleString()} adjusted` : ' · BV pending'}${isDeployed ? ' · DROPSHIP' : ''}</span></div>
       <div class="hangar-pilot-fields">
         <label>Pilot<input id="hangar-pilot-name-${entry.id}" maxlength="48" value="${escapeHtml(pilot.name)}"></label>
         <label>Gunnery<select id="hangar-pilot-gunnery-${entry.id}">${skirmishSkillOptions(pilot.gunnery)}</select></label>
         <label>Piloting<select id="hangar-pilot-piloting-${entry.id}">${skirmishSkillOptions(pilot.piloting)}</select></label>
         <button onclick="saveSkirmishPilot('${entry.id}')">Save Pilot</button>
       </div>
-      <div class="hangar-actions"><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Withdraw' : 'Deploy'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div>
+      <div class="hangar-actions"><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Remove from Dropship' : 'Add to Dropship'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div>
     </div>`;
   }).join('') || '<div class="roster-empty">Add BattleMechs below to build your Hangar.</div>';
   const bvDeployment = bv2RosterValue(roster, gameState, mySeatNumber);
-  const deploymentSummary = bvLimit != null ? `Deployment: ${bvDeployment ? bvDeployment.adjusted.toLocaleString() : 'BV pending'} / ${bvLimit.toLocaleString()} BV2 · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected` : `Deployment: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected`;
-  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Match-only Avatar · each BattleMech has its own pilot</span><button onclick="openMechDesigner()">Open MechLab</button></div><div class="roster-summary">Ruleset: <strong>${BT_RULESETS[ruleset].name}</strong> · ${escapeHtml(BT_RULESETS[ruleset].description)}</div><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">${deploymentSummary}</div>
+  const deploymentSummary = bvLimit != null ? `Dropship: ${bvDeployment ? bvDeployment.adjusted.toLocaleString() : 'BV pending'} / ${bvLimit.toLocaleString()} BV2 · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected` : `Dropship: ${total} / ${limit} tons · ${roster.length || 'no'} 'Mech${roster.length === 1 ? '' : 's'} selected`;
+  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${avatar?.callsign || `Skirmish Commander P${mySeatNumber}`}</strong><span>Match-only Avatar · each BattleMech has its own pilot</span><button onclick="openMechDesigner()">Open MechLab</button></div><div class="roster-summary">Ruleset: <strong>${BT_RULESETS[ruleset].name}</strong> · ${escapeHtml(BT_RULESETS[ruleset].description)}</div><p class="setup-guidance">Add BattleMechs to your match-only hangar, assign pilots (Clan defaults to Gunnery 3 / Piloting 4; Inner Sphere to 4 / 5), then select your Dropship force. Place those units on the deployment map below.</p><div class="panel-eyebrow" style="margin-top:12px;">Skirmish Hangar · ${rosterTonnage(hangar.map(entry => entry.unit_id))} tons total</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary">${deploymentSummary}</div>
     <div class="roster-search"><label for="lobby-roster-search">Find a BattleMech</label><div><input id="lobby-roster-search" type="search" autocomplete="off" placeholder="Chassis, variant, tonnage or tech base" value="${lobbyRosterFilters.search.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}" oninput="filterLobbyRosterSearch(this.value)"><button id="lobby-roster-search-clear" type="button" onclick="clearLobbyRosterSearch()">Clear</button></div></div>
     <div class="roster-filter-bar"><span>Quick find</span><button class="roster-filter ${lobbyRosterFilters.favouritesOnly ? 'active' : ''}" onclick="toggleLobbyFavouritesFilter()">★ Favourites</button></div>
     <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
@@ -763,7 +773,7 @@ function renderLobbyDeployment(gameState) {
   const hiddenControl = selected ? `<button ${hiddenTerrain ? '' : 'disabled'} onclick="toggleLobbyHiddenDeployment()" title="Hidden BattleMechs must begin in legal non-clear, non-paved terrain.">${selected.hidden ? '✓ Hidden' : 'Hide Unit'}</button>` : '';
   const minePlan = myMinefields.length ? `<div class="minefield-plan">${myMinefields.map((field,index)=>`<div class="minefield-plan-row"><span><strong>${hexCode(field.col,field.row)}</strong> · ${escapeHtml(field.type==='vibrabomb'?`Vibrabomb ${field.sensitivity}t`:'Conventional')} · density ${Number(field.density)}</span><button onclick="removeLobbyMinefield(${index})" title="Remove this minefield from your deployment plan.">Remove</button></div>`).join('')}</div>` : '<span class="deployment-help">No minefields planned. Minefields are optional.</span>';
   const mineControls = minefieldBudget ? `<div class="deployment-unit-row"><span class="deployment-help">Minefield budget ${minefieldSpent}/${minefieldBudget}:</span>${(minefieldRules.permitted_types || []).map(type => `<button class="${lobbyMinefieldMode===type?'selected':''}" onclick="setLobbyMinefieldMode('${type}')" title="Keep this tool selected while placing ${type} minefields.">${type === 'vibrabomb' ? 'Vibrabomb' : 'Conventional'}</button>`).join('')}<label class="deployment-help">Density <select onchange="lobbyMinefieldDensity=Number(this.value);loadLobbyUI()">${(minefieldRules.permitted_densities || [10,20,30]).map(value=>`<option ${lobbyMinefieldDensity===Number(value)?'selected':''}>${value}</option>`).join('')}</select></label>${lobbyMinefieldMode==='vibrabomb'?`<label class="deployment-help">Trigger weight <select onchange="lobbyVibrabombSensitivity=Number(this.value)">${(minefieldRules.vibrabomb_sensitivities || [50]).map(value=>`<option ${lobbyVibrabombSensitivity===Number(value)?'selected':''}>${value}</option>`).join('')}</select> t</label>`:''}<button ${myMinefields.length?'':'disabled'} onclick="resetLobbyMinefields()">Clear Plan</button></div>${minePlan}` : '<span class="deployment-help">This scenario does not permit minefields.</span>';
-  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Hidden units require concealing terrain. Select a minefield type, then a legal unoccupied hex; enemy fields remain concealed.</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}${hiddenControl}</div>` : ''}${mineControls}<svg class="deployment-map" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" aria-label="Battlefield deployment hexes">${cells.join('')}</svg><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
+  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Hidden units require concealing terrain. ${minefieldBudget ? 'Minefields: choose an empty hex in your deployment zone; water, buildings, impassable terrain and liquid magma are excluded. Enemy fields remain concealed.' : 'Minefields are disabled for this match.'}</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}${hiddenControl}</div>` : ''}${mineControls}<div class="deployment-zone-legend"><span>Friendly deployment zone: green hexes</span><span>Enemy deployment zone: red hexes</span></div><svg class="deployment-map" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" aria-label="Battlefield deployment hexes">${cells.join('')}</svg><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
 }
 
 function setLobbyMinefieldMode(type) { lobbyMinefieldMode = lobbyMinefieldMode === type ? null : type; loadLobbyUI(); }

@@ -3,6 +3,7 @@
 import { readFile } from 'node:fs/promises';
 
 const sql = await readFile(new URL('../sql/132_bv2_authoritative_roster_checks.sql', import.meta.url), 'utf8');
+const correctedSql = await readFile(new URL('../SQL/144_correct_bv2_pilot_skill_table.sql', import.meta.url), 'utf8');
 let failures = 0;
 function check(label, condition) {
   console.log(`${condition ? 'PASS' : 'FAIL'}  ${label}`);
@@ -10,7 +11,7 @@ function check(label, condition) {
 }
 
 check('published BV2 Gunnery/Piloting factors are versioned server-side',
-  sql.includes('WHEN 0 THEN 2.32') && sql.includes('WHEN 4 THEN 1.00') && sql.includes('ELSE .43') && sql.includes('ELSE .70'));
+  correctedSql.includes('RETURN factors[p_gunnery+1][p_piloting+1]') && correctedSql.includes('btech_bv2_pilot_multiplier(3,4) <> 1.32'));
 check('only explicit BV2 force limits activate BV enforcement',
   sql.includes("force_limit'->>'mode','tonnage')<>'bv2'"));
 check('unit resolution rejects unverified and custom designs',

@@ -1,3 +1,8 @@
+> 2026-09-08 correction: SQL 144 replaces the incorrect independent skill
+> factors with the combined Gunnery/Piloting table. A 3/4 pilot is 1.32×,
+> not 1.584×. Deploy SQL 144 before the matching skirmish-polish frontend.
+> Existing sealed records are not rewritten. Live SQL deployment verified: a 3/4 Puma Prime seals at 2,750 BV.
+
 # Battle Value Design
 
 Status: **BV-1 complete; BV-2/BV-3 ready for SQL deployment.** No existing match

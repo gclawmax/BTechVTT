@@ -143,6 +143,7 @@ async function loadGameState() {
   }
 
   currentGameState = {
+    skirmish_avatars: gameState.skirmish_avatars || {},
     round: game.current_round || 1,
     phase: game.current_phase || 'initiative',
     // The column is the single source of truth for turn ownership. Keep the

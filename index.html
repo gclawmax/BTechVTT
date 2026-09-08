@@ -9,9 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260908-weapon-inventory-98">
+  <link rel="stylesheet" href="css/main.css?v=20260908-skirmish-polish-100">
 </head>
-<body data-build="20260908-weapon-inventory-98">
+<body data-build="20260908-skirmish-polish-100">
 <div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260908-weapon-inventory-98</div>
 <div id="game-toast" role="status" aria-live="polite"></div>
 <div id="game-settings-overlay" class="game-settings-overlay" hidden onclick="if(event.target===this)closeGameSettings()">
@@ -250,11 +250,13 @@
       <option value="breakthrough">Breakthrough — move 2 BattleMechs into the enemy deployment zone</option>
     </select>
     <label for="create-ruleset-select">Ruleset</label>
-    <select id="create-ruleset-select" title="Controls which era and equipment tiers may be deployed.">
+    <select id="create-ruleset-select" onchange="syncCreateMinefieldControls()" title="Controls which era and equipment tiers may be deployed.">
       <option value="standard_3060">Standard 3060 — tournament-oriented</option>
       <option value="advanced_3060" selected>Advanced 3060 — supported advanced equipment</option>
       <option value="open_experimental">Open / Experimental — all supported equipment</option>
     </select>
+    <label><input id="create-minefields-enabled" type="checkbox"> Enable minefields (Advanced 3060 only)</label>
+    <p class="setup-guidance">For your skirmish, choose BV2 and compare pilot-adjusted force totals in the lobby. Minefields are off by default.</p>
     <div class="setup-actions">
       <button class="primary" onclick="handleCreateConfiguredGame()">Create Lobby</button>
       <button class="secondary" onclick="cancelCreateGameSetup()">Back</button>
@@ -290,13 +292,13 @@
       <div class="lobby-section-title">Players</div>
       <div id="lobby-seats"></div>
     </div>
-    <div class="lobby-section" id="lobby-deployment-section">
-      <div class="lobby-section-title">Battlefield Deployment</div>
-      <div id="lobby-deployment"></div>
-    </div>
     <div class="lobby-section" id="lobby-roster-section">
       <div class="lobby-section-title">Your Roster</div>
       <div id="lobby-roster-builder"></div>
+    </div>
+    <div class="lobby-section" id="lobby-deployment-section">
+      <div class="lobby-section-title">Battlefield Deployment</div>
+      <div id="lobby-deployment"></div>
     </div>
     <div class="lobby-section" id="lobby-c3-section" hidden>
       <div class="lobby-section-title">C3 Network Assignment</div>
@@ -336,7 +338,7 @@
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260908-weapon-inventory-98</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260908-skirmish-polish-100</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -367,7 +369,7 @@
 <script src="js/core/state.js?v=20260831-hit-location-diagnostics-39"></script>
 <script src="js/ai/state.js?v=20260906-ai6-difficulty-personality-72"></script>
 <script src="js/ai/engine.js?v=20260907-game-modes-74"></script>
-<script src="js/core/game-log.js?v=20260826-combat-presentation-25"></script>
+<script src="js/core/game-log.js?v=20260908-skirmish-polish-100"></script>
 <script src="js/ui/game-settings.js?v=20260826-combat-presentation-25"></script>
 <script src="js/core/screen.js?v=20260813-reaction-ui-01"></script>
 <script src="js/core/auth.js?v=20260813-reaction-ui-01"></script>
@@ -381,25 +383,25 @@
 <script src="js/game/specialist-physical-equipment.js?v=20260904-specialist-physical-64"></script>
 <script src="js/game/mech-designer.js?v=20260902-signature-electronics-62"></script>
 <script src="js/game/critical-hits.js?v=20260904-specialist-physical-64"></script>
-<script src="js/network/create-game.js?v=20260907-bv2-force-format-92"></script>
+<script src="js/network/create-game.js?v=20260908-skirmish-polish-100"></script>
 <script src="js/game/scenario-editor.js?v=20260907-bv2-force-format-92"></script>
 <script src="js/game/career-avatar.js?v=20260908-career4a-arcs-97"></script>
 <script src="js/game/career-hq.js?v=20260908-career4a-arcs-97"></script>
 <script src="js/network/create-vs-ai.js?v=20260907-bv2-force-format-92"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
-<script src="js/network/lobby.js?v=20260907-bv2-force-format-92"></script>
+<script src="js/network/lobby.js?v=20260908-skirmish-polish-100"></script>
 <script src="js/game/telemetry.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/replay-viewer.js?v=20260902-replay-viewer-49"></script>
-<script src="js/game/phases.js?v=20260907-career-ai-bridge-90"></script>
+<script src="js/game/phases.js?v=20260908-skirmish-polish-100"></script>
 <script src="js/game/board.js?v=20260902-variable-maps-50"></script>
 <script src="js/game/unit-artwork.js?v=20260820-01"></script>
-<script src="js/movement/rules.js?v=20260907-game-modes-74"></script>
+<script src="js/movement/rules.js?v=20260908-skirmish-polish-100"></script>
 <script src="js/ui/panels.js?v=20260908-weapon-inventory-98"></script>
 <script src="js/ui/record-sheet.js?v=20260908-weapon-inventory-98"></script>
 <script src="js/ui/panel-resize.js?v=20260831-readable-record-37"></script>
-<script src="js/movement/movement.js?v=20260906-ai5-specialist-tactics-71"></script>
+<script src="js/movement/movement.js?v=20260908-skirmish-polish-100"></script>
 <script src="js/game/reaction.js?v=20260906-ai5-specialist-tactics-71"></script>
-<script src="js/game/weapon-attack.js?v=20260906-ai4-force-coordination-70"></script>
+<script src="js/game/weapon-attack.js?v=20260908-skirmish-polish-100"></script>
 <script src="js/game/physical-attack.js?v=20260904-specialist-physical-64"></script>
 <script src="js/game/heat.js?v=20260902-signature-electronics-62"></script>
 <script src="js/app.js?v=20260813-reaction-ui-01"></script>

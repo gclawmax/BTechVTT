@@ -75,7 +75,7 @@ async function loadPersistentGameLog() {
   if (!currentGameId) return;
   const { data, error } = await db.from('btech_events')
     .select('event,created_at').eq('game_id', currentGameId)
-    .order('created_at', { ascending: true }).limit(GAME_LOG_MAX);
+    .order('created_at', { ascending: false }).limit(GAME_LOG_MAX);
   if (error) { console.warn('[BT-LOG] failed to load persistent log:', error); return; }
   mergeRemoteLog((data || []).map(row => row.event));
 }
@@ -89,13 +89,23 @@ function subscribePersistentGameLog() {
     .subscribe();
 }
 
+function formatVisibleLogMessage(message) {
+  let text = String(message);
+  const state = typeof currentGameState !== 'undefined' ? currentGameState : null;
+  text = text.replace(/\b(?:P|Player )(1|2)\b/g, (label, seat) => {
+    const avatar = typeof skirmishAvatarForSeat === 'function' ? skirmishAvatarForSeat(state, Number(seat)) : null;
+    return avatar?.callsign || label;
+  });
+  return escapeLogHtml(text);
+}
+
 function renderGameLog() {
   const el = document.getElementById('game-log');
   if (!el) return;
   const wasNearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 12;
   const visibleEntries = gameLog.filter(e => gameLogFilter === 'all' || e.cat === gameLogFilter);
   el.innerHTML = visibleEntries.map(e =>
-    `<div class="log-entry cat-${e.cat} ${logTeamClass(e)}${e.kind === 'weapon-header' ? ' combat-mech-header' : ''}"><span class="log-tag">[${e.time}] R${e.round ?? '?'}/${(e.phase || '?').slice(0,4)}</span><span class="log-message">${escapeLogHtml(e.msg)}</span></div>`
+    `<div class="log-entry cat-${e.cat} ${logTeamClass(e)}${e.kind === 'weapon-header' ? ' combat-mech-header' : ''}"><span class="log-tag">[${e.time}] R${e.round ?? '?'}/${(e.phase || '?').slice(0,4)}</span><span class="log-message">${formatVisibleLogMessage(e.msg)}</span></div>`
   ).join('') || '<div class="log-entry cat-system">No matching log entries.</div>';
   // Autoscroll to the newest entry unless the user has scrolled up to read history.
   if (wasNearBottom || gameLog.length <= 1) el.scrollTop = el.scrollHeight;

@@ -262,6 +262,14 @@ function draw() {
     ctx.restore();
   }
 
+  // The planned path remains local until movement is confirmed.
+  if (moveState.active && moveState.path?.length) {
+    const points = [{col:moveState.origCol,row:moveState.origRow}, ...moveState.path.filter(step => step.action === 'step' || step.action === 'jump')];
+    ctx.save(); ctx.strokeStyle = '#126a89'; ctx.lineWidth = 3; ctx.setLineDash([5,3]); ctx.beginPath();
+    points.forEach((point,index) => { const pixel=hexToPixel(point.col,point.row); const x=pixel.x+gridOffsetX+mapPanX, y=pixel.y+gridOffsetY+mapPanY; if(index) ctx.lineTo(x,y); else ctx.moveTo(x,y); });
+    ctx.stroke(); ctx.restore();
+  }
+
   // Draw mechs
   for (const inst of mechInstances) {
     if (isEnemyHiddenUnit(inst)) continue;
@@ -271,7 +279,15 @@ function draw() {
     const unit = typeof displayUnitFor === 'function' ? displayUnitFor(inst.unitId) : BT_UNITS[inst.unitId];
     const angle = HEX_DIRS[inst.facing || 0].angle;
     const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
-    drawMechToken(px, py, HEX_SIZE * 0.45, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone, inst.unitId);
+    drawMechToken(px, py, HEX_SIZE * 0.64, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone, inst.unitId);
+    ctx.save();
+    const label = String(unit.variant || inst.unitId);
+    ctx.font = 'bold 8px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const labelWidth = Math.min(HEX_SIZE * 1.7, ctx.measureText(label).width + 6);
+    ctx.fillStyle = '#f5f2e9'; ctx.fillRect(px-labelWidth/2, py+HEX_SIZE*.58-5, labelWidth, 10);
+    ctx.fillStyle = '#172a25'; ctx.fillText(label, px, py+HEX_SIZE*.58, labelWidth-4);
+    ctx.restore();
   }
   ctx.restore();
   renderMapZoomReadout();

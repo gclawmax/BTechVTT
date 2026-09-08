@@ -34,31 +34,26 @@ documents, but their implementation order is governed here.
 | Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
 | Career | Done: founding arcs | Persistent company, settlement, repairs, BV bands, salvage, markets, pilot advancement, travel, factions, immutable origins and three-operation arcs; skirmishes remain isolated |
 
-## Current development priority — Career-4b PvP tender design
+## Current development priority — polished human skirmish
 
-The persistent Mercenary Company loop is operational through its founding
-campaign arcs. The next candidate is explicitly consensual company-versus-
-company work. Its design must use the existing sealed report and match engine
-without weakening skirmish isolation. The authoritative scope, safeguards and
-delivery plan are in [Persistent Campaign Design](PERSISTENT_CAMPAIGN_DESIGN.md).
+The acceptance match is two Inner Sphere BattleMechs against one Clan
+BattleMech at comparable pilot-adjusted BV, with minefields disabled.
+Persistent Career expansion is secondary to this player-tested workflow.
 
-Career-1a established persistent company, BattleMech, pilot, contract, ledger
-and settlement-receipt records with RLS and skirmish-isolation tests.
-Career-1b adds deterministic AI contracts that launch from current condition
-and settle sealed results exactly once. Career-1c completes the initial loop
-with owner-only, catalogue-pinned Repair Bay quotes and confirmed repair/reload
-transactions. BV-4 now values the assigned operational lance using its pinned
-stock configuration and current pilots, advertises enforceable contract bands,
-and seals the signed value at launch. Pilot names and optional callsigns are
-owner-editable in Company HQ. Destroyed BattleMechs remain recoverable wrecks.
-Career-2 adds sealed-result salvage, idempotent pilot XP, advancement, pilot
-assignment, rotating purchase/hire markets, richer objective contracts, and
-reputation-gated company capacity. Career-3 adds five connected operational
-worlds, travel time and cost, local supply/market pricing, themed contracts,
-and idempotent faction standing. Career-4a adds immutable Independent, Inner
-Sphere, and Clan origins with origin-appropriate starting locations, forces,
-and three-operation founding arcs. Career-4b PvP tenders remain a separate
-consent and dual-settlement design rather than a hidden expansion of skirmish.
+1. Verify stock BV provenance, pilot adjustments, server cap enforcement and
+   live deployment status. Compare both forces visibly in the lobby.
+2. Simplify setup, ammunition confirmation and deployment; use callsigns and
+   clear readiness prompts. Remove the extra Hangar-to-Dropship selection
+   step for skirmishes after updating the authoritative roster workflow.
+3. Improve map readability, tree rendering, chassis imagery and token labels.
+4. Improve movement trails, undo/reset, movement status, turn allocation,
+   expandable combat logs and Alpha Strike selection.
+5. Complete a two-browser three-Mech battle, including reconnect coverage.
+6. Final milestone: contextual instructions and gradual, replayable beginner
+   tutorials for skirmish and campaign play.
+
+Career-4b and further persistent progression are deferred until this
+skirmish milestone is accepted. Existing Career functionality is retained.
 
 ## Completed recent programmes
 

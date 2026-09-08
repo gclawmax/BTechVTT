@@ -1583,3 +1583,22 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
   .designer-fields,.designer-armor-grid { grid-template-columns:1fr 1fr; }
   .designer-equipment-row { grid-template-columns:1fr 1fr; }
 }
+
+/* Skirmish setup readability */
+#create-map-preview p, .map-preview-legend { color:#f1f5eb; line-height:1.6; }
+.setup-guidance { color:#263329; background:#edf1e8; padding:10px 12px; font-size:12px; line-height:1.6; }
+.deployment-zone-legend { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; padding:10px; background:#f3f5ef; color:#263329; font-weight:bold; }
+.log-message { white-space:pre-wrap; overflow-wrap:anywhere; }
+
+#match-setup-box #create-map-preview p { color:#f1f5eb; }
+#match-setup-box .setup-guidance { color:#263329; }
+.bv-force-comparison { display:flex; flex-wrap:wrap; gap:16px; padding:12px; margin-top:10px; color:#21382e; background:#edf1e8; line-height:1.6; }
+.bv-force-comparison > div { flex:1; min-width:180px; }
+.bv-force-comparison p { flex-basis:100%; margin:0; }
+
+#match-setup-screen { align-items:flex-start; overflow-y:auto; padding:32px 20px 64px; }
+#match-setup-box { width:min(780px, 100%); margin:auto; }
+#match-setup-box .map-setup-preview h3 { color:#f1f5eb; }
+.log-entry details { min-width:0; }
+.log-entry summary { cursor:pointer; line-height:1.6; }
+.log-unit-reference { color:#07596b; font-weight:700; background:#eef6f4; padding:0 2px; }

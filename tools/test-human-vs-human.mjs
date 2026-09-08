@@ -99,9 +99,9 @@ async function addAndDeployBattleMech(page, selection) {
   await option.waitFor({ state: 'visible', timeout: 45000 });
   await option.click();
   await page.waitForSelector('.hangar-entry', { timeout: 15000 });
-  await page.getByRole('button', { name: 'Deploy', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Add to Dropship', exact: true }).first().click();
   try {
-    await page.waitForFunction(() => Array.from(document.querySelectorAll('.roster-summary')).some(node => /Deployment:\s*[1-9]\d*/.test(node.textContent || '')), null, { timeout: 15000 });
+    await page.waitForFunction(() => Array.from(document.querySelectorAll('.roster-summary')).some(node => /Dropship:\s*[1-9]\d*/.test(node.textContent || '')), null, { timeout: 15000 });
   } catch (error) {
     const lobbyState = await page.evaluate(() => ({
       status: document.getElementById('lobby-status')?.textContent?.trim() || '',
@@ -366,6 +366,7 @@ try {
   await host.getByRole('button', { name: 'Create Custom Skirmish', exact: true }).click();
   check('host opens match setup', await waitForScreen(host, 'match-setup-screen'));
   await host.selectOption('#create-map-select', soakProfile.mapId);
+  await host.selectOption('#create-force-format-select', 'tonnage');
   await host.selectOption('#create-tonnage-select', '100');
   // The page-level loading veil is deliberately raised synchronously by the
   // click handler. On a slow headless browser that can make Playwright retry
@@ -399,13 +400,13 @@ try {
   soakSelections = selections;
   console.log(`SOAK FORCE: ${selections.host.unitId} versus ${selections.guest.unitId} (${selections.mode}, seed ${selections.seed})`);
   await Promise.all([addAndDeployBattleMech(host, selections.host), addAndDeployBattleMech(guest, selections.guest)]);
-  const hasDeployment = async page => (await page.locator('.roster-summary').allInnerTexts()).some(text => /Deployment:\s*[1-9]\d*/.test(text));
+  const hasDeployment = async page => (await page.locator('.roster-summary').allInnerTexts()).some(text => /Dropship:\s*[1-9]\d*/.test(text));
   check(`both players deploy the ${selections.mode} ${soakProfile.name} roster`, await hasDeployment(host) && await hasDeployment(guest));
   await Promise.all([
     placeBattlefieldDeployment(host, soakProfile.deployment.host.hex, soakProfile.deployment.host.facing),
     placeBattlefieldDeployment(guest, soakProfile.deployment.guest.hex, soakProfile.deployment.guest.facing)
   ]);
-  check('both players choose deployment hexes and facings', /1\/1 placed/.test(await host.locator('#lobby-deployment > .deployment-help').innerText()) && /1\/1 placed/.test(await guest.locator('#lobby-deployment > .deployment-help').innerText()));
+  check('both players choose deployment hexes and facings', /1\/1 placed/.test(await host.locator('#lobby-deployment > .deployment-help').first().innerText()) && /1\/1 placed/.test(await guest.locator('#lobby-deployment > .deployment-help').first().innerText()));
 
   await host.locator('#btn-ready').click();
   await guest.locator('#btn-ready').click();

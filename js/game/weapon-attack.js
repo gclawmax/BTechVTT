@@ -691,6 +691,15 @@ function selectPrimaryWeaponTarget(instanceId) {
   renderWeaponAttackPanel();
 }
 
+function selectAlphaStrike() {
+  if (!weaponAttackState.targetId) return;
+  // Use the same eligibility controls and selection handler as individual weapons.
+  const ids = [...document.querySelectorAll('[data-weapon-mount]:not([disabled])')].map(button => button.dataset.weaponMount);
+  for (const id of ids) {
+    if (!weaponAttackState.weaponKeys.includes(id)) toggleWeaponForAttack(id);
+  }
+}
+
 function toggleWeaponForAttack(mountId) {
   weaponAttackState.aimLocationsByMount ||= {};
   const attacker = mechInstances.find(m => m.instanceId === weaponAttackState.attackerId);
@@ -1253,7 +1262,7 @@ function renderWeaponAttackPanel() {
     const displayedDamage = evaluation?.valid ? evaluation.damage : weapon?.damage;
     const modeLabel = weapon?.mmlMode ? ` · ${weapon.mmlMode.toUpperCase()} ammo` : '';
     const firingHeat = ultra && weaponFireMode(mountId, entry) === 'rapid' ? heat * 2 : rotary ? heat * weaponShotsForMode(mountId, entry) : heat;
-    return `<div><button onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${displayedDamage || '?'} max dmg / ${firingHeat} heat${modeLabel} · ${entry.location} · ${weaponArcLabel(entry, attacker)}${assignedTarget ? ` · → ${mechLabel(assignedTarget)}${assignedTargetId === weaponAttackState.primaryTargetId ? ' (primary)' : ''}` : ''}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}${aimPicker}</div>`;
+    return `<div><button data-weapon-mount="${mountId}" onclick="toggleWeaponForAttack('${mountId}')" ${disabled ? 'disabled' : ''} style="width:100%;margin-top:5px;padding:7px 8px;border:1px solid ${checked ? 'var(--amber)' : 'var(--panel-line)'};background:${checked ? 'rgba(212,128,10,.18)' : 'transparent'};color:${disabled ? 'var(--phosphor-dim)' : 'var(--paper)'};font-family:var(--mono);font-size:10px;text-align:left;cursor:${disabled ? 'not-allowed' : 'pointer'};">${checked ? '✓ ' : ''}${weapon?.name || entry.key}${countLabel} · ${displayedDamage || '?'} max dmg / ${firingHeat} heat${modeLabel} · ${entry.location} · ${weaponArcLabel(entry, attacker)}${assignedTarget ? ` · → ${mechLabel(assignedTarget)}${assignedTargetId === weaponAttackState.primaryTargetId ? ' (primary)' : ''}` : ''}${outOfAmmo ? ' · no compatible ammunition' : evaluation ? ` · ${evaluation.valid ? `${evaluation.range.label}, TN ${evaluation.targetNumber}` : evaluation.reason}` : ''}</button>${binPicker}${modePicker}${aimPicker}</div>`;
   }).join('');
 
   panel.innerHTML = `
@@ -1264,6 +1273,6 @@ function renderWeaponAttackPanel() {
     ${clubSearch}
     <div style="font-size:10px;color:var(--phosphor-dim);margin-bottom:4px;">TARGET — choose a target, then assign weapons; repeat to split fire</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => { const assigned = Object.values(weaponAttackState.targetAssignments).filter(id => id === enemy.instanceId).length; return `<button onclick="selectWeaponTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${enemy.instanceId === weaponAttackState.primaryTargetId ? '★ ' : ''}${mechLabel(enemy)}${assigned ? ` · ${assigned}` : ''}</button>`; }).join('')}</div>
-    ${target ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--amber);margin-bottom:4px;"><span>TARGET: ${mechLabel(target)}</span>${Object.values(weaponAttackState.targetAssignments).includes(target.instanceId) ? `<button onclick="selectPrimaryWeaponTarget('${target.instanceId}')" style="padding:4px;border:1px solid var(--panel-line);background:transparent;color:var(--paper);font:8px var(--mono);">${target.instanceId === weaponAttackState.primaryTargetId ? '★ PRIMARY' : 'MAKE PRIMARY'}</button>` : ''}</div>${electronicControls}${indirectControls}${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}
+    ${target ? `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--amber);margin-bottom:4px;"><span>TARGET: ${mechLabel(target)}</span>${Object.values(weaponAttackState.targetAssignments).includes(target.instanceId) ? `<button onclick="selectPrimaryWeaponTarget('${target.instanceId}')" style="padding:4px;border:1px solid var(--panel-line);background:transparent;color:var(--paper);font:8px var(--mono);">${target.instanceId === weaponAttackState.primaryTargetId ? '★ PRIMARY' : 'MAKE PRIMARY'}</button>` : ''}</div>${electronicControls}${indirectControls}<button type="button" onclick="selectAlphaStrike()" title="Select all currently eligible weapons. Review heat and ammunition before confirming fire." style="padding:6px;margin:6px 0;">Alpha Strike</button>${weaponRows}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select a target to see eligible weapons and target numbers.</div>'}
     <button id="weapon-submit" onclick="confirmWeaponAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${weaponAttackState.weaponKeys.length ? 'Confirm Weapon Attacks' : 'No Fire / Complete Attacks'}</button>`;
 }

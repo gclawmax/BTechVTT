@@ -37,12 +37,20 @@ function handleCreateGame() {
   mapSelect.value = DEFAULT_MAP_ID;
   renderCreateMapPreview();
   document.getElementById('create-tonnage-select').value = '200';
-  document.getElementById('create-force-format-select').value = 'tonnage';
+  document.getElementById('create-force-format-select').value = 'bv2';
   document.getElementById('create-bv-limit-select').value = '5000';
   syncForceFormatControls('create');
   document.getElementById('create-victory-select').value = 'annihilation';
   document.getElementById('create-ruleset-select').value = 'advanced_3060';
+  document.getElementById('create-minefields-enabled').checked = false;
+  syncCreateMinefieldControls();
   showScreen('match-setup-screen');
+}
+
+function syncCreateMinefieldControls() {
+  const input = document.getElementById('create-minefields-enabled');
+  input.disabled = document.getElementById('create-ruleset-select').value !== 'advanced_3060';
+  if (input.disabled) input.checked = false;
 }
 
 function renderCreateMapPreview() {
@@ -70,6 +78,11 @@ function renderCreateMapPreview() {
       const code = hexCode(col,row);
       const marker = objectives.has(code) ? ' objective' : zoneOne.has(code) ? ' breakthrough-zone-one' : zoneTwo.has(code) ? ' breakthrough-zone-two' : '';
       cells.push(`<polygon class="map-preview-hex ${type}${level ? ' elevated' : ''}${marker}" points="${mapPreviewHexPoints(col, row)}"><title>${description}${objectives.has(code)?' · objective':zoneOne.has(code)?' · Player 2 breakthrough goal':zoneTwo.has(code)?' · Player 1 breakthrough goal':''}</title></polygon>`);
+      if (type === 'light_woods' || type === 'heavy_woods') {
+        const x = Math.sqrt(3) * (col + .5 * (row & 1)) + Math.sqrt(3)/2;
+        const y = row * 1.5 + 1;
+        cells.push(`<g aria-hidden="true" pointer-events="none" fill="#d8e5bd"><path d="M ${x} ${y-.65} l -.42 .75 h .27 v .32 h .3 v -.32 h .27 Z"/>${type === 'heavy_woods' ? `<path d="M ${x+.45} ${y-.3} l -.25 .5 h .5 Z"/>` : ''}</g>`);
+      }
     }
   }
   const legend = Object.entries(counts).map(([type, count]) => `${count} ${type.replace('_', ' ')}`).join(' · ') || 'Open ground';
@@ -104,7 +117,7 @@ async function handleCreateConfiguredGame() {
   catch (error) { alert(error.message); return; }
   const dropshipTonnage = forceLimit.mode === 'tonnage' ? Number.parseInt(document.getElementById('create-tonnage-select').value, 10) : null;
   if (!BT_MAPS[mapId] || (forceLimit.mode === 'tonnage' && (!Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0))) return;
-  await createHumanGame({ mapId, dropshipTonnage, victoryMode, ruleset, forceLimit });
+  await createHumanGame({ mapId, dropshipTonnage, victoryMode, ruleset, forceLimit, minefieldsEnabled: document.getElementById('create-minefields-enabled').checked });
 }
 
 // A short first match removes roster-building friction while preserving the
@@ -147,7 +160,7 @@ async function handleCreateDesertHillsScenario() {
   });
 }
 
-async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation', customScenario = null, ruleset = 'advanced_3060', forceLimit = null }) {
+async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2': [] }, beginnerScenario = null, victoryMode = 'annihilation', customScenario = null, ruleset = 'advanced_3060', forceLimit = null, minefieldsEnabled = false }) {
   const sealedForceLimit = normaliseMatchForceLimit(forceLimit || customScenario?.force_limit);
   if ((!BT_MAPS[mapId] && !BT_CUSTOM_MAPS[mapId]) || (sealedForceLimit.mode === 'tonnage' && (!Number.isFinite(dropshipTonnage) || dropshipTonnage <= 0))) return;
   showLoading(true);
@@ -170,12 +183,12 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
           units: [], turn: 0, phase: 'setup', vs_ai_mode: false,
           map_id: mapId, map_dimensions: dimensions,
           ...(sealedForceLimit.mode === 'tonnage' ? { dropship_tonnage:dropshipTonnage } : {}),
-          ...(sealedForceLimit.mode === 'bv2' ? { force_limit:sealedForceLimit } : {}),
+          ...(sealedForceLimit.mode === 'bv2' ? { force_limit:sealedForceLimit, force_values:{} } : {}),
           catalogue_version: catalogueVersion,
           ruleset: BT_RULESETS?.[ruleset] ? ruleset : 'advanced_3060',
           special_ammo_setup_v1: true,
           hidden_units_v1: true,
-          minefield_rules: customScenario?.minefield_rules || { budget:40, permitted_types:['conventional','vibrabomb'], permitted_densities:[10,20,30], vibrabomb_sensitivities:[20,30,40,50,60,70,80,90,100] },
+          minefield_rules: ruleset === 'advanced_3060' ? (customScenario?.minefield_rules || { budget:minefieldsEnabled ? 40 : 0, permitted_types:minefieldsEnabled ? ['conventional','vibrabomb'] : [], permitted_densities:[10,20,30], vibrabomb_sensitivities:[20,30,40,50,60,70,80,90,100] }) : { budget:0, permitted_types:[] },
           victory_mode: ['annihilation', 'control', 'breakthrough'].includes(victoryMode) ? victoryMode : 'annihilation',
           objective_hexes: victoryMode === 'control' ? objectiveHexesForMap(mapId) : [],
           objective_scores: { '1': 0, '2': 0 },
