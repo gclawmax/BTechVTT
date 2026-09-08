@@ -1,5 +1,4 @@
-// Career-1a Company HQ: a read-only view of server-owned persistent records.
-// Contracts, settlement, repairs and reloads arrive in later Career-1 slices.
+// Career-1c Company HQ: persistent condition and server-authoritative service.
 
 function careerEscape(value) {
   return String(value ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
@@ -15,6 +14,33 @@ function careerUnitLabel(mech) {
 function careerContractTerms(contract) {
   const terms = contract?.terms || {}, reward = Number(terms.base_pay || 0) + Number(terms.success_bonus || 0);
   return `${String(terms.map_id || 'training-grounds').replaceAll('-', ' ')} · up to ${careerCredits(reward)} · +${Number(terms.reputation || 0)} reputation`;
+}
+
+function careerServiceSummary(mech, activeMatch) {
+  const quote = mech?.service_quote;
+  if (!quote) return '<small>Repair Bay is unavailable until Career-1c is installed.</small>';
+  if (!quote.serviceable) return '<small class="career-hq-wreck">Recoverable wreck — replacement or salvage arrives in Career-2.</small>';
+  const repair = quote.repair || {}, reload = quote.reload || {};
+  const repairCost = Number(repair.total || 0), reloadCost = Number(reload.total || 0);
+  const repairDetail = `${Number(repair.armor_points || 0)} armour · ${Number(repair.structure_points || 0)} structure · ${Number(repair.critical_slots || 0)} critical`;
+  const reloadDetail = `${Number(reload.rounds || 0)} rounds across ${Number(reload.bins || 0)} bin${Number(reload.bins || 0) === 1 ? '' : 's'}`;
+  const unavailable = activeMatch ? '<small>Service is unavailable during an active contract.</small>' : '';
+  return `<div class="career-hq-service"><small><b>Repair:</b> ${repairDetail} · ${careerCredits(repairCost)}</small>${repairCost > 0 && !activeMatch ? `<button class="secondary" data-career-service onclick="confirmCareerService('${careerEscape(mech.id)}','repair',${repairCost})">Repair BattleMech</button>` : ''}<small><b>Reload:</b> ${reloadDetail} · ${careerCredits(reloadCost)}</small>${reloadCost > 0 && !activeMatch ? `<button class="secondary" data-career-service onclick="confirmCareerService('${careerEscape(mech.id)}','reload',${reloadCost})">Reload Ammunition</button>` : ''}${!repairCost && !reloadCost ? '<small class="career-hq-ready">Fully serviced.</small>' : ''}${unavailable}</div>`;
+}
+
+async function confirmCareerService(mechId, service, quotedCost) {
+  const title = service === 'repair' ? 'repair this BattleMech' : 'reload its ammunition';
+  if (!window.confirm(`Spend up to ${careerCredits(quotedCost)} to ${title}? The Repair Bay will calculate the final authoritative cost.`)) return;
+  const root = document.getElementById('career-hq-box');
+  root?.querySelectorAll('[data-career-service]').forEach(button => { button.disabled = true; });
+  const { data, error } = await db.rpc('confirm_btech_career_service', { p_mech_id:mechId, p_service:service });
+  if (error) {
+    showGameToast(`Repair Bay could not complete service: ${error.message || 'please try again.'}`, 'error');
+    root?.querySelectorAll('[data-career-service]').forEach(button => { button.disabled = false; });
+    return;
+  }
+  showGameToast(`${service === 'repair' ? 'Repairs' : 'Reload'} complete: ${careerCredits(data?.charged || 0)} spent.`, 'success');
+  await openCareerHQ();
 }
 
 async function getActiveCareerMatch() {
@@ -98,7 +124,7 @@ function renderCareerHQ(hq) {
   const mechs = (hq.mechs || []).map(mech => {
     const pilot = pilotsById.get(mech.pilot_id);
     const damage = mech.status === 'operational' ? 'Operational' : careerEscape(mech.status.replaceAll('_',' '));
-    return `<article class="career-hq-card"><strong>${careerEscape(careerUnitLabel(mech))}</strong><span>${careerEscape(mech.callsign)} · ${damage}</span><small>${pilot ? `${careerEscape(pilot.name)} · G${pilot.gunnery}/P${pilot.piloting}` : 'No pilot assigned'} · ${mech.catalogue_version}</small></article>`;
+    return `<article class="career-hq-card"><strong>${careerEscape(careerUnitLabel(mech))}</strong><span>${careerEscape(mech.callsign)} · ${damage}</span><small>${pilot ? `${careerEscape(pilot.name)} · G${pilot.gunnery}/P${pilot.piloting}` : 'No pilot assigned'} · ${mech.catalogue_version}</small>${careerServiceSummary(mech, activeMatch)}</article>`;
   }).join('') || '<p>No persistent BattleMechs yet.</p>';
   const pilotRows = pilots.map(pilot => `<tr><td>${careerEscape(pilot.name)}</td><td>G${pilot.gunnery} / P${pilot.piloting}</td><td>${careerEscape(pilot.specialty)}</td><td>${careerEscape(pilot.status)}</td></tr>`).join('') || '<tr><td colspan="4">No pilots yet.</td></tr>';
   const ledger = (hq.ledger || []).map(entry => `<li><b class="${Number(entry.amount) >= 0 ? 'credit' : 'debit'}">${Number(entry.amount) >= 0 ? '+' : ''}${careerCredits(entry.amount)}</b> · ${careerEscape(entry.note || entry.kind)}</li>`).join('') || '<li>No transactions yet.</li>';
@@ -106,7 +132,7 @@ function renderCareerHQ(hq) {
   const contracts = (hq.contracts || []).map(contract => `<article class="career-hq-card"><strong>${careerEscape(contract.title)}</strong><span>${careerEscape(contract.tier)} risk · ${careerEscape(contract.status)}</span><small>${careerEscape(careerContractTerms(contract))}</small>${contract.status === 'available' ? `<button class="primary" data-career-contract onclick="launchCareerContract('${careerEscape(contract.id)}')">Launch Contract</button>` : contract.status === 'accepted' && activeMatch?.contractId === contract.id ? `<button class="secondary" onclick="resumeCareerContract('${careerEscape(activeMatch.gameCode)}')">Resume Contract</button>` : contract.status === 'accepted' ? '<small>Contract is active. Return to the active deployment above.</small>' : ''}</article>`).join('') || '<p>No contracts are available.</p>';
   root.innerHTML = `<header class="career-hq-heading"><div><p class="career-kicker">Persistent Mercenary Company</p><h2>${careerEscape(company.name)}</h2><p>${careerEscape(company.commander_callsign)} · ${careerEscape(company.affiliation)}</p></div><button class="secondary" onclick="showScreen('menu-screen')">Back to Dropship</button></header>
     <section class="career-hq-summary"><div><small>Credits</small><b>${careerCredits(company.credits)}</b></div><div><small>Reputation</small><b>${company.reputation} / 100</b></div><div><small>Dropship capacity</small><b>${company.dropship_tonnage} tons</b></div></section>
-    ${activeContract}<p class="career-hq-notice">Career contracts launch from this persistent hangar and settle only from their sealed battle report. Skirmishes remain completely isolated. Repairs and reloads arrive in Career-1c.</p>
+    ${activeContract}<p class="career-hq-notice">Career contracts launch from this persistent hangar and settle only from their sealed battle report. The Repair Bay calculates service from the pinned BattleMech record; skirmishes remain completely isolated.</p>
     <section><h3>Hangar</h3><div class="career-hq-cards">${mechs}</div></section>
     <section><h3>Pilots</h3><div class="career-hq-table-wrap"><table><thead><tr><th>Pilot</th><th>Skills</th><th>Specialty</th><th>Status</th></tr></thead><tbody>${pilotRows}</tbody></table></div></section>
     <section><h3>Contract Board</h3><div class="career-hq-cards">${contracts}</div></section>

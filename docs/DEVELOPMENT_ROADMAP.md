@@ -32,9 +32,9 @@ documents, but their implementation order is governed here.
 | Presentation | In progress | Record sheets, combat-log pacing, sound effects, resizable panels and accessibility improvements |
 | After Action / Replay | Done | Sealed telemetry, statistics, report/replay exports, 30-day skirmish retention and offline replay viewer |
 | Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
-| Career | In progress | Career-1a persistent company foundation is the active slice; skirmishes remain isolated |
+| Career | Done: first loop | Persistent company, AI contracts, settlement, Repair Bay and reloads; skirmishes remain isolated |
 
-## Current development priority — Career-1b
+## Current development priority — BV-4 and Career-2 planning
 
 The next feature is an opt-in, persistent Mercenary Company loop. It must use
 the existing sealed report and match engine without weakening skirmish
@@ -43,9 +43,11 @@ delivery plan are in [Persistent Campaign Design](PERSISTENT_CAMPAIGN_DESIGN.md)
 
 Career-1a established persistent company, BattleMech, pilot, contract, ledger
 and settlement-receipt records with RLS and skirmish-isolation tests.
-Career-1b is the current active implementation slice: deterministic AI
-contracts launch from a company's current condition and settle the sealed
-result exactly once. Career-1c adds condition-aware repair/reload actions.
+Career-1b adds deterministic AI contracts that launch from current condition
+and settle sealed results exactly once. Career-1c completes the initial loop
+with owner-only, catalogue-pinned Repair Bay quotes and confirmed repair/reload
+transactions. Destroyed BattleMechs remain recoverable wrecks. The next Career
+work is BV-4 contract bands followed by Career-2 salvage and growth.
 
 ## Completed recent programmes
 
@@ -67,19 +69,18 @@ result exactly once. Career-1c adds condition-aware repair/reload actions.
 
 ## Later work
 
-1. **Career-1b then Career-1c:** deterministic AI contracts and exactly-once
-   settlement, followed by the Company HQ repair/reload loop.
-2. **BV-4:** Career contract BV bands after settlement exists. **BV-5:**
+1. **BV-4:** Career contract BV bands now that the complete Career-1 loop
+   exists. **BV-5:**
    validated custom-design BV2 breakdowns, deferred until MechLab support is
    sufficiently complete. See [Battle Value Design](BATTLE_VALUE_DESIGN.md).
-3. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
+2. **Career-2+:** salvage choices, expanded markets, PvP tenders, planets,
    factions and alternate origins — only after Career-1 settlement is proven.
-4. **Level 2 catalogue additions:** curated, catalogue-led systems not already
+3. **Level 2 catalogue additions:** curated, catalogue-led systems not already
    covered by the specialist-rules programme below. Each remains gated by an
    authoritative resolver and a representative live battle.
-5. **Operations:** scheduled retention cleanup verification, deployment
+4. **Operations:** scheduled retention cleanup verification, deployment
    observability/backups, and production monitoring.
-6. **Presentation:** accessibility, mobile, map/editor and audio polish driven
+5. **Presentation:** accessibility, mobile, map/editor and audio polish driven
    by player feedback.
 
 ## BattleMech specialist-rules programme

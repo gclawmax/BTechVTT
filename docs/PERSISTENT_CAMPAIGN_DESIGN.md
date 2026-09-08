@@ -1,6 +1,6 @@
 # Persistent Campaign Design
 
-Status: **approved design baseline — Career-1b contract launch and settlement in progress**
+Status: **Career-1 complete — Career-2 growth planning next**
 
 This is the authoritative design for persistent play. It supersedes the scope
 of the older local `CAREER_MODE_DESIGN.md` proposal for implementation order;
@@ -137,6 +137,12 @@ pilot injury, credits, reputation and receipt/ledger entries.
 Add Company HQ, condition-aware Hangar cards, ledger/history, repair/reload
 estimates and confirmed authoritative repairs. Include a completed Career
 battle acceptance test from creation through repair.
+
+**Implementation status: implemented in SQL 139.** The Repair Bay derives
+armour, structure, critical-component and ammunition quotes from the
+BattleMech's pinned catalogue record. It locks the owner company, refuses an
+active contract, records each debit in the immutable ledger, and leaves a
+destroyed BattleMech as a recoverable wreck.
 
 ## Longer campaign roadmap
 
