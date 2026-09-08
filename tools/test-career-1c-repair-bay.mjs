@@ -15,6 +15,7 @@ function check(label, condition) { console.log(`${condition ? 'PASS' : 'FAIL'}  
 
 check('service quotes compare saved condition with the pinned catalogue maximum', sql.includes('btech_career_fresh_condition(mech.catalogue_version,mech.unit_id)') && sql.includes("jsonb_each(fresh->'armor')") && sql.includes("jsonb_each(fresh->'structure')"));
 check('repair, structure, component and reload prices are computed server-side', ['btech_career_ammo_round_cost','btech_career_component_replacement_cost',"'armor_cost'","'structure_cost'","'component_cost'","'reload'"].every(marker => sql.includes(marker)));
+check('price tables use valid searched CASE conditions for grouped equipment families', !sql.includes('SELECT CASE p_type') && !/WHEN\s+'[^']+'\s*,/.test(sql) && sql.includes("WHEN p_type IN ('lrm5'"));
 check('confirmed service locks the owner company and refuses an active contract', sql.includes('FOR UPDATE') && sql.includes("status='accepted'") && sql.includes('Finish the active Career contract before servicing the hangar'));
 check('destroyed BattleMechs remain recoverable wrecks', sql.includes("mech.status='destroyed'") && sql.includes('cannot be restored by the Career-1 repair bay'));
 check('repair restores condition but reload does not revive a destroyed ammunition bin', sql.includes("critical_slot_damage='{}'::jsonb") && sql.includes("CASE WHEN coalesce((value->>'destroyed')::boolean,false) THEN value ELSE"));

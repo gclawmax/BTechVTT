@@ -4,27 +4,27 @@
 
 CREATE OR REPLACE FUNCTION public.btech_career_ammo_round_cost(p_type text)
 RETURNS integer LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
- SELECT CASE p_type
-  WHEN 'machine_gun' THEN 2 WHEN 'ams' THEN 25
-  WHEN 'lrm5','lrm10','lrm15','lrm20','streak_lrm5','streak_lrm10','streak_lrm15','streak_lrm20' THEN 35
-  WHEN 'srm2','srm4','srm6','streak_srm2','narc' THEN 45
-  WHEN 'ac2','ac5','uac2','uac5','rac2','rac5','lb5x','lb10x' THEN 75
-  WHEN 'ac10','uac10','rac10' THEN 125 WHEN 'ac20','uac20','rac20' THEN 200
-  WHEN 'gauss','light_gauss','heavy_gauss','hag20','ap_gauss' THEN 150
-  WHEN 'atm3','atm6','atm9','atm12','tbolt5','tbolt10','tbolt15','tbolt20' THEN 90
+ SELECT CASE
+  WHEN p_type='machine_gun' THEN 2 WHEN p_type='ams' THEN 25
+  WHEN p_type IN ('lrm5','lrm10','lrm15','lrm20','streak_lrm5','streak_lrm10','streak_lrm15','streak_lrm20') THEN 35
+  WHEN p_type IN ('srm2','srm4','srm6','streak_srm2','narc') THEN 45
+  WHEN p_type IN ('ac2','ac5','uac2','uac5','rac2','rac5','lb5x','lb10x') THEN 75
+  WHEN p_type IN ('ac10','uac10','rac10') THEN 125 WHEN p_type IN ('ac20','uac20','rac20') THEN 200
+  WHEN p_type IN ('gauss','light_gauss','heavy_gauss','hag20','ap_gauss') THEN 150
+  WHEN p_type IN ('atm3','atm6','atm9','atm12','tbolt5','tbolt10','tbolt15','tbolt20') THEN 90
   ELSE 50 END
 $$;
 REVOKE ALL ON FUNCTION public.btech_career_ammo_round_cost(text) FROM PUBLIC;
 
 CREATE OR REPLACE FUNCTION public.btech_career_component_replacement_cost(p_label text)
 RETURNS integer LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
- SELECT CASE public.btech_equipment_label_key(p_label)
-  WHEN 'fusionengine' THEN 100000 WHEN 'gyro' THEN 50000 WHEN 'cockpit' THEN 500000
-  WHEN 'sensors' THEN 15000 WHEN 'lifesupport' THEN 5000
-  WHEN 'shoulder','hip' THEN 12000 WHEN 'upperarmactuator','upperlegactuator' THEN 7000
-  WHEN 'lowerarmactuator','lowerlegactuator','handactuator','footactuator' THEN 4000
-  WHEN 'heatsink' THEN 2000 WHEN 'doubleheatsink' THEN 5000
-  WHEN 'case' THEN 3000 ELSE 12000 END
+ SELECT CASE
+  WHEN public.btech_equipment_label_key(p_label)='fusionengine' THEN 100000 WHEN public.btech_equipment_label_key(p_label)='gyro' THEN 50000 WHEN public.btech_equipment_label_key(p_label)='cockpit' THEN 500000
+  WHEN public.btech_equipment_label_key(p_label)='sensors' THEN 15000 WHEN public.btech_equipment_label_key(p_label)='lifesupport' THEN 5000
+  WHEN public.btech_equipment_label_key(p_label) IN ('shoulder','hip') THEN 12000 WHEN public.btech_equipment_label_key(p_label) IN ('upperarmactuator','upperlegactuator') THEN 7000
+  WHEN public.btech_equipment_label_key(p_label) IN ('lowerarmactuator','lowerlegactuator','handactuator','footactuator') THEN 4000
+  WHEN public.btech_equipment_label_key(p_label)='heatsink' THEN 2000 WHEN public.btech_equipment_label_key(p_label)='doubleheatsink' THEN 5000
+  WHEN public.btech_equipment_label_key(p_label)='case' THEN 3000 ELSE 12000 END
 $$;
 REVOKE ALL ON FUNCTION public.btech_career_component_replacement_cost(text) FROM PUBLIC;
 
