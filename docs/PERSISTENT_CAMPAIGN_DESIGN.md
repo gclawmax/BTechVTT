@@ -1,6 +1,6 @@
 # Persistent Campaign Design
 
-Status: **Career-3 complete — Career-4 optional extensions next**
+Status: **Career-4a complete — Career-4b PvP tenders under review**
 
 This is the authoritative design for persistent play. It supersedes the scope
 of the older local `CAREER_MODE_DESIGN.md` proposal for implementation order;
@@ -190,6 +190,23 @@ Add PvP arena tenders, campaign arcs, and alternate Inner Sphere/Clan origins
 only after the default mercenary loop is stable. These are extensions to the
 same settlement contract, never parallel persistence systems.
 
+#### Career-4a — origins and founding arcs
+
+**Implementation status: implemented in SQL 143 and build
+`20260908-career4a-arcs-97`.** New companies permanently choose Independent,
+Inner Sphere, or Clan origin. Origin selects a starting world, a suitable
+starter force, and one three-operation founding arc. A featured operation
+advances only after its sealed victory and is protected by a unique settlement
+award. A defeat immediately reoffers the same operation; a victory immediately
+offers the next, and settlement retries cannot duplicate either. Existing
+companies retain their original affiliation and force.
+
+#### Career-4b — consensual PvP tenders
+
+Still pending. This requires invitation/acceptance, force escrow, withdrawal,
+two-company settlement, disconnect handling and explicit stakes. It must not
+reuse ordinary skirmish joining as implied consent.
+
 ## Acceptance criteria
 
 - A new company can finish a complete low-risk contract against AI.
@@ -204,8 +221,8 @@ same settlement contract, never parallel persistence systems.
 
 ## Deferred decisions
 
-The broader proposal's planetary logistics, faction standing, arena tenders,
-alternate origins, campaigns, salvage choice and advanced markets remain
-desirable, but each depends on the Career-1 settlement contract. They should
-be designed as Career-2+ additions rather than silently expanding the first
+The broader proposal's planetary logistics, arena tenders and longer branching
+campaigns remain desirable. Logistics is represented by the current regional
+travel and supply loop; PvP tenders and broader narrative campaigns should be
+designed as explicit later additions rather than silently expanding the first
 persistent release.

@@ -1,7 +1,7 @@
 # BTechVTT — Development Roadmap
 
 Status: **authoritative roadmap**  
-Last updated: **2026-09-07**
+Last updated: **2026-09-08**
 
 This document is the single source of truth for development priorities. It
 supersedes the roadmap sections in `README.md`, `README2.md`, and
@@ -32,13 +32,14 @@ documents, but their implementation order is governed here.
 | Presentation | In progress | Record sheets, combat-log pacing, sound effects, resizable panels and accessibility improvements |
 | After Action / Replay | Done | Sealed telemetry, statistics, report/replay exports, 30-day skirmish retention and offline replay viewer |
 | Game modes | Done | Authoritative Control/Breakthrough, custom and variable maps, private minefields, Play vs AI and GM-5 balance evaluation |
-| Career | Done: regional loop | Persistent company, settlement, repairs, BV bands, salvage, markets, pilot advancement, travel, local supply and factions; skirmishes remain isolated |
+| Career | Done: founding arcs | Persistent company, settlement, repairs, BV bands, salvage, markets, pilot advancement, travel, factions, immutable origins and three-operation arcs; skirmishes remain isolated |
 
-## Current development priority — Career-4 review
+## Current development priority — Career-4b PvP tender design
 
-The next feature is an opt-in, persistent Mercenary Company loop. It must use
-the existing sealed report and match engine without weakening skirmish
-isolation. The authoritative scope, data model, safeguards, and incremental
+The persistent Mercenary Company loop is operational through its founding
+campaign arcs. The next candidate is explicitly consensual company-versus-
+company work. Its design must use the existing sealed report and match engine
+without weakening skirmish isolation. The authoritative scope, safeguards and
 delivery plan are in [Persistent Campaign Design](PERSISTENT_CAMPAIGN_DESIGN.md).
 
 Career-1a established persistent company, BattleMech, pilot, contract, ledger
@@ -54,8 +55,10 @@ Career-2 adds sealed-result salvage, idempotent pilot XP, advancement, pilot
 assignment, rotating purchase/hire markets, richer objective contracts, and
 reputation-gated company capacity. Career-3 adds five connected operational
 worlds, travel time and cost, local supply/market pricing, themed contracts,
-and idempotent faction standing. The next decision is whether Career-4's PvP
-tenders and alternate origins are worth prioritising over battle/UI work.
+and idempotent faction standing. Career-4a adds immutable Independent, Inner
+Sphere, and Clan origins with origin-appropriate starting locations, forces,
+and three-operation founding arcs. Career-4b PvP tenders remain a separate
+consent and dual-settlement design rather than a hidden expansion of skirmish.
 
 ## Completed recent programmes
 
@@ -79,8 +82,8 @@ tenders and alternate origins are worth prioritising over battle/UI work.
 
 1. **BV-5:** validated custom-design BV2 breakdowns, deferred until MechLab support is
    sufficiently complete. See [Battle Value Design](BATTLE_VALUE_DESIGN.md).
-2. **Career-4:** optional PvP tenders and alternate origins, pending a product
-   review rather than assumed as the immediate priority.
+2. **Career-4b:** optional PvP tenders with explicit two-company consent,
+   withdrawal rules and idempotent dual settlement.
 3. **Level 2 catalogue additions:** curated, catalogue-led systems not already
    covered by the specialist-rules programme below. Each remains gated by an
    authoritative resolver and a representative live battle.

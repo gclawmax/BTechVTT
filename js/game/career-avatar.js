@@ -12,7 +12,10 @@ function openCareerAvatarCreator() {
   const username = currentUser?.user_metadata?.username || currentUser?.email?.split('@')[0] || 'MechWarrior';
   document.getElementById('career-avatar-callsign').value = avatar?.callsign || titleCase(username);
   document.getElementById('career-avatar-company').value = avatar?.companyName || `${titleCase(username)} Command`;
-  document.getElementById('career-avatar-affiliation').value = avatar?.affiliation || 'Independent';
+  const origin = document.getElementById('career-avatar-affiliation');
+  origin.value = avatar?.affiliation || 'Independent';
+  origin.disabled = Boolean(avatar);
+  origin.title = avatar ? 'A founded company’s origin cannot be changed.' : 'Choose the permanent origin, starter force, starting world and founding campaign arc for a new company.';
   document.getElementById('career-avatar-color').value = /^#[0-9a-f]{6}$/i.test(avatar?.color || '') ? avatar.color : '#d4800a';
   document.getElementById('career-avatar-status').textContent = avatar ? 'Your saved commander profile is ready to update.' : 'Create the commander identity that will anchor your Career.';
   renderCareerAvatarPreview();
@@ -36,6 +39,12 @@ function renderCareerAvatarPreview() {
   document.getElementById('career-avatar-preview-callsign').textContent = callsign;
   document.getElementById('career-avatar-preview-company').textContent = companyName;
   document.getElementById('career-avatar-preview-affiliation').textContent = affiliation;
+  const origin = document.getElementById('career-origin-preview');
+  if (origin) origin.textContent = affiliation === 'Clan'
+    ? 'Clan origin · Adder/Puma starter pair · Twycross · Trial by Fire arc'
+    : affiliation === 'Inner Sphere'
+      ? 'Inner Sphere origin · Wolverine/Panther starter pair · Northwind · Border Guard arc'
+      : 'Independent origin · Wolverine/Panther starter pair · Galatea · Mercenary Ascendant arc';
 }
 
 async function saveCareerAvatar(event) {
