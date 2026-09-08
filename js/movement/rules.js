@@ -309,107 +309,107 @@ function stableMapNoise(col, row, salt = 0) {
   return value - Math.floor(value);
 }
 
-function traceHex(cx, cy, size) {
-  ctx.beginPath();
+function traceHex(cx, cy, size, renderContext = ctx) {
+  renderContext.beginPath();
   for (let i = 0; i < 6; i++) {
     const angle = Math.PI / 180 * (60 * i + 30);
     const x = cx + size * Math.cos(angle);
     const y = cy + size * Math.sin(angle);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    i === 0 ? renderContext.moveTo(x, y) : renderContext.lineTo(x, y);
   }
-  ctx.closePath();
+  renderContext.closePath();
 }
 
-function drawMapHex(cx, cy, col, row, terrain, elevation) {
+function drawMapHex(cx, cy, col, row, terrain, elevation, renderContext = ctx) {
   const map = getMapDefinition(activeMapId);
   const palette = MAP_VISUAL_PALETTES[map.visual] || MAP_VISUAL_PALETTES.grassland;
   const shimmer = stableMapNoise(col, row, 1);
-  const gradient = ctx.createLinearGradient(cx - HEX_SIZE, cy - HEX_SIZE, cx + HEX_SIZE, cy + HEX_SIZE);
+  const gradient = renderContext.createLinearGradient(cx - HEX_SIZE, cy - HEX_SIZE, cx + HEX_SIZE, cy + HEX_SIZE);
   gradient.addColorStop(0, palette.light);
   gradient.addColorStop(1, palette.dark);
-  drawHex(cx, cy, HEX_SIZE - .5, gradient, 'rgba(31,37,25,.60)');
+  drawHex(cx, cy, HEX_SIZE - .5, gradient, 'rgba(31,37,25,.60)', renderContext);
 
   // Fine, deterministic ground texture keeps the board organic without
   // flickering when it redraws during movement or panning.
-  ctx.save();
-  traceHex(cx, cy, HEX_SIZE - 2);
-  ctx.clip();
-  ctx.fillStyle = palette.speck;
+  renderContext.save();
+  traceHex(cx, cy, HEX_SIZE - 2, renderContext);
+  renderContext.clip();
+  renderContext.fillStyle = palette.speck;
   for (let i = 0; i < 7; i++) {
     const px = cx + (stableMapNoise(col, row, i + 2) - .5) * HEX_SIZE * 1.5;
     const py = cy + (stableMapNoise(col, row, i + 14) - .5) * HEX_SIZE * 1.35;
-    ctx.fillRect(px, py, 1 + shimmer * 1.5, 1 + shimmer * 1.5);
+    renderContext.fillRect(px, py, 1 + shimmer * 1.5, 1 + shimmer * 1.5);
   }
-  ctx.restore();
+  renderContext.restore();
 
   if (elevation) {
-    drawHex(cx, cy, HEX_SIZE - 5, 'rgba(255,255,255,0)', 'rgba(97,71,38,.72)');
-    drawHex(cx, cy, HEX_SIZE - 8, 'rgba(255,255,255,0)', 'rgba(255,245,206,.38)');
+    drawHex(cx, cy, HEX_SIZE - 5, 'rgba(255,255,255,0)', 'rgba(97,71,38,.72)', renderContext);
+    drawHex(cx, cy, HEX_SIZE - 8, 'rgba(255,255,255,0)', 'rgba(255,245,206,.38)', renderContext);
   }
-  if (terrain !== 'clear') drawTerrainFeature(cx, cy, col, row, terrain);
+  if (terrain !== 'clear') drawTerrainFeature(cx, cy, col, row, terrain, renderContext);
 }
 
-function drawTerrainFeature(cx, cy, col, row, terrain) {
-  ctx.save();
+function drawTerrainFeature(cx, cy, col, row, terrain, renderContext = ctx) {
+  renderContext.save();
   if (terrain === 'light_woods' || terrain === 'heavy_woods') {
     const count = terrain === 'heavy_woods' ? 5 : 3;
     for (let i = 0; i < count; i++) {
       const px = cx + (stableMapNoise(col, row, i + 30) - .5) * 26;
       const py = cy + (stableMapNoise(col, row, i + 40) - .5) * 20;
       const radius = terrain === 'heavy_woods' ? 6 : 5;
-      ctx.beginPath(); ctx.arc(px, py, radius, 0, Math.PI * 2);
-      ctx.fillStyle = terrain === 'heavy_woods' ? '#315d36' : '#4d7d42'; ctx.fill();
-      ctx.beginPath(); ctx.arc(px - 1.5, py - 2, radius * .56, 0, Math.PI * 2);
-      ctx.fillStyle = terrain === 'heavy_woods' ? '#56884a' : '#74a75d'; ctx.fill();
-      ctx.fillStyle = '#493b25'; ctx.fillRect(px - .8, py + radius * .35, 1.6, radius * .75);
+      renderContext.beginPath(); renderContext.arc(px, py, radius, 0, Math.PI * 2);
+      renderContext.fillStyle = terrain === 'heavy_woods' ? '#315d36' : '#4d7d42'; renderContext.fill();
+      renderContext.beginPath(); renderContext.arc(px - 1.5, py - 2, radius * .56, 0, Math.PI * 2);
+      renderContext.fillStyle = terrain === 'heavy_woods' ? '#56884a' : '#74a75d'; renderContext.fill();
+      renderContext.fillStyle = '#493b25'; renderContext.fillRect(px - .8, py + radius * .35, 1.6, radius * .75);
     }
   } else if (terrain === 'shallow_water' || terrain === 'deep_water') {
-    ctx.fillStyle = terrain === 'deep_water' ? 'rgba(32,91,132,.45)' : 'rgba(72,139,166,.28)';
-    traceHex(cx, cy, HEX_SIZE - 3); ctx.fill();
-    ctx.strokeStyle = 'rgba(211,241,244,.82)'; ctx.lineWidth = 1.15;
+    renderContext.fillStyle = terrain === 'deep_water' ? 'rgba(32,91,132,.45)' : 'rgba(72,139,166,.28)';
+    traceHex(cx, cy, HEX_SIZE - 3, renderContext); renderContext.fill();
+    renderContext.strokeStyle = 'rgba(211,241,244,.82)'; renderContext.lineWidth = 1.15;
     for (let i = -1; i <= 1; i++) {
       const y = cy + i * 7;
-      ctx.beginPath(); ctx.arc(cx - 9, y, 6, 0.15 * Math.PI, .85 * Math.PI); ctx.arc(cx + 3, y, 6, 1.15 * Math.PI, 1.85 * Math.PI); ctx.stroke();
+      renderContext.beginPath(); renderContext.arc(cx - 9, y, 6, 0.15 * Math.PI, .85 * Math.PI); renderContext.arc(cx + 3, y, 6, 1.15 * Math.PI, 1.85 * Math.PI); renderContext.stroke();
     }
   } else if (terrain === 'rough' || terrain === 'rubble' || terrain === 'impassable') {
     const count = terrain === 'impassable' ? 5 : terrain === 'rubble' ? 6 : 3;
-    ctx.fillStyle = terrain === 'impassable' ? '#55463b' : terrain === 'rubble' ? '#675f56' : '#78634b';
+    renderContext.fillStyle = terrain === 'impassable' ? '#55463b' : terrain === 'rubble' ? '#675f56' : '#78634b';
     for (let i = 0; i < count; i++) {
       const px = cx + (stableMapNoise(col, row, i + 55) - .5) * 26;
       const py = cy + (stableMapNoise(col, row, i + 65) - .5) * 20;
-      ctx.beginPath(); ctx.moveTo(px - 5, py + 4); ctx.lineTo(px - 1, py - 5); ctx.lineTo(px + 5, py - 2); ctx.lineTo(px + 4, py + 5); ctx.closePath(); ctx.fill();
+      renderContext.beginPath(); renderContext.moveTo(px - 5, py + 4); renderContext.lineTo(px - 1, py - 5); renderContext.lineTo(px + 5, py - 2); renderContext.lineTo(px + 4, py + 5); renderContext.closePath(); renderContext.fill();
     }
   } else if (terrain === 'pavement') {
-    ctx.strokeStyle = 'rgba(71,74,72,.58)'; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(cx - 30, cy + 8); ctx.lineTo(cx + 30, cy - 8); ctx.stroke();
-    ctx.strokeStyle = 'rgba(212,204,176,.58)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(cx - 30, cy + 8); ctx.lineTo(cx + 30, cy - 8); ctx.stroke();
+    renderContext.strokeStyle = 'rgba(71,74,72,.58)'; renderContext.lineWidth = 5;
+    renderContext.beginPath(); renderContext.moveTo(cx - 30, cy + 8); renderContext.lineTo(cx + 30, cy - 8); renderContext.stroke();
+    renderContext.strokeStyle = 'rgba(212,204,176,.58)'; renderContext.lineWidth = 1;
+    renderContext.beginPath(); renderContext.moveTo(cx - 30, cy + 8); renderContext.lineTo(cx + 30, cy - 8); renderContext.stroke();
   } else if (terrain === 'building') {
-    ctx.fillStyle = '#5b6062'; ctx.fillRect(cx - 14, cy - 12, 28, 23);
-    ctx.strokeStyle = '#292d2f'; ctx.lineWidth = 2; ctx.strokeRect(cx - 14, cy - 12, 28, 23);
-    ctx.fillStyle = '#d8b66b';
-    for (const x of [-8, 0, 8]) for (const y of [-6, 2]) ctx.fillRect(cx + x - 2, cy + y - 2, 4, 4);
+    renderContext.fillStyle = '#5b6062'; renderContext.fillRect(cx - 14, cy - 12, 28, 23);
+    renderContext.strokeStyle = '#292d2f'; renderContext.lineWidth = 2; renderContext.strokeRect(cx - 14, cy - 12, 28, 23);
+    renderContext.fillStyle = '#d8b66b';
+    for (const x of [-8, 0, 8]) for (const y of [-6, 2]) renderContext.fillRect(cx + x - 2, cy + y - 2, 4, 4);
     const cf = terrainStatusAt(col, row).buildingCF;
     if (cf != null) {
-      ctx.fillStyle = 'rgba(19,22,23,.86)'; ctx.fillRect(cx - 11, cy + 12, 22, 9);
-      ctx.fillStyle = '#f0d58e'; ctx.font = 'bold 7px var(--mono)'; ctx.textAlign = 'center';
-      ctx.fillText(`CF ${cf}`, cx, cy + 19);
+      renderContext.fillStyle = 'rgba(19,22,23,.86)'; renderContext.fillRect(cx - 11, cy + 12, 22, 9);
+      renderContext.fillStyle = '#f0d58e'; renderContext.font = 'bold 7px var(--mono)'; renderContext.textAlign = 'center';
+      renderContext.fillText(`CF ${cf}`, cx, cy + 19);
     }
   } else if (terrain === 'fire') {
-    ctx.fillStyle = 'rgba(190,47,20,.30)'; traceHex(cx, cy, HEX_SIZE - 3); ctx.fill();
-    ctx.fillStyle = '#ef7d22';
-    for (const x of [-9, 0, 9]) { ctx.beginPath(); ctx.moveTo(cx + x - 5, cy + 8); ctx.quadraticCurveTo(cx + x, cy - 13, cx + x + 5, cy + 8); ctx.fill(); }
+    renderContext.fillStyle = 'rgba(190,47,20,.30)'; traceHex(cx, cy, HEX_SIZE - 3, renderContext); renderContext.fill();
+    renderContext.fillStyle = '#ef7d22';
+    for (const x of [-9, 0, 9]) { renderContext.beginPath(); renderContext.moveTo(cx + x - 5, cy + 8); renderContext.quadraticCurveTo(cx + x, cy - 13, cx + x + 5, cy + 8); renderContext.fill(); }
   } else if (terrain === 'light_smoke' || terrain === 'heavy_smoke') {
-    ctx.fillStyle = terrain === 'heavy_smoke' ? 'rgba(57,61,63,.62)' : 'rgba(102,108,110,.42)';
-    for (const offset of [-9, 0, 9]) { ctx.beginPath(); ctx.arc(cx + offset, cy, 9, 0, Math.PI * 2); ctx.fill(); }
+    renderContext.fillStyle = terrain === 'heavy_smoke' ? 'rgba(57,61,63,.62)' : 'rgba(102,108,110,.42)';
+    for (const offset of [-9, 0, 9]) { renderContext.beginPath(); renderContext.arc(cx + offset, cy, 9, 0, Math.PI * 2); renderContext.fill(); }
   } else if (['ice','deep_snow','mud','sand','swamp','magma_crust','magma_liquid','bridge'].includes(terrain)) {
     const fills = { ice:'rgba(183,226,235,.72)', deep_snow:'rgba(239,244,240,.78)', mud:'rgba(91,67,43,.70)', sand:'rgba(211,174,102,.72)', swamp:'rgba(64,91,57,.72)', magma_crust:'rgba(70,57,52,.88)', magma_liquid:'rgba(222,70,20,.88)', bridge:'rgba(104,91,72,.88)' };
-    ctx.fillStyle=fills[terrain];traceHex(cx,cy,HEX_SIZE-3);ctx.fill();
-    ctx.strokeStyle=terrain==='magma_liquid'?'#ffbd42':terrain==='ice'?'#e9ffff':'rgba(42,40,34,.55)';ctx.lineWidth=1.4;
-    ctx.beginPath();ctx.moveTo(cx-18,cy+7);ctx.lineTo(cx-7,cy-5);ctx.lineTo(cx+3,cy+4);ctx.lineTo(cx+17,cy-8);ctx.stroke();
-    if(terrain==='bridge'){ctx.strokeStyle='#3d3429';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(cx-29,cy);ctx.lineTo(cx+29,cy);ctx.stroke();}
+    renderContext.fillStyle=fills[terrain];traceHex(cx,cy,HEX_SIZE-3, renderContext);renderContext.fill();
+    renderContext.strokeStyle=terrain==='magma_liquid'?'#ffbd42':terrain==='ice'?'#e9ffff':'rgba(42,40,34,.55)';renderContext.lineWidth=1.4;
+    renderContext.beginPath();renderContext.moveTo(cx-18,cy+7);renderContext.lineTo(cx-7,cy-5);renderContext.lineTo(cx+3,cy+4);renderContext.lineTo(cx+17,cy-8);renderContext.stroke();
+    if(terrain==='bridge'){renderContext.strokeStyle='#3d3429';renderContext.lineWidth=5;renderContext.beginPath();renderContext.moveTo(cx-29,cy);renderContext.lineTo(cx+29,cy);renderContext.stroke();}
   }
-  ctx.restore();
+  renderContext.restore();
 }
 
 function drawMovementHighlights() {
@@ -454,13 +454,13 @@ function drawMovementHighlights() {
   }
 }
 
-function drawHex(cx, cy, size, fill, stroke) {
-  traceHex(cx, cy, size);
-  ctx.fillStyle = fill;
-  ctx.fill();
-  ctx.strokeStyle = stroke;
-  ctx.lineWidth = 0.5;
-  ctx.stroke();
+function drawHex(cx, cy, size, fill, stroke, renderContext = ctx) {
+  traceHex(cx, cy, size, renderContext);
+  renderContext.fillStyle = fill;
+  renderContext.fill();
+  renderContext.strokeStyle = stroke;
+  renderContext.lineWidth = 0.5;
+  renderContext.stroke();
 }
 
 function drawMechToken(x, y, r, color, facing, torsoFacing, selected, prone = false, unitId = null) {

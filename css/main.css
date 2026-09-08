@@ -1610,3 +1610,18 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
 #signed-in-callsign { max-width:min(70vw,400px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
 body.signed-in > .screen, body.signed-in #game-screen.active { height:calc(100vh - 48px); }
 .hangar-unit-art { width:64px; height:56px; object-fit:contain; float:left; margin-right:10px; }
+
+.deployment-view-controls { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:10px 0; font-size:11px; }
+.deployment-view-controls button { padding:7px 10px; cursor:pointer; }
+.deployment-view-controls span { color:#536052; font-size:10px; }
+.deployment-map-viewport { overflow:auto; max-height: min(70vh,700px); background:#f1f2e9; border:1px solid #64705e; }
+.deployment-map.detailed { display:block; min-width:100%; max-width:none; height:auto; margin:0; border:0; background:#f1f2e9; }
+.deployment-map.detailed .deployment-hex { fill:transparent; stroke:transparent; stroke-width:.045; }
+.deployment-map.detailed .deployment-hex.zone { fill:rgba(35,170,65,.22); }
+.deployment-map.detailed .deployment-hex.enemy-zone { fill:rgba(215,40,50,.30); }
+.deployment-map.detailed .deployment-hex.occupied { stroke:#965400; stroke-width:.12; }
+.deployment-map.detailed .deployment-hex.zone:hover,.deployment-map.detailed .deployment-hex:focus { fill:rgba(60,190,70,.38); stroke:#174f22; stroke-width:.1; }
+.deployment-map.detailed .deployment-hex.minefield { stroke:#965400; stroke-dasharray:.2 .1; }
+.deployment-hex-code { fill:#15231b; font:bold .38px monospace; text-anchor:middle; paint-order:stroke; stroke:#faf8ec; stroke-width:.045; pointer-events:none; }
+.deployment-zone-title { font:bold .62px sans-serif; text-anchor:middle; }
+.deployment-zone-title.friendly { fill:#165d2b; }.deployment-zone-title.enemy { fill:#943038; }

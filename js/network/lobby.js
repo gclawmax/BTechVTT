@@ -734,6 +734,7 @@ function renderLobbyDeployment(gameState) {
   if (!section || !target) return;
   if (!mySeatNumber || !gameState.map_id) { section.hidden = true; return; }
   section.hidden = false;
+  prepareDeploymentMapView(gameState);
   const roster = gameState.rosters?.[String(mySeatNumber)] || [];
   const positions = gameState.deployment_positions?.[String(mySeatNumber)] || [];
   const minefields = gameState.minefields || [];
@@ -749,6 +750,7 @@ function renderLobbyDeployment(gameState) {
   }).join('');
   const occupied = new Map(Object.entries(gameState.deployment_positions || {}).flatMap(([seat, list]) => (list || []).map(p => [`${p.col},${p.row}`, Number(seat)])));
   const cells = [];
+  const mapLabels = [];
   for (let row = 0; row < GRID_ROWS; row++) for (let col = 0; col < GRID_COLS; col++) {
     const owner = occupied.get(`${col},${row}`);
     const mine = deploymentZoneContains(mySeatNumber, col, row, gameState);
@@ -764,6 +766,8 @@ function renderLobbyDeployment(gameState) {
     const canInteract = Boolean(field || (lobbyMinefieldMode ? canPlaceMine : canPlaceMech));
     const action = canInteract ? `onclick="${handler}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${handler}}"` : '';
     cells.push(`<polygon class="deployment-hex ${mine ? 'zone' : enemy ? 'enemy-zone' : 'neutral-zone'} ${owner ? 'occupied' : ''} ${field ? 'minefield removable' : ''} ${terrain}" points="${deploymentHexPoints(col,row)}" role="button" tabindex="${canInteract ? '0' : '-1'}" aria-label="${description}${field ? ` · your ${field.type} minefield · activate to remove` : ''}" ${action}><title>${description}${field ? ` · your ${field.type} minefield · click to remove` : ''}</title></polygon>`);
+    const centre = deploymentMapCentre(col, row);
+    mapLabels.push(`<text class="deployment-hex-code" x="${centre.x}" y="${centre.y + .58}" transform="rotate(${-deploymentMapView.rotation} ${centre.x} ${centre.y + .58})">${hexCode(col,row)}</text>`);
   }
   const selected = positions[lobbyDeploymentIndex];
   const facingButtons = selected ? HEX_DIR_LABELS.map((label, facing) => `<button class="${selected.facing === facing ? 'selected' : ''}" onclick="setLobbyDeploymentFacing(${facing})">${label}</button>`).join('') : '';
@@ -773,7 +777,8 @@ function renderLobbyDeployment(gameState) {
   const hiddenControl = selected ? `<button ${hiddenTerrain ? '' : 'disabled'} onclick="toggleLobbyHiddenDeployment()" title="Hidden BattleMechs must begin in legal non-clear, non-paved terrain.">${selected.hidden ? '✓ Hidden' : 'Hide Unit'}</button>` : '';
   const minePlan = myMinefields.length ? `<div class="minefield-plan">${myMinefields.map((field,index)=>`<div class="minefield-plan-row"><span><strong>${hexCode(field.col,field.row)}</strong> · ${escapeHtml(field.type==='vibrabomb'?`Vibrabomb ${field.sensitivity}t`:'Conventional')} · density ${Number(field.density)}</span><button onclick="removeLobbyMinefield(${index})" title="Remove this minefield from your deployment plan.">Remove</button></div>`).join('')}</div>` : '<span class="deployment-help">No minefields planned. Minefields are optional.</span>';
   const mineControls = minefieldBudget ? `<div class="deployment-unit-row"><span class="deployment-help">Minefield budget ${minefieldSpent}/${minefieldBudget}:</span>${(minefieldRules.permitted_types || []).map(type => `<button class="${lobbyMinefieldMode===type?'selected':''}" onclick="setLobbyMinefieldMode('${type}')" title="Keep this tool selected while placing ${type} minefields.">${type === 'vibrabomb' ? 'Vibrabomb' : 'Conventional'}</button>`).join('')}<label class="deployment-help">Density <select onchange="lobbyMinefieldDensity=Number(this.value);loadLobbyUI()">${(minefieldRules.permitted_densities || [10,20,30]).map(value=>`<option ${lobbyMinefieldDensity===Number(value)?'selected':''}>${value}</option>`).join('')}</select></label>${lobbyMinefieldMode==='vibrabomb'?`<label class="deployment-help">Trigger weight <select onchange="lobbyVibrabombSensitivity=Number(this.value)">${(minefieldRules.vibrabomb_sensitivities || [50]).map(value=>`<option ${lobbyVibrabombSensitivity===Number(value)?'selected':''}>${value}</option>`).join('')}</select> t</label>`:''}<button ${myMinefields.length?'':'disabled'} onclick="resetLobbyMinefields()">Clear Plan</button></div>${minePlan}` : '<span class="deployment-help">This scenario does not permit minefields.</span>';
-  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Hidden units require concealing terrain. ${minefieldBudget ? 'Minefields: choose an empty hex in your deployment zone; water, buildings, impassable terrain and liquid magma are excluded. Enemy fields remain concealed.' : 'Minefields are disabled for this match.'}</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}${hiddenControl}</div>` : ''}${mineControls}<div class="deployment-zone-legend"><span>Friendly deployment zone: green hexes</span><span>Enemy deployment zone: red hexes</span></div><svg class="deployment-map" viewBox="0 0 ${mapWidth.toFixed(3)} ${mapHeight}" aria-label="Battlefield deployment hexes">${cells.join('')}</svg><div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
+  target.innerHTML = `<div class="deployment-help">${positions.length}/${roster.length} placed. Choose each BattleMech, then click an empty green hex on your side. Hidden units require concealing terrain. ${minefieldBudget ? 'Minefields: choose an empty hex in your deployment zone; water, buildings, impassable terrain and liquid magma are excluded. Enemy fields remain concealed.' : 'Minefields are disabled for this match.'}</div><div class="deployment-unit-row">${units || 'Choose a roster first.'}</div>${selected ? `<div class="deployment-unit-row"><span class="deployment-help">Starting facing:</span>${facingButtons}${hiddenControl}</div>` : ''}${mineControls}${deploymentMapMarkup(gameState, cells.join(''), mapLabels.join(''), mapWidth, mapHeight)}<div class="deployment-unit-row"><button onclick="resetLobbyDeployment()">Reset My Deployment</button></div>`;
+  attachDeploymentMapControls();
 }
 
 function setLobbyMinefieldMode(type) { lobbyMinefieldMode = lobbyMinefieldMode === type ? null : type; loadLobbyUI(); }
