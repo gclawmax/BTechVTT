@@ -30,10 +30,10 @@ REVOKE ALL ON FUNCTION public.btech_career_component_replacement_cost(text) FROM
 
 CREATE OR REPLACE FUNCTION public.btech_career_service_quote_for_mech(p_mech_id uuid)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=public AS $$
-DECLARE mech public.btech_career_owned_mechs%ROWTYPE;company_id uuid;fresh jsonb;armor_points integer:=0;structure_points integer:=0;
+DECLARE mech public.btech_career_owned_mechs%ROWTYPE;fresh jsonb;armor_points integer:=0;structure_points integer:=0;
  critical_slots integer:=0;reload_rounds integer:=0;reload_bins integer:=0;component_cost bigint:=0;reload_cost bigint:=0;row record;
 BEGIN
- SELECT m.*,c.id INTO mech,company_id FROM btech_career_owned_mechs m JOIN btech_career_companies c ON c.id=m.company_id
+ SELECT m.* INTO mech FROM btech_career_owned_mechs m JOIN btech_career_companies c ON c.id=m.company_id
  WHERE m.id=p_mech_id AND c.user_id=auth.uid();
  IF mech.id IS NULL THEN RAISE EXCEPTION 'Career BattleMech not found';END IF;
  fresh:=btech_career_fresh_condition(mech.catalogue_version,mech.unit_id);
