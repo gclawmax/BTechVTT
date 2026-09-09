@@ -96,7 +96,7 @@ function previewHeatSinkDissipation() {
   if (currentGameState.phase !== 'heat' || !isMyActiveTurn()) return;
   heatSinksPreviewRound = currentGameState.round;
   renderHeatPanel();
-  logEvent('Heat sinks applied: review each remaining Heat Level before resolving shutdown, ammunition, and pilot checks.', 'phase');
+  logEvent('Heat sink preview: review each remaining Heat Level before resolving shutdown, ammunition, and pilot checks.', 'phase');
 }
 
 async function declareShutdownOverride(instanceId) {
@@ -162,9 +162,9 @@ function renderHeatPanel() {
   }).join('');
   panel.innerHTML = `
     <div class="panel-eyebrow">Heat Management</div>
-    <div style="font-size:11px;color:var(--paper);margin-bottom:7px;">${isMine ? sinksPreviewed ? 'Heat sinks have been applied. Declare any shutdown overrides, then resolve checks from the remaining Heat Level.' : 'First apply heat sinks. No shutdown, ammunition, or pilot check is considered until the resulting Heat Level is shown.' : `Waiting for Player ${activeSeat} to resolve heat.`}</div>
+    <div style="font-size:11px;color:var(--paper);margin-bottom:7px;">${isMine ? sinksPreviewed ? 'Preview of heat after sinks. Declare any shutdown overrides, then resolve checks from the remaining Heat Level.' : 'First apply heat sinks. No shutdown, ammunition, or pilot check is considered until the resulting Heat Level is shown.' : `Waiting for Player ${activeSeat} to resolve heat.`}</div>
     ${rows || '<div style="font-size:11px;color:var(--phosphor-dim);">No active units require heat management.</div>'}
-    ${isMine && pending.length ? sinksPreviewed ? `<button onclick="confirmHeatManagement()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">Resolve Remaining Heat Checks</button>` : `<button onclick="previewHeatSinkDissipation()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">Apply Heat Sinks</button>` : ''}`;
+    ${isMine && pending.length ? sinksPreviewed ? `<button onclick="confirmHeatManagement()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">Resolve Remaining Heat Checks</button>` : `<button onclick="previewHeatSinkDissipation()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">Preview Heat Sinks</button>` : isMine ? `<button onclick="confirmHeatManagement()" style="${MOVE_BTN_STYLE}">Continue Heat Phase</button><p>All units are marked resolved. Continue to hand over to the next player.</p>` : ''}`;
 }
 
 function renderEndPanel() {

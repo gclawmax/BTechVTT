@@ -240,7 +240,8 @@ async function attemptStand(instanceId) {
       const target = Number(mech.pilot?.piloting ?? mech.pilotingSkill ?? 5) + mobility.pilotingModifier;
       const passed = roll.total >= target;
       mech.prone = !passed;
-      mech.hasMoved = true;
+      mech.hasMoved = !passed;
+      if (passed) mech.standFacingPending = currentGameState.round;
       mech.movementMode = mobility.destroyedLegs === 1 ? 'run' : 'stand';
       mech.mpUsed = mobility.destroyedLegs === 1 ? 1 : 2;
       mech.hexesMoved = 0;
@@ -249,7 +250,7 @@ async function attemptStand(instanceId) {
       await syncMechInstances();
       return;
     }
-    const { data, error } = await db.rpc('attempt_stand_battlemech', {
+    const { data, error } = await db.rpc('attempt_stand_with_facing_choice', {
       p_game_id: currentGameId, p_instance_id: instanceId
     });
     if (error) { flashMoveWarning(error.message); logEvent(`Server rejected the stand attempt: ${error.message}`, 'error'); return; }
@@ -389,6 +390,7 @@ function flashMoveWarning(msg) {
 
 // Begin a movement action for a 'Mech: 'stand' resolves instantly, others open an interactive move.
 async function startMovementMode(instanceId, mode) {
+  if (mechInstances.some(m => m.owner === mySeatNumber && m.standFacingPending === currentGameState.round)) { flashMoveWarning('Confirm the standing BattleMech’s facing first.'); return; }
   const mech = mechInstances.find(m => m.instanceId === instanceId);
   if (!mech || mech.catalogueUnavailable || mech.hasMoved || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious') || mech.owner !== mySeatNumber || currentGameState.phase !== 'movement' || !isMyActiveTurn()) return;
   const criticalMovement = criticalMovementProfile(mech);
@@ -797,6 +799,11 @@ function renderMovementPanel() {
     return;
   }
 
+  const standing = mechInstances.find(m => m.owner === mySeatNumber && m.standFacingPending === currentGameState.round);
+  if (standing) {
+    panel.innerHTML = `<div class="panel-eyebrow">Standing successful — choose facing</div><p>${escapeHtml(mechLabel(standing))} is standing. Choose its facing to finish this activation (no extra MP).</p><select id="stand-facing-choice" aria-label="Facing after standing" onchange="previewStandingFacing(this.value)">${[0,1,2,3,4,5].map(angle => `<option value="${angle}" ${standing.facing === angle ? 'selected' : ''}>${["East →","North-east ↗","North-west ↖","West ←","South-west ↙","South-east ↘"][angle]}</option>`).join('')}</select><button onclick="confirmStandingFacing('${standing.instanceId}')" style="${MOVE_BTN_STYLE}">Confirm Facing</button>`;
+    return;
+  }
   const mech = mechInstances.find(m => m.instanceId === selectedInstanceId);
   if (!mech) {
     const unmoved = mechInstances.filter(m => m.owner === mySeatNumber && !m.hasMoved && (!m.pilot?.consciousness || m.pilot.consciousness === 'conscious'));
@@ -915,4 +922,27 @@ function renderMovementPanel() {
   panel.innerHTML = `
     <div class="panel-eyebrow">Movement</div>
     <div style="display:flex;flex-direction:column;gap:6px;">${modeButtons.join('')}</div>`;
+}
+
+async function confirmStandingFacing(instanceId) {
+ const mech = mechInstances.find(m => m.instanceId === instanceId);
+ if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || mech.standFacingPending !== currentGameState.round) return;
+ const facing = Number(document.getElementById('stand-facing-choice')?.value);
+ if (![0,1,2,3,4,5].includes(facing)) return;
+ if (vsAiMode) {
+  mech.facing = mech.torsoFacing = facing; mech.hasMoved = true; delete mech.standFacingPending;
+  await syncMechInstances(); renderMovementPanel(); draw();
+ } else {
+  const {error} = await db.rpc('confirm_stand_facing', {p_game_id:currentGameId,p_instance_id:instanceId,p_facing:facing});
+  if (error) { flashMoveWarning(error.message); return; }
+  await loadGameState();
+ }
+ logEvent(`${mechLabel(mech)} confirmed standing facing ${facing + 1}.`, 'move');
+}
+
+function previewStandingFacing(value) {
+ const mech = mechInstances.find(m => m.owner === mySeatNumber && m.standFacingPending === currentGameState.round);
+ const facing = Number(value);
+ if (!mech || ![0,1,2,3,4,5].includes(facing)) return;
+ mech.facing = mech.torsoFacing = facing; selectedInstanceId = mech.instanceId; draw();
 }

@@ -1625,3 +1625,16 @@ body.signed-in > .screen, body.signed-in #game-screen.active { height:calc(100vh
 .deployment-hex-code { fill:#15231b; font:bold .38px monospace; text-anchor:middle; paint-order:stroke; stroke:#faf8ec; stroke-width:.045; pointer-events:none; }
 .deployment-zone-title { font:bold .62px sans-serif; text-anchor:middle; }
 .deployment-zone-title.friendly { fill:#165d2b; }.deployment-zone-title.enemy { fill:#943038; }
+
+/* A dedicated phase row keeps the required action readable at laptop widths. */
+#game-screen.active { grid-template-rows: auto minmax(0, 1fr); }
+#header { display:block; padding:0; min-width:0; }
+.header-tools { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:7px 14px; border-bottom:1px solid var(--panel-line); }
+.header-tools .title { margin-right:auto; }
+#header .phase-banner { display:grid; grid-template-columns:minmax(230px, 1fr) minmax(300px, 2fr); gap:12px; padding:10px 16px; background:#edf1e7; align-items:center; }
+#header .status { margin:0; font-size:15px; line-height:1.4; padding:6px 9px; }
+#header .turn-guidance { margin:0; max-width:none; font-size:13px; line-height:1.5; }
+#header #initiative-display { padding:4px 16px; margin:0!important; text-align:left!important; }
+#header [hidden] { display:none!important; }
+.pilot-save-status { grid-column:1/-1; color:#9a5000; font-size:11px; }
+@media(max-width:850px) { #header .phase-banner { grid-template-columns:1fr; gap:4px; } }

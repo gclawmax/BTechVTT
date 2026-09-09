@@ -9,9 +9,9 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 
-  <link rel="stylesheet" href="css/main.css?v=20260908-deployment-map-103">
+  <link rel="stylesheet" href="css/main.css?v=20260909-combat-flow-104">
 </head>
-<body data-build="20260908-deployment-map-103">
+<body data-build="20260909-combat-flow-104">
 <div id="bt-build-stamp" style="position:fixed;left:8px;bottom:6px;z-index:3000;font:12px monospace;font-weight:bold;color:#bbb;pointer-events:none;opacity:.9;">BT BUILD 20260908-weapon-inventory-98</div>
 <header id="signed-in-identity" hidden aria-label="Signed-in commander"><span id="signed-in-emblem" aria-hidden="true"></span><span id="signed-in-callsign"></span></header>
 <div id="game-toast" role="status" aria-live="polite"></div>
@@ -324,7 +324,7 @@
 <!-- ── GAME SCREEN ──────────────────────────────────────── -->
 <div id="game-screen" class="screen">
   <div id="header">
-    <div class="title">BT-VTT <small>Phase 1 — Hex Grid</small></div>
+    <div class="header-tools"><div class="title">BT-VTT</div>
     <div id="game-code-readout" class="game-code-readout" title="Shared game code for this match; include it with bug reports" hidden></div>
     <button class="btn-back" onclick="handleBackToDropship()">Back to Dropship</button>
     <a class="header-help-link" href="how-to-play.html" target="_blank" rel="noopener">How to Play</a>
@@ -333,13 +333,15 @@
     <button id="btn-roll-initiative" class="primary" onclick="rollInitiative()" style="background:#2a4a2a;border-color:#3a6a3a;color:#7c9;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;">Roll Initiative (2D6)</button>
     <button id="btn-advance-phase" onclick="advancePhase()" disabled title="Roll Initiative before continuing to the Movement Phase." style="background:#2a2a4a;border:1px solid #3a3a6a;color:#99c;padding:4px 12px;font-family:var(--mono);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;cursor:not-allowed;opacity:0.45;border-radius:2px;">Next Phase</button>
     <label id="auto-ai-phase-control" hidden title="Automatically pass the turn or phase after the AI has completed its choices." style="display:inline-flex;align-items:center;gap:5px;color:#9ab;font:10px var(--mono);cursor:pointer;white-space:nowrap;"><input id="auto-ai-phase-checkbox" type="checkbox" onchange="setAutoAdvanceAfterAi(this.checked)"> Auto-next after AI</label>
+    </div><div class="phase-banner">
     <div class="status" id="status-readout" aria-live="polite"></div>
     <div class="turn-guidance" id="turn-guidance" aria-live="polite"></div>
+    </div>
   </div>
   <div id="map-wrap">
     <canvas id="hexmap"></canvas>
     <div id="map-controls"><span id="map-zoom-readout">100% · 0°</span><button onclick="rotateMapView()" title="Rotate this browser's map view by 90 degrees">Rotate View</button><button onclick="resetMapPan()" title="Restore the default view">Reset View</button></div>
-      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260908-deployment-map-103</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
+      <div id="map-caption">BT BUILD <span id="map-build-stamp">20260909-combat-flow-104</span> / FLAT-TOP HEX / ODD-Q OFFSET / HEX CODES = COLROW / SCROLL TO ZOOM / RIGHT-DRAG TO PAN / ROTATE VIEW IS LOCAL</div>
     <div id="coord-readout"></div>
   </div>
   <aside id="mech-panel" aria-label="Selected 'Mech details">
@@ -370,10 +372,10 @@
 <script src="js/core/state.js?v=20260831-hit-location-diagnostics-39"></script>
 <script src="js/ai/state.js?v=20260906-ai6-difficulty-personality-72"></script>
 <script src="js/ai/engine.js?v=20260907-game-modes-74"></script>
-<script src="js/core/game-log.js?v=20260908-deployment-map-103"></script>
+<script src="js/core/game-log.js?v=20260909-combat-flow-104"></script>
 <script src="js/ui/game-settings.js?v=20260826-combat-presentation-25"></script>
-<script src="js/core/screen.js?v=20260908-deployment-map-103"></script>
-<script src="js/core/auth.js?v=20260908-deployment-map-103"></script>
+<script src="js/core/screen.js?v=20260909-combat-flow-104"></script>
+<script src="js/core/auth.js?v=20260909-combat-flow-104"></script>
 <script src="js/core/helpers.js?v=20260907-career-1b-88"></script>
 <script src="js/core/modal.js?v=20260813-physical-warning-01"></script>
 <script src="js/network/game-code.js?v=20260813-reaction-ui-01"></script>
@@ -384,29 +386,29 @@
 <script src="js/game/specialist-physical-equipment.js?v=20260904-specialist-physical-64"></script>
 <script src="js/game/mech-designer.js?v=20260902-signature-electronics-62"></script>
 <script src="js/game/critical-hits.js?v=20260904-specialist-physical-64"></script>
-<script src="js/network/create-game.js?v=20260908-deployment-map-103"></script>
+<script src="js/network/create-game.js?v=20260909-combat-flow-104"></script>
 <script src="js/game/scenario-editor.js?v=20260907-bv2-force-format-92"></script>
 <script src="js/game/career-avatar.js?v=20260908-career4a-arcs-97"></script>
 <script src="js/game/career-hq.js?v=20260908-career4a-arcs-97"></script>
 <script src="js/network/create-vs-ai.js?v=20260907-bv2-force-format-92"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
-<script src="js/ui/deployment-map.js?v=20260908-deployment-map-103"></script>
-<script src="js/network/lobby.js?v=20260908-deployment-map-103"></script>
+<script src="js/ui/deployment-map.js?v=20260909-combat-flow-104"></script>
+<script src="js/network/lobby.js?v=20260909-combat-flow-104"></script>
 <script src="js/game/telemetry.js?v=20260902-replay-viewer-49"></script>
 <script src="js/game/replay-viewer.js?v=20260902-replay-viewer-49"></script>
-<script src="js/game/phases.js?v=20260908-deployment-map-103"></script>
+<script src="js/game/phases.js?v=20260909-combat-flow-104"></script>
 <script src="js/game/board.js?v=20260902-variable-maps-50"></script>
-<script src="js/game/unit-artwork.js?v=20260908-deployment-map-103"></script>
-<script src="js/movement/rules.js?v=20260908-deployment-map-103"></script>
+<script src="js/game/unit-artwork.js?v=20260909-combat-flow-104"></script>
+<script src="js/movement/rules.js?v=20260909-combat-flow-104"></script>
 <script src="js/ui/panels.js?v=20260908-weapon-inventory-98"></script>
 <script src="js/ui/record-sheet.js?v=20260908-weapon-inventory-98"></script>
 <script src="js/ui/panel-resize.js?v=20260831-readable-record-37"></script>
-<script src="js/movement/movement.js?v=20260908-deployment-map-103"></script>
+<script src="js/movement/movement.js?v=20260909-combat-flow-104"></script>
 <script src="js/game/reaction.js?v=20260906-ai5-specialist-tactics-71"></script>
-<script src="js/game/weapon-attack.js?v=20260908-deployment-map-103"></script>
+<script src="js/game/weapon-attack.js?v=20260909-combat-flow-104"></script>
 <script src="js/game/physical-attack.js?v=20260904-specialist-physical-64"></script>
-<script src="js/game/heat.js?v=20260902-signature-electronics-62"></script>
-<script src="js/app.js?v=20260908-deployment-map-103"></script>
+<script src="js/game/heat.js?v=20260909-combat-flow-104"></script>
+<script src="js/app.js?v=20260909-combat-flow-104"></script>
 <script src="js/ai/opponent.js?v=20260907-career-ai-bridge-90"></script>
 <script src="js/ai/evaluation.js?v=20260907-gm5-decisive-pairs-81"></script>
 </body>

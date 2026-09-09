@@ -495,12 +495,32 @@ async function addMechToSkirmishHangar(unitId) {
   await saveSkirmishHangar(hangar, [...(avatar?.deployed || [])]);
 }
 
+const skirmishPilotDrafts = new Map();
+function pilotDraftKey(entryId) { return `${currentGameId}:${entryId}`; }
+function markSkirmishPilotDirty(entryId) {
+ if (isReady && currentGameId && currentUser) {
+  isReady = false;
+  db.from('btech_players').update({ready:false}).eq('game_id',currentGameId).eq('user_id',currentUser.id).then(({error}) => {
+   if (error) document.getElementById('lobby-status').textContent = `Could not clear Ready after editing the pilot: ${error.message}`;
+  });
+ }
+ const read = field => document.getElementById(`hangar-pilot-${field}-${entryId}`)?.value;
+ skirmishPilotDrafts.set(pilotDraftKey(entryId), {name:read('name'),gunnery:Number(read('gunnery')),piloting:Number(read('piloting'))});
+ const status = document.getElementById(`pilot-save-status-${entryId}`);
+ if (status) status.textContent = 'Unsaved name / skills — click Save Pilot before Ready.';
+}
+function hasUnsavedSkirmishPilots() {
+ return [...skirmishPilotDrafts.keys()].some(key => key.startsWith(`${currentGameId}:`));
+}
 async function saveSkirmishPilot(entryId) {
   if (!currentGameId || !currentUser) return;
   const nameInput = document.getElementById(`hangar-pilot-name-${entryId}`);
   const gunneryInput = document.getElementById(`hangar-pilot-gunnery-${entryId}`);
   const pilotingInput = document.getElementById(`hangar-pilot-piloting-${entryId}`);
   const name = String(nameInput?.value || '').trim();
+  const gunnery = Number(gunneryInput?.value ?? 4);
+  const piloting = Number(pilotingInput?.value ?? 5);
+  const draft = skirmishPilotDrafts.get(pilotDraftKey(entryId));
   if (!name) {
     document.getElementById('lobby-status').textContent = 'Give this MechWarrior a name before saving.';
     nameInput?.focus();
@@ -515,11 +535,17 @@ async function saveSkirmishPilot(entryId) {
     pilot: {
       ...skirmishPilotForEntry(entry),
       name: name.slice(0, 48),
-      gunnery: Number(gunneryInput?.value ?? 4),
-      piloting: Number(pilotingInput?.value ?? 5)
+      gunnery,
+      piloting
     }
   } : entry);
-  await saveSkirmishHangar(hangar, [...(avatar?.deployed || [])]);
+  if (await saveSkirmishHangar(hangar, [...(avatar?.deployed || [])])) {
+    if (skirmishPilotDrafts.get(pilotDraftKey(entryId)) === draft) {
+      skirmishPilotDrafts.delete(pilotDraftKey(entryId));
+      const status = document.getElementById(`pilot-save-status-${entryId}`);
+      if (status) status.textContent = 'Pilot name and skills saved.';
+    }
+  }
 }
 
 async function removeSkirmishHangarMech(entryId) {
@@ -530,7 +556,7 @@ async function removeSkirmishHangarMech(entryId) {
   const avatar = skirmishAvatarForSeat(state, mySeatNumber);
   const hangar = (avatar?.hangar || []).filter(entry => entry.id !== entryId);
   const deployed = (avatar?.deployed || []).filter(id => id !== entryId);
-  await saveSkirmishHangar(hangar, deployed);
+  if (await saveSkirmishHangar(hangar, deployed)) skirmishPilotDrafts.delete(pilotDraftKey(entryId));
 }
 
 async function toggleSkirmishDeployment(entryId) {
@@ -646,15 +672,16 @@ function renderLobbyMatchSetup(gameState, players) {
   const hangarCards = hangar.map(entry => {
     const unit = getSupportedUnit(entry.unit_id);
     const isDeployed = deployed.includes(entry.id);
-    const pilot = skirmishPilotForEntry(entry);
+    const pilot = skirmishPilotDrafts.get(pilotDraftKey(entry.id)) || skirmishPilotForEntry(entry);
     const bv = bv2EntryValue(unit, pilot);
     return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}">
       <div class="hangar-mech">${unitArtworkThumbnail(entry.unit_id)}<strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${bv ? ` · ${bv.stock.toLocaleString()} BV2 stock · ${bv.adjusted.toLocaleString()} adjusted` : ' · BV pending'}${isDeployed ? ' · DROPSHIP' : ''}</span></div>
       <div class="hangar-pilot-fields">
-        <label>Pilot<input id="hangar-pilot-name-${entry.id}" maxlength="48" value="${escapeHtml(pilot.name)}"></label>
-        <label>Gunnery<select id="hangar-pilot-gunnery-${entry.id}">${skirmishSkillOptions(pilot.gunnery)}</select></label>
-        <label>Piloting<select id="hangar-pilot-piloting-${entry.id}">${skirmishSkillOptions(pilot.piloting)}</select></label>
+        <label>Pilot<input id="hangar-pilot-name-${entry.id}" oninput="markSkirmishPilotDirty('${entry.id}')" maxlength="48" value="${escapeHtml(pilot.name)}"></label>
+        <label>Gunnery<select id="hangar-pilot-gunnery-${entry.id}" oninput="markSkirmishPilotDirty('${entry.id}')">${skirmishSkillOptions(pilot.gunnery)}</select></label>
+        <label>Piloting<select id="hangar-pilot-piloting-${entry.id}" oninput="markSkirmishPilotDirty('${entry.id}')">${skirmishSkillOptions(pilot.piloting)}</select></label>
         <button onclick="saveSkirmishPilot('${entry.id}')">Save Pilot</button>
+        <span class="pilot-save-status" id="pilot-save-status-${entry.id}" role="status">${skirmishPilotDrafts.has(pilotDraftKey(entry.id)) ? 'Unsaved name / skills — click Save Pilot before Ready.' : 'Name and both skills are saved together with Save Pilot.'}</span>
       </div>
       <div class="hangar-actions"><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Remove from Dropship' : 'Add to Dropship'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div>
     </div>`;
@@ -881,6 +908,7 @@ async function toggleRosterUnit(unitId) {
 }
 
 async function handleReadyUp() {
+  if (hasUnsavedSkirmishPilots()) { document.getElementById('lobby-status').textContent = 'Save your edited pilot names and skills before continuing.'; return; }
   if (!currentGameId || !currentUser) return;
 
   const { data: player } = await db
@@ -914,6 +942,7 @@ async function handleReadyUp() {
 }
 
 async function handleStartGame() {
+  if (hasUnsavedSkirmishPilots()) { document.getElementById('lobby-status').textContent = 'Save your edited pilot names and skills before continuing.'; return; }
   if (!isHost || !currentGameId) return;
 
   // Get all players

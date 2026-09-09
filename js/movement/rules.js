@@ -185,7 +185,9 @@ function resizeCanvas() {
   draw();
 }
 
+let selectionPulseTimer = null;
 function draw() {
+  clearTimeout(selectionPulseTimer);
   if (!ctx || !canvas) return;
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
@@ -279,7 +281,7 @@ function draw() {
     const unit = typeof displayUnitFor === 'function' ? displayUnitFor(inst.unitId) : BT_UNITS[inst.unitId];
     const angle = HEX_DIRS[inst.facing || 0].angle;
     const torsoAngle = HEX_DIRS[inst.torsoFacing == null ? inst.facing : inst.torsoFacing].angle;
-    drawMechToken(px, py, HEX_SIZE * 0.64, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone, inst.unitId);
+    drawMechToken(px, py, HEX_SIZE * 0.84, unit.color, angle, torsoAngle, inst.instanceId === selectedInstanceId, inst.prone, inst.unitId);
     ctx.save();
     const label = String(unit.variant || inst.unitId);
     ctx.font = 'bold 8px "IBM Plex Mono", monospace';
@@ -291,6 +293,9 @@ function draw() {
   }
   ctx.restore();
   renderMapZoomReadout();
+  if (selectedInstanceId && document.getElementById('game-screen')?.classList.contains('active') && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    selectionPulseTimer = setTimeout(draw, 80);
+  }
 }
 
 const MAP_VISUAL_PALETTES = Object.freeze({
@@ -484,17 +489,22 @@ function drawMechToken(x, y, r, color, facing, torsoFacing, selected, prone = fa
     ctx.drawImage(artwork, -r, -r, r * 2, r * 2);
     ctx.restore();
   }
-  ctx.strokeStyle = selected ? '#fff' : '#1a1a1a';
+  const pulse = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : .55 + .45 * Math.sin(performance.now() / 260);
+  ctx.strokeStyle = selected ? `rgba(255,255,255,${.55 + pulse * .45})` : '#1a1a1a';
+  ctx.shadowColor = selected ? '#fff4a8' : 'transparent';
+  ctx.shadowBlur = selected ? 5 + pulse * 9 : 0;
   ctx.lineWidth = selected ? 2.5 : 1.5;
   ctx.stroke();
 
-  // Facing indicator
+  ctx.shadowBlur = 0;
+  // Facing marker sits at the hex edge, clear of the sprite.
   const rad = facing * Math.PI / 180;
-  const fx = x + r * 0.6 * Math.cos(rad);
-  const fy = y + r * 0.6 * Math.sin(rad);
+  const edge = HEX_SIZE * .90;
+  const fx = x + edge * Math.cos(rad);
+  const fy = y + edge * Math.sin(rad);
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(fx, fy);
+  ctx.moveTo(fx - 4 * Math.sin(rad), fy + 4 * Math.cos(rad));
+  ctx.lineTo(fx + 4 * Math.sin(rad), fy - 4 * Math.cos(rad));
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2;
   ctx.stroke();

@@ -218,6 +218,14 @@ async function loadGameState() {
   scheduleActiveAiTurn();
 }
 
+function matchCommanderLabel(seat) {
+  if (Number(seat) === Number(mySeatNumber)) {
+    const metadata = currentUser?.user_metadata || {};
+    return metadata.callsign || metadata.career_avatar?.callsign || metadata.username || 'You';
+  }
+  const name = currentGameState.skirmish_avatars?.[String(seat)]?.callsign;
+  return name && !/^Skirmish Commander P\d+$/.test(name) ? name : 'Your opponent';
+}
 function updateGameHeader() {
   const statusEl = document.getElementById('status-readout');
   const guidanceEl = document.getElementById('turn-guidance');
@@ -252,7 +260,7 @@ function updateGameHeader() {
     reaction: "Choose each eligible 'Mech, then confirm its torso reaction.",
     weapon_attack: "Choose an eligible 'Mech, declare its target and weapons, then confirm — or choose No Fire.",
     physical_attack: 'Resolve any legal punches or kicks, or pass the remaining physical attacks.',
-    heat: 'Review the heat ledger, then apply heat sinks to complete the round.',
+    heat: 'In Heat Management on the right: preview heat sinks, declare any shutdown override, then Resolve Remaining Heat Checks.',
     end: 'The host advances to the next round once all end-of-round work is complete.'
   };
   if (guidanceEl) guidanceEl.textContent = phaseGuidance[currentGameState.phase] || '';
@@ -264,9 +272,14 @@ function updateGameHeader() {
     const activePlayer = getActivePlayerRecord();
     const activeLabel = activePlayer?.is_ai
       ? 'AI'
-      : `Player ${activePlayer?.seat_number || '?'}`;
+      : matchCommanderLabel(activePlayer?.seat_number);
     if (isMyActiveTurn()) {
-      statusEl.textContent += ' — YOUR TURN';
+      statusEl.textContent += ` — ${matchCommanderLabel(mySeatNumber)} · YOUR TURN`;
+      if (guidanceEl && currentGameState.phase === 'movement') {
+        const count = currentActivationAllowance('movement');
+        guidanceEl.textContent = `Move ${count} BattleMech${count === 1 ? '' : 's'} in this activation. Select a unit, choose movement, then Confirm Move.`;
+      }
+      if (guidanceEl && currentGameState.phase === 'movement' && mechInstances.some(m => m.owner === mySeatNumber && m.standFacingPending === currentGameState.round)) guidanceEl.textContent = 'Standing successful. Choose the BattleMech’s facing in the movement panel, then Confirm Facing.';
       statusEl.classList.add('is-my-turn', `team-p${mySeatNumber}`);
       guidanceEl?.classList.add('is-my-turn');
     } else {
@@ -285,6 +298,10 @@ function updateGameHeader() {
     }
   }
 
+  if (currentGameState.phase === 'initiative' && currentGameState.round === 1) {
+    const pending = mechInstances.filter(m => m.owner === mySeatNumber).flatMap(m => (m.ammoBins || []).filter(ammoSetupRequiredForBin));
+    if (pending.length && guidanceEl) guidanceEl.textContent = `${matchCommanderLabel(mySeatNumber)}: confirm ${pending.length} ammunition bin${pending.length === 1 ? '' : 's'} individually before rolling Initiative. Select each BattleMech to find its ammunition.`;
+  }
   const autoControl = document.getElementById('auto-ai-phase-control');
   const autoCheckbox = document.getElementById('auto-ai-phase-checkbox');
   if (autoControl) {
@@ -421,13 +438,13 @@ function renderInitiativeDisplay() {
     const roll = currentGameState.initiative_rolls.find(r => r.player_id === p.player_id);
     const rollVal = roll ? (roll.die_a != null && roll.die_b != null ? `${roll.die_a} + ${roll.die_b} = ${roll.roll}` : roll.roll) : '?';
     const ordinal = idx === 0 ? '1st' : idx === 1 ? '2nd' : `${idx + 1}th`;
-    const label = p.is_ai ? `AI` : `P${p.seat_number}`;
+    const label = p.is_ai ? 'AI' : matchCommanderLabel(p.seat_number);
     return `${label}: ${rollVal} (${ordinal})`;
   }).join(' | ');
 
   // BattleTech convention: highest goes second, so lowest goes first
   const firstPlayer = currentGameState.initiative_order[0];
-  const firstLabel = firstPlayer?.is_ai ? 'AI' : `Player ${firstPlayer?.seat_number || '?'}`;
+  const firstLabel = firstPlayer?.is_ai ? 'AI' : matchCommanderLabel(firstPlayer?.seat_number);
   initDisplay.textContent = `Initiative: ${firstLabel} goes first | ${orderText}`;
 }
 
@@ -489,10 +506,11 @@ async function submitRoundOneAmmoLoadout(binKey = null) {
     await loadGameState();
     return;
   }
-  const { error } = await db.rpc('submit_round_one_ammo_loadout', {
-    p_game_id: currentGameId,
-    p_loadouts: Object.fromEntries(entries)
-  });
+  let error = null;
+  for (const [key, loadType] of entries) {
+    const result = await db.rpc('confirm_round_one_ammunition_bin', { p_game_id: currentGameId, p_bin_key: key, p_load_type: loadType });
+    if (result.error) { error = result.error; break; }
+  }
   if (error) {
     logEvent(`Could not save ammunition: ${error.message}`, 'error');
     return;
