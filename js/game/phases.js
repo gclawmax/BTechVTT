@@ -72,6 +72,7 @@ async function loadGameState() {
     .single();
 
   if (!loadedGame) return;
+  await loadMatchCallsigns(currentGameId);
 
   const game = await repairLegacyMatchCatalogue(loadedGame);
   currentGameCode = game.game_code || currentGameCode;
@@ -218,7 +219,15 @@ async function loadGameState() {
   scheduleActiveAiTurn();
 }
 
+let matchCallsignCache = {gameId:null,names:{},loadedAt:0};
+async function loadMatchCallsigns(gameId) {
+  if (!gameId || (matchCallsignCache.gameId === gameId && Date.now() - matchCallsignCache.loadedAt < 60000)) return;
+  const {data,error} = await db.rpc('get_match_callsigns',{p_game_id:gameId});
+  if (!error && data && currentGameId === gameId) matchCallsignCache = {gameId,names:data,loadedAt:Date.now()};
+}
 function matchCommanderLabel(seat) {
+  const saved = matchCallsignCache.gameId === currentGameId ? matchCallsignCache.names[String(seat)] : null;
+  if (saved) return saved;
   if (Number(seat) === Number(mySeatNumber)) {
     const metadata = currentUser?.user_metadata || {};
     return metadata.callsign || metadata.career_avatar?.callsign || metadata.username || 'You';
