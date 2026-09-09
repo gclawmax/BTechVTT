@@ -511,7 +511,7 @@ function attemptMoveStep(col, row) {
     if (isRear && moveState.mode !== 'walk') { flashMoveWarning("Can't move backward while running."); return; }
     const levelCost = movementElevationCost(mech.col, mech.row, col, row);
     if (isRear && levelCost) { flashMoveWarning("A BattleMech cannot change levels while moving backward."); return; }
-    if (moveState.mode === 'run' && ['shallow_water', 'deep_water'].includes(terrainAt(col, row))) { flashMoveWarning("A running BattleMech cannot enter water."); return; }
+    if (moveState.mode === 'run' && ['shallow_water', 'deep_water'].includes(terrainAt(col, row))) { flashMoveWarning("Select Walk to enter water (including Depth 1 in Standard 3060). Running into water is not allowed."); return; }
     const cost = (dir === mech.facing ? 1 : (isRear ? 1 : facingTurnCost(mech.facing, dir) + 1)) + movementTerrainCost(col, row) + levelCost;
     if (cost > mpLeft) { flashMoveWarning('Not enough MP for that move.'); return; }
     rememberMovementSegment(mech);
@@ -921,7 +921,7 @@ function renderMovementPanel() {
 
   panel.innerHTML = `
     <div class="panel-eyebrow">Movement</div>
-    <div style="display:flex;flex-direction:column;gap:6px;">${modeButtons.join('')}</div>`;
+    <div style="display:flex;flex-direction:column;gap:6px;">${modeButtons.join('')}</div>${[0,1,2,3,4,5].some(d => { const h=hexNeighbor(mech.col,mech.row,d); return ['shallow_water','deep_water'].includes(terrainAt(h.col,h.row)); }) ? '<p class="water-movement-help">Water entry: choose Walk. Depth 1 is legal in Standard 3060. Allow MP for the water, depth change and any turn.</p>' : ''}`;
 }
 
 async function confirmStandingFacing(instanceId) {

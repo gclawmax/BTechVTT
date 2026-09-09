@@ -307,6 +307,7 @@ function renderPhysicalAttackPanel() {
   const panel = document.getElementById('movement-panel');
   if (!panel || currentGameState.phase !== 'physical_attack') return;
   panel.style.display = 'block';
+  const recovery = !vsAiMode ? `<button id="recover-physical-phase" onclick="recoverStalledPhysicalPhase()" title="Resolve submitted attacks and continue to Heat only when no legal physical actions remain." style="margin-top:10px;${MOVE_BTN_STYLE}">Recover stalled phase</button>` : '';
   const activeSeat = getActivePlayerSeat();
   const isMine = activeSeat === mySeatNumber && isMyActiveTurn();
   const pending = mechInstances.filter(m => m.owner === activeSeat && !m.hasPhysicalAttacked && hasLegalPhysicalAttack(m));
@@ -315,14 +316,14 @@ function renderPhysicalAttackPanel() {
   const target = mechInstances.find(m => m.instanceId === physicalAttackState.targetId);
 
   if (!isMine) {
-    panel.innerHTML = `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">Waiting for Player ${activeSeat} to complete physical attacks.</div>`;
+    panel.innerHTML = `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">Waiting for ${escapeHtml(matchCommanderLabel(activeSeat))} to complete physical attacks.</div>${recovery}`;
     return;
   }
   if (!attacker || attacker.owner !== activeSeat || attacker.hasPhysicalAttacked) {
     const allowance = Math.min(currentActivationAllowance('physical_attack'), pending.length);
     panel.innerHTML = pending.length
       ? `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--paper);margin-bottom:8px;">Act with ${allowance} 'Mech${allowance === 1 ? '' : 's'} in this activation. ${pending.length} total remain.</div><div style="display:flex;flex-direction:column;gap:6px;">${pending.map(m => `<button onclick="selectPhysicalAttacker('${m.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">${mechLabel(m)}</button>`).join('')}</div>`
-      : `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">All physical attacks complete. Advance to Heat Management.</div>`;
+      : `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">No legal physical actions remain for this side. Complete pending declarations and continue to Heat.</div>${recovery}`;
     return;
   }
 
@@ -416,4 +417,18 @@ async function loadResolvedPhysicalEvents() {
     (event.resolution?.piloting_checks || []).forEach((check,index) => entries.push({ id:`physical-psr-${event.id}-${index}`,ts:resolvedAt+event.sequence*100+results.length+index+1,time:new Date(resolvedAt).toTimeString().slice(0,8),round:event.round,phase:event.phase,cat:'roll',msg:authoritativePilotingResultMessage(check) }));
   }
   mergeRemoteLog(entries);
+}
+
+let physicalRecoveryInFlight = false;
+async function recoverStalledPhysicalPhase() {
+ if (physicalRecoveryInFlight || !currentGameId || currentGameState.phase !== 'physical_attack') return;
+ physicalRecoveryInFlight = true;
+ const button = document.getElementById('recover-physical-phase');
+ if (button) { button.disabled = true; button.textContent = 'Checking phase…'; }
+ try {
+  const {data,error} = await db.rpc('recover_stalled_physical_phase',{p_game_id:currentGameId});
+  if (error) { flashMoveWarning(error.message); logEvent(`Phase recovery failed: ${error.message}`, 'error'); return; }
+  logEvent(data?.status === 'recovered' ? `Physical Attack recovered: ${data.resolved_events} submitted event(s) resolved. Continuing to Heat.` : data?.message || 'The phase has already changed.', 'phase');
+  await loadGameState();
+ } finally { physicalRecoveryInFlight = false; if (button?.isConnected) {button.disabled=false;button.textContent='Recover stalled phase';} }
 }

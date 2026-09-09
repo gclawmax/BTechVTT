@@ -33,7 +33,7 @@ function showRecordSheet(instanceId) {
       const state = slot ? recordSheetSlotState(mech, key, index) : 'empty';
       return `<li class="record-slot ${state}"><span>${String(index + 1).padStart(2, '0')}</span>${slot ? `${slot}${recordAmmoForSlot(mech, key, index, slot)}` : '—'}</li>`;
     }).join('');
-    return `<section class="record-location record-${key}"><h4>${label}</h4><div class="record-condition"><span>A ${armour} / ${armourMax}</span><span>I ${structure} / ${structureMax}</span></div><ol>${slots}</ol></section>`;
+    return `<section class="record-location record-${key}"><h4>${label}</h4><div class="record-condition"><span style="color:${damageColour(armour,armourMax)};background:${recordDamageBackground(armour,armourMax)}">A ${armour} / ${armourMax}</span><span style="color:${damageColour(structure,structureMax)};background:${recordDamageBackground(structure,structureMax)}">I ${structure} / ${structureMax}</span></div><ol>${slots}</ol></section>`;
   }).join('');
   const criticalCount = Object.values(mech.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0);
   const pilot = mech.pilot || { hits: 0, consciousness: 'conscious' };
@@ -44,7 +44,7 @@ function showRecordSheet(instanceId) {
   modal.innerHTML = `<div class="record-sheet" role="dialog" aria-modal="true" aria-label="${unit.chassis} ${unit.variant} record sheet">
     <header><div><div class="panel-eyebrow">BattleMech Record Sheet</div><h2>${unit.chassis} ${unit.variant}</h2><p>Player ${mech.owner} · ${unit.tonnage} tons · Heat ${mech.heat || 0} · ${escapeHtml(pilot.name || 'MechWarrior')} · Gunnery ${pilot.gunnery ?? 4} · Piloting ${pilot.piloting ?? mech.pilotingSkill ?? 5}</p></div><button onclick="closeRecordSheet()">Close</button></header>
     <div class="record-note">Pilot: ${escapeHtml(pilot.name || 'MechWarrior')} · ${pilotState} · ${pilot.hits || 0} hit${pilot.hits === 1 ? '' : 's'}. Critical slots are shown from the unit record. ${criticalCount ? `${criticalCount} critical slot${criticalCount === 1 ? '' : 's'} damaged.` : 'No critical slots damaged.'}</div>
-    <section class="record-weapon-inventory"><h3>Weapons Inventory</h3>${renderWeaponInventory(unit, 'record-weapon-table')}</section>
+    <section class="record-weapon-inventory"><h3>Weapons Inventory</h3>${renderWeaponInventory(unit, 'record-weapon-table', mech)}</section>
     <div class="record-grid">${locations}</div>
   </div>`;
   document.body.appendChild(modal);
@@ -52,4 +52,9 @@ function showRecordSheet(instanceId) {
 
 function closeRecordSheet() {
   document.getElementById('record-sheet-modal')?.remove();
+}
+
+function recordDamageBackground(current, maximum) {
+ const ratio = maximum > 0 ? Math.max(0,Math.min(1,current/maximum)) : 0;
+ return `hsl(${Math.round(ratio*120)} 58% 87%)`;
 }

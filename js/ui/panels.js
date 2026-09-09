@@ -49,7 +49,10 @@ function renderRoster() {
     }
     const damaged = Object.keys(unit.armor || {}).some(location => Number(inst.armor?.[location]) < Number(unit.armor?.[location])) ||
       Object.keys(unit.structure || {}).some(location => Number(inst.structure?.[location]) < Number(unit.structure?.[location]));
+    const flag = {movement:'hasMoved',reaction:'hasReacted',weapon_attack:'hasFired',physical_attack:'hasPhysicalAttacked',heat:'hasManagedHeat'}[currentGameState.phase];
+    const needsConfirmation = !inst.destroyed && (flag ? !inst[flag] : currentGameState.phase === 'initiative' && currentGameState.round === 1 && (inst.ammoBins || []).some(ammoSetupRequiredForBin));
     const conditionBadges = [
+      needsConfirmation ? '<span class="pending-action" title="This BattleMech still needs its action confirmed for this phase">● Awaiting confirmation</span>' : '',
       inst.catalogueUnavailable ? '<span class="roster-badge damage">CATALOGUE UNAVAILABLE</span>' : '',
       inst.destroyed ? '<span class="roster-badge damage">DESTROYED</span>' : '',
       inst.hidden && inst.owner === mySeatNumber ? '<span class="roster-badge">HIDDEN</span>' : '',
@@ -160,28 +163,29 @@ function weaponInventoryDamage(profile) {
   return '—';
 }
 
-function weaponInventoryRows(unit) {
+function weaponInventoryRows(unit, mech = null) {
   const clan = /^clan$/i.test(unit?.techBase || '');
   const grouped = new Map();
   for (const mount of unit?.weapons || []) {
     const profile = { ...(BT_WEAPONS?.[mount.key] || {}), ...(mount.weapon || {}) };
     const ranges = Array.isArray(profile.range) ? profile.range : [];
+    const destroyed = Boolean(mech && ((Number(mech.structure?.[criticalLocationKey(mount.location)] ?? 1) <= 0) || isWeaponCriticallyDestroyed(mech, mount)));
     const row = {
-      count:Number(mount.count || 1), name:profile.name || mount.key?.replaceAll('_',' ') || 'Unknown weapon',
+      destroyed, count:Number(mount.count || 1), name:profile.name || mount.key?.replaceAll('_',' ') || 'Unknown weapon',
       location:weaponInventoryLocation(mount.location), heat:profile.heat ?? '—', damage:weaponInventoryDamage(profile),
       minimum:profile.minimumRange ?? 0, short:ranges[0] ?? '—', medium:ranges[1] ?? '—', long:ranges[2] ?? '—', clan
     };
-    const key = [row.name,row.location,row.heat,row.damage,row.minimum,row.short,row.medium,row.long].join('|');
+    const key = [row.name,row.location,row.heat,row.damage,row.minimum,row.short,row.medium,row.long,row.destroyed].join('|');
     if (grouped.has(key)) grouped.get(key).count += row.count; else grouped.set(key,row);
   }
   return [...grouped.values()];
 }
 
-function renderWeaponInventory(unit, extraClass = '') {
-  const rows = weaponInventoryRows(unit);
+function renderWeaponInventory(unit, extraClass = '', mech = null) {
+  const rows = weaponInventoryRows(unit, mech);
   if (!rows.length) return '<p class="weapon-inventory-empty">No weapons fitted.</p>';
-  if (!extraClass) return `<div class="weapon-inventory-wrap compact-weapons"><table class="weapon-inventory"><thead><tr><th title="Quantity">#</th><th>Weapon</th><th title="Location">Loc.</th><th>Heat</th><th title="Damage">Dmg</th></tr></thead><tbody>${rows.map(row => `<tr><td>${row.count}</td><th scope="row">${escapeHtml(row.name)}${row.clan ? ' (C)' : ''}</th><td>${escapeHtml(row.location)}</td><td>${row.heat}</td><td>${row.damage}</td></tr><tr class="weapon-range-row"><td colspan="5">Range (hexes): Min ${row.minimum} · Short ${row.short} · Med ${row.medium} · Long ${row.long}</td></tr>`).join('')}</tbody></table></div>`;
-  return `<div class="weapon-inventory-wrap ${extraClass}"><table class="weapon-inventory"><thead><tr><th scope="col">#</th><th scope="col">Weapon</th><th scope="col" title="Location">Loc.</th><th scope="col">Heat</th><th scope="col" title="Damage">Dmg</th><th scope="col" title="Minimum range">Min.</th><th scope="col" title="Short range">Short</th><th scope="col" title="Medium range">Med.</th><th scope="col" title="Long range">Long</th></tr></thead><tbody>${rows.map(row => `<tr><td>${row.count}</td><th scope="row">${escapeHtml(row.name)}${row.clan ? ' <span class="weapon-tech-mark" title="Clan weapon">(C)</span>' : ''}</th><td>${escapeHtml(row.location)}</td><td>${row.heat}</td><td>${row.damage}</td><td>${row.minimum}</td><td>${row.short}</td><td>${row.medium}</td><td>${row.long}</td></tr>`).join('')}</tbody></table></div>`;
+  if (!extraClass) return `<div class="weapon-inventory-wrap compact-weapons"><table class="weapon-inventory"><thead><tr><th title="Quantity">#</th><th>Weapon</th><th title="Location">Loc.</th><th>Heat</th><th title="Damage">Dmg</th></tr></thead><tbody>${rows.map(row => `<tr><td>${row.count}</td><th scope="row" class="${row.destroyed ? 'weapon-destroyed' : ''}" title="${row.destroyed ? 'Destroyed weapon' : ''}">${escapeHtml(row.name)}${row.clan ? ' (C)' : ''}</th><td>${escapeHtml(row.location)}</td><td>${row.heat}</td><td>${row.damage}</td></tr><tr class="weapon-range-row"><td colspan="5">Range (hexes): Min ${row.minimum} · Short ${row.short} · Med ${row.medium} · Long ${row.long}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="weapon-inventory-wrap ${extraClass}"><table class="weapon-inventory"><thead><tr><th scope="col">#</th><th scope="col">Weapon</th><th scope="col" title="Location">Loc.</th><th scope="col">Heat</th><th scope="col" title="Damage">Dmg</th><th scope="col" title="Minimum range">Min.</th><th scope="col" title="Short range">Short</th><th scope="col" title="Medium range">Med.</th><th scope="col" title="Long range">Long</th></tr></thead><tbody>${rows.map(row => `<tr><td>${row.count}</td><th scope="row" class="${row.destroyed ? 'weapon-destroyed' : ''}" title="${row.destroyed ? 'Destroyed weapon' : ''}">${escapeHtml(row.name)}${row.clan ? ' <span class="weapon-tech-mark" title="Clan weapon">(C)</span>' : ''}</th><td>${escapeHtml(row.location)}</td><td>${row.heat}</td><td>${row.damage}</td><td>${row.minimum}</td><td>${row.short}</td><td>${row.medium}</td><td>${row.long}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderDetail() {
@@ -228,7 +232,7 @@ function renderDetail() {
       ${inst.hasMoved ? `<div class="k">This Turn</div><div class="v">${titleCaseMode(inst.movementMode)} · ${inst.hexesMoved} hex${inst.hexesMoved===1?'':'es'}</div>` : ''}
     </div>
     <div class="panel-eyebrow" style="margin-top:14px;">Weapons</div>
-    ${renderWeaponInventory(unit)}
+    ${renderWeaponInventory(unit, '', inst)}
     ${(inst.ammoBins || []).length ? `<div class="panel-eyebrow" style="margin-top:14px;">Ammunition</div><div class="stat-grid">${inst.ammoBins.map(bin => `<div class="k">${bin.type.replace('_',' ')}${bin.loadType ? ` · ${bin.loadType}` : ''} · ${bin.location}</div><div class="v">${bin.shots} / ${bin.maxShots} shots</div>${roundOneAmmoControl(inst, bin)}`).join('')}</div>` : ''}
     ${signatureSystemControls(inst)}
     <div class="panel-eyebrow" style="margin-top:14px;">Armour / Internal Structure</div>

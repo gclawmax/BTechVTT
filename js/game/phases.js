@@ -889,7 +889,7 @@ async function skipEmptyPhysicalPhase() {
     console.warn('Failed to check empty physical phase:', error);
     return false;
   }
-  if (skipped) logEvent('No opposing \'Mechs are adjacent — Physical Attack skipped.', 'phase');
+  if (skipped) logEvent('Physical Attack complete — unavailable actions cleared and submitted attacks resolved before Heat.', 'phase');
   return skipped === true;
 }
 

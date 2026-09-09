@@ -12,6 +12,7 @@ const COMBAT_PRESENTATION_SPEEDS = Object.freeze({
   cinematic: { shotDelay: 450, mechDelay: 1400 }
 });
 const WEAPON_SOUND_FILES = Object.freeze({
+  ppc: 'assets/audio/ppc-attack.wav',
   ballistic: 'assets/audio/ballistic-fire.wav',
   missile: 'assets/audio/missile-fire.wav',
   laser: 'assets/audio/laser-fire.wav'
@@ -95,6 +96,7 @@ function renderGameSettingsControls() {
 
 function weaponSoundFamily(result) {
   const label = `${result?.weapon || ''} ${result?.mount_id || ''}`.toLowerCase();
+  if (/ppc|particle projector/.test(label)) return 'ppc';
   if (/laser/.test(label)) return 'laser';
   if (/\b(lrm|srm)\b|lrm-|srm-|streak|missile|narc/.test(label)) return 'missile';
   if (/ac\/?\d|autocannon|\buac\b|lb[- ]?x|gauss|machine gun|rifle/.test(label)) return 'ballistic';
