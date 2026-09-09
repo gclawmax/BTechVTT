@@ -784,7 +784,7 @@ function renderLobbyDeployment(gameState) {
     const enemy = deploymentZoneContains(mySeatNumber === 1 ? 2 : 1, col, row, gameState);
     const terrain = terrainAt(col, row);
     const level = elevationAt(col, row);
-    const description = `${hexCode(col,row)} · ${terrain.replace('_',' ')}${level ? ` · level ${level}` : ''}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : enemy ? ' · opponent deployment zone' : ' · neutral ground'}`;
+    const description = `${terrainDescription(col,row)}${owner ? ` · Player ${owner}` : mine ? ' · your deployment zone' : enemy ? ' · opponent deployment zone' : ' · neutral ground'}`;
     const canPlaceMech = mine && !owner && !terrainMovementBlocked(col, row);
     const field = myMinefields.find(candidate => Number(candidate.col) === col && Number(candidate.row) === row);
     const fieldIndex = field ? myMinefields.indexOf(field) : -1;

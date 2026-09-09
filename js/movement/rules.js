@@ -611,15 +611,29 @@ function canvasPointToMap(event) {
   return { x: boardX - gridOffsetX - mapPanX, y: boardY - gridOffsetY - mapPanY };
 }
 
+// Hover follows the same inverse zoom/rotation transform as movement clicks.
+const terrainTooltip = document.createElement('div');
+terrainTooltip.id = 'terrain-tooltip'; terrainTooltip.setAttribute('role','tooltip'); terrainTooltip.hidden = true;
+document.body.appendChild(terrainTooltip);
+function hideTerrainTooltip() { terrainTooltip.hidden = true; }
+canvas.addEventListener('mouseleave', hideTerrainTooltip);
+canvas.addEventListener('pointerdown', hideTerrainTooltip);
+canvas.addEventListener('wheel', hideTerrainTooltip);
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideTerrainTooltip(); });
 // Mouse hover
 canvas.addEventListener('mousemove', (e) => {
   const { x: px, y: py } = canvasPointToMap(e);
   const hex = pixelToHex(px, py);
+  if (e.buttons) { hideTerrainTooltip(); return; }
   if (hex.col >= 0 && hex.col < GRID_COLS && hex.row >= 0 && hex.row < GRID_ROWS) {
     const axial = offsetToAxial(hex.col, hex.row);
     document.getElementById('coord-readout').textContent =
-      `HEX ${String(hex.col).padStart(2,'0')}${String(hex.row).padStart(2,'0')}  (q${axial.q} r${axial.r})`;
-  }
+      terrainDescription(hex.col, hex.row).split('\n')[0];
+    terrainTooltip.textContent = terrainDescription(hex.col, hex.row);
+    terrainTooltip.hidden = false;
+    terrainTooltip.style.left = `${Math.max(8, Math.min(e.clientX + 16, window.innerWidth - terrainTooltip.offsetWidth - 8))}px`;
+    terrainTooltip.style.top = `${Math.max(8, Math.min(e.clientY + 16, window.innerHeight - terrainTooltip.offsetHeight - 8))}px`;
+  } else { hideTerrainTooltip(); document.getElementById('coord-readout').textContent = ''; }
 });
 
 canvas.addEventListener('click', (e) => {

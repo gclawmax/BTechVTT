@@ -1638,3 +1638,25 @@ body.signed-in > .screen, body.signed-in #game-screen.active { height:calc(100vh
 #header [hidden] { display:none!important; }
 .pilot-save-status { grid-column:1/-1; color:#9a5000; font-size:11px; }
 @media(max-width:850px) { #header .phase-banner { grid-template-columns:1fr; gap:4px; } }
+
+#terrain-tooltip { position:fixed; z-index:100; pointer-events:none; max-width:290px; padding:10px 12px; border:1px solid #9ca78e; border-radius:4px; background:#17241e; color:#fff; box-shadow:0 3px 12px #0005; white-space:pre-line; font:12px/1.55 var(--mono); }
+#terrain-tooltip[hidden] { display:none; }
+#mech-panel::after, #panel::before, #panel::after { content:none; }
+.panel-resize-handle { width:12px; z-index:25; align-self:stretch; cursor:col-resize; touch-action:none; background:linear-gradient(to right,transparent 4px,#a2a296 4px,#a2a296 7px,transparent 7px); }
+.panel-resize-handle:hover, .panel-resize-handle:focus-visible { background:#b9782599; outline:2px solid #9a620e; }
+.detail-resize-handle { grid-area:2/1/3/2; justify-self:end; }
+.side-resize-handle { grid-area:2/3/3/4; justify-self:start; }
+#game-screen.mech-panel-collapsed .detail-resize-handle { display:none; }
+.compact-weapons .weapon-inventory { min-width:0; table-layout:fixed; }
+.compact-weapons .weapon-inventory th, .compact-weapons .weapon-inventory td { min-width:0; padding:5px 3px; white-space:normal; overflow-wrap:anywhere; }
+.compact-weapons .weapon-inventory th:first-child { width:8%; }
+.compact-weapons .weapon-inventory th:nth-child(2) { width:47%; }
+.compact-weapons .weapon-range-row td { text-align:left; font-size:9px; line-height:1.5; color:#4e4e49; border-bottom:2px solid #c8c8bf; }
+/* Dedicated tracks keep drag handles clear of panel scrollbars and buttons. */
+#game-screen.active { grid-template-columns:var(--detail-panel-width,300px) 12px minmax(0,1fr) 12px var(--side-panel-width,360px); }
+#game-screen.active.mech-panel-collapsed { grid-template-columns:38px 0 minmax(0,1fr) 12px var(--side-panel-width,360px); }
+#header { grid-column:1 / 6; }
+#map-wrap { grid-area:2 / 3 / 3 / 4; }
+#panel { grid-area:2 / 5 / 3 / 6; }
+.detail-resize-handle { grid-area:2 / 2 / 3 / 3; }
+.side-resize-handle { grid-area:2 / 4 / 3 / 5; }

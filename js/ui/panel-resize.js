@@ -15,68 +15,45 @@ function toggleMechPanel(forceExpanded = null) {
 }
 
 (function initPanelResize() {
-  const panel = document.getElementById('panel');
-  const detailPanel = document.getElementById('mech-panel');
-  const gameScreen = document.getElementById('game-screen');
-  if (!panel || !detailPanel || !gameScreen) return;
-
-  const savedWidth = Number(localStorage.getItem('bt-vtt-side-panel-width'));
-  if (Number.isFinite(savedWidth) && savedWidth >= 260) {
-    gameScreen.style.setProperty('--side-panel-width', `${savedWidth}px`);
-  }
-  const savedDetailWidth = Number(localStorage.getItem('bt-vtt-detail-panel-width'));
-  if (Number.isFinite(savedDetailWidth) && savedDetailWidth >= 240) {
-    gameScreen.style.setProperty('--detail-panel-width', `${savedDetailWidth}px`);
-  }
-  if (localStorage.getItem('bt-vtt-detail-panel-collapsed') === '1') toggleMechPanel(false);
-
-  let resizing = false;
-  const isResizeHandle = event => Math.abs(event.clientX - panel.getBoundingClientRect().left) <= 10;
-
-  panel.addEventListener('pointerdown', event => {
-    if (!isResizeHandle(event)) return;
-    resizing = true;
-    panel.setPointerCapture(event.pointerId);
-    document.body.classList.add('resizing-side-panel');
-    event.preventDefault();
-  });
-
-  panel.addEventListener('pointermove', event => {
-    if (!resizing) return;
-    const width = Math.max(260, Math.min(640, window.innerWidth - event.clientX));
-    gameScreen.style.setProperty('--side-panel-width', `${width}px`);
-  });
-
-  const finishResize = () => {
-    if (!resizing) return;
-    resizing = false;
-    document.body.classList.remove('resizing-side-panel');
-    const width = Math.round(panel.getBoundingClientRect().width);
-    localStorage.setItem('bt-vtt-side-panel-width', String(width));
+ const screen = document.getElementById('game-screen');
+ if (!screen) return;
+ for (const [side, panelId, minimum, maximum] of [['detail','mech-panel',240,620],['side','panel',260,640]]) {
+  const panel = document.getElementById(panelId);
+  const handle = document.createElement('div');
+  handle.className = `panel-resize-handle ${side}-resize-handle`;
+  handle.tabIndex = 0; handle.setAttribute('role','separator'); handle.setAttribute('aria-orientation','vertical');
+  handle.setAttribute('aria-label',side === 'detail' ? 'Resize selected BattleMech panel' : 'Resize roster and game log panel');
+  handle.title = 'Drag to resize; arrow keys adjust width'; screen.appendChild(handle);
+  const key = `bt-vtt-${side}-panel-width`;
+  const setWidth = value => {
+   const other = document.getElementById(side === 'detail' ? 'panel' : 'mech-panel').getBoundingClientRect().width;
+   const limit = Math.max(minimum, Math.min(maximum, window.innerWidth - (other || 300) - 180));
+   const width = Math.round(Math.max(minimum, Math.min(limit,value)));
+   screen.style.setProperty(`--${side}-panel-width`,`${width}px`);
+   handle.setAttribute('aria-valuemin',minimum); handle.setAttribute('aria-valuemax',limit); handle.setAttribute('aria-valuenow',width);
+   return width;
   };
-  panel.addEventListener('pointerup', finishResize);
-  panel.addEventListener('pointercancel', finishResize);
-
-  let resizingDetail = false;
-  const isDetailResizeHandle = event => Math.abs(event.clientX - detailPanel.getBoundingClientRect().right) <= 10;
-  detailPanel.addEventListener('pointerdown', event => {
-    if (gameScreen.classList.contains('mech-panel-collapsed') || !isDetailResizeHandle(event)) return;
-    resizingDetail = true;
-    detailPanel.setPointerCapture(event.pointerId);
-    document.body.classList.add('resizing-detail-panel');
-    event.preventDefault();
+  setWidth(Number(localStorage.getItem(key)) || (side === 'detail' ? 300 : 360));
+  let drag = null;
+  handle.addEventListener('pointerdown',event => {
+   if (event.button !== 0) return;
+   drag = {id:event.pointerId,x:event.clientX,width:panel.getBoundingClientRect().width};
+   handle.setPointerCapture(event.pointerId); document.body.classList.add('resizing-side-panel'); event.preventDefault();
   });
-  detailPanel.addEventListener('pointermove', event => {
-    if (!resizingDetail) return;
-    const width = Math.max(240, Math.min(620, event.clientX));
-    gameScreen.style.setProperty('--detail-panel-width', `${width}px`);
+  handle.addEventListener('pointermove',event => {
+   if (!drag || event.pointerId !== drag.id) return;
+   setWidth(drag.width + (event.clientX - drag.x) * (side === 'detail' ? 1 : -1));
   });
-  const finishDetailResize = () => {
-    if (!resizingDetail) return;
-    resizingDetail = false;
-    document.body.classList.remove('resizing-detail-panel');
-    localStorage.setItem('bt-vtt-detail-panel-width', String(Math.round(detailPanel.getBoundingClientRect().width)));
+  const finish = () => {
+   if (!drag) return; drag = null; document.body.classList.remove('resizing-side-panel');
+   localStorage.setItem(key,String(Math.round(panel.getBoundingClientRect().width)));
   };
-  detailPanel.addEventListener('pointerup', finishDetailResize);
-  detailPanel.addEventListener('pointercancel', finishDetailResize);
+  handle.addEventListener('pointerup',finish); handle.addEventListener('pointercancel',finish); handle.addEventListener('lostpointercapture',finish);
+  handle.addEventListener('keydown',event => {
+   if (!['ArrowLeft','ArrowRight'].includes(event.key)) return;
+   event.preventDefault(); const delta = (event.key === 'ArrowRight' ? 20 : -20) * (side === 'detail' ? 1 : -1);
+   localStorage.setItem(key,String(setWidth(panel.getBoundingClientRect().width + delta)));
+  });
+ }
+ if (localStorage.getItem('bt-vtt-detail-panel-collapsed') === '1') toggleMechPanel(false);
 })();

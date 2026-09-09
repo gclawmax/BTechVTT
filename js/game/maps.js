@@ -310,3 +310,13 @@ function victoryModeDetails(mode) {
 function elevationAt(col, row) {
   return getMapDefinition(activeMapId).elevation?.[hexCode(col, row)] || 0;
 }
+
+// Public terrain information only: never include hidden units or minefields.
+function terrainDescription(col, row) {
+ const terrain = terrainStatusAt(col, row);
+ const names = {shallow_water:'Shallow water · Depth 1',deep_water:'Deep water · Depth 2',light_woods:'Light woods',heavy_woods:'Heavy woods',bridge:'Bridge'};
+ const descriptions = {clear:'Open ground.',light_woods:'Scattered trees. Slows ground movement and provides cover.',heavy_woods:'Dense trees. Slows ground movement more than light woods and provides heavier cover.',shallow_water:'Shallow water; the bottom is one level below the surface.',deep_water:'Deep water; the bottom is two levels below the surface.',bridge:'A bridge crossing. The thick horizontal bar marks its deck.',rough:'Uneven, rocky ground.',rubble:'Debris and broken ground.',building:'A structure occupying this hex.',pavement:'A paved surface.',road:'A road surface.',impassable:'Ground movement is blocked.',ice:'An icy surface.',deep_snow:'Deep snow covering the ground.',mud:'Soft, muddy ground.',sand:'Sandy ground.',swamp:'Waterlogged ground.',magma_crust:'A crust over hot magma.',magma_liquid:'Exposed magma; ground movement is blocked.',fire:'Burning terrain.',light_smoke:'Light smoke obscures the view.',heavy_smoke:'Dense smoke obscures the view.'};
+ const name = names[terrain.terrain] || terrain.terrain.replaceAll('_',' ').replace(/^./,c=>c.toUpperCase());
+ const level = ['shallow_water','deep_water'].includes(terrain.terrain) ? '' : ` · Elevation ${elevationAt(col,row)}`;
+ return `${hexCode(col,row)} · ${name}${level}\n${descriptions[terrain.terrain] || ''}${terrain.buildingCF != null ? ` Construction Factor: ${terrain.buildingCF}.` : ''}`;
+}
