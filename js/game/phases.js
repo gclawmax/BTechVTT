@@ -312,6 +312,8 @@ function updateGameHeader() {
   updateInitiativeButtonState();
 }
 
+let initiativeRollInFlight = false;
+
 function updateInitiativeButtonState() {
   const initBtn = document.getElementById('btn-roll-initiative');
   if (!initBtn) return;
@@ -333,7 +335,12 @@ function updateInitiativeButtonState() {
     : [];
   const ownAmmoSetupPending = unconfiguredAmmo.some(mech => mech.owner === mySeatNumber);
   const ammoSetupPending = unconfiguredAmmo.length > 0;
-  initBtn.disabled = !canRoll || ammoSetupPending;
+  initBtn.disabled = initiativeRollInFlight || !canRoll || ammoSetupPending;
+  initBtn.setAttribute('aria-busy', String(initiativeRollInFlight));
+  initBtn.textContent = initiativeRollInFlight ? 'Rolling Initiative…'
+    : iHaveRolled && !alreadyRolled ? 'Rolled — waiting for opponent'
+    : alreadyRolled ? 'Initiative resolved'
+    : 'Roll Initiative (2D6)';
   initBtn.title = canRoll && !ammoSetupPending
     ? (vsAiMode ? 'Roll initiative for both sides.' : 'Roll your own 2D6 initiative.')
     : (ammoSetupPending
@@ -522,6 +529,20 @@ async function submitRoundOneAmmoLoadout(binKey = null) {
 // Roll initiative for ALL players (human + AI) using 2D6
 // BattleTech convention: highest roll goes SECOND
 async function rollInitiative() {
+  if (initiativeRollInFlight || !currentGameId || currentGameState.phase !== 'initiative') return;
+  updateInitiativeButtonState();
+  if (document.getElementById('btn-roll-initiative')?.disabled) return;
+  initiativeRollInFlight = true;
+  updateInitiativeButtonState();
+  try {
+    await submitInitiativeRoll();
+  } finally {
+    initiativeRollInFlight = false;
+    updateGameHeader();
+  }
+}
+
+async function submitInitiativeRoll() {
   if (!currentGameId || currentGameState.match_result) return;
 
   // Human-versus-human initiative is deliberately submitted separately by

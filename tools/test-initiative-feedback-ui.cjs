@@ -1,0 +1,16 @@
+const {chromium}=require('/Users/mattperkins/.hermes/hermes-agent/node_modules/playwright');
+(async()=>{const b=await chromium.launch({headless:true,channel:'chrome'});try{const page=await b.newPage({viewport:{width:1633,height:946}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:8790/index.html');await page.locator('#login-screen.active').waitFor();
+await page.evaluate(async()=>{await loadUnitCatalogue();currentUser={id:'preview',user_metadata:{callsign:'Test-Sign'}};currentGameId='ui-fixture';mySeatNumber=1;myInitiativePlayerId='host';isHost=true;vsAiMode=false;setActiveMap('woodland-approach');setActiveTerrainState({});window.fixtureUnit=Object.keys(BT_UNITS).find(id=>getSupportedUnit(id)&&isSupportedUnit(id));mechInstances=buildRosterInstances({'1':[fixtureUnit],'2':[fixtureUnit]});mechInstances.forEach(ensureMechCombatState);selectedInstanceId=mechInstances[0].instanceId;currentGameState={...currentGameState,round:3,phase:'movement',active_player_id:'host',initiative_order:[{player_id:'host',seat_number:1},{player_id:'guest',seat_number:2}],initiative_rolls:[],initiative_pending:[],skirmish_avatars:{'2':{callsign:'Wolf'}}};currentMatchConfig={};showScreen('game-screen');canvas=document.getElementById('hexmap');ctx=canvas.getContext('2d');resizeCanvas();updateGameHeader();renderInitiativeDisplay();renderRoster();renderDetail();renderMovementPanel();});
+
+await page.evaluate(()=>{currentGameState.phase='initiative';currentGameState.initiative_round=null;currentGameState.initiative_pending=[];updateGameHeader();window.rollCalls=0;submitInitiativeRoll=async()=>{rollCalls++;await new Promise(resolve=>window.finishRoll=resolve);currentGameState.initiative_pending=[{player_id:'host'}]};});
+await page.getByRole('button',{name:'Roll Initiative (2D6)',exact:true}).click();
+if(!await page.locator('#btn-roll-initiative').isDisabled()||!(await page.locator('#btn-roll-initiative').innerText()).includes('Rolling'))throw Error('Missing immediate disabled feedback');
+await page.evaluate(async()=>{await rollInitiative();if(rollCalls!==1)throw Error('Duplicate roll');finishRoll();});
+await page.waitForFunction(()=>document.getElementById('btn-roll-initiative').textContent.includes('waiting'));
+if(!await page.locator('#btn-roll-initiative').isDisabled())throw Error('Waiting button enabled');console.log('PASS rolling lock, duplicate click guard and waiting feedback');
+await page.evaluate(()=>{currentGameState.initiative_pending=[];updateGameHeader();});
+if(await page.locator('#btn-roll-initiative').isDisabled()||await page.locator('#btn-roll-initiative').innerText()!=='Roll Initiative (2D6)')throw Error('Tie did not enable reroll');console.log('PASS authoritative tie reset reactivates Roll Initiative');
+await page.evaluate(async()=>{submitInitiativeRoll=async()=>{throw Error('test rejection')};try{await rollInitiative()}catch(e){};});
+if(await page.locator('#btn-roll-initiative').isDisabled())throw Error('Failure left button locked');console.log('PASS failed submission unlocks button');
+if(errors.length)throw Error(errors.join(';'));
+}finally{await b.close()}})().catch(e=>{console.error(e);process.exitCode=1});
