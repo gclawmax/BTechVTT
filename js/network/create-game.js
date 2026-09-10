@@ -182,6 +182,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
         state: JSON.stringify({
           units: [], turn: 0, phase: 'setup', vs_ai_mode: false,
           map_id: mapId, map_dimensions: dimensions,
+          ...(getMapDefinition(mapId).deployment_zones ? {deployment_zones:getMapDefinition(mapId).deployment_zones} : {}),
           ...(sealedForceLimit.mode === 'tonnage' ? { dropship_tonnage:dropshipTonnage } : {}),
           ...(sealedForceLimit.mode === 'bv2' ? { force_limit:sealedForceLimit, force_values:{} } : {}),
           catalogue_version: catalogueVersion,

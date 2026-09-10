@@ -1,6 +1,54 @@
+// Original layouts inspired by the local Flatlands, Hill Terrain and Map Set 1
+// references. Deterministic terrain is shared with SQL via the build tool.
+function buildReferenceMapFamilies() {
+  const maps = {};
+  const code = (c,r) => String(c).padStart(2,'0')+String(r).padStart(2,'0');
+  for (const theme of ['woodland','river','highland']) for (const shape of ['single','landscape','portrait']) {
+    const columns=shape==='landscape'?32:16, rows=shape==='portrait'?34:17;
+    const title={woodland:'Patchwork Woods',river:'Willow Valley',highland:'Broken Ridges'}[theme];
+    const format={single:'Single Sheet',landscape:'Landscape · Wide · 2 Sheets',portrait:'Portrait · Deep · 2 Sheets'}[shape];
+    const map={name:`${title} — ${format}`,description:`${{woodland:'Irregular woods shelter several approaches, with open lanes for long-range fire.',river:'A winding depth-1 river, wooded banks and open crossing points create choices between cover and speed.',highland:'Stepped ridges, rocky saddles and sheltered valleys offer elevated firing positions and flanking routes.'}[theme]} ${columns} × ${rows} hexes. ${shape==='portrait'?'Deploy from the north and south ends.':'Deploy from the west and east edges.'}`,visual:theme==='highland'?'highland':theme==='river'?'grassland':'woodland',columns,rows,terrain:{},elevation:{},objective_hexes:[],deployment_zones:{'1':[],'2':[]},sheet_count:shape==='single'?1:2,orientation:shape};
+    const put=(c,r,t)=>{if(c>=0&&c<columns&&r>=0&&r<rows)map.terrain[code(c,r)]=t;};
+    const wood=(c,r,heavy=false)=>{
+      for(const [dx,dy] of [[0,0],[1,0],[-1,0],[0,1],[1,1],[0,-1],[-1,-1]])put(c+dx,r+dy,heavy&&Math.abs(dx)+Math.abs(dy)<2?'heavy_woods':'light_woods');
+    };
+    const sheets=shape==='single'?1:2;
+    for(let sheet=0;sheet<sheets;sheet++){
+      const ox=shape==='landscape'?sheet*16:0,oy=shape==='portrait'?sheet*17:0;
+      // The second sheet has a different arrangement, avoiding repeat tiles.
+      const woods=sheet?[[3,4],[11,3],[6,10],[12,13]]:[[3,3],[11,7],[4,13],[12,14]];
+      if(theme!=='highland') for(const [x,y] of woods)wood(ox+x,oy+y,(x+y)%2===0);
+      if(theme==='highland'){
+        const hills=sheet?[[4,4,3],[11,10,3],[4,14,2]]:[[4,5,3],[11,12,3],[11,2,2]];
+        for(const [cx,cy,height] of hills) for(let y=0;y<17;y++)for(let x=0;x<16;x++){
+          const d=Math.abs(x-cx)+Math.abs(y-cy)*.8;
+          const level=d<1.6?height:d<3?Math.min(2,height):d<4.4?1:0;
+          if(level){const key=code(ox+x,oy+y);map.elevation[key]=Math.max(map.elevation[key]||0,level);if((x+2*y)%5===0)put(ox+x,oy+y,'rough');}
+        }
+        wood(ox+3,oy+10);wood(ox+12,oy+5);
+      }
+    }
+    if(theme==='river')for(let r=0;r<rows;r++){
+      const c=Math.floor(columns/2)+Math.round(2*Math.sin(r*.38));
+      put(c,r,'shallow_water');
+      if(r%7!==3&&r%7!==4)put(c+1,r,'shallow_water');
+      // Several ford approaches remain clear; no smoke or minefields.
+      if(r%7===3){put(c-1,r,'clear');put(c+1,r,'clear');}
+    }
+    for(let c=0;c<columns;c++)for(let r=0;r<rows;r++){
+      if(shape==='portrait'){if(r<4)map.deployment_zones['1'].push(code(c,r));if(r>=rows-4)map.deployment_zones['2'].push(code(c,r));}
+      else {if(c<4)map.deployment_zones['1'].push(code(c,r));if(c>=columns-4)map.deployment_zones['2'].push(code(c,r));}
+    }
+    map.objective_hexes=shape==='portrait'?[code(4,11),code(8,17),code(11,23)]:shape==='landscape'?[code(11,4),code(16,8),code(21,12)]:[code(6,4),code(8,8),code(9,12)];
+    maps[`reference-${theme}-${shape}`]=map;
+  }
+  return maps;
+}
+
 // Built-in maps use only terrain that the current rules engine understands.
 // Custom-map authoring can add records to this catalogue later.
 const BT_MAPS = Object.freeze({
+  ...buildReferenceMapFamilies(),
   'standard-single-sheet': {
     name: 'Standard Map Sheet', description: 'A standard BattleTech map sheet: 16 columns by 17 rows.', visual: 'grassland', columns: 16, rows: 17, terrain: {}
   },
@@ -198,6 +246,7 @@ function getMapDefinition(mapId) {
 }
 
 function builtInMapCategory(mapId) {
+  if (mapId.startsWith('reference-')) return BT_MAPS[mapId].sheet_count === 2 ? 'Two sheets — wide or deep' : 'Reference-inspired terrain';
   if (mapId.startsWith('standard-')) return 'Standard sizes';
   if (['training-grounds', 'woodland-approach', 'open-engagement', 'flatlands-open-terrain', 'forest-lanes'].includes(mapId)) return 'Open and woodland';
   if (['ridge-and-ford', 'desert-hills', 'rolling-highlands', 'badlands-run'].includes(mapId)) return 'Hills and badlands';
@@ -260,7 +309,7 @@ function terrainStatusAt(col, row) {
 }
 
 function objectiveHexesForMap(mapId) {
-  if (BT_CUSTOM_MAPS[mapId]) return [...(BT_CUSTOM_MAPS[mapId].objective_hexes || [])];
+  if (getMapDefinition(mapId).objective_hexes) return [...getMapDefinition(mapId).objective_hexes];
   return ({
     'standard-single-sheet': ['0406', '0808', '1110'],
     'standard-dual-vertical': ['0408', '0816', '1125'],
@@ -281,7 +330,7 @@ function objectiveHexesForMap(mapId) {
 function scenarioDeploymentZoneHexes(seat, state = null) {
   state = state || (typeof currentMatchConfig !== 'undefined' ? currentMatchConfig : {});
   const dimensions = mapDimensions(state.map_id || activeMapId);
-  const authored = state.deployment_zones?.[String(seat)];
+  const authored = (state.deployment_zones || getMapDefinition(state.map_id || activeMapId).deployment_zones)?.[String(seat)];
   if (Array.isArray(authored)) return authored.filter(code => {
     const col = Number(String(code).slice(0, 2)), row = Number(String(code).slice(2, 4));
     return /^\d{4}$/.test(String(code)) && col >= 0 && col < dimensions.cols && row >= 0 && row < dimensions.rows;

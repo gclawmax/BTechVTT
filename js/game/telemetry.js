@@ -43,9 +43,10 @@ function reportExpectation(player) {
   return `${Math.abs(delta).toFixed(2)} hits ${delta > 0 ? 'above' : 'below'} expectation`;
 }
 function reportPlayerCard(seat, player = {}) {
-  return `<article class="victory-player-card team-${seat}"><h3>Player ${seat}</h3><div class="victory-stat-grid">
+  return `<article class="victory-player-card team-${seat}"><h3>${escapeHtml(typeof matchCommanderLabel === 'function' ? matchCommanderLabel(seat) : `Player ${seat}`)}</h3><div class="victory-stat-grid">
     <span><b>${reportNum(player.damage)}</b> damage</span><span><b>${reportNum(player.hits)} / ${reportNum(player.shots)}</b> attacks hit</span>
     <span><b>${reportPct(player.accuracy)}</b> accuracy</span><span><b>${reportNum(player.criticals)}</b> critical hits</span>
+    <span title="One win per resolved round; ties do not count. ${reportNum(player.initiative_rounds_recorded)} rounds recorded."><b>${player.initiative_wins == null || !reportNum(player.initiative_rounds_recorded) ? 'Not recorded' : reportNum(player.initiative_wins)}</b> initiative wins</span>
     <span><b>${reportNum(player.kills)}</b> kills</span><span><b>${reportNum(player.survivors)}</b> survivors</span>
     <span><b>${reportNum(player.average_heat).toFixed(1)}</b> average Heat Level</span><span><b>${reportNum(player.peak_heat)}</b> peak Heat Level</span>
   </div><p class="victory-expectation">${escapeHtml(reportExpectation(player))}</p></article>`;
