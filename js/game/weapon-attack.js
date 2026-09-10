@@ -161,23 +161,50 @@ function losFeatureHeight(terrain, col, row) {
   return level;
 }
 
-function interveningHexes(attacker, target) {
+// Clip the centre-to-centre segment against hex interiors. A shortest movement
+// path can bend away from the sight line. Opposite tiny offsets represent the
+// two legal alternatives when the line lies exactly along a shared hex edge.
+function interveningHexes(attacker, target, side = 1) {
+  const a = offsetToAxial(attacker.col, attacker.row);
+  const b = offsetToAxial(target.col, target.row);
+  const dq = b.q - a.q, dr = b.r - a.r;
+  const scale = Math.max(Math.abs(dq + 2 * dr), Math.abs(2 * dq + dr), 1);
+  const q = a.q - side * 1e-7 * (dq + 2 * dr) / scale;
+  const r = a.r + side * 1e-7 * (2 * dq + dr) / scale;
   const hexes = [];
-  let current = { col: attacker.col, row: attacker.row };
-  let remaining = axialDistance(current.col, current.row, target.col, target.row);
-  while (remaining > 1 && hexes.length < 40) {
-    current = hexNeighbor(current.col, current.row, weaponDirectionTo(current, target));
-    hexes.push(current);
-    remaining = axialDistance(current.col, current.row, target.col, target.row);
+  for (let row = Math.min(attacker.row, target.row) - 1; row <= Math.max(attacker.row, target.row) + 1; row++) {
+    for (let col = Math.min(attacker.col, target.col) - 1; col <= Math.max(attacker.col, target.col) + 1; col++) {
+      if ((col === attacker.col && row === attacker.row) || (col === target.col && row === target.row)) continue;
+      const h = offsetToAxial(col, row), x = q - h.q, y = r - h.r;
+      let entry = 0, exit = 1;
+      for (const [start, delta] of [[2*x+y, 2*dq+dr], [x+2*y, dq+2*dr], [x-y, dq-dr]]) {
+        if (Math.abs(delta) < 1e-12) {
+          if (Math.abs(start) > 1) { exit = -1; break; }
+        } else {
+          const t1 = (-1-start)/delta, t2 = (1-start)/delta;
+          entry = Math.max(entry, Math.min(t1,t2));
+          exit = Math.min(exit, Math.max(t1,t2));
+        }
+      }
+      // A corner touch alone does not cross the hex interior.
+      if (exit - entry > 1e-6) hexes.push({ col, row, entry });
+    }
   }
-  return hexes;
+  return hexes.sort((x,y) => x.entry-y.entry).map(({col,row}) => ({col,row}));
+}
+
+function analyseWeaponLineOfSight(observer, target) {
+  // Resolve an edge ambiguity in the defender's favour, without adding both
+  // alternative sides together as though they were successive woods hexes.
+  return [1,-1].map(side => analyseWeaponLineOfSightPath(observer,target,side))
+    .sort((a,b) => Number(a.valid)-Number(b.valid) || b.terrainModifier-a.terrainModifier || Number(b.partialCover)-Number(a.partialCover))[0];
 }
 
 // Total Warfare LOS for the currently supported ground BattleMechs. Terrain
 // only intervenes when its top reaches the sight line. A target-adjacent
 // Level-1 rise gives a standing target partial cover unless the attacker is
 // looking down from above; depth-one water always gives that cover.
-function analyseWeaponLineOfSight(observer, target) {
+function analyseWeaponLineOfSightPath(observer, target, side) {
   const observerTerrain = terrainAt(observer.col, observer.row);
   const targetTerrain = terrainAt(target.col, target.row);
   if (observerTerrain === 'deep_water' || targetTerrain === 'deep_water') {
@@ -188,13 +215,13 @@ function analyseWeaponLineOfSight(observer, target) {
   let obscuration = 0;
   let blockedByTerrain = false;
   let terrainCover = false;
-  const hexes = interveningHexes(observer, target);
-  hexes.forEach((hex, index) => {
+  const hexes = interveningHexes(observer, target, side);
+  hexes.forEach(hex => {
     const terrain = terrainAt(hex.col, hex.row);
     const level = elevationAt(hex.col, hex.row);
     const featureHeight = losFeatureHeight(terrain, hex.col, hex.row);
-    const adjacentObserver = index === 0;
-    const adjacentTarget = index === hexes.length - 1;
+    const adjacentObserver = axialDistance(observer.col, observer.row, hex.col, hex.row) === 1;
+    const adjacentTarget = axialDistance(target.col, target.row, hex.col, hex.row) === 1;
     const levelIntervenes = level >= Math.max(observerHeight, targetHeight)
       || (adjacentObserver && level >= observerHeight)
       || (adjacentTarget && level >= targetHeight);
@@ -214,6 +241,7 @@ function analyseWeaponLineOfSight(observer, target) {
     reason: blockedByTerrain ? 'Line of sight is blocked by intervening terrain.' : obscuration >= 3 ? 'Line of sight is blocked by intervening woods or smoke.' : '',
     terrainModifier: obscuration + targetModifier,
     interveningModifier: obscuration,
+    hexes,
     partialCover
   };
 }
