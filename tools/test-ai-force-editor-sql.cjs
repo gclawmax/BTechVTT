@@ -1,0 +1,27 @@
+const fs=require('fs'),assert=require('node:assert/strict');const {PGlite}=require(process.env.BT_PGLITE_MODULE||'/tmp/btech-sql-validation/node_modules/@electric-sql/pglite');
+(async()=>{const db=new PGlite();try{await db.exec(`CREATE ROLE authenticated;CREATE SCHEMA auth;CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('test.uid',true),'')::uuid $$;
+CREATE TABLE btech_games(id uuid,host_id uuid,status text,match_type text,catalogue_version text,state jsonb);
+CREATE TABLE btech_players(id uuid,game_id uuid,user_id uuid,role text,is_ai boolean,seat_number int,ready boolean);
+CREATE TABLE btech_catalogue_units(catalogue_version text,unit_id text,definition jsonb);
+CREATE FUNCTION btech_ruleset_unit_allowed(v text,u text,r text) RETURNS boolean LANGUAGE sql AS $$ SELECT u<>'banned' $$;
+CREATE FUNCTION btech_scenario_zone_contains(s jsonb,seat int,c text) RETURNS boolean LANGUAGE sql AS $$ SELECT seat=2 AND left(c,2)::int BETWEEN 12 AND 15 AND right(c,2)::int BETWEEN 0 AND 16 $$;
+CREATE FUNCTION btech_state_terrain(s jsonb,c text) RETURNS text LANGUAGE sql AS $$ SELECT 'clear'::text $$;`);
+const base=fs.readFileSync('SQL/132_bv2_authoritative_roster_checks.sql','utf8').split('CREATE OR REPLACE FUNCTION public.update_lobby_roster')[0];await db.exec(base);const skill=fs.readFileSync('SQL/144_correct_bv2_pilot_skill_table.sql','utf8');await db.exec(skill.slice(skill.indexOf('CREATE OR REPLACE FUNCTION'),skill.indexOf('DO $$')));await db.exec(fs.readFileSync('SQL/152_editable_ai_skirmish_force.sql','utf8'));
+const game='00000000-0000-0000-0000-000000000001',host='00000000-0000-0000-0000-000000000002',other='00000000-0000-0000-0000-000000000003';
+await db.query("SELECT set_config('test.uid',$1,false)",[host]);
+const state={vs_ai_mode:true,ruleset:'standard_3060',rosters:{'1':['human'],'2':[]},force_limit:{mode:'bv2',limit:2000},force_values:{},deployment_positions:{'1':[{col:1,row:1}]}};
+await db.query("INSERT INTO btech_games VALUES($1,$2,'lobby','skirmish','test',$3)",[game,host,JSON.stringify(state)]);
+await db.query("INSERT INTO btech_players VALUES($1,$2,$1,'player',false,1,true),($3,$2,null,'player',true,2,true)",[host,game,other]);
+await db.query("INSERT INTO btech_catalogue_units VALUES('test','puma',$1)",[JSON.stringify({mass:35,supported_by_vtt:true,battle_value:{system:'BV2',stock:1000}})]);
+const hangar=[{id:'enemy',unit_id:'puma',pilot:{name:'Star Pilot',gunnery:3,piloting:4}}],pos=[{col:13,row:8,facing:3,hidden:false}];
+async function save(h=hangar,p=pos){return db.query('SELECT update_ai_skirmish_force($1,$2,$3,$4)',[game,JSON.stringify(h),JSON.stringify(h.map(e=>e.id)),JSON.stringify(p)]);}
+await save();let saved=(await db.query('SELECT state FROM btech_games')).rows[0].state;
+assert.equal(saved.force_values['2'].adjusted,1320);assert.equal(saved.skirmish_avatars['2'].hangar[0].pilot.name,'Star Pilot');assert.deepEqual(saved.rosters['1'],['human']);assert.deepEqual(saved.deployment_positions['1'],state.deployment_positions['1']);assert.equal((await db.query('SELECT ready FROM btech_players WHERE seat_number=1')).rows[0].ready,false);
+await assert.rejects(save([{...hangar[0],pilot:{name:'Ace',gunnery:0,piloting:0}}]),/BV2 limit/);
+await assert.rejects(save(hangar,[{col:1,row:1,facing:0}]),/legal hexes/);
+await assert.rejects(save([{...hangar[0],pilot:{name:'Bad',gunnery:9,piloting:5}}]),/whole numbers/);
+await db.query("SELECT set_config('test.uid',$1,false)",[other]);await assert.rejects(save(),/seated host/);
+await db.query("SELECT set_config('test.uid',$1,false)",[host]);await db.exec("UPDATE btech_games SET status='in-progress'");await assert.rejects(save(),/before the match/);
+await db.exec("UPDATE btech_games SET status='lobby',state=jsonb_set(state,'{vs_ai_mode}','false')");await assert.rejects(save(),/solo skirmishes/);
+console.log('PASS AI save preserves human force; adjusted BV, names, skills, readiness, deployment, non-host, started and human-match guards.');
+}finally{await db.close()}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -596,7 +596,7 @@ function renderLobbyMatchSetup(gameState, players) {
   const aiRoster = (gameState.rosters?.['2'] || []).map(unitId => {
     const unit = getSupportedUnit(unitId); return unit ? `${unit.chassis} ${unit.variant}` : unitId;
   }).join(', ') || 'not generated';
-  const aiDetails = vsAiMode ? `<br>Opponent: <strong>${escapeHtml(titleCase(aiDifficulty))} · ${escapeHtml(AI_PERSONALITY_LABELS[aiPersonality])}</strong><br>AI force: <strong>${escapeHtml(aiRoster)}</strong><br><small>Build and deploy your force below. The AI is already deployed for this battlefield and mission.</small>` : '';
+  const aiDetails = vsAiMode ? `<br>Opponent: <strong>${escapeHtml(titleCase(aiDifficulty))} · ${escapeHtml(AI_PERSONALITY_LABELS[aiPersonality])}</strong><br>AI force: <strong>${escapeHtml(aiRoster)}</strong><br><small>Build and deploy your force below. The AI is deployed automatically. You can edit its force and pilots before starting.</small>${isHost ? '<button type="button" onclick="openAiForceEditor()">Edit AI force &amp; pilots</button>' : ''}` : '';
   settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${escapeHtml(beginnerScenario?.title || customScenario?.name || map.name)}</strong><br>${escapeHtml(beginnerScenario?.instructions || customScenario?.instructions || map.description)}<br>Battlefield: <strong>${escapeHtml(map.name)}</strong><br>Force limit: <strong>${bvLimit != null ? `${bvLimit.toLocaleString()} BV2` : `${limit} tons per player`}</strong><br>Victory: <strong>${victoryLabel}</strong><br>Ruleset: <strong>${escapeHtml(rulesetLabel(gameState))}</strong>${aiDetails}</div>`;
   if (bvLimit != null) {
     const sides = [1, 2].map(seat => ({

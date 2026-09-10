@@ -1678,3 +1678,10 @@ body.signed-in > .screen, body.signed-in #game-screen.active { height:calc(100vh
 .record-system-pip.hit { background:#ffe0e0; }
 @media(max-width:800px) { .record-system-grid { grid-template-columns:1fr; } }
 @media(max-width:440px) { .record-system-row { grid-template-columns:minmax(85px,1fr) 82px 70px; gap:4px; font-size:10px; } .record-system-pip { width:21px; height:21px; } }
+.ai-pilot-fields { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin-top:10px; }
+.ai-pilot-fields label { display:flex; flex-direction:column; gap:4px; }
+#ai-force-total { margin:14px 0; font-weight:bold; }
+#ai-force-error { color:#a51b22; margin:10px 0; }
+
+#ai-force-editor select, #ai-force-editor input { max-width:100%; }
+#ai-force-unit { display:block; width:100%; margin:8px 0; }

@@ -170,3 +170,7 @@ future AI work should be evidence-led tuning against saved AI-7 baselines.
 Build `20260907-game-modes-74` advances the engine envelope to `ai-7.1`:
 Control and Breakthrough movement now values progress toward legal scoring
 areas, and objective evaluation uses two-unit forces with end-of-round scoring.
+
+## Current follow-up: player-tested solo polish
+
+See docs/DEVELOPMENT_ROADMAP.md, “Vs AI playtest and polish programme”, for the current ordered backlog. Start with editable enemy forces, pilot-adjusted BV and no-mines defaults; then run the Dragon/Wolverine versus Puma acceptance match through the complete live lifecycle before tactics tuning.

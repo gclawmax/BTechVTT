@@ -1,7 +1,7 @@
 # BTechVTT — Development Roadmap
 
 Status: **authoritative roadmap**  
-Last updated: **2026-09-08**
+Last updated: **2026-09-10**
 
 This document is the single source of truth for development priorities. It
 supersedes the roadmap sections in `README.md`, `README2.md`, and
@@ -276,3 +276,17 @@ out of the playable catalogue; the full audit is recorded in
 - `docs/AI_OPPONENT_ROADMAP.md` — authoritative Play vs AI development slices.
 - `SKILL_ROADMAP2.md` — retained as historical roadmap context only.
 - `README.md` — legacy project overview; its roadmap is obsolete.
+
+## Vs AI playtest and polish programme
+
+Human skirmish remains primary; AI work must strengthen the shared rules path.
+Prioritise reliable turn completion and understandable decisions before harder Expert tactics.
+
+1. **Implemented locally — editable solo setup (build 113, SQL 152; live acceptance pending).** Host can change AI mechs and pilot names/skills before starting. Clan defaults 3/4, IS 4/5 on both suggested forces; all BV budgets use adjusted values. Mines default off and are unavailable in Standard 3060. Server rejects non-host, non-AI and started-match edits.
+2. **Next — repeatable acceptance match.** Verify catalogue variants and adjusted BV for Dragon/Wolverine 4/5 versus Puma Prime 3/4; save a reproducible fixture with mines disabled. Do not assume the remembered 3,500 BV is correct.
+3. **Next — full live lifecycle.** Ammo-bin confirmations, initiative ties, uneven activation allowances, standing/facing, destroyed weapons, physical attacks, heat, victory and initiative totals in the report. Refresh midway through an AI turn; prove resume cannot duplicate an action. Keep failed game codes and structured traces.
+4. **Next — terrain coverage.** Repeat with water and hills, then single, wide and deep maps; validate legal movement, no stalls and usable paths. Include both human/AI force orientations.
+5. **Next — clear feedback.** Thinking/acting/finished states, callsigns, pending actions and concise expandable decision explanations, including rejection/retry feedback.
+6. **Then — tactics and release soak.** Turn every reproduced defect into a regression. Run complete live matches on each release, record stalls/illegal actions and tune strategy only after reliability gates pass. Local planner tests alone do not count as live-match acceptance.
+
+SQL deployment and live acceptance must be reported separately from local implementation/testing.
