@@ -91,6 +91,13 @@ function armorCell(loc, label, armor, armorMax, structure, structureMax) {
   return `<div class="armor-cell" style="background:${background};border-color:${border}" title="Armour ${armor ?? '—'} / ${armorMax ?? '—'} · Internal structure ${structure ?? '—'} / ${structureMax ?? '—'}"><span class="loc">${label}</span><span class="val"><span style="color:${armorColour}">A <strong>${armor ?? '—'}</strong> / ${armorMax ?? '—'}</span><span style="color:${structureColour}">I <strong>${structure ?? '—'}</strong> / ${structureMax ?? '—'}</span></span></div>`;
 }
 
+function rearArmorCell(loc, label, armor, armorMax) {
+  const armourColour = damageColour(armor, armorMax);
+  const ratio = Number.isFinite(armor) && Number.isFinite(armorMax) && armorMax > 0 ? armor / armorMax : 1;
+  const hue = Math.round(Math.max(0, Math.min(1, ratio)) * 120);
+  return `<div class="armor-cell armor-cell-rear" style="background:hsl(${hue} 58% 87%);border-color:hsl(${hue} 52% 42%)" title="Rear armour ${armor ?? '—'} / ${armorMax ?? '—'}"><span class="loc">${label}</span><span class="val"><span style="color:${armourColour}">A <strong>${armor ?? '—'}</strong> / ${armorMax ?? '—'}</span></span></div>`;
+}
+
 function roundOneAmmoControl(inst, bin) {
   const isInitiative = currentGameState.round === 1 && currentGameState.phase === 'initiative';
   const choices = typeof specialAmmoLoadTypes === 'function' ? specialAmmoLoadTypes(bin) : [];
@@ -243,6 +250,9 @@ function renderDetail() {
       ${armorCell('lt','LT', inst.armor.lt, unit.armor.lt, inst.structure.lt, unit.structure.lt)}${armorCell('ct','CT', inst.armor.ct, unit.armor.ct, inst.structure.ct, unit.structure.ct)}${armorCell('rt','RT', inst.armor.rt, unit.armor.rt, inst.structure.rt, unit.structure.rt)}
       ${armorCell('ll','LL', inst.armor.ll, unit.armor.ll, inst.structure.ll, unit.structure.ll)}${armorCell('','', null, null, null, null)}${armorCell('rl','RL', inst.armor.rl, unit.armor.rl, inst.structure.rl, unit.structure.rl)}
     </div>
+    <div class="armor-rear-summary"><div class="panel-eyebrow">Rear torso armour</div><div class="armor-diagram armor-rear-diagram">
+      ${rearArmorCell('lt-rear','LT Rear', inst.armor.lt_rear, unit.armor.lt_rear)}${rearArmorCell('ct-rear','CT Rear', inst.armor.ct_rear, unit.armor.ct_rear)}${rearArmorCell('rt-rear','RT Rear', inst.armor.rt_rear, unit.armor.rt_rear)}
+    </div></div>
     <details class="mech-technical-details">
       <summary>Position &amp; facing</summary>
       <div class="stat-grid">

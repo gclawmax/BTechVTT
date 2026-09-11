@@ -1382,6 +1382,10 @@ body.resizing-side-panel, body.resizing-side-panel * {
 .armor-cell .loc { color:#243229; display:block; margin-bottom:3px; font-weight:bold; letter-spacing:.10em; }
 .armor-cell .val { display:grid; gap:1px; font-family:var(--mono); font-size:12px; font-weight:600; white-space:nowrap; }
 .armor-cell .val strong { font-size:14px; }
+.armor-cell-rear { min-height:42px; }
+.armor-rear-summary { margin-top:11px; }
+.armor-rear-summary .panel-eyebrow { margin-bottom:5px; }
+.armor-rear-diagram { margin-top:0; }
 
 .mech-technical-details {
   margin-top:15px;
@@ -1431,7 +1435,7 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
 .record-rl { grid-area:rl; }
 .record-location { border:1px solid var(--panel-line); background:#fafaf7; padding:8px; }
 .record-location h4 { margin:0 0 5px; color:var(--ink); font:12px var(--display); letter-spacing:.05em; }
-.record-condition { display:flex; justify-content:space-between; color:var(--ink); font:10px var(--mono); margin-bottom:6px; }
+.record-condition { display:flex; flex-wrap:wrap; gap:4px; justify-content:space-between; color:var(--ink); font:10px var(--mono); margin-bottom:6px; }
 .record-location ol { list-style:none; padding:0; margin:0; border-top:1px solid #d4d4cf; }
 .record-slot { display:grid; grid-template-columns:24px 1fr; min-height:19px; padding:2px 3px; border-bottom:1px solid #e2e2dc; color:#1e3024; font:10px var(--mono); }
 .record-slot span { color:#74746e; }

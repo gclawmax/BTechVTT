@@ -32,6 +32,18 @@ function renderRecordSystemDamage(mech) {
   }).join('')}</div></section>`;
 }
 
+function recordArmourCondition(mech, unit, key) {
+  const armour = mech.armor?.[key] ?? 0;
+  const armourMax = unit.armor?.[key] ?? 0;
+  const structure = mech.structure?.[key] ?? 0;
+  const structureMax = unit.structure?.[key] ?? 0;
+  const rearKey = `${key}_rear`;
+  const hasRearArmour = ['ct', 'lt', 'rt'].includes(key);
+  const rear = mech.armor?.[rearKey] ?? 0;
+  const rearMax = unit.armor?.[rearKey] ?? 0;
+  return `<div class="record-condition"><span style="color:${damageColour(armour,armourMax)};background:${recordDamageBackground(armour,armourMax)}">A Front ${armour} / ${armourMax}</span>${hasRearArmour ? `<span class="record-armour-rear" style="color:${damageColour(rear,rearMax)};background:${recordDamageBackground(rear,rearMax)}">A Rear ${rear} / ${rearMax}</span>` : ''}<span style="color:${damageColour(structure,structureMax)};background:${recordDamageBackground(structure,structureMax)}">I ${structure} / ${structureMax}</span></div>`;
+}
+
 function showRecordSheet(instanceId) {
   const mech = mechInstances.find(item => item.instanceId === instanceId);
   if (!mech || !ensureMechCombatState(mech)) return;
@@ -39,16 +51,12 @@ function showRecordSheet(instanceId) {
   const layout = BT_CRITICAL_LAYOUTS[mech.unitId] || {};
   document.getElementById('record-sheet-modal')?.remove();
   const locations = RECORD_LOCATIONS.map(([key, label]) => {
-    const armour = mech.armor?.[key] ?? 0;
-    const armourMax = unit.armor?.[key] ?? 0;
-    const structure = mech.structure?.[key] ?? 0;
-    const structureMax = unit.structure?.[key] ?? 0;
     const slotCount = ['head', 'll', 'rl'].includes(key) ? 6 : 12;
     const slots = Array.from({ length: slotCount }, (_, index) => layout[key]?.[index] || null).map((slot, index) => {
       const state = slot ? recordSheetSlotState(mech, key, index) : 'empty';
       return `<li class="record-slot ${state}"><span>${String(index + 1).padStart(2, '0')}</span>${slot ? `${slot}${recordAmmoForSlot(mech, key, index, slot)}` : '—'}</li>`;
     }).join('');
-    return `<section class="record-location record-${key}"><h4>${label}</h4><div class="record-condition"><span style="color:${damageColour(armour,armourMax)};background:${recordDamageBackground(armour,armourMax)}">A ${armour} / ${armourMax}</span><span style="color:${damageColour(structure,structureMax)};background:${recordDamageBackground(structure,structureMax)}">I ${structure} / ${structureMax}</span></div><ol>${slots}</ol></section>`;
+    return `<section class="record-location record-${key}"><h4>${label}</h4>${recordArmourCondition(mech, unit, key)}<ol>${slots}</ol></section>`;
   }).join('');
   const criticalCount = Object.values(mech.criticalSlotDamage || {}).reduce((total, slots) => total + slots.length, 0);
   const pilot = mech.pilot || { hits: 0, consciousness: 'conscious' };
