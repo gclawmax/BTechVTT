@@ -45,7 +45,7 @@ function deploymentMapMarkup(state,cells,codes,width,height) {
     const facing=HEX_DIRS[position.facing||0].angle+MEGAMEK_SPRITE_FORWARD_OFFSET_DEGREES;
     return file&&/^[a-z0-9_-]+\.png$/i.test(file)?`<image pointer-events="none" href="assets/mechs/${file}" x="${point.x-.65}" y="${point.y-.65}" width="1.3" height="1.3" transform="rotate(${facing} ${point.x} ${point.y})"/>`:'';
   })).join('');
-  return `<div class="deployment-view-controls" aria-label="Deployment map controls"><button type="button" onclick="zoomDeploymentMap(.8)" aria-label="Zoom deployment map out">−</button><output id="deployment-view-readout">${Math.round(deploymentMapView.zoom*100)}% · ${angle}°</output><button type="button" onclick="zoomDeploymentMap(1.25)" aria-label="Zoom deployment map in">+</button><button type="button" onclick="rotateDeploymentMap(-90)">Rotate left</button><button type="button" onclick="rotateDeploymentMap(90)">Rotate right</button><button type="button" onclick="resetDeploymentMapView()">Fit map</button><span>Scroll to zoom · use scrollbars to pan</span></div><div class="deployment-map-viewport"><svg class="deployment-map detailed" style="width:${deploymentMapView.zoom*100}%" viewBox="-1 -1.8 ${w+2} ${h+3.6}" aria-label="Battlefield deployment hexes">${labels}<g transform="translate(${w/2} ${h/2}) rotate(${angle}) translate(${-width/2} ${-height/2})"><image pointer-events="none" href="${deploymentTerrainImage(state,width,height)}" x="0" y="0" width="${width}" height="${height}"/>${cells}${tokens}${codes}</g></svg></div>`;
+  return `<div class="deployment-view-controls" aria-label="Deployment map controls"><button type="button" onclick="zoomDeploymentMap(.8)" aria-label="Zoom deployment map out">−</button><output id="deployment-view-readout">${Math.round(deploymentMapView.zoom*100)}% · ${angle}°</output><button type="button" onclick="zoomDeploymentMap(1.25)" aria-label="Zoom deployment map in">+</button><button type="button" onclick="rotateDeploymentMap(-90)">Rotate left</button><button type="button" onclick="rotateDeploymentMap(90)">Rotate right</button><button type="button" onclick="resetDeploymentMapView()">Fit map</button><span>Scroll to zoom · middle/right-drag to pan</span></div><div class="deployment-map-viewport"><svg class="deployment-map detailed" style="width:${deploymentMapView.zoom*100}%" viewBox="-1 -1.8 ${w+2} ${h+3.6}" aria-label="Battlefield deployment hexes">${labels}<g transform="translate(${w/2} ${h/2}) rotate(${angle}) translate(${-width/2} ${-height/2})"><image pointer-events="none" href="${deploymentTerrainImage(state,width,height)}" x="0" y="0" width="${width}" height="${height}"/>${cells}${tokens}${codes}</g></svg></div>`;
 }
 function zoomDeploymentMap(factor,anchor=null) {
   const viewport=document.querySelector('.deployment-map-viewport'), map=viewport?.querySelector('svg');if(!map)return;
@@ -68,6 +68,28 @@ function resetDeploymentMapView() {
 }
 function attachDeploymentMapControls() {
   const viewport=document.querySelector('.deployment-map-viewport');if(!viewport)return;
+  // Own middle-button scrolling so the browser cannot start native autoscroll.
+  let drag=null;
+  viewport.addEventListener('mousedown',event=>{if(event.button===1||event.button===2)event.preventDefault();});
+  viewport.addEventListener('auxclick',event=>{if(event.button===1||event.button===2)event.preventDefault();});
+  viewport.addEventListener('contextmenu',event=>event.preventDefault());
+  viewport.addEventListener('pointerdown',event=>{
+    if(event.button!==1&&event.button!==2)return;
+    event.preventDefault();
+    drag={id:event.pointerId,x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};
+    viewport.setPointerCapture(event.pointerId);viewport.classList.add('panning');
+  });
+  viewport.addEventListener('pointermove',event=>{
+    if(!drag||event.pointerId!==drag.id)return;
+    event.preventDefault();viewport.scrollLeft=drag.left+drag.x-event.clientX;viewport.scrollTop=drag.top+drag.y-event.clientY;
+    deploymentMapView.left=viewport.scrollLeft;deploymentMapView.top=viewport.scrollTop;
+  });
+  const finish=event=>{
+    if(!drag||event.pointerId!==drag.id)return;
+    drag=null;viewport.classList.remove('panning');
+    if(viewport.hasPointerCapture(event.pointerId))viewport.releasePointerCapture(event.pointerId);
+  };
+  viewport.addEventListener('pointerup',finish);viewport.addEventListener('pointercancel',finish);viewport.addEventListener('lostpointercapture',finish);
   viewport.scrollLeft=deploymentMapView.left;viewport.scrollTop=deploymentMapView.top;
   viewport.addEventListener('scroll',()=>{deploymentMapView.left=viewport.scrollLeft;deploymentMapView.top=viewport.scrollTop;});
   viewport.addEventListener('wheel',event=>{event.preventDefault();const rect=viewport.getBoundingClientRect();zoomDeploymentMap(event.deltaY<0?1.1:1/1.1,{x:event.clientX-rect.left,y:event.clientY-rect.top});},{passive:false});

@@ -18,7 +18,12 @@ db.from=()=>({select:()=>({eq:()=>({single:async()=>({data:{status:'lobby',state
 });
 await page.evaluate(()=>openAiForceEditor());
 if(await page.locator('#ai-force-editor').count()!==1)throw Error('Editor not opened');
-await page.locator('#ai-force-editor input').first().fill('Test Ace');
+await page.locator('#ai-force-search').fill('atlas');
+if(await page.locator('#ai-force-unit option').count()!==1)throw Error('Chassis search failed');
+await page.locator('#ai-force-search').fill('nonexistent-unit');
+if(await page.locator('#ai-force-unit').inputValue()!=='')throw Error('Empty search is selectable');
+await page.locator('#ai-force-search').fill('');
+await page.locator('.ai-pilot-fields input').first().fill('Test Ace');
 await page.locator('.ai-pilot-fields select').first().selectOption('2');
 await page.evaluate(()=>{window.aiSave=null;db.rpc=async(name,args)=>{if(name!=='update_ai_skirmish_force')throw Error('Wrong endpoint');aiSave=args;return{error:null}};loadLobbyUI=async()=>{};});
 for(const width of [1280,390]){await page.setViewportSize({width,height:900});if(await page.locator('#ai-force-editor .record-sheet').evaluate(e=>e.scrollWidth>e.clientWidth))throw Error('Editor overflows');await page.screenshot({path:'/tmp/ai-force-editor-'+width+'.png'});}

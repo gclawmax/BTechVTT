@@ -13,9 +13,22 @@ async function openAiForceEditor() {
 }
 function closeAiForceEditor(){if(aiForceEditor?.saving)return;document.getElementById('ai-force-editor')?.remove();aiForceEditor=null;}
 function updateAiPilot(index,field,value){if(!aiForceEditor||aiForceEditor.saving)return;aiForceEditor.entries[index].pilot[field]=field==='name'?value:Number(value);updateAiForceTotal();}
+function aiForceUnitOptions(query='') {
+ const normalize=value=>String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+ const term=normalize(query);
+ return vsAiUnitEntries(matchRuleset(aiForceEditor.state)).filter(([id,u])=>normalize(`${u.chassis} ${u.variant} ${id}`).includes(term)).map(([id,u])=>{
+   const pilot=defaultSkirmishPilot(u),bv=bv2EntryValue(u,pilot);
+   return `<option value="${escapeHtml(id)}">${escapeHtml(u.chassis+' '+u.variant)} · ${u.tonnage} t · ${bv ? bv.adjusted.toLocaleString()+' BV' : 'BV pending'} · G${pilot.gunnery}/P${pilot.piloting}</option>`;
+ }).join('');
+}
+function filterAiForceUnits(query) {
+ const select=document.getElementById('ai-force-unit');if(!select||!aiForceEditor)return;
+ select.innerHTML=aiForceUnitOptions(query)||'<option value="">No matching mechs</option>';
+}
 function updateAiForceTotal(){
  const draft=aiForceEditor;if(!draft)return;
  const values=draft.entries.map(e=>bv2EntryValue(getSupportedUnit(e.unit_id),e.pilot));
+ values.forEach((v,i)=>{const label=document.getElementById(`ai-force-bv-${i}`);if(label)label.textContent=v?`${v.adjusted.toLocaleString()} adjusted BV`:'BV pending';});
  const total=values.every(Boolean)?values.reduce((sum,v)=>sum+v.adjusted,0):null,limit=bv2ForceLimit(draft.state);
  const tons=rosterTonnage(draft.entries.map(e=>e.unit_id));
  const legal=draft.entries.length>0&&draft.entries.length<=6&&(limit!=null?total!=null&&total<=limit:tons<=Number(draft.state.dropship_tonnage));
@@ -26,8 +39,8 @@ function addAiForceMech(){if(!aiForceEditor||aiForceEditor.saving)return;const i
 function removeAiForceMech(index){if(aiForceEditor.saving)return;aiForceEditor.entries.splice(index,1);renderAiForceEditor();}
 function renderAiForceEditor(){
  const draft=aiForceEditor;if(!draft)return;
- const options=vsAiUnitEntries(matchRuleset(draft.state)).map(([id,u])=>`<option value="${escapeHtml(id)}">${escapeHtml(u.chassis+' '+u.variant)} · ${u.tonnage} t</option>`).join('');
- document.getElementById('ai-force-editor').innerHTML=`<div class="record-sheet" role="dialog" aria-modal="true" aria-label="Edit AI force"><header><h2>AI force & pilots</h2><button onclick="closeAiForceEditor()">Cancel</button></header><p>Clan additions start at Gunnery 3 / Piloting 4; Inner Sphere at 4 / 5. Edit either skill below. Save applies all changes and automatically deploys the AI force.</p><div class="hangar-list">${draft.entries.map((e,i)=>`<section class="record-system-damage"><strong>${escapeHtml(getSupportedUnit(e.unit_id)?.chassis+' '+getSupportedUnit(e.unit_id)?.variant)}</strong><div class="ai-pilot-fields"><label>Pilot name<input maxlength="48" value="${escapeHtml(e.pilot.name||'MechWarrior')}" oninput="updateAiPilot(${i},'name',this.value)"></label><label>Gunnery<select onchange="updateAiPilot(${i},'gunnery',this.value)">${skirmishSkillOptions(e.pilot.gunnery)}</select></label><label>Piloting<select onchange="updateAiPilot(${i},'piloting',this.value)">${skirmishSkillOptions(e.pilot.piloting)}</select></label><button onclick="removeAiForceMech(${i})">Remove</button></div></section>`).join('')}</div><label>Add an enemy mech<select id="ai-force-unit">${options}</select></label><button onclick="addAiForceMech()" ${draft.entries.length>=6?'disabled':''}>Add mech</button><p id="ai-force-total" role="status"></p><p id="ai-force-error" role="alert"></p><button id="ai-force-save" onclick="saveAiForceEditor()">Save AI force & pilots</button></div>`;
+ const options=aiForceUnitOptions();
+ document.getElementById('ai-force-editor').innerHTML=`<div class="record-sheet" role="dialog" aria-modal="true" aria-label="Edit AI force"><header><h2>AI force & pilots</h2><button onclick="closeAiForceEditor()">Cancel</button></header><p>Clan additions start at Gunnery 3 / Piloting 4; Inner Sphere at 4 / 5. Edit either skill below. Save applies all changes and automatically deploys the AI force.</p><div class="hangar-list">${draft.entries.map((e,i)=>`<section class="record-system-damage"><strong>${escapeHtml(getSupportedUnit(e.unit_id)?.chassis+' '+getSupportedUnit(e.unit_id)?.variant)}</strong><span class="ai-unit-bv" id="ai-force-bv-${i}"></span><div class="ai-pilot-fields"><label>Pilot name<input maxlength="48" value="${escapeHtml(e.pilot.name||'MechWarrior')}" oninput="updateAiPilot(${i},'name',this.value)"></label><label>Gunnery<select onchange="updateAiPilot(${i},'gunnery',this.value)">${skirmishSkillOptions(e.pilot.gunnery)}</select></label><label>Piloting<select onchange="updateAiPilot(${i},'piloting',this.value)">${skirmishSkillOptions(e.pilot.piloting)}</select></label><button onclick="removeAiForceMech(${i})">Remove</button></div></section>`).join('')}</div><label>Find an enemy mech<input id="ai-force-search" type="search" placeholder="Chassis or variant, e.g. Puma or WVR-7K" oninput="filterAiForceUnits(this.value)"></label><label>Add an enemy mech<select id="ai-force-unit">${options}</select></label><button onclick="addAiForceMech()" ${draft.entries.length>=6?'disabled':''}>Add mech</button><p id="ai-force-total" role="status"></p><p id="ai-force-error" role="alert"></p><button id="ai-force-save" onclick="saveAiForceEditor()">Save AI force & pilots</button></div>`;
  updateAiForceTotal();
 }
 async function saveAiForceEditor(){

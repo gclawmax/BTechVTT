@@ -1417,7 +1417,7 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
   grid-template-areas:
     "la head ra"
     "lt ct rt"
-    "ll . rl";
+    "ll systems rl";
   gap:10px;
   align-items:start;
 }
@@ -1439,7 +1439,7 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
 .record-slot.damaged { background:#ffe3a6; color:#7a4b00; text-decoration:line-through; }
 .record-slot.destroyed { background:#f1b4ad; color:#7e2018; text-decoration:line-through; }
 @media (max-width:760px) {
-  .record-grid { grid-template-columns:1fr; grid-template-areas:"head" "la" "ra" "lt" "ct" "rt" "ll" "rl"; }
+  .record-grid { grid-template-columns:1fr; grid-template-areas:"head" "la" "ra" "lt" "ct" "systems" "rt" "ll" "rl"; }
 }
 
 /* ── LOADING OVERLAY ────────────────────────────────────── */
@@ -1685,3 +1685,16 @@ body.signed-in > .screen, body.signed-in #game-screen.active { height:calc(100vh
 
 #ai-force-editor select, #ai-force-editor input { max-width:100%; }
 #ai-force-unit { display:block; width:100%; margin:8px 0; }
+
+.deployment-map-viewport.panning, .deployment-map-viewport.panning * { cursor:grabbing; user-select:none; }
+
+/* Compact paper-sheet system track, directly beneath the centre torso. */
+.record-grid > .record-system-damage { grid-area:systems; margin:0; padding:8px; background:#fafaf7; }
+.record-grid .record-system-damage h3 { font:12px var(--display); margin:0 0 8px; }
+.record-grid .record-system-grid { grid-template-columns:1fr; gap:6px; margin:0; }
+.record-grid .record-system-row { grid-template-columns:minmax(78px,1fr) 68px 70px; gap:5px; font-size:10px; }
+.record-grid .record-system-pips { gap:3px; }
+.record-grid .record-system-pip { width:18px; height:18px; font-size:17px; }
+
+#ai-force-search { display:block; width:100%; box-sizing:border-box; padding:8px; margin:6px 0 10px; }
+.ai-unit-bv { display:inline-block; margin-left:12px; font:11px var(--mono); color:#536052; }

@@ -1,0 +1,8 @@
+const {chromium}=require('/Users/mattperkins/.hermes/hermes-agent/node_modules/playwright');const assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({headless:true,channel:'chrome'});try{const page=await browser.newPage();await page.goto('http://127.0.0.1:8790/index.html');await page.locator('#login-screen.active').waitFor();
+await page.evaluate(()=>{const viewport=document.createElement('div');viewport.className='deployment-map-viewport';viewport.style.cssText='position:fixed;z-index:999;left:20px;top:80px;width:500px;height:400px;overflow:auto';viewport.innerHTML='<div style="width:1500px;height:1600px;background:#aaa"></div>';document.body.append(viewport);attachDeploymentMapControls();window.nativePrevented=false;viewport.addEventListener('pointerdown',event=>{if(event.button===1)nativePrevented=event.defaultPrevented;});});
+for(const button of ['middle','right']){await page.mouse.move(350,300);await page.mouse.down({button});await page.mouse.move(200,180);await page.mouse.up({button});assert.ok(await page.locator('.deployment-map-viewport').evaluate(e=>e.scrollTop>=120&&e.scrollLeft>=150));assert.equal(await page.locator('.panning').count(),0);}
+assert.equal(await page.evaluate(()=>nativePrevented),true);
+const leftAllowed=await page.locator('.deployment-map-viewport').evaluate(e=>e.dispatchEvent(new MouseEvent('mousedown',{button:0,bubbles:true,cancelable:true})));assert.equal(leftAllowed,true);
+console.log('PASS native middle-click default suppressed; middle/right drag pans; release cleans up; left button unaffected.');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

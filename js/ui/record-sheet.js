@@ -25,7 +25,7 @@ function renderRecordSystemDamage(mech) {
     ['Life Support', 'Life Support', 1]
   ];
   const available = Boolean(BT_CRITICAL_LAYOUTS[mech.unitId]);
-  return `<section class="record-system-damage" aria-label="Critical system damage"><h3>Critical System Damage</h3><p>Crossed circles show recorded hits. Empty circles show hits remaining.</p><div class="record-system-grid">${systems.map(([label, name, maximum]) => {
+  return `<section class="record-system-damage" aria-label="Critical system damage"><h3>Critical Damage</h3><div class="record-system-grid">${systems.map(([label, name, maximum]) => {
     const hits = available ? Math.min(maximum, criticalDamagedSlots(mech, name).length) : 0;
     const status = !available ? 'Not recorded' : name === 'Life Support' ? (hits ? 'Damaged' : 'Intact') : `${hits} / ${maximum} hits`;
     return `<div class="record-system-row${hits ? ' has-damage' : ''}"><strong>${label}</strong><span class="record-system-pips" role="img" aria-label="${label}: ${status}">${available ? Array.from({length: maximum}, (_, index) => `<i class="record-system-pip${index < hits ? ' hit' : ''}" aria-hidden="true">${index < hits ? '×' : ''}</i>`).join('') : '—'}</span><span>${status}</span></div>`;
@@ -59,9 +59,8 @@ function showRecordSheet(instanceId) {
   modal.innerHTML = `<div class="record-sheet" role="dialog" aria-modal="true" aria-label="${unit.chassis} ${unit.variant} record sheet">
     <header><div><div class="panel-eyebrow">BattleMech Record Sheet</div><h2>${unit.chassis} ${unit.variant}</h2><p>Player ${mech.owner} · ${unit.tonnage} tons · Heat ${mech.heat || 0} · ${escapeHtml(pilot.name || 'MechWarrior')} · Gunnery ${pilot.gunnery ?? 4} · Piloting ${pilot.piloting ?? mech.pilotingSkill ?? 5}</p></div><button onclick="closeRecordSheet()">Close</button></header>
     <div class="record-note">Pilot: ${escapeHtml(pilot.name || 'MechWarrior')} · ${pilotState} · ${pilot.hits || 0} hit${pilot.hits === 1 ? '' : 's'}. Critical slots are shown from the unit record. ${criticalCount ? `${criticalCount} critical slot${criticalCount === 1 ? '' : 's'} damaged.` : 'No critical slots damaged.'}</div>
-    ${renderRecordSystemDamage(mech)}
     <section class="record-weapon-inventory"><h3>Weapons Inventory</h3>${renderWeaponInventory(unit, 'record-weapon-table', mech)}</section>
-    <div class="record-grid">${locations}</div>
+    <div class="record-grid">${locations}${renderRecordSystemDamage(mech)}</div>
   </div>`;
   document.body.appendChild(modal);
 }

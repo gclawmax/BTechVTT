@@ -282,11 +282,21 @@ out of the playable catalogue; the full audit is recorded in
 Human skirmish remains primary; AI work must strengthen the shared rules path.
 Prioritise reliable turn completion and understandable decisions before harder Expert tactics.
 
-1. **Implemented locally — editable solo setup (build 113, SQL 152; live acceptance pending).** Host can change AI mechs and pilot names/skills before starting. Clan defaults 3/4, IS 4/5 on both suggested forces; all BV budgets use adjusted values. Mines default off and are unavailable in Standard 3060. Server rejects non-host, non-AI and started-match edits.
-2. **Next — repeatable acceptance match.** Verify catalogue variants and adjusted BV for Dragon/Wolverine 4/5 versus Puma Prime 3/4; save a reproducible fixture with mines disabled. Do not assume the remembered 3,500 BV is correct.
+1. **Implemented locally — editable solo setup (build 113, SQL 152; live setup acceptance passed 2026-09-11).** Host can change AI mechs and pilot names/skills before starting. Clan defaults 3/4, IS 4/5 on both suggested forces; all BV budgets use adjusted values. Mines default off and are unavailable in Standard 3060. Server rejects non-host, non-AI and started-match edits.
+2. **Fixture verified — repeatable acceptance match.** Verify catalogue variants and adjusted BV for Dragon/Wolverine 4/5 versus Puma Prime 3/4; save a reproducible fixture with mines disabled. Do not assume the remembered 3,500 BV is correct.
 3. **Next — full live lifecycle.** Ammo-bin confirmations, initiative ties, uneven activation allowances, standing/facing, destroyed weapons, physical attacks, heat, victory and initiative totals in the report. Refresh midway through an AI turn; prove resume cannot duplicate an action. Keep failed game codes and structured traces.
 4. **Next — terrain coverage.** Repeat with water and hills, then single, wide and deep maps; validate legal movement, no stalls and usable paths. Include both human/AI force orientations.
 5. **Next — clear feedback.** Thinking/acting/finished states, callsigns, pending actions and concise expandable decision explanations, including rejection/retry feedback.
 6. **Then — tactics and release soak.** Turn every reproduced defect into a regression. Run complete live matches on each release, record stalls/illegal actions and tune strategy only after reliability gates pass. Local planner tests alone do not count as live-match acceptance.
 
 SQL deployment and live acceptance must be reported separately from local implementation/testing.
+
+### AI polish validation — 2026-09-11, build 115
+
+- Critical Damage track is compact and placed below the Centre Torso, with desktop/mobile layout checks.
+- AI force picker searches chassis/variant and shows default adjusted BV plus live per-unit adjusted BV while skills are edited.
+- Deployment maps consume middle-click autoscroll and support middle/right-button drag panning.
+- Live weapon acceptance passed: complete mount package, server dice, exact ammo use, heat once, phase hand-off.
+- Live specialist acceptance passed on hosted build 113: difficulty/personality persistence, Reaction, physical resolution and completed decision records. Replaced an obsolete build-name whitelist with capability checks. Disposable fixtures were removed.
+- Live setup acceptance for tools/fixtures/ai-clan-vs-is.json passed with the installed catalogue: DRG-5N + WVR-7K at 4/5 = 2554 BV; Puma Prime at 3/4 = 2750 BV. The 196 BV difference is intentional, not claimed equal. DRG-5K substitution gives 2689 BV (61 difference). Saved pilots, adjusted values and no-mines state survive start. Fixture removed after verification.
+- These are focused live checks, not a complete played match. Full lifecycle, recovery after refresh and all-map endurance remain pending.

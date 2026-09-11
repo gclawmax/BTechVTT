@@ -1,0 +1,17 @@
+{
+  "description": "Player-requested Dragon/Wolverine versus Clan-skilled Puma acceptance fixture",
+  "verified_date": "2026-09-11",
+  "catalogue_version": "megamek-2026-09-wolverine-variants-01",
+  "map_id": "training-grounds",
+  "ruleset": "standard_3060",
+  "bv_limit": 2750,
+  "minefields": false,
+  "human": [
+    {"unit_id":"dragon-drg-5n","name":"Dragon Pilot","gunnery":4,"piloting":5,"stock_bv":1223,"adjusted_bv":1223},
+    {"unit_id":"wolverine-wvr-7k","name":"Wolverine Pilot","gunnery":4,"piloting":5,"stock_bv":1331,"adjusted_bv":1331}
+  ],
+  "ai": [
+    {"unit_id":"adder-prime","name":"Puma Pilot","gunnery":3,"piloting":4,"stock_bv":2083,"adjusted_bv":2750}
+  ],
+  "note": "IS total 2554 versus Clan 2750 (196 difference). Replacing DRG-5N with Grand Dragon DRG-5K gives 2689 versus 2750 (61 difference)."
+}
