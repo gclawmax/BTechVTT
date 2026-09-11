@@ -300,3 +300,9 @@ SQL deployment and live acceptance must be reported separately from local implem
 - Live specialist acceptance passed on hosted build 113: difficulty/personality persistence, Reaction, physical resolution and completed decision records. Replaced an obsolete build-name whitelist with capability checks. Disposable fixtures were removed.
 - Live setup acceptance for tools/fixtures/ai-clan-vs-is.json passed with the installed catalogue: DRG-5N + WVR-7K at 4/5 = 2554 BV; Puma Prime at 3/4 = 2750 BV. The 196 BV difference is intentional, not claimed equal. DRG-5K substitution gives 2689 BV (61 difference). Saved pilots, adjusted values and no-mines state survive start. Fixture removed after verification.
 - These are focused live checks, not a complete played match. Full lifecycle, recovery after refresh and all-map endurance remain pending.
+
+### Auto-next phase repair — 2026-09-11, build 116
+
+- Auto-next observes completed steps throughout a Vs AI match, including resolved initiative and server hand-offs, rather than only the immediate AI completion callback. Required player choices and physical skip confirmations remain manual.
+- Empty AI plans report successful completion; stale callbacks, duplicate advances and repeated failed requests are guarded.
+- Focused scheduler regressions passed. Live-server acceptance advanced resolved initiative into Movement without a Next Phase click and preserved unconfirmed human movement. Disposable match BT-T53K removed. No SQL migration. Full-match lifecycle acceptance remains pending.

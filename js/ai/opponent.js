@@ -874,7 +874,7 @@ async function executeAIPlan(aiPlan) {
     logEvent('AI has no actions to take this phase.', 'system');
     if (currentGameState.phase === 'heat') await resolveAIHeatManagement();
     else updateAdvanceButtonState();
-    return;
+    return true;
   }
   
   const plannedPhase = aiPlan.phase || currentGameState.phase;

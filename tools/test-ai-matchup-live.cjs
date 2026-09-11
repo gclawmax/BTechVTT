@@ -20,5 +20,18 @@ const result=await page.evaluate(async({fixture,user,pass})=>{
  return {gameId:currentGameId,gameCode:started.game_code,status:started.status,mines:started.state.minefield_rules,units:started.state.mech_instances,values:started.state.force_values};
 },{fixture,user:process.env.BT_TEST_USER,pass:process.env.BT_TEST_PASS});
 gameId=result.gameId;assert.equal(result.status,'in-progress');assert.equal(result.mines.budget,0);assert.equal(result.units.length,3);for(const expected of [...fixture.human,...fixture.ai]){const actual=result.units.find(u=>u.unitId===expected.unit_id);assert.equal(actual.pilot.name,expected.name);assert.equal(actual.pilot.gunnery,expected.gunnery);assert.equal(actual.pilot.piloting,expected.piloting);}assert.equal(result.values['1'].adjusted,2554);assert.equal(result.values['2'].adjusted,2750);
+if(process.env.BT_TEST_AUTOPHASE==='1') {
+ await page.evaluate(async()=>{
+  const {data,error}=await db.from('btech_games').select('state').eq('id',currentGameId).single();if(error)throw Error(error.message);
+  const st=typeof data.state==='string'?JSON.parse(data.state):data.state;
+  Object.assign(st,{initiative_order:[],initiative_rolls:[],initiative_round:null,initiative_pending:[],active_player_player_id:null});
+  const saved=await db.from('btech_games').update({current_round:2,current_phase:'initiative',active_player_id:null,initiative_winner:null,state:st}).eq('id',currentGameId);if(saved.error)throw Error(saved.error.message);
+  await loadGameState();setAutoAdvanceAfterAi(true);await submitInitiativeRoll();
+ });
+ await page.waitForFunction(()=>currentGameState.phase==='movement',null,{timeout:15000});
+ assert.equal(await page.evaluate(()=>mechInstances.filter(m=>m.owner===1).every(m=>!m.hasMoved)),true);
+ await page.evaluate(()=>setAutoAdvanceAfterAi(false));
+ console.log('PASS live Auto-next advances resolved initiative without clicking Next Phase; human movement remains unconfirmed.');
+}
 const cleanup=await page.evaluate(async id=>(await db.from('btech_games').delete().eq('id',id)).error?.message||null,gameId);assert.equal(cleanup,null);console.log('PASS real-server 2 IS vs 1 Clan setup, editable AI save, skill-adjusted BV, pilots preserved at start, mines off; disposable match removed: '+result.gameCode);
 }catch(error){console.error(error);if(gameId)console.error('Failed fixture retained: '+gameId);process.exitCode=1;}finally{await b.close()}})();

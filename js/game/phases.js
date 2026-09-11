@@ -359,39 +359,48 @@ function updateInitiativeButtonState() {
 
 function setAutoAdvanceAfterAi(enabled) {
   autoAdvanceAfterAi = !!enabled;
+  autoAdvancePausedKey = null;
   localStorage.setItem(AUTO_ADVANCE_AI_STORAGE_KEY, String(autoAdvanceAfterAi));
   updateGameHeader();
-  logEvent(`Auto-next after AI ${autoAdvanceAfterAi ? 'enabled' : 'disabled'}.`, 'system');
+  logEvent(`Auto-next phase ${autoAdvanceAfterAi ? 'enabled' : 'disabled'}.`, 'system');
+  scheduleAiMatchAutoAdvance();
 }
 
-async function autoAdvanceAfterAiTurn(attempt = 0) {
-  if (!vsAiMode || !autoAdvanceAfterAi) return;
-  // AI actions and log entries share a serialized write queue. Let that queue
-  // settle before changing the active player or phase, otherwise an older
-  // snapshot could overwrite the automatic hand-off.
-  await gameStateWriteQueue;
-  if (!getActivePlayerRecord()?.is_ai) return;
+let autoAdvanceInProgress = false;
+let autoAdvancePausedKey = null;
+function autoAdvanceStepKey() {
+  return `${currentGameId}:${currentGameState.round}:${currentGameState.phase}:${currentGameState.active_player_id}`;
+}
+function canAutoAdvanceAiMatch() {
+  if (!currentGameId || !vsAiMode || !isHost || !autoAdvanceAfterAi || autoAdvanceInProgress || aiTurnInProgress || currentGameState.match_result) return false;
   const check = canAdvancePhase();
-  if (!check.ok) {
-    // A realtime event can briefly expose an older 'Mech snapshot directly
-    // after the AI saves. Retry a few times rather than leaving the player to
-    // press Next Phase for an otherwise completed AI turn.
-    if (attempt < 5) {
-      clearTimeout(autoAdvanceRetryTimer);
-      autoAdvanceRetryTimer = setTimeout(() => autoAdvanceAfterAiTurn(attempt + 1), 250);
-    } else {
-      logEvent(`AI auto-next stopped: ${check.reason}`, 'error');
-    }
-    return;
+  // A physical-attack skip warning is not permission to discard a choice.
+  return check.ok && !check.warning && autoAdvancePausedKey !== autoAdvanceStepKey();
+}
+function scheduleAiMatchAutoAdvance() {
+  clearTimeout(autoAdvanceRetryTimer);
+  if (!canAutoAdvanceAiMatch()) return;
+  const key = autoAdvanceStepKey();
+  autoAdvanceRetryTimer = setTimeout(() => autoAdvanceAfterAiTurn(key), 150);
+}
+async function autoAdvanceAfterAiTurn(expectedKey = autoAdvanceStepKey()) {
+  if (!canAutoAdvanceAiMatch() || expectedKey !== autoAdvanceStepKey()) return;
+  autoAdvanceInProgress = true;
+  try {
+    // Let queued state writes finish and discard callbacks for earlier steps.
+    await gameStateWriteQueue;
+    if (!vsAiMode || !autoAdvanceAfterAi || aiTurnInProgress || currentGameState.match_result || expectedKey !== autoAdvanceStepKey()) return;
+    const check = canAdvancePhase();
+    if (!check.ok || check.warning) return;
+    await advancePhase();
+    if (expectedKey === autoAdvanceStepKey()) autoAdvancePausedKey = expectedKey;
+  } catch (error) {
+    autoAdvancePausedKey = expectedKey;
+    logEvent(`Auto-next paused: ${error.message || error}`, 'error');
+  } finally {
+    autoAdvanceInProgress = false;
+    updateAdvanceButtonState();
   }
-
-  logEvent('AI choices complete — auto-advancing.', 'system');
-  // The confirmation log captures the current (AI) active-player state.
-  // Persist it before the hand-off so it cannot overwrite the new player's
-  // active_player_player_id after advancePhase writes it.
-  await gameStateWriteQueue;
-  if (!getActivePlayerRecord()?.is_ai || !canAdvancePhase().ok) return;
-  await advancePhase();
 }
 
 function scheduleActiveAiTurn() {
@@ -985,6 +994,7 @@ function updateAdvanceButtonState() {
   btn.title = check.ok ? 'Advance to the next phase' : check.reason;
   btn.style.opacity = check.ok ? '1' : '0.45';
   btn.style.cursor = check.ok ? 'pointer' : 'not-allowed';
+  scheduleAiMatchAutoAdvance();
 }
 
 async function advancePhase(skipPhysicalWarning = false) {
