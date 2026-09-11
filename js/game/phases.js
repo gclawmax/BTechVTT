@@ -344,7 +344,7 @@ function updateInitiativeButtonState() {
     : [];
   const ownAmmoSetupPending = unconfiguredAmmo.some(mech => mech.owner === mySeatNumber);
   const ammoSetupPending = unconfiguredAmmo.length > 0;
-  initBtn.disabled = initiativeRollInFlight || !canRoll || ammoSetupPending;
+  initBtn.disabled = initiativeRollInFlight || !!ammunitionBinSaveInFlight || !canRoll || ammoSetupPending;
   initBtn.setAttribute('aria-busy', String(initiativeRollInFlight));
   initBtn.textContent = initiativeRollInFlight ? 'Rolling Initiative…'
     : iHaveRolled && !alreadyRolled ? 'Rolled — waiting for opponent'
@@ -507,41 +507,38 @@ function setRoundOneAmmoChoice(key, loadType) {
   }
 }
 
-async function submitRoundOneAmmoLoadout(binKey = null) {
+let ammunitionBinSaveInFlight = null;
+
+async function submitRoundOneAmmoLoadout(binKey) {
+  if (!binKey || ammunitionBinSaveInFlight || currentGameState.round !== 1 || currentGameState.phase !== 'initiative') return;
   const pendingEntries = mechInstances.flatMap(mech => mech.owner === mySeatNumber
     ? (mech.ammoBins || []).filter(bin => ammoSetupRequiredForBin(bin)).map(bin => [
       `${mech.instanceId}:${bin.id}`, roundOneAmmoChoices[`${mech.instanceId}:${bin.id}`] || specialAmmoLoadTypes(bin)[0]
     ]) : []);
-  const entries = binKey ? pendingEntries.filter(([key]) => key === binKey) : pendingEntries;
-  if (!entries.length) return;
-  if (vsAiMode) {
-    entries.forEach(([key, loadType]) => {
-      const separator = key.indexOf(':');
-      const instanceId = key.slice(0, separator);
-      const binId = key.slice(separator + 1);
-      const mech = mechInstances.find(candidate => candidate.instanceId === instanceId);
-      const bin = mech?.ammoBins?.find(candidate => candidate.id === binId);
-      if (bin) {
-        bin.loadType = loadType;
-        const rack = /^mml(3|5|7|9)$/.test(bin.type) ? Number(bin.type.slice(3)) : 0;
-        if (rack) bin.shots = bin.maxShots = loadType === 'srm' ? Math.floor(100 / rack) : Math.floor(120 / rack);
-      }
+  const entries = pendingEntries.filter(([key]) => key === binKey);
+  if (entries.length !== 1) return;
+  ammunitionBinSaveInFlight = binKey;
+  renderDetail();
+  updateInitiativeButtonState();
+  try {
+    const [key, loadType] = entries[0];
+    const { error } = await db.rpc('confirm_round_one_ammunition_bin', {
+      p_game_id: currentGameId, p_bin_key: key, p_load_type: loadType
     });
-    await syncMechInstances();
+    if (error) {
+      logEvent(`Could not save ammunition: ${error.message}`, 'error');
+      await loadGameState();
+      return;
+    }
+    logEvent(`Ammunition bin ${binKey} confirmed. Other bins must be confirmed separately.`, 'system');
     await loadGameState();
-    return;
-  }
-  let error = null;
-  for (const [key, loadType] of entries) {
-    const result = await db.rpc('confirm_round_one_ammunition_bin', { p_game_id: currentGameId, p_bin_key: key, p_load_type: loadType });
-    if (result.error) { error = result.error; break; }
-  }
-  if (error) {
+  } catch (error) {
     logEvent(`Could not save ammunition: ${error.message}`, 'error');
-    return;
+  } finally {
+    ammunitionBinSaveInFlight = null;
+    renderDetail();
+    updateInitiativeButtonState();
   }
-  logEvent('Round 1 ammunition bin saved.', 'system');
-  await loadGameState();
 }
 
 // Roll initiative for ALL players (human + AI) using 2D6

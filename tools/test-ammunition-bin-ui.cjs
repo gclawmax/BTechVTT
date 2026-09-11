@@ -1,0 +1,11 @@
+const {chromium}=require('/Users/mattperkins/.hermes/hermes-agent/node_modules/playwright');const path=require('node:path'),assert=require('node:assert/strict');
+(async()=>{const b=await chromium.launch({headless:true,channel:'chrome'});try{const p=await b.newPage();for(const f of ['js/game/phases.js','js/ui/panels.js'])await p.route('**/'+f+'?*',r=>r.fulfill({path:path.resolve(__dirname,'../'+f),contentType:'application/javascript'}));await p.goto('https://gclawmax.github.io/BTechVTT/');await p.locator('#login-screen.active').waitFor();
+for(const ai of [false,true]){
+ await p.evaluate(ai=>{vsAiMode=ai;currentGameId='fixture';mySeatNumber=1;currentMatchConfig={special_ammo_setup_v1:true};currentGameState={round:1,phase:'initiative',initiative_pending:[]};mechInstances=[{instanceId:'m',owner:1,ammoBins:[{id:'lt:1',type:'srm6'},{id:'lt:2',type:'srm6'}]}];window.calls=[];window.saved=[];db.rpc=async(name,args)=>{calls.push({name,args});await new Promise(r=>setTimeout(r,150));saved.push(args.p_bin_key);return {error:null};};loadGameState=async()=>{for(const bin of mechInstances[0].ammoBins)if(saved.includes('m:'+bin.id))bin.loadType='standard';};logEvent=()=>{};updateInitiativeButtonState=()=>{};renderDetail=()=>{document.getElementById('login-screen').innerHTML=mechInstances[0].ammoBins.map(bin=>roundOneAmmoControl(mechInstances[0],bin)).join('');};renderDetail();},ai);
+ await p.getByRole('button',{name:'Confirm this ammunition bin',exact:true}).first().click();
+ assert.equal(await p.getByRole('button',{name:'Saving this bin…'}).isDisabled(),true);
+ await p.getByText('Bin lt:1 · Confirmed: standard',{exact:true}).waitFor();assert.equal(await p.getByRole('button',{name:'Confirm this ammunition bin',exact:true}).count(),1);
+ assert.deepEqual(await p.evaluate(()=>calls.map(c=>c.args.p_bin_key)),['m:lt:1']);
+ await p.getByRole('button',{name:'Confirm this ammunition bin',exact:true}).click();await p.getByText('Bin lt:2 · Confirmed: standard',{exact:true}).waitFor();assert.deepEqual(await p.evaluate(()=>calls.map(c=>c.args.p_bin_key)),['m:lt:1','m:lt:2']);
+}
+console.log('PASS actual per-bin controls preserve second pending bin, disable during save, confirm independently in human and AI modes');}finally{await b.close();}})().catch(e=>{console.error(e);process.exitCode=1});

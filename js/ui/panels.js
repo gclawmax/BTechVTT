@@ -95,7 +95,8 @@ function roundOneAmmoControl(inst, bin) {
   const isInitiative = currentGameState.round === 1 && currentGameState.phase === 'initiative';
   const choices = typeof specialAmmoLoadTypes === 'function' ? specialAmmoLoadTypes(bin) : [];
   const isUnloadedSpecialBin = typeof ammoSetupRequiredForBin === 'function' && ammoSetupRequiredForBin(bin);
-  if (!isInitiative || !isUnloadedSpecialBin) return '';
+  if (!isInitiative || choices.length < 2) return '';
+  if (!isUnloadedSpecialBin) return `<div style="grid-column:1 / -1;color:var(--phosphor-dim);font-size:10px;">Bin ${escapeHtml(bin.id)} · Confirmed: ${escapeHtml(bin.loadType || 'standard')}</div>`;
   if (inst.owner !== mySeatNumber) {
     return `<div style="grid-column:1 / -1;color:var(--phosphor-dim);font-size:9px;margin:2px 0 6px;">Player ${inst.owner} must choose this ammunition before Initiative.</div>`;
   }
@@ -103,11 +104,11 @@ function roundOneAmmoControl(inst, bin) {
   const selected = roundOneAmmoChoices[key] || choices[0];
   const labels = { slug: 'Slug', cluster: 'Cluster', standard: 'Standard', inferno: 'Inferno', precision: 'Precision', semi_guided: 'Semi-guided', armor_piercing: 'Armor-piercing', flechette: 'Flechette', fragmentation: 'Fragmentation' };
   return `<div style="grid-column:1 / -1;margin:3px 0 8px;padding:8px;border:1px solid var(--amber);background:rgba(181,107,0,.08);">
-    <div style="color:var(--amber);font-size:10px;margin-bottom:6px;">ROUND 1 AMMUNITION — required before Initiative</div>
+    <div style="color:var(--amber);font-size:10px;margin-bottom:6px;">BIN ${escapeHtml(bin.id)} — awaiting confirmation</div>
     <label style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px;">Load type
       <select onchange="setRoundOneAmmoChoice('${key}',this.value)" style="font:10px var(--mono);padding:3px;">${choices.map(choice => `<option value="${choice}" ${selected === choice ? 'selected' : ''}>${labels[choice] || titleCase(choice)}</option>`).join('')}</select>
     </label>
-    <button onclick="submitRoundOneAmmoLoadout('${key}')" style="width:100%;margin-top:7px;padding:6px 8px;border:1px solid var(--amber);background:transparent;color:var(--amber);font:10px var(--display);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;">Confirm this ammunition bin</button>
+    <button ${ammunitionBinSaveInFlight ? 'disabled' : ''} onclick="submitRoundOneAmmoLoadout('${key}')" style="width:100%;margin-top:7px;padding:6px 8px;border:1px solid var(--amber);background:transparent;color:var(--amber);font:10px var(--display);letter-spacing:.05em;text-transform:uppercase;cursor:pointer;">${ammunitionBinSaveInFlight === key ? 'Saving this bin…' : 'Confirm this ammunition bin'}</button>
   </div>`;
 }
 

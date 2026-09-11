@@ -328,3 +328,10 @@ Follow-up SQL 154 adds CASE protection at each reached location, covering an arm
 Live acceptance on 2026-09-11: Gauss shots and heat passed for human skirmish mode, human Vs AI and AI firing; shared human/AI heat ignored a stale aggregate of 999, cooled the correct ledger of 8 once, finalized the AI audit and advanced to the next round. All disposable matches were removed. Pure JSON live probes confirmed the 153 Gauss explosion (20 internal damage, two pilot hits). The 154 transferred-CASE probe reproduced the outstanding live defect (0 vented, 12 damage reached CT); 154 is tested locally and awaits application. No match state was written by these probes.
 
 SQL 154 live verification completed after user application: the hosted build 119 probe confirmed a Gauss explosion causes 20 internal damage and two pilot hits; an arm explosion transferred into DRG-5N torso CASE vented the remaining 12 damage and left the centre torso unchanged. These were pure JSON resolver calls; no match state was modified. The 153–154 database deployment gate is complete.
+
+
+### Round 1 ammunition recovery — build 121
+
+Reported lock: BT-NC5W. SQL 98 replaced Initiative without retaining SQL 71’s ammunition gate. SQL 155 restores the gate for both forces and lets a seated player confirm exactly one pending bin in Round 1 Initiative, clearing premature rolls atomically so setup can finish. Already confirmed bins cannot be overwritten; later phases cannot use this recovery. Human Vs AI confirmation now uses the same server function as skirmish. Each UI bin shows its identifier and pending/confirmed state; duplicate saves are disabled.
+
+Validation: PostgreSQL tests cover independent bins, null load types, ownership, duplicate rejection, both-side readiness, premature-roll recovery, later-phase rejection and repeat migration application. Browser tests exercise the real controls in human and Vs AI modes. SQL 155 still requires user application; BT-NC5W recovery has not been verified live.
