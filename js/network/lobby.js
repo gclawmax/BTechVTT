@@ -1111,6 +1111,10 @@ function subscribeGameStateSync() {
           ...(typeof gs.vs_ai_mode === 'boolean' ? { vs_ai_mode: gs.vs_ai_mode } : {}),
           ...(gs.ai_difficulty ? { ai_difficulty: gs.ai_difficulty } : {}),
           ...(gs.ai_personality ? { ai_personality: gs.ai_personality } : {}),
+          // Keep Round 1 specialised-ammunition setup active after a
+          // realtime state update.  Without this, a just-saved bin could
+          // make the browser hide the remaining required bins until F5.
+          ...(gs.special_ammo_setup_v1 ? { special_ammo_setup_v1: true } : {}),
           minefields: gs.minefields,
           ...(remote.catalogue_version ? { catalogue_version: remote.catalogue_version } : {})
         };
