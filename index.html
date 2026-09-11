@@ -360,9 +360,9 @@
     <div class="panel-section" id="game-log-section">
       <div id="game-log-header">
         <div class="panel-eyebrow" style="margin-bottom:0;">Game Log</div>
-        <div class="game-log-actions"><button class="btn-clear-log active-filter" onclick="setGameLogFilter('all')" data-log-filter="all">All</button><button class="btn-clear-log" onclick="setGameLogFilter('move')" data-log-filter="move">Move</button><button class="btn-clear-log" onclick="setGameLogFilter('attack')" data-log-filter="attack">Combat</button><button class="btn-clear-log" onclick="setGameLogFilter('roll')" data-log-filter="roll">Rolls</button><button class="btn-clear-log" onclick="clearGameLog()">Clear</button></div>
+        <div class="game-log-actions"><button class="btn-clear-log active-filter" onclick="setGameLogFilter('all')" data-log-filter="all">All</button><button class="btn-clear-log" onclick="setGameLogFilter('mine')" data-log-filter="mine">My</button><button class="btn-clear-log" onclick="setGameLogFilter('enemy')" data-log-filter="enemy">Enemy</button><button class="btn-clear-log" onclick="setGameLogFilter('move')" data-log-filter="move">Move</button><button class="btn-clear-log" onclick="setGameLogFilter('attack')" data-log-filter="attack">Combat</button><button class="btn-clear-log" onclick="setGameLogFilter('roll')" data-log-filter="roll">Rolls</button><button class="btn-clear-log" onclick="setGameLogFilter('notice')" data-log-filter="notice">Alerts</button><button class="btn-clear-log" onclick="clearGameLog()">Clear</button></div>
       </div>
-      <div id="game-log"></div>
+      <div id="game-log-wrap"><div id="game-log"></div><button id="game-log-new-events" type="button" hidden onclick="jumpToLatestGameLog()">New events</button></div>
     </div>
   </div>
 </div>
@@ -373,7 +373,7 @@
 <script src="js/core/state.js?v=20260831-hit-location-diagnostics-39"></script>
 <script src="js/ai/state.js?v=20260906-ai6-difficulty-personality-72"></script>
 <script src="js/ai/engine.js?v=20260907-game-modes-74"></script>
-<script src="js/core/game-log.js?v=20260911-shared-combat-119"></script>
+<script src="js/core/game-log.js?v=20260911-readable-log-126"></script>
 <script src="js/ui/game-settings.js?v=20260911-shared-combat-119"></script>
 <script src="js/core/screen.js?v=20260911-shared-combat-119"></script>
 <script src="js/core/auth.js?v=20260911-shared-combat-119"></script>

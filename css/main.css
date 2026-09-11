@@ -1236,8 +1236,10 @@ body.resizing-side-panel, body.resizing-side-panel * {
   color: var(--phosphor);
 }
 
-.game-log-actions { display:flex; align-items:center; gap:4px; }
+.game-log-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:4px; }
 #game-log-header .btn-clear-log.active-filter { color:var(--amber); border-color:var(--amber); background:#fff7e8; }
+
+#game-log-wrap { position:relative; min-height:100px; }
 
 #game-log {
   flex: 1 1 auto;
@@ -1251,6 +1253,38 @@ body.resizing-side-panel, body.resizing-side-panel * {
   min-height: 100px;
   max-height: 320px;
 }
+
+#game-log-new-events {
+  position:absolute;
+  right:14px;
+  bottom:12px;
+  z-index:2;
+  border:1px solid var(--amber);
+  background:#fff7e8;
+  color:#8a5200;
+  border-radius:2px;
+  padding:4px 8px;
+  font:700 9px var(--mono);
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  cursor:pointer;
+  box-shadow:0 1px 5px rgba(0,0,0,.16);
+}
+
+.log-phase-divider {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin:8px 0 4px;
+  padding:3px 0;
+  border-bottom:1px solid var(--panel-line);
+  color:var(--amber);
+  font:700 9px var(--display);
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+
+.log-phase-divider span + span { color:var(--phosphor-dim); }
 
 .log-entry {
   --team-colour: var(--phosphor-dim);
@@ -1270,6 +1304,14 @@ body.resizing-side-panel, body.resizing-side-panel * {
   color: var(--phosphor-dim);
   margin-right: 5px;
 }
+
+.log-action-detail { display:inline; }
+.log-action-detail summary { display:inline; cursor:pointer; }
+.log-action-detail summary::marker { color:var(--phosphor-dim); }
+.log-action-detail[open] summary { display:block; margin-bottom:2px; }
+.log-detail-copy { margin:3px 0 4px 3px; padding:3px 6px; border-left:2px solid var(--panel-line); color:#5d5d56; font-size:9.5px; font-weight:400; }
+.log-mech-link { margin:0; padding:0; border:0; border-bottom:1px dotted currentColor; background:transparent; color:inherit; font:inherit; font-weight:700; cursor:pointer; text-align:inherit; }
+.log-mech-link:hover { color:var(--amber); }
 
 .log-entry.team-p1 { --team-colour: #b22f38; border-left-color: var(--team-colour); background: linear-gradient(90deg, rgba(178,47,56,.09), transparent 58%); }
 .log-entry.team-p2 { --team-colour: #226bad; border-left-color: var(--team-colour); background: linear-gradient(90deg, rgba(34,107,173,.09), transparent 58%); }

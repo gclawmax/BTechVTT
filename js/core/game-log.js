@@ -8,6 +8,7 @@ const LOG_CLIENT_ID = Math.random().toString(36).slice(2, 8);
 let _logSeq = 0;
 let gameLogFilter = 'all';
 let gameToastTimer = null;
+let gameLogUnreadCount = 0;
 
 // Game state is a single JSON document. Serialize read-modify-write updates so
 // a confirmed move, reaction, or log entry cannot overwrite another update
@@ -45,7 +46,7 @@ function logEvent(message, category, team = null, metadata = null) {
   };
   gameLog.push(entry);
   if (gameLog.length > GAME_LOG_MAX) gameLog = gameLog.slice(-GAME_LOG_MAX);
-  renderGameLog();
+  renderGameLog({ incoming: true });
 
   // A brief, local acknowledgement makes successful actions feel responsive
   // without duplicating the durable, shared game log.
@@ -99,24 +100,114 @@ function formatVisibleLogMessage(message) {
   return escapeLogHtml(text);
 }
 
-function renderGameLog() {
+function logEntrySeat(entry) {
+  if (entry?.team === 1 || entry?.team === 2) return Number(entry.team);
+  const message = String(entry?.msg || '');
+  if (/\(P1\)|\bPlayer 1\b|\bP1\s*=/.test(message)) return 1;
+  if (/\(P2\)|\(AI\)|\bPlayer 2\b|\bP2\s*=/.test(message)) return 2;
+  return null;
+}
+
+function logEntryMatchesFilter(entry) {
+  if (gameLogFilter === 'all') return true;
+  if (['move', 'attack', 'roll'].includes(gameLogFilter)) return entry.cat === gameLogFilter;
+  if (gameLogFilter === 'notice') return ['error', 'phase', 'system'].includes(entry.cat);
+  const seat = logEntrySeat(entry);
+  if (gameLogFilter === 'mine') return seat != null && Number(seat) === Number(mySeatNumber);
+  if (gameLogFilter === 'enemy') return seat != null && Number(seat) !== Number(mySeatNumber);
+  return true;
+}
+
+function logPhaseLabel(entry) {
+  const label = typeof PHASE_LABELS !== 'undefined' ? PHASE_LABELS?.[entry.phase] : null;
+  return label || String(entry.phase || 'Unknown phase').replace(/_/g, ' ');
+}
+
+function logActionSummary(entry) {
+  const message = String(entry?.msg || '').replace(/\s+/g, ' ').trim();
+  if (entry.kind === 'weapon-header' || (!message.match(/\b(?:rolled|need)\b/i) && entry.cat !== 'roll')) return { summary: message, detail: null };
+  const detailAt = message.search(/\s*(?:—\s*)?(?:need|rolled)\b/i);
+  let summary = detailAt > 0 ? message.slice(0, detailAt).replace(/[,:;\s]+$/, '') : message;
+  const outcomes = [...message.matchAll(/\b(miss|hit|success|failure|passed|failed)\b/gi)];
+  const outcome = outcomes.length ? outcomes[outcomes.length - 1][1].toUpperCase() : '';
+  if (outcome && !new RegExp(`\\b${outcome}\\b`, 'i').test(summary)) summary += ` — ${outcome}`;
+  return { summary: summary || message, detail: message };
+}
+
+function formatLogMessageWithMechLinks(message) {
+  let html = formatVisibleLogMessage(message);
+  const units = (typeof mechInstances === 'undefined' ? [] : mechInstances)
+    .map(mech => ({ id: mech.instanceId, label: escapeLogHtml(mechLabel(mech)) }))
+    .filter(unit => unit.id && unit.label && html.includes(unit.label))
+    .sort((a, b) => b.label.length - a.label.length);
+  // Replace labels with temporary tokens first. A chassis name can be a
+  // substring of another unit's label, so direct replacement could nest links.
+  const links = [];
+  for (const unit of units) {
+    const token = `@@BTLOGMECH${links.length}@@`;
+    const link = `<button type="button" class="log-mech-link" data-log-instance-id="${escapeLogHtml(unit.id)}">${unit.label}</button>`;
+    if (!html.includes(unit.label)) continue;
+    html = html.split(unit.label).join(token);
+    links.push({ token, link });
+  }
+  for (const { token, link } of links) html = html.split(token).join(link);
+  return html;
+}
+
+function renderGameLog({ incoming = false } = {}) {
   const el = document.getElementById('game-log');
   if (!el) return;
   const wasNearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 12;
-  const visibleEntries = gameLog.filter(e => gameLogFilter === 'all' || e.cat === gameLogFilter);
-  el.innerHTML = visibleEntries.map(e =>
-    `<div class="log-entry cat-${e.cat} ${logTeamClass(e)}${e.kind === 'weapon-header' ? ' combat-mech-header' : ''}"><span class="log-tag">[${e.time}] R${e.round ?? '?'}/${(e.phase || '?').slice(0,4)}</span><span class="log-message">${formatVisibleLogMessage(e.msg)}</span></div>`
-  ).join('') || '<div class="log-entry cat-system">No matching log entries.</div>';
+  const visibleEntries = gameLog.filter(logEntryMatchesFilter);
+  let lastPhaseKey = null;
+  const rows = [];
+  for (const entry of visibleEntries) {
+    const phaseKey = `${entry.round ?? '?'}:${entry.phase || '?'}`;
+    if (phaseKey !== lastPhaseKey) {
+      rows.push(`<div class="log-phase-divider"><span>Round ${entry.round ?? '?'}</span><span>${escapeLogHtml(logPhaseLabel(entry))}</span></div>`);
+      lastPhaseKey = phaseKey;
+    }
+    const action = logActionSummary(entry);
+    const classes = `log-entry cat-${entry.cat} ${logTeamClass(entry)}${entry.kind === 'weapon-header' ? ' combat-mech-header' : ''}`;
+    const tag = `<span class="log-tag">${entry.time}</span>`;
+    const summary = formatLogMessageWithMechLinks(action.summary);
+    const content = action.detail
+      ? `<details class="log-action-detail"><summary><span class="log-message">${summary}</span></summary><div class="log-detail-copy">${formatLogMessageWithMechLinks(action.detail)}</div></details>`
+      : `<span class="log-message">${summary}</span>`;
+    rows.push(`<div class="${classes}">${tag}${content}</div>`);
+  }
+  el.innerHTML = rows.join('') || '<div class="log-entry cat-system">No matching log entries.</div>';
+  el.querySelectorAll('[data-log-instance-id]').forEach(button => button.addEventListener('click', () => {
+    if (typeof selectInstance === 'function') selectInstance(button.dataset.logInstanceId);
+  }));
   // Autoscroll to the newest entry unless the user has scrolled up to read history.
-  if (wasNearBottom || gameLog.length <= 1) el.scrollTop = el.scrollHeight;
+  if (wasNearBottom || gameLog.length <= 1 || !incoming) {
+    el.scrollTop = el.scrollHeight;
+    if (wasNearBottom) gameLogUnreadCount = 0;
+  } else if (incoming) gameLogUnreadCount += 1;
+  updateGameLogNewEventsButton();
 }
 
 function setGameLogFilter(filter) {
-  gameLogFilter = ['all', 'move', 'attack', 'roll'].includes(filter) ? filter : 'all';
+  gameLogFilter = ['all', 'mine', 'enemy', 'move', 'attack', 'roll', 'notice'].includes(filter) ? filter : 'all';
   document.querySelectorAll('[data-log-filter]').forEach(button => {
     button.classList.toggle('active-filter', button.dataset.logFilter === gameLogFilter);
   });
   renderGameLog();
+}
+
+function updateGameLogNewEventsButton() {
+  const button = document.getElementById('game-log-new-events');
+  if (!button) return;
+  button.hidden = gameLogUnreadCount === 0;
+  button.textContent = gameLogUnreadCount === 1 ? '1 new event' : `${gameLogUnreadCount} new events`;
+}
+
+function jumpToLatestGameLog() {
+  const el = document.getElementById('game-log');
+  if (el) el.scrollTop = el.scrollHeight;
+  gameLogUnreadCount = 0;
+  updateGameLogNewEventsButton();
 }
 
 function showGameToast(message, type = 'success') {
@@ -147,6 +238,7 @@ function escapeLogHtml(str) {
 
 function clearGameLog() {
   gameLog = [];
+  gameLogUnreadCount = 0;
   renderGameLog();
 }
 
@@ -163,6 +255,17 @@ function mergeRemoteLog(remoteLog) {
   if (changed) {
     gameLog.sort((a, b) => a.ts - b.ts);
     if (gameLog.length > GAME_LOG_MAX) gameLog = gameLog.slice(-GAME_LOG_MAX);
-    renderGameLog();
+    renderGameLog({ incoming: true });
   }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('game-log');
+  if (!el) return;
+  el.addEventListener('scroll', () => {
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 12 && gameLogUnreadCount) {
+      gameLogUnreadCount = 0;
+      updateGameLogNewEventsButton();
+    }
+  });
+});
