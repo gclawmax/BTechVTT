@@ -591,7 +591,7 @@ async function submitInitiativeRoll() {
     } else if (result.status === 'resolved') {
       logEvent(`Initiative resolved — ${result.summary}`, 'roll');
     } else {
-      logEvent(`Initiative rolled — P${me.seat_number}=${dice.dieA} + ${dice.dieB} = ${dice.total}. Waiting for the other player.`, 'roll');
+      logEvent(`Initiative rolled — P${me.seat_number} = ${dice.dieA} + ${dice.dieB} = ${dice.total}. Waiting for the other player.`, 'roll');
     }
     await loadGameState();
     return;
@@ -673,11 +673,11 @@ async function submitInitiativeRoll() {
   if (btn) btn.disabled = true;
 
   tiedRolls.forEach(tiedRound => {
-    const tieSummary = tiedRound.map(r => `${r.is_ai ? 'AI' : 'P' + r.seat_number}=${r.die_a} + ${r.die_b} = ${r.roll}`).join(', ');
+    const tieSummary = tiedRound.map(r => `${r.is_ai ? 'AI' : 'P' + r.seat_number} = ${r.die_a} + ${r.die_b} = ${r.roll}`).join(', ');
     logEvent(`Initiative tie — ${tieSummary}. Re-rolling.`, 'roll');
   });
   const rollSummary = initiativeRolls.map((r, idx) =>
-    `${r.is_ai ? 'AI' : 'P' + r.seat_number}=${r.die_a} + ${r.die_b} = ${r.roll}${idx === 0 ? ' (1st)' : idx === initiativeRolls.length - 1 ? ' (last)' : ''}`
+    `${r.is_ai ? 'AI' : 'P' + r.seat_number} = ${r.die_a} + ${r.die_b} = ${r.roll}${idx === 0 ? ' (1st)' : idx === initiativeRolls.length - 1 ? ' (last)' : ''}`
   ).join(', ');
   logEvent(`Initiative rolled — ${rollSummary}`, 'roll');
 }

@@ -136,8 +136,8 @@ function logTeamClass(entry) {
   if (entry?.team === 1) return 'team-p1';
   if (entry?.team === 2) return 'team-p2';
   const message = String(entry?.msg || '');
-  if (/\(P1\)|\bPlayer 1\b|\bP1=/.test(message)) return 'team-p1';
-  if (/\(P2\)|\(AI\)|\bPlayer 2\b|\bP2=/.test(message)) return 'team-p2';
+  if (/\(P1\)|\bPlayer 1\b|\bP1\s*=/.test(message)) return 'team-p1';
+  if (/\(P2\)|\(AI\)|\bPlayer 2\b|\bP2\s*=/.test(message)) return 'team-p2';
   return 'team-neutral';
 }
 
