@@ -196,6 +196,10 @@ async function loadGameState() {
     renderRoster();
     renderDetail();
   }
+  // A browser may have closed or refreshed after fatal fall damage was saved.
+  // Re-run the authoritative end check on rejoin so an already-eliminated
+  // force cannot remain in an active Movement phase.
+  if (await recoverFatalMatchEndOnLoad()) return;
   // A unit with no legal physical target has no decision to make. Record its
   // pass within the current activation allowance and immediately refresh the
   // authoritative turn state, without making the player select every unit.
@@ -217,6 +221,11 @@ async function loadGameState() {
   renderEndPanel();
   updateAdvanceButtonState();
   scheduleActiveAiTurn();
+}
+
+async function recoverFatalMatchEndOnLoad() {
+  if (currentGameState.match_result || !mechInstances.some(mech => mech.pilot?.consciousness === 'dead')) return null;
+  return checkForMatchEnd();
 }
 
 let matchCallsignCache = {gameId:null,names:{},loadedAt:0};

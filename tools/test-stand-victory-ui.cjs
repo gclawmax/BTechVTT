@@ -9,6 +9,9 @@ const assert = require('node:assert/strict');
     await page.route('**/js/movement/movement.js?*', route => route.fulfill({
       path: path.resolve(__dirname, '../js/movement/movement.js'), contentType: 'application/javascript'
     }));
+    await page.route('**/js/game/phases.js?*', route => route.fulfill({
+      path: path.resolve(__dirname, '../js/game/phases.js'), contentType: 'application/javascript'
+    }));
     await page.goto('https://gclawmax.github.io/BTechVTT/');
     await page.locator('#login-screen.active').waitFor();
     const result = await page.evaluate(async () => {
@@ -25,10 +28,11 @@ const assert = require('node:assert/strict');
       checkForMatchEnd = async () => { sequence.push('match-end'); return { winner_seat: 2 }; };
       db.rpc = async () => ({ data: { passed: false, movement_points_spent: 2, to_hit: { target: 7, die_a: 1, die_b: 1, total: 2 } }, error: null });
       await attemptStand('fallen');
+      await recoverFatalMatchEndOnLoad();
       return sequence;
     });
-    assert.deepEqual(result, ['reload', 'match-end']);
-    console.log('PASS a fatal failed stand reloads authoritative state then resolves the match immediately');
+    assert.deepEqual(result, ['reload', 'match-end', 'match-end']);
+    console.log('PASS a fatal failed stand resolves immediately; a rejoined match with a dead pilot retries the authoritative result check');
   } finally {
     await browser.close();
   }
