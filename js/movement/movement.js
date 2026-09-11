@@ -241,6 +241,9 @@ async function attemptStand(instanceId) {
     const damage = roll.damage_modifier ? ` (including +${roll.damage_modifier} critical damage)` : '';
     logEvent(`${mechLabel(mech)} ${data?.passed ? 'stood up' : 'failed to stand'} — need ${roll.target}${damage}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; spent ${data?.movement_points_spent || 2} MP.`, 'roll');
     await loadGameState();
+    // A failed stand can inflict fatal fall damage. This is Movement, so it
+    // must resolve immediately; there is no simultaneous-fire window to wait for.
+    await checkForMatchEnd();
   } finally {
     proneMovementActionsInFlight.delete(instanceId);
   }
