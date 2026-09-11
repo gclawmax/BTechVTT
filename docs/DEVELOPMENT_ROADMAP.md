@@ -306,3 +306,8 @@ SQL deployment and live acceptance must be reported separately from local implem
 - Auto-next observes completed steps throughout a Vs AI match, including resolved initiative and server hand-offs, rather than only the immediate AI completion callback. Required player choices and physical skip confirmations remain manual.
 - Empty AI plans report successful completion; stale callbacks, duplicate advances and repeated failed requests are guarded.
 - Focused scheduler regressions passed. Live-server acceptance advanced resolved initiative into Movement without a Next Phase click and preserved unconfirmed human movement. Disposable match BT-T53K removed. No SQL migration. Full-match lifecycle acceptance remains pending.
+
+### Empty Vs AI Physical Attack recovery — build 117
+
+- Apply the existing authoritative empty-physical-phase recovery when loading Vs AI matches, including already stuck games. Server legality checks and pending declaration resolution remain intact.
+- Live disposable match BT-HNDK recovered an empty Physical Attack phase into Heat with Auto-next disabled; human heat confirmation remained pending. Fixture removed. No migration required.

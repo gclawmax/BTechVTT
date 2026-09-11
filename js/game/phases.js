@@ -160,9 +160,9 @@ async function loadGameState() {
   };
   if (currentGameState.match_result && typeof loadSealedMatchReport === 'function') await loadSealedMatchReport();
   // A Physical Attack phase exists only when opposing 'Mechs are adjacent.
-  // The server rechecks this for human games; this call merely requests the
+  // The server rechecks this for all games; this call merely requests the
   // safe automatic transition after the prior phase has completed.
-  if (!vsAiMode && currentGameState.phase === 'physical_attack' && await skipEmptyPhysicalPhase()) {
+  if (currentGameState.phase === 'physical_attack' && await skipEmptyPhysicalPhase()) {
     return loadGameState();
   }
   // Backward-compatible recovery for games created before the explicit

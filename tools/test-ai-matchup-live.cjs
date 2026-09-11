@@ -33,5 +33,19 @@ if(process.env.BT_TEST_AUTOPHASE==='1') {
  await page.evaluate(()=>setAutoAdvanceAfterAi(false));
  console.log('PASS live Auto-next advances resolved initiative without clicking Next Phase; human movement remains unconfirmed.');
 }
+if(process.env.BT_TEST_AUTOPHASE==='1') {
+ await page.evaluate(async()=>{
+  await gameStateWriteQueue;
+  const {data,error}=await db.from('btech_games').select('state').eq('id',currentGameId).single();if(error)throw Error(error.message);
+  const st=typeof data.state==='string'?JSON.parse(data.state):data.state;
+  if(anyLegalPhysicalAttackExists())throw Error('Fixture must have no legal physical targets');
+  st.mech_instances.forEach(m=>{m.hasPhysicalAttacked=false;m.hasManagedHeat=false;});
+  const saved=await db.from('btech_games').update({current_phase:'physical_attack',state:st}).eq('id',currentGameId);if(saved.error)throw Error(saved.error.message);
+  await loadGameState();
+ });
+ await page.waitForFunction(()=>currentGameState.phase==='heat',null,{timeout:15000});
+ assert.equal(await page.evaluate(()=>mechInstances.filter(m=>m.owner===1).every(m=>!m.hasManagedHeat)),true);
+ console.log('PASS existing empty Vs AI Physical Attack phase recovers to Heat with Auto-next off; human heat remains unconfirmed.');
+}
 const cleanup=await page.evaluate(async id=>(await db.from('btech_games').delete().eq('id',id)).error?.message||null,gameId);assert.equal(cleanup,null);console.log('PASS real-server 2 IS vs 1 Clan setup, editable AI save, skill-adjusted BV, pilots preserved at start, mines off; disposable match removed: '+result.gameCode);
 }catch(error){console.error(error);if(gameId)console.error('Failed fixture retained: '+gameId);process.exitCode=1;}finally{await b.close()}})();
