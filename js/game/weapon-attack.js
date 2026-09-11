@@ -912,6 +912,8 @@ function formatAuthoritativeCriticals(checks) {
   return (checks || []).map(check =>
     ` ${check.through_armor ? 'Through-armour critical check' : 'Critical check'} ${check.die_a} + ${check.die_b} = ${check.total}: ${check.hits} hit${check.hits === 1 ? '' : 's'}.${(check.events || []).map(event =>
       event.special === 'blown_off' ? ` ${hitLocationLabel(event.location)} blown off.` :
+        event.inert ? ` ${event.ammo_explosion} ammunition bin destroyed; remaining shots lost without an explosion.` :
+        event.gauss_explosion ? ` Gauss rifle exploded for ${event.damage} internal damage.${event.case_protected ? ` CASE vented ${event.vented_damage || 0} excess damage.` : ''}${(event.pilot_checks || []).map(formatAuthoritativePilotCheck).join('')}` :
         event.ammo_explosion ? ` ${event.ammo_explosion} ammunition exploded for ${event.damage} damage.${event.case_protected ? ` CASE vented ${event.vented_damage || 0} excess damage.` : ''}${(event.pilot_checks || []).map(formatAuthoritativePilotCheck).join('')}` :
           event.label ? ` ${hitLocationLabel(event.location)} slot ${event.slot_index + 1}: ${event.label} destroyed.` : ''
     ).join('')}`
@@ -1132,92 +1134,7 @@ async function confirmWeaponAttack() {
     flashMoveWarning('Choose a target for every selected weapon before confirming attacks.');
     return;
   }
-  if (!vsAiMode) {
-    await confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons);
-    return;
-  }
-
-  const messages = [];
-  const recordWeaponMessage = (msg, weapon = null) => messages.push({ msg, soundFamily: weapon ? weaponSoundFamily({ weapon }) : null });
-  let addedHeat = 0;
-  for (const weaponEntry of selectedWeapons) {
-    const attack = evaluateWeaponAttack(attacker, target, weaponEntry);
-    if (!attack.valid) {
-      recordWeaponMessage(`${mechLabel(attacker)} could not fire ${weaponEntry.key}: ${attack.reason}`);
-      continue;
-    }
-    const mountId = weaponMountId(weaponEntry, BT_UNITS[attacker.unitId].weapons.indexOf(weaponEntry));
-    const shots = weaponEntry.count * weaponShotsForMode(mountId, weaponEntry);
-    const rapid = weaponFireMode(mountId, weaponEntry) === 'rapid';
-    addedHeat += attack.weapon.heat * shots;
-    for (let shot = 1; shot <= shots; shot++) {
-      const roll = roll2d6Detailed();
-      const jammed = rapid && roll.total === 2;
-      const hit = !jammed && (attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber));
-      const shotLabel = shots > 1 ? ` #${shot}` : '';
-      if (!hit) {
-        recordWeaponMessage(`${mechLabel(attacker)} fired ${attack.weapon.name}${rapid ? ' (rapid fire)' : ''}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.${jammed ? ' Ultra AC jammed.' : ''}`, attack.weapon.name);
-        if (jammed) {
-          attacker.weaponJams = [...new Set([...(attacker.weaponJams || []), mountId])];
-          break;
-        }
-        continue;
-      }
-      if (weaponEntry.key === 'lb10x' && weaponFireMode(mountId, weaponEntry) === 'cluster') {
-        const clusterRoll = roll2d6Detailed();
-        const pellets = clusterHitsForRoll(10, clusterRoll.total);
-        const groups = [];
-        for (let pellet = 0; pellet < pellets; pellet++) {
-          const damage = applyWeaponDamage(target, 1, attack.attackAngle);
-          groups.push(hitLocationLabel(damage.location));
-        }
-        recordWeaponMessage(`${mechLabel(attacker)} fired ${attack.weapon.name} (cluster ammunition)${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: hit. Cluster roll ${format2d6(clusterRoll)}: ${pellets} pellet${pellets === 1 ? '' : 's'} hit${groups.length ? ` (${groups.join(', ')}).` : '.'}`, attack.weapon.name);
-        continue;
-      }
-      if (attack.weapon.clusterSize) {
-        const clusterRoll = roll2d6Detailed();
-        const missiles = attack.weapon.streak ? attack.weapon.clusterSize : clusterHitsForRoll(attack.weapon.clusterSize, clusterRoll.total);
-        const grouped = weaponEntry.key.startsWith('lrm') || weaponEntry.key.startsWith('mrm') || (weaponEntry.key.startsWith('mml') && attack.weapon.mmlMode === 'lrm');
-        const groups = [];
-        let remaining = missiles;
-        while (remaining > 0) {
-          const missileCount = grouped ? Math.min(5, remaining) : 1;
-          const groupDamage = missileCount * Number(attack.weapon.damagePerMissile || 1);
-          const damage = applyWeaponDamage(target, groupDamage, attack.attackAngle);
-          groups.push(`${hitLocationLabel(damage.location)} ${groupDamage}`);
-          remaining -= missileCount;
-        }
-        recordWeaponMessage(`${mechLabel(attacker)} fired ${attack.weapon.name}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: hit. Cluster roll ${format2d6(clusterRoll)}: ${missiles} missile${missiles === 1 ? '' : 's'} hit${groups.length ? ` (${groups.join(', ')}).` : '.'}`, attack.weapon.name);
-        continue;
-      }
-      const shotDamage = attack.damage ?? attack.weapon.damage;
-      const damage = applyWeaponDamage(target, shotDamage, attack.attackAngle);
-      const flamerHeat = weaponEntry.key === 'flamer' ? 2 : 0;
-      if (flamerHeat) {
-        target.externalHeat = (target.externalHeat || 0) + flamerHeat;
-        target.heat = (target.heat || 0) + flamerHeat;
-      }
-      recordWeaponMessage(`${mechLabel(attacker)} fired ${attack.weapon.name}${rapid ? ' (rapid fire)' : ''}${shotLabel} at ${mechLabel(target)} — need ${attack.targetNumber}, rolled ${format2d6(roll)}: ${attack.attackAngle} hit ${hitLocationLabel(damage.location)} for ${shotDamage} damage.${flamerHeat ? ` ${mechLabel(target)} gains ${flamerHeat} heat.` : ''}${damage.criticalEvents.length ? ` ${damage.criticalEvents.join(' ')}` : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`, attack.weapon.name);
-    }
-  }
-
-  attacker.weaponHeat = (attacker.weaponHeat || 0) + addedHeat;
-  attacker.heat = (attacker.roundStartingHeat || 0) + (attacker.movementHeat || 0) + attacker.weaponHeat + (attacker.externalHeat || 0);
-  attacker.hasFired = true;
-  weaponAttackState = emptyWeaponAttackState();
-  renderWeaponAttackPanel();
-  renderRoster();
-  renderDetail();
-  draw();
-  updateAdvanceButtonState();
-  // Give immediate feedback before the shared-state write has completed.
-  // The detailed resolution is logged after the save so it remains in order
-  // for the other player as well.
-  logEvent(`${mechLabel(attacker)} weapon attack submitted — saving outcome.`, 'attack', attacker.owner);
-  await syncMechInstances();
-  await checkForMatchEnd();
-  if (messages.length) queueLocalWeaponPresentation(attacker, messages);
-  else logEvent(`${mechLabel(attacker)} declared no weapon attacks.`, 'attack', attacker.owner);
+  await confirmAuthoritativeWeaponAttack(attacker, target, selectedWeapons);
 }
 
 function renderWeaponAttackPanel() {

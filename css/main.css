@@ -1698,3 +1698,8 @@ body.signed-in > .screen, body.signed-in #game-screen.active { height:calc(100vh
 
 #ai-force-search { display:block; width:100%; box-sizing:border-box; padding:8px; margin:6px 0 10px; }
 .ai-unit-bv { display:inline-block; margin-left:12px; font:11px var(--mono); color:#536052; }
+
+/* Native SVG focus outlines scale in SVG user units on macOS. Use the hex
+   stroke for focus feedback, including otherwise non-interactive hexes. */
+.deployment-map .deployment-hex:focus { outline: none; }
+.deployment-map .deployment-hex:focus-visible { stroke: #174f22; stroke-width: .1; }

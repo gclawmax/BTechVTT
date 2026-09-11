@@ -199,7 +199,7 @@ async function loadGameState() {
   // A unit with no legal physical target has no decision to make. Record its
   // pass within the current activation allowance and immediately refresh the
   // authoritative turn state, without making the player select every unit.
-  if (!vsAiMode && currentGameState.phase === 'physical_attack' && isMyActiveTurn() &&
+  if (currentGameState.phase === 'physical_attack' && isMyActiveTurn() &&
       await autoPassIneligiblePhysicalAttackers()) return loadGameState();
   await loadWeaponCombatEvents();
   await loadResolvedPhysicalEvents();

@@ -1,8 +1,8 @@
 // ── HEAT MANAGEMENT PHASE ─────────────────────────────────
-// Human matches resolve the complete heat ledger on Supabase. Local AI games
-// retain the lightweight client path for test play.
+// Both human and AI seats resolve the complete heat ledger on Supabase.
 
 let heatSinksPreviewRound = null;
+let heatResolutionInProgress = false;
 
 function heatLedger(mech) {
   ensureMechCombatState(mech);
@@ -32,27 +32,13 @@ function heatLedger(mech) {
   };
 }
 
-async function resolveHeatForSeat(seat) {
-  const units = mechInstances.filter(m => m.owner === seat && !m.destroyed && !m.hasManagedHeat);
-  if (!units.length) return [];
-  const messages = [];
-  for (const mech of units) {
-    const ledger = heatLedger(mech);
-    mech.heatDissipated = ledger.dissipated;
-    mech.heat = ledger.after;
-    mech.externalHeat = 0;
-    mech.hasManagedHeat = true;
-    messages.push(`${mechLabel(mech)} heat: start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.signature ? ` + signature ${ledger.signature}` : ''}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before}; dissipated ${ledger.dissipated}/${ledger.sinks}, ending ${ledger.after}.`);
-  }
-  await syncMechInstances();
-  return messages;
-}
-
-async function confirmHeatManagement() {
-  if (currentGameState.phase !== 'heat' || !isMyActiveTurn()) return;
-  if (!vsAiMode) {
+async function resolveAuthoritativeHeatManagement() {
+  if (heatResolutionInProgress) return;
+  heatResolutionInProgress = true;
+  try {
+    await gameStateWriteQueue;
     const { data, error } = await db.rpc('resolve_heat_management', { p_game_id: currentGameId });
-    if (error) { logEvent(`Server rejected Heat Management: ${error.message}`, 'error'); flashMoveWarning(error.message); return; }
+    if (error) throw new Error(error.message);
     for (const outcome of data?.results || []) {
       const mech = mechInstances.find(candidate => candidate.instanceId === outcome.instance_id);
       const label = mechLabel(mech);
@@ -79,17 +65,18 @@ async function confirmHeatManagement() {
       }
     }
     await loadGameState();
+    await checkForMatchEnd();
     heatSinksPreviewRound = null;
-    return;
+    return data;
+  } finally {
+    heatResolutionInProgress = false;
   }
-  const messages = await resolveHeatForSeat(mySeatNumber);
-  renderHeatPanel();
-  renderRoster();
-  renderDetail();
-  draw();
-  updateAdvanceButtonState();
-  messages.forEach(message => logEvent(message, 'phase'));
-  heatSinksPreviewRound = null;
+}
+
+async function confirmHeatManagement() {
+  if (currentGameState.phase !== 'heat' || !isMyActiveTurn()) return;
+  try { await resolveAuthoritativeHeatManagement(); }
+  catch (error) { logEvent(`Server rejected Heat Management: ${error.message}`, 'error'); flashMoveWarning(error.message); }
 }
 
 function previewHeatSinkDissipation() {
@@ -118,13 +105,16 @@ async function declareRotaryAutocannonClear(instanceId, mountId) {
 }
 
 async function resolveAIHeatManagement() {
-  const messages = await resolveHeatForSeat(2);
-  renderHeatPanel();
-  renderRoster();
-  renderDetail();
-  draw();
-  updateAdvanceButtonState();
-  messages.forEach(message => logEvent(message.replace(' (AI)', ' (AI)'), 'phase'));
+  if (currentGameState.phase !== 'heat' || !vsAiMode || !getActivePlayerRecord()?.is_ai) return;
+  // A conscious AI pilot attempts an available shutdown override, just as
+  // the human can choose after seeing the post-sink heat preview.
+  for (const mech of mechInstances.filter(m => m.owner === getActivePlayerSeat() && !m.destroyed && !m.hasManagedHeat && !m.shutdown && !m.shutdownOverrideRequested)) {
+    const after = heatLedger(mech).after;
+    if (after < 14 || after >= 30 || (mech.pilot?.consciousness && mech.pilot.consciousness !== 'conscious')) continue;
+    const { error } = await db.rpc('declare_shutdown_override', { p_game_id: currentGameId, p_instance_id: mech.instanceId });
+    if (error) throw new Error(error.message);
+  }
+  return resolveAuthoritativeHeatManagement();
 }
 
 function renderHeatPanel() {
@@ -153,8 +143,8 @@ function renderHeatPanel() {
       : '';
     return `<div style="padding:7px 0;border-top:1px solid var(--panel-line);font-size:10px;line-height:1.55;">
       <div style="color:var(--paper);">${mechLabel(mech)}${mech.hasManagedHeat ? ' · resolved' : ''}</div>
-      <div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.signature ? ` + signature ${ledger.signature}` : ''}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''} = ${ledger.before} heat</div>
-      ${ledger.recordedHeat !== ledger.expectedHeat ? `<div style="color:var(--amber);">Heat ledger correction: recorded ${ledger.recordedHeat}, calculated ${ledger.expectedHeat} before engine/terrain effects.</div>` : ''}
+      ${!mech.hasManagedHeat ? `<div style="color:var(--phosphor-dim);">Start ${ledger.starting} + move ${ledger.movement} + weapons ${ledger.weapons}${ledger.signature ? ` + signature ${ledger.signature}` : ''}${ledger.engineHeat ? ` + engine ${ledger.engineHeat}` : ''}${mech.pendingTerrainHeat ? ` + terrain ${mech.pendingTerrainHeat}` : ''} = ${ledger.before} heat</div>` : ''}
+      ${!mech.hasManagedHeat && ledger.recordedHeat !== ledger.expectedHeat ? `<div style="color:var(--amber);">Heat ledger correction: recorded ${ledger.recordedHeat}, calculated ${ledger.expectedHeat} before engine/terrain effects.</div>` : ''}
       <div style="color:var(--amber);">Sinks ${ledger.sinks}: ${mech.hasManagedHeat ? `dissipated ${mech.heatDissipated}, ending ${mech.heat}` : sinksPreviewed ? `dissipates ${ledger.dissipated}, remaining Heat Level ${ledger.after}` : `will dissipate ${ledger.dissipated}`}${mech.shutdown && !mech.hasManagedHeat ? ' · SHUT DOWN' : ''}${sinksPreviewed ? overrideStatus : ''}</div>
       ${canOverride && !mech.shutdownOverrideRequested ? `<button onclick="declareShutdownOverride('${mech.instanceId}')" style="margin-top:5px;${MOVE_BTN_STYLE}">Declare Post-Sink Shutdown Override (need ${predictedShutdownTarget})</button>` : ''}
       ${clearControl}

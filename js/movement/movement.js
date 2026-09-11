@@ -233,23 +233,6 @@ async function attemptStand(instanceId) {
   proneMovementActionsInFlight.add(instanceId);
   setProneMovementActionBusy(instanceId, 'stand', true);
   try {
-    if (vsAiMode) {
-      const mobility = criticalMovementProfile(mech);
-      if (mobility.destroyedLegs >= 2 || mobility.gyroDestroyed) return;
-      const roll = roll2d6Detailed();
-      const target = Number(mech.pilot?.piloting ?? mech.pilotingSkill ?? 5) + mobility.pilotingModifier;
-      const passed = roll.total >= target;
-      mech.prone = !passed;
-      mech.hasMoved = !passed;
-      if (passed) mech.standFacingPending = currentGameState.round;
-      mech.movementMode = mobility.destroyedLegs === 1 ? 'run' : 'stand';
-      mech.mpUsed = mobility.destroyedLegs === 1 ? 1 : 2;
-      mech.hexesMoved = 0;
-      renderMovementPanel(); renderRoster(); renderDetail(); draw();
-      logEvent(`${mechLabel(mech)} ${passed ? 'stood up' : 'failed to stand'} — need ${target}, rolled ${format2d6(roll)}.`, 'roll');
-      await syncMechInstances();
-      return;
-    }
     const { data, error } = await db.rpc('attempt_stand_with_facing_choice', {
       p_game_id: currentGameId, p_instance_id: instanceId
     });
@@ -269,17 +252,6 @@ async function remainProne(instanceId) {
   proneMovementActionsInFlight.add(instanceId);
   setProneMovementActionBusy(instanceId, 'remain', true);
   try {
-  if (vsAiMode) {
-    mech.hasMoved = true;
-    mech.movementMode = 'prone';
-    mech.mpUsed = 0;
-    mech.hexesMoved = 0;
-    mech.movementHeat = 0;
-    renderMovementPanel(); renderRoster(); renderDetail(); draw();
-    logEvent(`${mechLabel(mech)} remained prone.`, 'move');
-    await syncMechInstances();
-    return;
-  }
   const { error } = await db.rpc('remain_prone_battlemech', {
     p_game_id: currentGameId, p_instance_id: instanceId
   });
@@ -421,23 +393,7 @@ async function startMovementMode(instanceId, mode) {
   }
 
   if (effectiveMode === 'stand') {
-    if (!vsAiMode) {
-      await submitAuthoritativeMovement(mech, mode, []);
-      return;
-    }
-    mech.movementMode = 'stand';
-    mech.mpUsed = 0;
-    mech.hexesMoved = 0;
-    mech.hasMoved = true;
-    mech.movementHeat = MOVEMENT_HEAT.stand;
-    mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
-    renderMovementPanel();
-    renderRoster();
-    renderDetail();
-    draw();
-    updateAdvanceButtonState();
-    await syncMechInstances();
-    logEvent(`${mechLabel(mech)} stood still at ${hexCode(mech.col, mech.row)}.`, 'move');
+    await submitAuthoritativeMovement(mech, mode, []);
     return;
   }
 
@@ -568,63 +524,7 @@ function turnMovementFacing(instanceId, direction) {
 // Lock in the in-progress move (this becomes the 'Mech's Movement Die for the Attack Phase).
 async function confirmMove() {
   const mech = mechInstances.find(m => m.instanceId === moveState.instanceId);
-  if (mech) {
-    if (!vsAiMode) {
-      await submitAuthoritativeMovement(mech, moveState.mode, moveState.path || []);
-      return;
-    }
-    if (moveState.superchargerActive) {
-      const result = resolveLocalSuperchargerActivation(mech);
-      logEvent(`${mechLabel(mech)} activated its Supercharger — need ${result.target}+, rolled ${format2d6(result)}: ${result.passed ? 'success' : 'failure'}.`, 'roll');
-      if (!result.passed) {
-        mech.col = moveState.origCol; mech.row = moveState.origRow; mech.facing = moveState.origFacing; mech.torsoFacing = moveState.origTorsoFacing;
-        const pilotingText = result.piloting ? ` Piloting ${result.piloting.passed ? 'passed' : 'failed'} on ${result.piloting.target}+ with ${format2d6(result.piloting)}${result.fallDamage ? `; fell for ${result.fallDamage} damage` : ''}.` : '';
-        logEvent(`Supercharger failure caused ${result.criticals.length} engine critical hit${result.criticals.length === 1 ? '' : 's'}.${pilotingText}${!mech.prone && !mech.destroyed ? ' Choose a normal movement mode.' : ''}`, 'roll');
-        moveState = { active:false, instanceId:null, mode:null, mpMax:0, mpUsed:0, hexesMoved:0, path:[] };
-        renderMovementPanel();renderReactionPanel();renderRoster();renderDetail();draw();updateAdvanceButtonState();await syncMechInstances();return;
-      }
-    }
-    if (moveState.mascActive) {
-      const result = resolveLocalMASCActivation(mech);
-      logEvent(`${mechLabel(mech)} activated MASC at risk level ${result.useLevel} — need ${result.target}+, rolled ${format2d6(result)}: ${result.passed ? 'success' : 'failure'}.`, 'roll');
-      if (!result.passed) {
-        mech.col = moveState.origCol; mech.row = moveState.origRow; mech.facing = moveState.origFacing; mech.torsoFacing = moveState.origTorsoFacing;
-        const damaged = result.criticals.map(hit => `${hitLocationLabel(hit.location)} ${hit.label}`).join(', ');
-        logEvent(`MASC failure damaged ${damaged || 'no remaining leg component'}${result.piloting ? `; Piloting ${result.piloting.passed ? 'passed' : 'failed'} on ${result.piloting.target}+ with ${format2d6(result.piloting)}${result.fallDamage ? `; fell for ${result.fallDamage} damage` : ''}` : ''}.`, 'roll');
-        moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0, path: [] };
-        renderMovementPanel(); renderReactionPanel(); renderRoster(); renderDetail(); draw(); updateAdvanceButtonState();
-        await syncMechInstances();
-        return;
-      }
-    }
-    mech.movementMode = moveState.mode;
-    if (!moveState.mascActive) mech.mascUsedThisRound = false;
-    if (!moveState.superchargerActive) mech.superchargerUsedThisRound = false;
-    mech.tsmActiveThisRound = hasActiveTSM(mech);
-    mech.mpUsed = moveState.mpUsed;
-    mech.hexesMoved = moveState.hexesMoved;
-    mech.hasMoved = true;
-    mech.movementHeat = moveState.mode === 'jump' ? Math.max(3, moveState.hexesMoved) : MOVEMENT_HEAT[moveState.mode] || 0;
-    mech.heat = (mech.roundStartingHeat || 0) + mech.movementHeat + (mech.weaponHeat || 0) + (mech.externalHeat || 0);
-    const moveSummary = `${mechLabel(mech)} ${moveState.mode === 'jump' ? 'jumped' : moveState.mode === 'run' ? 'ran' : 'walked'} to ${hexCode(mech.col, mech.row)} (${moveState.hexesMoved} hex${moveState.hexesMoved === 1 ? '' : 'es'}, ${moveState.mpUsed}/${moveState.mpMax} MP).`;
-    moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
-    renderMovementPanel();
-    renderReactionPanel();
-    renderRoster();
-    renderDetail();
-    draw();
-    updateAdvanceButtonState();
-    await syncMechInstances();
-    logEvent(moveSummary, 'move');
-    return;
-  }
-  moveState = { active: false, instanceId: null, mode: null, mpMax: 0, mpUsed: 0, hexesMoved: 0 };
-  renderMovementPanel();
-  renderReactionPanel();
-  renderRoster();
-  renderDetail();
-  draw();
-  updateAdvanceButtonState();
+  if (mech) await submitAuthoritativeMovement(mech, moveState.mode, moveState.path || []);
 }
 
 async function submitAuthoritativeMovement(mech, mode, path) {
@@ -929,14 +829,9 @@ async function confirmStandingFacing(instanceId) {
  if (!mech || mech.owner !== mySeatNumber || !isMyActiveTurn() || mech.standFacingPending !== currentGameState.round) return;
  const facing = Number(document.getElementById('stand-facing-choice')?.value);
  if (![0,1,2,3,4,5].includes(facing)) return;
- if (vsAiMode) {
-  mech.facing = mech.torsoFacing = facing; mech.hasMoved = true; delete mech.standFacingPending;
-  await syncMechInstances(); renderMovementPanel(); draw();
- } else {
-  const {error} = await db.rpc('confirm_stand_facing', {p_game_id:currentGameId,p_instance_id:instanceId,p_facing:facing});
-  if (error) { flashMoveWarning(error.message); return; }
-  await loadGameState();
- }
+ const {error} = await db.rpc('confirm_stand_facing', {p_game_id:currentGameId,p_instance_id:instanceId,p_facing:facing});
+ if (error) { flashMoveWarning(error.message); return; }
+ await loadGameState();
  logEvent(`${mechLabel(mech)} confirmed standing facing ${facing + 1}.`, 'move');
 }
 

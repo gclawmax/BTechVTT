@@ -311,3 +311,18 @@ SQL deployment and live acceptance must be reported separately from local implem
 
 - Apply the existing authoritative empty-physical-phase recovery when loading Vs AI matches, including already stuck games. Server legality checks and pending declaration resolution remain intact.
 - Live disposable match BT-HNDK recovered an empty Physical Attack phase into Heat with Auto-next disabled; human heat confirmation remained pending. Fixture removed. No migration required.
+
+### Gauss ammunition and shared Vs AI combat — build 119 / SQL 153–154
+
+Plan and implementation:
+1. Remove the human Vs AI local firing path (which omitted ammunition deduction), and route weapon declarations through the same server resolver as skirmishes and AI weapons.
+2. Use individual Gauss mounts for once-only explosions; use the shared ammunition-explosion damage path for internal transfer, CASE and pilot injury. Struck Gauss ammunition bins lose their shots without exploding. SQL 153 is a new migration; older migrations remain unchanged.
+3. Route human Vs AI movement, standing/facing and physical declarations through the existing server rules so heat and critical damage do not diverge by mode. Route AI and human heat through the same heat ledger and checks, with AI shutdown overrides and decision audit completion. Include engine and terrain heat in the AI firing budget.
+4. Show the signed-in profile name in the skirmish hangar and new AI setup. Replace native scaled SVG focus outlines with hex strokes; reproduced the reported blue/white circle on neutral deployment hexes.
+5. Validate real-server Gauss firing in both browser modes and by the AI, selected-bin deduction, one heat, duplicate rejection, movement and physical declaration persistence. Validate new explosion/heat SQL locally; verify installed SQL separately after application.
+
+Focused checks passed: live Gauss ammo 8 to 7 and weapon heat +1 across all three firing routes; human Vs AI movement and physical server resolution; local PostgreSQL per-mount explosions, CASE/transfer, pilot hits, inert/empty ammo bins, heat ledger, cooling-before-shutdown and actor guards. Browser focus regression covers friendly, enemy and neutral hexes. Complete-match endurance and refresh recovery remain separate pending acceptance work. Historical ammo missed by the old local path is not silently guessed or retroactively deducted.
+
+Follow-up SQL 154 adds CASE protection at each reached location, covering an arm explosion transferring into a protected torso. SQL 153 remains unchanged after its initial handoff. Both migrations pass repeat-application checks. The original blue/white focus artifact was reproduced in Chromium with the native SVG focus outline enabled and disappears with the corrected hex focus style. Live AI weapon-package regression also passed (BT-ZZXP, removed).
+
+Live acceptance on 2026-09-11: Gauss shots and heat passed for human skirmish mode, human Vs AI and AI firing; shared human/AI heat ignored a stale aggregate of 999, cooled the correct ledger of 8 once, finalized the AI audit and advanced to the next round. All disposable matches were removed. Pure JSON live probes confirmed the 153 Gauss explosion (20 internal damage, two pilot hits). The 154 transferred-CASE probe reproduced the outstanding live defect (0 vented, 12 damage reached CT); 154 is tested locally and awaits application. No match state was written by these probes.

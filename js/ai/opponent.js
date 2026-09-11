@@ -720,7 +720,7 @@ function aiWeaponHeatBudget(mech, settings) {
   const sinks = Math.max(0, Number(unit.heat_sink_capacity || unit.heat_sinks || 0) - destroyed);
   const signature = typeof signatureHeat === 'function' ? signatureHeat(mech) : 0;
   const beforeWeapons = Number(mech.roundStartingHeat || 0) + Number(mech.movementHeat || 0) +
-    Number(mech.externalHeat || 0) + signature;
+    Number(mech.externalHeat || 0) + signature + engineCriticalHeat(mech) + Number(mech.pendingTerrainHeat || 0);
   return Math.max(0, sinks + Number(settings.maxProjectedHeat ?? 13) - beforeWeapons);
 }
 
@@ -882,7 +882,7 @@ async function executeAIPlan(aiPlan) {
   // A weapon declaration can immediately hand play back to the human or
   // advance the phase. Save the reproducible plan before that happens; SQL
   // 124 finalizes its outcomes without rewriting combat state afterward.
-  if (['movement', 'reaction', 'weapon_attack', 'physical_attack'].includes(plannedPhase)) await syncMechInstances();
+  if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(plannedPhase)) await syncMechInstances();
   
   // Execute actions one by one with delays for visual feedback
   for (const action of aiPlan.actions) {
@@ -939,8 +939,7 @@ async function executeAIPlan(aiPlan) {
   const decisionFailed = pendingAIDecisionEnvelope?.outcomes?.some(outcome => outcome.status === 'failed');
   completeAIDecision(decisionFailed ? 'failed' : 'completed');
 
-  if (['movement', 'reaction', 'weapon_attack', 'physical_attack'].includes(plannedPhase)) await finalizeAIDecisionRecord();
-  else if (plannedPhase === 'heat') await syncMechInstances();
+  if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(plannedPhase)) await finalizeAIDecisionRecord();
   return !decisionFailed;
 }
 

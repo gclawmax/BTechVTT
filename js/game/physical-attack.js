@@ -267,40 +267,8 @@ async function confirmPhysicalAttack() {
   if (!attacker || attacker.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || attacker.hasPhysicalAttacked) return;
   const target = mechInstances.find(m => m.instanceId === physicalAttackState.targetId);
   const type = physicalAttackState.attackType;
-  if (!vsAiMode && type === 'push' && target) return resolvePushAttack(attacker, target);
-  if (!vsAiMode) return confirmAuthoritativePhysicalAttack(attacker, target, type);
-  let message;
-  if (type && target) {
-    const physicalWeapon = physicalWeaponRule(type);
-    const limb = physicalAttackState.limbs[0] || physicalLimbCandidates(type)[0];
-    const attack = evaluatePhysicalAttack(attacker, target, type, limb);
-    if (!attack.valid) return;
-    const roll = roll2d6Detailed();
-    const hit = attack.targetNumber <= 2 || (attack.targetNumber <= 12 && roll.total >= attack.targetNumber);
-    if (hit) {
-      const damage = applyWeaponDamage(target, attack.damage, 'front');
-      message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : physicalWeapon ? `struck with its ${physicalWeapon.label}` : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: hit ${hitLocationLabel(damage.location)} for ${attack.damage} damage.${damage.critical ? ' Critical-hit check triggered.' : ''}${damage.destroyedLocations.length ? ` Destroyed: ${damage.destroyedLocations.map(hitLocationLabel).join(', ')}.` : ''}${damage.destroyed ? ' Target destroyed.' : ''}`;
-    } else {
-      message = `${mechLabel(attacker)} ${type === 'kick' ? 'kicked' : physicalWeapon ? `swung its ${physicalWeapon.label} at` : 'punched'} ${mechLabel(target)} — need ${attack.targetNumber} (${attack.breakdown}), rolled ${format2d6(roll)}: miss.`;
-    }
-  } else {
-    message = `${mechLabel(attacker)} made no physical attack.`;
-  }
-
-  attacker.hasPhysicalAttacked = true;
-  physicalAttackState = { attackerId: null, targetId: null, attackType: null, limbs: [] };
-  renderPhysicalAttackPanel();
-  renderRoster();
-  renderDetail();
-  draw();
-  updateAdvanceButtonState();
-  // Give immediate feedback before the shared-state write has completed.
-  // The detailed resolution is logged after the save so it remains in order
-  // for the other player as well.
-  logEvent(`${mechLabel(attacker)} physical attack submitted — saving outcome.`, 'attack');
-  await syncMechInstances();
-  await checkForMatchEnd();
-  logEvent(message, 'attack');
+  if (type === 'push' && target) return resolvePushAttack(attacker, target);
+  return confirmAuthoritativePhysicalAttack(attacker, target, type);
 }
 
 function renderPhysicalAttackPanel() {

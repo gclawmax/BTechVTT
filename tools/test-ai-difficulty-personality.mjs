@@ -26,6 +26,7 @@ const sandbox = {
   weaponAttackState:{attackerId:null,ammoBinsByMount:{},fireModesByMount:{},aimLocationsByMount:{}},
   weaponMountId:(entry,index)=>`${entry.key}:${index}`, weaponPhaseStartMech:mech=>mech,
   destroyedHeatSinkCapacity:()=>0, signatureHeat:()=>0,
+  engineCriticalHeat: mech => Number(mech.testEngineHeat || 0),
   evaluateWeaponAttack:(_a,_t,entry)=>({valid:true,targetNumber:7,weapon:sandbox.BT_WEAPONS[entry.key],damage:sandbox.BT_WEAPONS[entry.key].damage}),
   BT_WEAPONS:{laser:{name:'Medium Laser',damage:5,heat:3,ranges:{short:3,medium:6,long:9}}}
 };

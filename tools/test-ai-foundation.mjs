@@ -41,6 +41,7 @@ const sandbox = {
   weaponPhaseStartMech: mech => mech,
   destroyedHeatSinkCapacity: () => 0,
   signatureHeat: () => 0,
+  engineCriticalHeat: mech => Number(mech.testEngineHeat || 0),
   currentActivationAllowance: () => 1,
   BT_WEAPONS: { laser: { name: 'Laser', damage: 5, heat: 3 } }
 };

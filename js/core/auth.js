@@ -89,3 +89,8 @@ function renderSignedInIdentity() {
   emblem.textContent = callsign.trim().split(/\s+/).slice(0,2).map(word => word[0] || '').join('').toUpperCase();
   emblem.style.borderColor = /^#[0-9a-f]{6}$/i.test(avatar.color || '') ? avatar.color : '#b87d28';
 }
+
+function signedInProfileName() {
+  const metadata = currentUser?.user_metadata || {};
+  return String(metadata.callsign || metadata.career_avatar?.callsign || metadata.username || currentUser?.email?.split('@')[0] || 'MechWarrior');
+}

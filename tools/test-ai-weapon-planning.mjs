@@ -33,6 +33,7 @@ const sandbox = {
   weaponPhaseStartMech: mech => mech,
   destroyedHeatSinkCapacity: () => 0,
   signatureHeat: () => 0,
+  engineCriticalHeat: mech => Number(mech.testEngineHeat || 0),
   targetGuidanceEcm: () => false
 };
 sandbox.evaluateWeaponAttack = (_attacker, target, entry, options = {}) => {
@@ -108,3 +109,8 @@ if (failures.length) {
 } else {
   console.log('\nAI-2 weapon-package regression passed.');
 }
+
+const budgetMech = {unitId:Object.keys(sandbox.BT_UNITS)[0],roundStartingHeat:0,movementHeat:0,externalHeat:0};
+const coolBudget = sandbox.aiWeaponHeatBudget(budgetMech,{maxProjectedHeat:13});
+check('AI weapon budget includes engine and terrain heat', sandbox.aiWeaponHeatBudget({...budgetMech,testEngineHeat:5,pendingTerrainHeat:3},{maxProjectedHeat:13}) === Math.max(0,coolBudget-8));
+if(failures.length)process.exitCode=1;
