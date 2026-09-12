@@ -57,6 +57,8 @@ const CUSTOM_ARMOR_TYPES = Object.freeze({ standard:{name:'Standard',pointsPerTo
 let customDesignerState = null;
 let customDesignerReturnScreen = 'menu-screen';
 let customSavedDesigns = [];
+let customDesignerCatalogueVersion = null;
+let customDesignerProfileError = null;
 
 function customStructure(tonnage) {
   const [ct, torso, arm, leg] = CUSTOM_STRUCTURE_TABLE[tonnage] || [];
@@ -180,14 +182,34 @@ function calculateCustomDesign(design) {
 
 async function openMechDesigner() {
   customDesignerReturnScreen = currentGameId ? 'lobby-screen' : 'menu-screen';
-  try {
-    if (currentGameId) { if (!activeCatalogueVersion) throw new Error('Open the match lobby once before entering MechLab.'); }
-    else await loadLatestUnitCatalogue();
-  } catch (error) { alert(`The designer needs an installed unit catalogue: ${error.message}`); return; }
-  customDesignerState ||= newCustomDesign();
-  await loadCustomSavedDesigns();
+  // Opening the lab must not wait for every catalogue mount and critical slot.
+  // On the menu that can be thousands of rows; the server remains the source
+  // of truth for save validation, while a full catalogue load happens when a
+  // player enters a lobby or saves a design for the current lobby.
   showScreen('mech-designer-screen');
-  renderMechDesigner();
+  const root = document.getElementById('mech-designer-root');
+  if (root) root.innerHTML = '<div class="designer-loading">Opening MechLab…</div>';
+  try {
+    customDesignerCatalogueVersion = await resolveMechLabCatalogueVersion();
+    customDesignerState ||= newCustomDesign();
+    await loadCustomSavedDesigns();
+    renderMechDesigner();
+  } catch (error) {
+    if (root) root.innerHTML = `<div class="designer-profile-error"><strong>MechLab could not open.</strong><br>${escapeHtml(error.message || 'An installed BattleMech catalogue is required.')}<br><button onclick="closeMechDesigner()">Back</button></div>`;
+  }
+}
+
+async function resolveMechLabCatalogueVersion() {
+  if (currentGameId) {
+    if (!activeCatalogueVersion) throw new Error('Open the match lobby once before entering MechLab.');
+    return activeCatalogueVersion;
+  }
+  if (activeCatalogueVersion) return activeCatalogueVersion;
+  const { data, error } = await db.from('btech_catalogue_releases')
+    .select('version').order('generated_at', { ascending: false }).limit(1).maybeSingle();
+  if (error) throw error;
+  if (!data?.version) throw new Error('No BattleMech catalogue release is installed.');
+  return data.version;
 }
 
 function closeMechDesigner() {
@@ -196,9 +218,11 @@ function closeMechDesigner() {
 }
 
 async function loadCustomSavedDesigns() {
-  if (!currentUser?.id) return;
+  customDesignerProfileError = null;
+  if (!currentUser?.id) { customSavedDesigns = []; customDesignerProfileError = 'Sign in to save designs to your profile.'; return; }
   const { data, error } = await db.from('btech_custom_designs').select('id,unit_id,name,design,calculation,created_at').eq('owner_id',currentUser.id).eq('archived',false).order('created_at',{ascending:false});
-  if (!error) customSavedDesigns = data || [];
+  if (error) { customSavedDesigns = []; customDesignerProfileError = `Your saved designs could not be loaded: ${error.message}`; return; }
+  customSavedDesigns = data || [];
 }
 
 function resetMechDesigner() { customDesignerState = newCustomDesign(); renderMechDesigner(); }
@@ -273,9 +297,11 @@ function renderMechDesigner() {
   }).join('');
   const weights = calc.weights;
   const armorType = CUSTOM_ARMOR_TYPES[d.armor_type || 'standard'];
-  const saved = customSavedDesigns.map(item => `<div class="designer-saved-row"><div><strong>${escapeHtml(item.name)}</strong><span>${item.design?.tonnage || '?'} tons · ${item.design?.walking_mp || '?'} / ${Math.ceil(Number(item.design?.walking_mp||0)*1.5)} / ${item.design?.jump_mp || 0}</span></div><button onclick="loadSavedCustomDesign('${item.id}')">Use as new revision</button><button onclick="archiveCustomDesign('${item.id}')">Archive</button></div>`).join('') || '<div class="roster-empty">No saved custom BattleMechs yet.</div>';
+  const saved = customDesignerProfileError
+    ? `<div class="designer-profile-error">${escapeHtml(customDesignerProfileError)}</div>`
+    : customSavedDesigns.map(item => `<div class="designer-saved-row"><div><strong>${escapeHtml(item.name)}</strong><span>${item.design?.tonnage || '?'} tons · ${item.design?.walking_mp || '?'} / ${Math.ceil(Number(item.design?.walking_mp||0)*1.5)} / ${item.design?.jump_mp || 0}</span></div><button onclick="loadSavedCustomDesign('${item.id}')">Use as new revision</button><button onclick="archiveCustomDesign('${item.id}')">Archive</button></div>`).join('') || '<div class="roster-empty">No saved custom BattleMechs in this profile yet.</div>';
   root.innerHTML = `<div class="designer-heading"><div><div class="panel-eyebrow">MechLab · Inner Sphere and Clan</div><h2>Custom BattleMech Designer</h2><p>Build an immutable, match-ready variant from equipment the VTT fully resolves.</p></div><div><button onclick="resetMechDesigner()">New design</button><button onclick="closeMechDesigner()">Back</button></div></div>
-  <div class="designer-grid"><section class="designer-card"><h3>Chassis</h3><div class="designer-fields"><label>Name<input maxlength="48" value="${escapeHtml(d.name)}" onchange="updateCustomDesignField('name',this.value)"></label><label>Variant<input maxlength="24" value="${escapeHtml(d.variant)}" onchange="updateCustomDesignField('variant',this.value)"></label><label>Technology<select onchange="updateCustomDesignField('tech_base',this.value)">${customOptions(Object.entries(CUSTOM_TECH_BASES),techBase)}</select></label><label>Tonnage<select onchange="updateCustomDesignField('tonnage',this.value)">${customOptions(Object.keys(CUSTOM_STRUCTURE_TABLE).map(t=>[t,`${t} tons`]),String(d.tonnage))}</select></label><label>Walking MP<input type="number" min="1" max="20" value="${d.walking_mp}" onchange="updateCustomDesignField('walking_mp',this.value)"></label><label>Jumping MP<input type="number" min="0" max="${d.walking_mp}" value="${d.jump_mp}" onchange="updateCustomDesignField('jump_mp',this.value)"></label><label>Single heat sinks<input type="number" min="10" max="50" value="${d.heat_sinks}" onchange="updateCustomDesignField('heat_sinks',this.value)"></label><label>Engine<select onchange="updateCustomDesignField('engine_type',this.value)">${customOptions(engineChoices.map(([key,p])=>[key,p.name]),d.engine_type || 'standard')}</select></label><label>Structure<select onchange="updateCustomDesignField('structure_type',this.value)">${customOptions(structureChoices.map(([key,p])=>[key,p.name]),d.structure_type || 'standard')}</select></label><label>Armour<select onchange="updateCustomDesignField('armor_type',this.value)">${customOptions(armorChoices.map(([key,p])=>[key,p.name]),d.armor_type || 'standard')}</select></label></div><div class="designer-note">Engine ${calc.rating || '—'} · movement ${d.walking_mp}/${Math.ceil(d.walking_mp*1.5)}/${d.jump_mp}. Advanced structure and armour save mass but use critical slots.</div></section>
+  <div class="designer-profile-note">Saved privately to your signed-in profile · catalogue ${escapeHtml(customDesignerCatalogueVersion || 'pending')} · server validates every design before publishing it.</div><div class="designer-grid"><section class="designer-card"><h3>Chassis</h3><div class="designer-fields"><label>Name<input maxlength="48" value="${escapeHtml(d.name)}" onchange="updateCustomDesignField('name',this.value)"></label><label>Variant<input maxlength="24" value="${escapeHtml(d.variant)}" onchange="updateCustomDesignField('variant',this.value)"></label><label>Technology<select onchange="updateCustomDesignField('tech_base',this.value)">${customOptions(Object.entries(CUSTOM_TECH_BASES),techBase)}</select></label><label>Tonnage<select onchange="updateCustomDesignField('tonnage',this.value)">${customOptions(Object.keys(CUSTOM_STRUCTURE_TABLE).map(t=>[t,`${t} tons`]),String(d.tonnage))}</select></label><label>Walking MP<input type="number" min="1" max="20" value="${d.walking_mp}" onchange="updateCustomDesignField('walking_mp',this.value)"></label><label>Jumping MP<input type="number" min="0" max="${d.walking_mp}" value="${d.jump_mp}" onchange="updateCustomDesignField('jump_mp',this.value)"></label><label>Single heat sinks<input type="number" min="10" max="50" value="${d.heat_sinks}" onchange="updateCustomDesignField('heat_sinks',this.value)"></label><label>Engine<select onchange="updateCustomDesignField('engine_type',this.value)">${customOptions(engineChoices.map(([key,p])=>[key,p.name]),d.engine_type || 'standard')}</select></label><label>Structure<select onchange="updateCustomDesignField('structure_type',this.value)">${customOptions(structureChoices.map(([key,p])=>[key,p.name]),d.structure_type || 'standard')}</select></label><label>Armour<select onchange="updateCustomDesignField('armor_type',this.value)">${customOptions(armorChoices.map(([key,p])=>[key,p.name]),d.armor_type || 'standard')}</select></label></div><div class="designer-note">Engine ${calc.rating || '—'} · movement ${d.walking_mp}/${Math.ceil(d.walking_mp*1.5)}/${d.jump_mp}. Advanced structure and armour save mass but use critical slots.</div></section>
   <section class="designer-card"><h3>Armour</h3><div class="designer-armor-grid">${armorFields.map(([key,label,max])=>`<label>${label}<input type="number" min="0" max="${max}" value="${d.armor[key]||0}" onchange="updateCustomArmor('${key}',this.value)"><span>max ${max}</span></label>`).join('')}</div><div class="designer-note">${calc.armorPoints} points · ${weights.armor.toFixed(1)} tons (${armorType?.name || 'Standard'}). Torso front and rear share their location maximum.</div></section>
   <section class="designer-card designer-wide"><div class="designer-section-title"><h3>Weapons</h3><button onclick="addCustomWeapon()">Add weapon</button></div>${weaponRows || '<div class="roster-empty">No weapons fitted.</div>'}<div class="designer-section-title"><h3>Ammunition</h3><button onclick="addCustomAmmo()">Add ammunition</button></div>${ammoRows || '<div class="roster-empty">No ammunition bins fitted.</div>'}<div class="designer-section-title"><h3>Electronics</h3><button onclick="addCustomElectronic()">Add electronics</button></div>${electronicRows || '<div class="roster-empty">No electronic systems fitted.</div>'}<div class="designer-note">Targeting Computers are sized automatically from eligible direct-fire weapon tonnage. C3 networks are assigned in the match lobby.</div></section>
   <section class="designer-card"><h3>Construction report</h3><div class="designer-weight-list">${Object.entries({Structure:weights.structure,Engine:weights.engine,Gyro:weights.gyro,Cockpit:weights.cockpit,Armour:weights.armor,Weapons:weights.weapons,Ammunition:weights.ammo,Electronics:weights.electronics,'Extra heat sinks':weights.heatSinks,'Jump jets':weights.jumpJets}).map(([label,value])=>`<div><span>${label}</span><strong>${Number(value).toFixed(1)} t</strong></div>`).join('')}<div class="total"><span>Total</span><strong>${weights.total.toFixed(1)} / ${d.tonnage} t</strong></div></div><div class="designer-heat">Alpha-strike heat ${calc.weaponHeat} · dissipation ${d.heat_sinks}</div></section>
@@ -284,11 +310,15 @@ function renderMechDesigner() {
 }
 
 async function saveCustomDesign() {
-  const calc = calculateCustomDesign(customDesignerState);if (!calc.valid || !activeCatalogueVersion) return;
+  const catalogueVersion = customDesignerCatalogueVersion || activeCatalogueVersion;
+  const calc = calculateCustomDesign(customDesignerState);if (!calc.valid || !catalogueVersion || !currentUser?.id) return;
   const status = document.getElementById('designer-save-status');if (status) status.textContent='Validating and publishing…';
-  const { data,error } = await db.rpc('save_btech_custom_design',{p_catalogue_version:activeCatalogueVersion,p_design:customDesignerState});
+  const { data,error } = await db.rpc('save_btech_custom_design',{p_catalogue_version:catalogueVersion,p_design:customDesignerState});
   if (error) { if(status) status.textContent=`Design rejected: ${error.message}`;return; }
-  await loadUnitCatalogue(activeCatalogueVersion,true);await loadCustomSavedDesigns();renderMechDesigner();
+  // A lobby needs the newly published unit immediately. The menu deliberately
+  // avoids this bulk catalogue read so opening MechLab stays responsive.
+  if (currentGameId) await loadUnitCatalogue(catalogueVersion,true);
+  await loadCustomSavedDesigns();renderMechDesigner();
   const refreshedStatus=document.getElementById('designer-save-status');if(refreshedStatus) refreshedStatus.textContent=`Saved ${data.name}. It is now available in your Hangar.`;
 }
 

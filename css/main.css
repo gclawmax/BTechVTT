@@ -1590,6 +1590,9 @@ body.resizing-detail-panel, body.resizing-detail-panel * { cursor:col-resize !im
 /* ── CUSTOM BATTLEMECH DESIGNER ───────────────────────── */
 #mech-designer-screen { overflow:auto; align-items:flex-start; padding:28px; }
 #mech-designer-root { width:min(1180px,100%); margin:0 auto; color:var(--paper); font-family:var(--mono); }
+.designer-loading,.designer-profile-note,.designer-profile-error { border:1px solid var(--panel-line); padding:12px; background:var(--panel); color:var(--phosphor-dim); font-size:11px; }
+.designer-profile-note { margin:0 0 14px; border-left:3px solid var(--amber); }
+.designer-profile-error { color:#d98672; border-color:#713e35; background:rgba(90,35,28,.2); }
 .designer-heading { display:flex; justify-content:space-between; gap:18px; align-items:flex-start; margin-bottom:18px; }
 .designer-heading h2 { margin:2px 0 4px; font:600 28px var(--display); letter-spacing:.03em; }
 .designer-heading p { margin:0; color:var(--phosphor-dim); }
