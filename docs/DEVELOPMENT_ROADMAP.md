@@ -1,7 +1,7 @@
 # BTechVTT — Development Roadmap
 
 Status: **authoritative roadmap**  
-Last updated: **2026-09-10**
+Last updated: **2026-09-14**
 
 This document is the single source of truth for development priorities. It
 supersedes the roadmap sections in `README.md`, `README2.md`, and
@@ -55,6 +55,32 @@ Persistent Career expansion is secondary to this player-tested workflow.
 Career-4b and further persistent progression are deferred until this
 skirmish milestone is accepted. Existing Career functionality is retained.
 
+
+## Next development programme — Coop Skirmish
+
+After the polished human skirmish / Vs AI reliability milestone is accepted,
+the next product step is **Coop Skirmish**: two (later up to four) humans on
+the **same team**, dropping against AI on existing large/dual-sheet maps, with
+a shared lance **sensor picture** on enemy tokens (LOS + sensor range; not full
+hex fog of war yet). No Career persistence in this phase — prove same-side
+seats, unit-level activation ownership, and shared visibility first.
+
+Design and later Company Drop / career co-op scope:
+[MW5 Co-op Company Drop Proposal](MW5_COOP_COMPANY_DROP_PROPOSAL.md).
+
+Acceptance sketch (refine in the design doc as implementation starts):
+
+1. Two human accounts join one match on the same force; AI occupies the opposing force.
+2. Each human is assigned one or more BattleMechs; activation is by unit owner.
+3. Enemies are shown only when any allied unit has LOS within sensor range
+   (probe / ECM interactions reuse existing rules).
+4. Existing Annihilation / Control / Breakthrough scenarios remain playable.
+5. Skirmish isolation is preserved: no Career credits, damage, or salvage.
+
+Career memberships, shared hangar drops, and non-BattleMech unit families are
+**out of scope** for Coop Skirmish; they follow in later Company Drop slices.
+
+
 ## Completed recent programmes
 
 - **AAR and replay:** implemented through SQL 103, including sealed reports,
@@ -77,14 +103,21 @@ skirmish milestone is accepted. Existing Career functionality is retained.
 
 1. **BV-5:** validated custom-design BV2 breakdowns, deferred until MechLab support is
    sufficiently complete. See [Battle Value Design](BATTLE_VALUE_DESIGN.md).
-2. **Career-4b:** optional PvP tenders with explicit two-company consent,
+2. **Company Drop (career co-op):** after Coop Skirmish, shared-company
+   memberships, explicit drop lists, and single-company settlement for
+   multi-human Career contracts. Distinct from Career-4b. See
+   [MW5 Co-op Company Drop Proposal](MW5_COOP_COMPANY_DROP_PROPOSAL.md).
+3. **Career-4b:** optional PvP tenders with explicit two-company consent,
    withdrawal rules and idempotent dual settlement.
-3. **Level 2 catalogue additions:** curated, catalogue-led systems not already
+4. **Non-BattleMech opponents/allies:** vehicles, VTOLs and infantry are a
+   separate rules/data programme, not required for Coop Skirmish. See the
+   Company Drop proposal for effort ordering.
+5. **Level 2 catalogue additions:** curated, catalogue-led systems not already
    covered by the specialist-rules programme below. Each remains gated by an
    authoritative resolver and a representative live battle.
-4. **Operations:** scheduled retention cleanup verification, deployment
+6. **Operations:** scheduled retention cleanup verification, deployment
    observability/backups, and production monitoring.
-5. **Presentation:** accessibility, mobile, map/editor and audio polish driven
+7. **Presentation:** accessibility, mobile, map/editor and audio polish driven
    by player feedback.
 
 ## BattleMech specialist-rules programme
@@ -274,6 +307,8 @@ out of the playable catalogue; the full audit is recorded in
 - `README2.md` — current architecture and implemented-feature overview.
 - `docs/HOW_TO_PLAY_PROPOSAL.md` — player-facing rules and UI guidance source.
 - `docs/AI_OPPONENT_ROADMAP.md` — authoritative Play vs AI development slices.
+- `docs/MW5_COOP_COMPANY_DROP_PROPOSAL.md` — MW5-style co-op / Company Drop design; Coop Skirmish is the first implementation slice.
+- `docs/PERSISTENT_CAMPAIGN_DESIGN.md` — authoritative Career persistence design.
 - `SKILL_ROADMAP2.md` — retained as historical roadmap context only.
 - `README.md` — legacy project overview; its roadmap is obsolete.
 
