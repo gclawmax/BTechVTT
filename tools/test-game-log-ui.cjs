@@ -10,7 +10,7 @@ const path = require('node:path');
     page.on('pageerror', error => errors.push(error.message));
     await page.setContent(`
       <div id="game-log-wrap"><div id="game-log" style="height:100px;overflow:auto"></div><button id="game-log-new-events" hidden></button></div>
-      <button data-log-filter="all"></button><button data-log-filter="mine"></button><button data-log-filter="enemy"></button>
+      <input id="game-log-concise" type="checkbox"><button data-log-filter="all"></button><button data-log-filter="mine"></button><button data-log-filter="enemy"></button>
     `);
     await page.evaluate(() => {
       window.currentGameState = { round: 2, phase: 'weapon_attack' };
@@ -27,7 +27,7 @@ const path = require('node:path');
     });
     await page.addScriptTag({ path: path.resolve(__dirname, '../js/core/game-log.js') });
     await page.evaluate(() => {
-      logEvent('Grand Dragon DRG-5K fired ER PPC at Adder / Puma Prime — need 9, rolled 4 + 5 = 9: hit.', 'attack', 1);
+      logEvent('Grand Dragon DRG-5K fired ER PPC at Adder / Puma Prime — need 9, rolled 4 + 5 = 9: hit — front location 4 + 5 = 9 → Right Torso for 15 damage.', 'attack', 1);
       currentGameState = { round: 2, phase: 'movement' };
       logEvent('Adder / Puma Prime walked to 0910 (5 MP).', 'move', 2);
     });
@@ -39,6 +39,10 @@ const path = require('node:path');
     await page.evaluate(() => setGameLogFilter('mine'));
     assert.match(await page.locator('#game-log').innerText(), /Grand Dragon/);
     assert.doesNotMatch(await page.locator('#game-log').innerText(), /walked to/);
+    await page.evaluate(() => { setGameLogFilter('all'); setConciseGameLog(true); });
+    assert.match(await page.locator('#game-log').innerText(), /Grand Dragon DRG-5K hit Adder \/ Puma Prime with ER PPC — 15 damage, Right Torso\./);
+    assert.equal(await page.locator('.log-action-detail').count(), 0);
+    assert.equal(await page.locator('#game-log-concise').isChecked(), true);
     assert.deepEqual(errors, []);
     console.log('PASS game log groups phases, collapses roll detail, filters by side, and selects linked BattleMechs');
   } finally {

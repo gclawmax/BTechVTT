@@ -9,6 +9,8 @@ let _logSeq = 0;
 let gameLogFilter = 'all';
 let gameToastTimer = null;
 let gameLogUnreadCount = 0;
+let conciseGameLog = false;
+try { conciseGameLog = localStorage.getItem('bt-vtt-concise-log') === 'true'; } catch (_) { /* private browsing can deny storage */ }
 
 // Game state is a single JSON document. Serialize read-modify-write updates so
 // a confirmed move, reaction, or log entry cannot overwrite another update
@@ -134,6 +136,30 @@ function logActionSummary(entry) {
   return { summary: summary || message, detail: message };
 }
 
+// This is intentionally presentation-only. The durable event retains every
+// roll and modifier for replay, post-match review, and the detailed view.
+function conciseLogMessage(entry) {
+  const message = String(entry?.msg || '').replace(/\s+/g, ' ').trim();
+  if (entry.kind === 'weapon-header') return null;
+  let match;
+  if ((match = message.match(/^(.*?) fired (.+?) at (.*?) — .*?: miss\./i))) return `${match[1]} missed ${match[3]} with ${match[2]}.`;
+  if ((match = message.match(/^(.*?) fired (.+?) at (.*?) — .*?: hit\. .*? (\d+) missile.*?; (.*?) gains (\d+) heat\./i))) return `${match[1]} hit ${match[3]} with ${match[2]} — ${match[4]} heat.`;
+  if ((match = message.match(/^(.*?) fired (.+?) at (.*?) — .*?: hit\. .*? (\d+) (?:pellets|shells|missiles) hit/i))) return `${match[1]} hit ${match[3]} with ${match[2]} — ${match[4]} hits.`;
+  if ((match = message.match(/^(.*?) fired (.+?) at (.*?) — .*?: .*?(?:→ )?([A-Za-z ]+?) for (\d+) damage\./i))) return `${match[1]} hit ${match[3]} with ${match[2]} — ${match[5]} damage, ${match[4]}.`;
+  if ((match = message.match(/^(.*?) (kicked|charged|punched|struck.*?) (.*?) — .*?: hit ([A-Za-z ]+) for (\d+) damage\./i))) return `${match[1]} ${match[2]} ${match[3]} — ${match[5]} damage, ${match[4]}.`;
+  if ((match = message.match(/^(.*?) heat: .*? ending (\d+)\./i))) return `${match[1]} heat — ending ${match[2]}.`;
+  if ((match = message.match(/^(.*?) (passed|failed) (?:its )?Piloting Skill Roll(?: for (.*?))? —/i))) return `${match[1]} ${match[2]} Piloting${match[3] ? ` — ${match[3]}` : ''}.`;
+  if (/^Initiative (?:rolled|resolved|tie)/i.test(message)) {
+    const first = message.match(/(?:^|[,|]\s*)([^,|]+?) \([^)]*1st\)/i);
+    return first ? `Initiative resolved — ${first[1].trim()} goes first.` : 'Initiative updated.';
+  }
+  if ((match = message.match(/^(.*?) (stood up|remained prone|walked|ran|jumped|held position)(.*)$/i))) return `${match[1]} ${match[2]}${match[3].match(/\([^)]*hex[^)]*\)/i)?.[0] || ''}.`;
+  return message
+    .replace(/\s*—\s*(?:need|rolled)\b.*$/i, '.')
+    .replace(/\s+rolled\b.*$/i, '.')
+    .replace(/\s{2,}/g, ' ');
+}
+
 function formatLogMessageWithMechLinks(message) {
   let html = formatVisibleLogMessage(message);
   const units = (typeof mechInstances === 'undefined' ? [] : mechInstances)
@@ -167,7 +193,8 @@ function renderGameLog({ incoming = false } = {}) {
       rows.push(`<div class="log-phase-divider"><span>Round ${entry.round ?? '?'}</span><span>${escapeLogHtml(logPhaseLabel(entry))}</span></div>`);
       lastPhaseKey = phaseKey;
     }
-    const action = logActionSummary(entry);
+    const action = conciseGameLog ? { summary: conciseLogMessage(entry), detail: null } : logActionSummary(entry);
+    if (!action.summary) continue;
     const classes = `log-entry cat-${entry.cat} ${logTeamClass(entry)}${entry.kind === 'weapon-header' ? ' combat-mech-header' : ''}`;
     const tag = `<span class="log-tag">${entry.time}</span>`;
     const summary = formatLogMessageWithMechLinks(action.summary);
@@ -193,6 +220,14 @@ function setGameLogFilter(filter) {
   document.querySelectorAll('[data-log-filter]').forEach(button => {
     button.classList.toggle('active-filter', button.dataset.logFilter === gameLogFilter);
   });
+  renderGameLog();
+}
+
+function setConciseGameLog(enabled) {
+  conciseGameLog = Boolean(enabled);
+  try { localStorage.setItem('bt-vtt-concise-log', String(conciseGameLog)); } catch (_) { /* preference remains for this page */ }
+  const checkbox = document.getElementById('game-log-concise');
+  if (checkbox) checkbox.checked = conciseGameLog;
   renderGameLog();
 }
 
@@ -260,6 +295,8 @@ function mergeRemoteLog(remoteLog) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  const conciseCheckbox = document.getElementById('game-log-concise');
+  if (conciseCheckbox) conciseCheckbox.checked = conciseGameLog;
   const el = document.getElementById('game-log');
   if (!el) return;
   el.addEventListener('scroll', () => {

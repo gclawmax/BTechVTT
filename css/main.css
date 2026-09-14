@@ -1238,6 +1238,8 @@ body.resizing-side-panel, body.resizing-side-panel * {
 
 .game-log-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:4px; }
 #game-log-header .btn-clear-log.active-filter { color:var(--amber); border-color:var(--amber); background:#fff7e8; }
+.game-log-concise { display:flex; align-items:center; gap:3px; color:var(--phosphor-dim); font:9px var(--mono); text-transform:uppercase; cursor:pointer; }
+.game-log-concise input { accent-color:var(--amber); margin:0; }
 
 #game-log-wrap { position:relative; min-height:100px; }
 
