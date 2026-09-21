@@ -1,7 +1,7 @@
 # BTechVTT — Development Roadmap
 
 Status: **authoritative roadmap**  
-Last updated: **2026-09-14**
+Last updated: **2026-09-21**
 
 This document is the single source of truth for development priorities. It
 supersedes the roadmap sections in `README.md`, `README2.md`, and
@@ -108,7 +108,9 @@ Career memberships, shared hangar drops, and non-BattleMech unit families are
    multi-human Career contracts. Distinct from Career-4b. See
    [MW5 Co-op Company Drop Proposal](MW5_COOP_COMPANY_DROP_PROPOSAL.md).
 3. **Career-4b:** optional PvP tenders with explicit two-company consent,
-   withdrawal rules and idempotent dual settlement.
+   withdrawal rules and idempotent dual settlement. Mechanics to carry into
+   the slice (tender lifecycle, committed-force escrow, stakes, opt-in
+   Mech-forfeit flag) are recorded in `docs/PERSISTENT_CAMPAIGN_DESIGN.md`.
 4. **Non-BattleMech opponents/allies:** vehicles, VTOLs and infantry are a
    separate rules/data programme, not required for Coop Skirmish. See the
    Company Drop proposal for effort ordering.
@@ -119,6 +121,13 @@ Career memberships, shared hangar drops, and non-BattleMech unit families are
    observability/backups, and production monitoring.
 7. **Presentation:** accessibility, mobile, map/editor and audio polish driven
    by player feedback.
+8. **Career backlog (post-Career-4b):** career transitions (desertion,
+   exile, honourable discharge, high-reputation recruitment — origins are
+   currently immutable), Clan progression flavour (Bloodnames, patrons, PvP
+   Trial of Possession), and terrain-seeded map selection with
+   industrial-level repair/supply gating. All deferred concepts are
+   consolidated in `docs/PERSISTENT_CAMPAIGN_DESIGN.md`; the original local
+   `CAREER_MODE_DESIGN.md` proposal has been retired and removed.
 
 ## BattleMech specialist-rules programme
 

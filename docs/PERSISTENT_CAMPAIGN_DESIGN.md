@@ -2,10 +2,11 @@
 
 Status: **Career-4a complete — Career-4b PvP tenders under review**
 
-This is the authoritative design for persistent play. It supersedes the scope
-of the older local `CAREER_MODE_DESIGN.md` proposal for implementation order;
-that proposal remains useful background research but deliberately includes
-later features that are not part of the first release.
+This is the authoritative design for persistent play. It supersedes the
+older local `CAREER_MODE_DESIGN.md` proposal, which has been retired: its
+useful concepts (arena tender mechanics, economy reference values and
+deferred origin features) are consolidated here and in
+`docs/DEVELOPMENT_ROADMAP.md`, and the proposal file has been removed.
 
 ## Product promise
 
@@ -207,6 +208,33 @@ Still pending. This requires invitation/acceptance, force escrow, withdrawal,
 two-company settlement, disconnect handling and explicit stakes. It must not
 reuse ordinary skirmish joining as implied consent.
 
+Mechanics to carry into the slice, adapted from the retired
+`CAREER_MODE_DESIGN.md` proposal (§4.7) to the consent-first rule:
+
+- **Tender lifecycle:** `open → countered → accepted`, or `declined` /
+  `expired` / `cancelled` at any point. At most three counter rounds;
+  exceeding that auto-expires the tender.
+- **Committed forces:** each side commits specific owned BattleMechs and
+  pilots (respecting dropship tonnage). Committed records are locked while
+  the tender is live — no sale, repair, reassignment, or re-spend — and are
+  released on decline, expiry, or cancellation.
+- **Stakes:** each side wagers credits held in escrow once the tender is
+  accepted. The winner collects the full pot plus a reputation gain; the
+  loser forfeits the stake and some reputation. Battle losses are a real
+  cost on top of the wager: both companies keep their Mech damage and pay
+  their own repairs.
+- **Dual settlement:** committed Mechs seed the match in their current
+  (possibly damaged) persistent state; on match end, settlement runs once
+  per company, idempotently, from the sealed report.
+- **Disconnect handling:** a disconnected side neither auto-accepts nor
+  auto-forfeits; the tender holds in escrow, and a timeout refunds both
+  stakes and releases committed forces (exact timeout policy is a slice
+  decision).
+- **Opt-in Mech-forfeit flag:** a tender term may allow a defeated Mech to
+  be forfeited to the winner. This is opt-in by both companies and defaults
+  off.
+
+
 ## Acceptance criteria
 
 - A new company can finish a complete low-risk contract against AI.
@@ -221,8 +249,24 @@ reuse ordinary skirmish joining as implied consent.
 
 ## Deferred decisions
 
-The broader proposal's planetary logistics, arena tenders and longer branching
-campaigns remain desirable. Logistics is represented by the current regional
-travel and supply loop; PvP tenders and broader narrative campaigns should be
-designed as explicit later additions rather than silently expanding the first
-persistent release.
+Longer career systems remain desirable but must be explicit later
+additions, never silent scope expansion of the first persistent release.
+Consolidated from the retired `CAREER_MODE_DESIGN.md` proposal:
+
+- **Planetary logistics depth:** terrain-seeded map selection from planet
+  profiles, and industrial-level gating on component replacement and supply
+  quality. Logistics is currently represented by the regional travel and
+  supply loop from Career-3.
+- **Career transitions:** origins are immutable in Career-4a. The
+  proposal's transitions — desertion, exile, honourable discharge, and
+  high-reputation recruitment into a nation or Clan — remain a candidate
+  for a later slice if player feedback wants them.
+- **Clan and patron flavour:** Bloodname at a status threshold, patron
+  flavour for campaigns, and a PvP Trial of Possession with an opt-in
+  Mech-forfeit stake.
+- **Economy reference values (tuning baseline):** pay-by-tonnage-tier
+  contracts (low 20,000 / medium 60,000 / high 150,000 base plus per-kill
+  and success bonuses), per-shot reload rates by ammunition family, and
+  per-part component multipliers (actuator 5 · gyro 10 · weapon 3 · sensor
+  2 · life support 4 · other 1).
+
