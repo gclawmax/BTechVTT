@@ -29,6 +29,12 @@ const sandbox = {
   console, Math, JSON, Object, Array, Number, String, Boolean, Promise,
   localStorage: { getItem: () => null, setItem: () => {} },
   ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
+  // Timer globals: no-op fakes so rules.js's draw() can call clearTimeout and
+  // never (re)schedule its 80ms pulse loop headless — a real setTimeout would
+  // keep the test process alive redrawing forever.
+  setTimeout: () => 0, clearTimeout: () => {}, setInterval: () => 0, clearInterval: () => {},
+  performance: { now: () => Date.now() },
+  matchMedia: () => ({ matches: true }),
   document: { getElementById: (id) => (id === 'hexmap' ? fakeEl() : null), querySelector: () => null, querySelectorAll: () => [],
     createElement: () => fakeEl(), addEventListener: () => {}, body: { appendChild: () => {} } },
   window: {},
