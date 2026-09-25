@@ -104,8 +104,44 @@ Companion client fix in `js/game/physical-attack.js`:
 'Mechs are excluded), the declaration panel lists every living,
 undeclared 'Mech of the active seat, and a 'Mech with no legal attack
 sees a pass-only panel with the existing
-"No Physical Attack / Complete" button. Pending: Matt applies
-migration 157 to Supabase, then Battle A re-runs.
+"No Physical Attack / Complete" button.
+
+Applied and verified live (2026-09-25, Battle A re-run BT-PNHF): with
+migration 157 on Supabase, the physical phase no longer rejects passes —
+the run went clean through 12 rounds to an annihilation (guest Timber
+Wolf vs host Grand Dragon + Victor, winner seat 2), the mid-battle
+reconnect passed, and the sealed report was produced. This confirms 157
+closes the deadlock.
+
+### Harness fix — Step 0 finish detection watched the wrong column (found + fixed 2026-09-25)
+
+After 157 unblocked the battle, the acceptance harness still reported a
+false "stalled after 12 rounds." Root cause: `finishedRow()` (and its
+callers `drivePhase`/`waitFinished`/the final probe) waited for
+`btech_games.status === 'finished'`. A **natural** victory resolves via
+`resolve_btech_match_end` (SQL 33), which writes `state.match_result` and
+sets `current_phase='end'` + `active_player_id=NULL` but never flips
+`status` — that column is only set to `'finished'` on the Career
+settlement path (SQL 135). A plain skirmish annihilation therefore leaves
+`status='in-progress'` forever. The harness now keys off `state.match_result`
+(the authoritative terminal signal, mirroring SQL 33's own
+`match_result IS NOT NULL` check) and treats `status='finished'` as a
+secondary marker for Career matches. Report rows for the match are
+verified in-run by querying `btech_match_reports` **as the authenticated
+participant** (RLS: *"Participants can view match reports"*,
+`user_id=auth.uid()`); probing that table with the raw anon key returns 0
+rows by design and is not a defect.
+
+### Observation (non-blocking) — `btech_games.status` stays `in-progress` after a natural skirmish win
+
+Same root as the harness fix above, but worth noting for tooling: a
+decided natural skirmish leaves `btech_games.status='in-progress'`
+(only `state.match_result` marks it decided; `status` is flipped by
+Career settlement only). Players are unaffected — clients and rejoiners
+read `match_result` — but any list/analytics keyed on `status` would show
+a won skirmish as still running. Deliberately **not** changed under Step 0
+(zero game-code changes); revisit if a games list or analytics surface
+needs it.
 
 
 ## Next development programme — Coop Skirmish

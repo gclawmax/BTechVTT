@@ -190,7 +190,25 @@ async function finishedRow(page) {
   return page.evaluate(async () => {
     const { data, error } = await db.from('btech_games').select('*').eq('id', currentGameId).maybeSingle();
     if (error || !data) return null;
-    return { status: data.status, game_code: data.game_code, raw_keys: Object.keys(data) };
+    let st = {};
+    try { st = typeof data.state === 'string' ? JSON.parse(data.state) : (data.state || {}); } catch { st = {}; }
+    const result = st.match_result && typeof st.match_result === 'object' ? st.match_result : null;
+    // Authoritative match-end signal. A natural victory resolves through
+    // resolve_btech_match_end (SQL 33), which writes state.match_result and
+    // sets current_phase='end' + active_player_id=NULL but does NOT flip
+    // btech_games.status — that column is only set to 'finished' on the
+    // Career settlement path (SQL 135). A plain skirmish annihilation
+    // therefore leaves status='in-progress' forever, so key off match_result.
+    const finished = Boolean(result) || data.status === 'finished';
+    return {
+      status: finished ? 'finished' : data.status,
+      finished,
+      winner_seat: result && result.winner_seat != null ? result.winner_seat : null,
+      reason: result ? result.reason : null,
+      game_code: data.game_code,
+      current_phase: data.current_phase,
+      raw_keys: Object.keys(data)
+    };
   }).catch(() => null);
 }
 async function waitFinished(host, guest, timeoutMs = 30000) {
