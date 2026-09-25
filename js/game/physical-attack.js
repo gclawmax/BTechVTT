@@ -171,7 +171,11 @@ function hasLegalPhysicalAttack(attacker) {
 
 function selectPhysicalAttacker(instanceId) {
   const mech = mechInstances.find(m => m.instanceId === instanceId);
-  if (!mech || mech.catalogueUnavailable || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked || !hasLegalPhysicalAttack(mech)) return;
+  // Any living, undeclared Mech of my seat may be selected. A Mech with no
+  // legal attack (prone, no adjacent target, …) still selects — its panel
+  // then only offers the "No Physical Attack / Complete" pass, which the
+  // server accepts for any living Mech (SQL 157).
+  if (!mech || mech.catalogueUnavailable || mech.owner !== mySeatNumber || !isMyActiveTurn() || currentGameState.phase !== 'physical_attack' || mech.hasPhysicalAttacked || mech.destroyed) return;
   physicalAttackState = { attackerId: instanceId, targetId: null, attackType: null, limbs: [] };
   selectedInstanceId = instanceId;
   logEvent(`${mechLabel(mech)} selected for physical attack declaration.`, 'system');
@@ -278,9 +282,10 @@ function renderPhysicalAttackPanel() {
   const recovery = !vsAiMode ? `<button id="recover-physical-phase" onclick="recoverStalledPhysicalPhase()" title="Resolve submitted attacks and continue to Heat only when no legal physical actions remain." style="margin-top:10px;${MOVE_BTN_STYLE}">Recover stalled phase</button>` : '';
   const activeSeat = getActivePlayerSeat();
   const isMine = activeSeat === mySeatNumber && isMyActiveTurn();
-  const pending = mechInstances.filter(m => m.owner === activeSeat && !m.hasPhysicalAttacked && hasLegalPhysicalAttack(m));
+  const toAct = mechInstances.filter(m => m.owner === activeSeat && !m.destroyed && !m.hasPhysicalAttacked);
+  const pending = toAct.filter(m => hasLegalPhysicalAttack(m));
   const selectedAttacker = mechInstances.find(m => m.instanceId === physicalAttackState.attackerId) || mechInstances.find(m => m.instanceId === selectedInstanceId);
-  const attacker = hasLegalPhysicalAttack(selectedAttacker) ? selectedAttacker : null;
+  const attacker = toAct.includes(selectedAttacker) ? selectedAttacker : null;
   const target = mechInstances.find(m => m.instanceId === physicalAttackState.targetId);
 
   if (!isMine) {
@@ -288,10 +293,10 @@ function renderPhysicalAttackPanel() {
     return;
   }
   if (!attacker || attacker.owner !== activeSeat || attacker.hasPhysicalAttacked) {
-    const allowance = Math.min(currentActivationAllowance('physical_attack'), pending.length);
-    panel.innerHTML = pending.length
-      ? `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--paper);margin-bottom:8px;">Act with ${allowance} 'Mech${allowance === 1 ? '' : 's'} in this activation. ${pending.length} total remain.</div><div style="display:flex;flex-direction:column;gap:6px;">${pending.map(m => `<button onclick="selectPhysicalAttacker('${m.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">${mechLabel(m)}</button>`).join('')}</div>`
-      : `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">No legal physical actions remain for this side. Complete pending declarations and continue to Heat.</div>${recovery}`;
+    const allowance = Math.min(currentActivationAllowance('physical_attack'), toAct.length);
+    panel.innerHTML = toAct.length
+      ? `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--paper);margin-bottom:8px;">Act with ${allowance} 'Mech${allowance === 1 ? '' : 's'} in this activation. ${pending.length} can still attack.</div><div style="display:flex;flex-direction:column;gap:6px;">${toAct.map(m => `<button onclick="selectPhysicalAttacker('${m.instanceId}')" style="${MOVE_BTN_STYLE}text-align:center;">${mechLabel(m)}</button>`).join('')}</div>`
+      : `<div class="panel-eyebrow">Physical Attack</div><div style="font-size:11px;color:var(--phosphor-dim);">No BattleMechs remain to act for this side. Complete pending declarations and continue to Heat.</div>${recovery}`;
     return;
   }
 
@@ -327,7 +332,7 @@ function renderPhysicalAttackPanel() {
     <div class="panel-eyebrow">Physical Attack — Declaration</div>
     <div style="font-size:11px;color:var(--paper);margin-bottom:8px;">${mechLabel(attacker)} · punches and arm-mounted physical weapons use the matching side arc; kicks use the three forward hexes; pushes require a standing target directly ahead.</div>
     <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;">${enemies.map(enemy => `<button onclick="selectPhysicalTarget('${enemy.instanceId}')" style="padding:6px;border:1px solid ${target?.instanceId === enemy.instanceId ? 'var(--amber)' : 'var(--panel-line)'};background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">${mechLabel(enemy)}</button>`).join('')}</div>
-    ${target ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${options}</div>${limbOptions ? `<div style="display:flex;gap:6px;margin-top:6px;">${limbOptions}</div>` : ''}` : '<div style="font-size:11px;color:var(--phosphor-dim);">Select an enemy to see available attacks.</div>'}
+    ${target ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${options}</div>${limbOptions ? `<div style="display:flex;gap:6px;margin-top:6px;">${limbOptions}</div>` : ''}` : enemies.length ? '<div style="font-size:11px;color:var(--phosphor-dim);">Select an enemy to see available attacks.</div>' : '<div style="font-size:11px;color:var(--phosphor-dim);">This BattleMech has no legal physical attack available. Use the button below to pass its physical attack.</div>'}
     <button id="physical-submit" onclick="confirmPhysicalAttack()" style="width:100%;margin-top:9px;${MOVE_BTN_STYLE}text-align:center;">${physicalAttackState.attackType ? 'Confirm Physical Attack Declaration' : 'No Physical Attack / Complete'}</button>`;
 }
 

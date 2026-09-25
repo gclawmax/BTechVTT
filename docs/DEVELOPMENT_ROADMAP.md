@@ -55,6 +55,58 @@ Persistent Career expansion is secondary to this player-tested workflow.
 Career-4b and further persistent progression are deferred until this
 skirmish milestone is accepted. Existing Career functionality is retained.
 
+### Open defect — client/server hex-convention mismatch (found 2026-09-24, Step 0 acceptance)
+
+The client converts hex coordinates with the **odd-r** offset convention
+(`offsetToAxial`, `js/game/board.js:101`; `hexToPixel`,
+`js/movement/rules.js:82`), while the server's authoritative distance
+function `btech_hex_distance` (`SQL/15_authoritative_direct_fire.sql:50`)
+uses **even-r**. The two disagree on every odd-row→even-row neighbour
+pair: (7,4)→(8,5) is client=1 / server=2, and (1,0)→(0,1) is
+client=2 / server=1. Consequences: the rendered board, client-side
+adjacency/range checks (physical attacks, facing arcs, movement
+planning) and the server authority can disagree, and the server
+rejection "Physical attacks require an adjacent target" has been
+observed live (games BT-YVY8, BT-BKC6 stalled in the physical phase).
+The acceptance harness now uses the server's even-r math as the
+adjacency authority so testing proceeds. Fix requires choosing one
+convention and migrating the other side (server is the authority; the
+less invasive migration is fixing the client's `offsetToAxial` /
+`hexToPixel` / `pixelToHex` and every consumer — pending sign-off, then
+regression: rendered board, facing arcs, movement paths, physical
+adjacency, weapon range and all distance-based checks).
+
+### Fixed — prone (or otherwise ineligible) attacker cannot pass in the physical phase (found 2026-09-24, Step 0 acceptance; fixed 2026-09-25, migration 157)
+
+`btech_process_physical_declaration` (installed by SQL 60, lines
+238–245 — the SQL 23 definition is superseded) checked the eligibility
+gate — destroyed, **prone**, shutdown, unconscious — *before* the
+`pass` branch. A prone 'Mech therefore cannot punch/kick/push **and**
+cannot pass. The client's own auto-pass
+(`autoPassIneligiblePhysicalAttackers`, `js/game/phases.js:881`)
+submits exactly that pass on every load and is rejected. Verified live
+twice (games BT-L5ED round 2, BT-DY4P round 4): with the only
+remaining declarer of the active seat ineligible,
+`skip_empty_physical_phase` correctly refuses (the opposing side's
+living 'Mechs still have legal options) and the phase wedges until the
+deadline — a hard deadlock with no UI escape hatch.
+
+Fixed by `SQL/157_prone_physical_pass.sql`: the pass branch now runs
+before the attack-eligibility gate, so any living (non-destroyed)
+'Mech may declare "no physical attack"; the destroyed/prone/shutdown/
+unconscious rejection is retained for actual attacks. The migration
+re-installs the complete resolver body from SQL 60 (arm physical
+weapons, heat, fumbles) so nothing else changes;
+`btech_has_remaining_physical_option` (SQL 106) already returns false
+for ineligible attackers, so the recovery predicate stays consistent.
+Companion client fix in `js/game/physical-attack.js`:
+`selectPhysicalAttacker` no longer requires a legal target (destroyed
+'Mechs are excluded), the declaration panel lists every living,
+undeclared 'Mech of the active seat, and a 'Mech with no legal attack
+sees a pass-only panel with the existing
+"No Physical Attack / Complete" button. Pending: Matt applies
+migration 157 to Supabase, then Battle A re-runs.
+
 
 ## Next development programme — Coop Skirmish
 
