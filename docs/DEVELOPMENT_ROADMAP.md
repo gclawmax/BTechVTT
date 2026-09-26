@@ -174,7 +174,30 @@ scope idempotently (the other six patched functions plus the
 `ai5_action_contract_v1` decision-contract extension) and audits that all
 markers are present; if any live definition has drifted from the expected
 pre-patch text it raises naming that function so the drift is resolved
-deliberately. Apply 158 then 159, then re-run Step 0 Battle B.
+deliberately.
+
+**Applied and verified (2026-09-25, Battle B v12, game BT-4KYR):** 158
+then 159 applied by Matt (one 159 audit-block scoping typo fixed in
+`c12f88e`); both final audits passed live. v12 ran clean end-to-end —
+23/23 checks, annihilation at round 9 (winner seat 2), sealed report row
+present, mid-AI-turn reload rejoin with zero duplicated combat events, no
+`weapon_attack` stall and no “not your Weapon Attack activation”
+rejection anywhere in the log. Honest scope note: the AI never planned a
+club search in this particular match (no club events in the log; the
+battle ended at round 9, before v11's round-10 wedge point), so the
+fix is verified at the function level (audits confirm the
+AI-authoritative actor and the extended decision contract are live) and
+by the deadlock no longer reproducing — not by an observed live
+`find_club` execution. `find_club` terrain eligibility is data-dependent
+(woods/rubble hex), so a future run may or may not exercise it.
+
+**Observation (non-blocking) — transient AI pause latches:** v12's log
+shows a few “AI activation paused after a failed action” BT-LOG entries
+(R1/R2 movement and physical races, R3/R7 heat) that self-cleared on the
+next state change without stalling any phase. The latch is behaving as
+designed (fail-safe, release-on-state-change); the underlying rejections
+(e.g. “A weapon fired from la this round”) are normal legal-rule
+enforcement during recovery replays.
 
 ## Next development programme — Coop Skirmish
 
