@@ -143,6 +143,38 @@ a won skirmish as still running. Deliberately **not** changed under Step 0
 (zero game-code changes); revisit if a games list or analytics surface
 needs it.
 
+### Fixed — AI club search deadlocks the Weapon Attack phase (found 2026-09-25, Step 0 Battle B v11; fixed by migrations 158 + 159, pending apply)
+
+In a vs-AI annihilation run (game BT-M6YC, round 10), the AI planned its
+legal `find_club` action in its Weapon Attack slot (`js/ai/engine.js`
+`AI_ACTIONS_BY_PHASE.weapon_attack` includes `'find_club'`; designed so the
+club search consumes the weapon declaration). The live
+`find_improvised_club` rejected it with
+*“It is not your Weapon Attack activation”* — the SQL 88 human-only actor
+check — and the shipped AI latch then paused the whole activation (*“AI
+activation paused after a failed action”*), so the AI never fired and the
+phase could never close: a hard deadlock for the human opponent.
+
+Root cause: SQL 126's actor-authorization loop is not wrapped in an
+explicit transaction, so a substitution failure aborts the remaining
+statements while earlier `EXECUTE`d functions stay installed. Live evidence
+shows the weapon package (SQL 124) and the first SQL 126 functions patched
+(AI weapons and physical attacks succeed) while `find_improvised_club`
+carries no `ai5_authoritative_phase_actor_v1` marker at all — the partial
+application left the club function (and, likely, everything after it in the
+loop plus the `submit_ai_phase_state` contract extension) unpatched.
+
+`SQL/158_ai_club_search_authority.sql` reinstalls `find_improvised_club`
+from the SQL 88 body with the exact actor line SQL 126 was supposed to
+install (`btech_authorized_ai_phase_player`, AI-5 marker) and audits it.
+Nothing else in the club roll or the nested
+`submit_multi_target_weapon_declaration('[]')` consumption changes.
+`SQL/159_ai_authority_convergence.sql` re-applies the rest of SQL 126's
+scope idempotently (the other six patched functions plus the
+`ai5_action_contract_v1` decision-contract extension) and audits that all
+markers are present; if any live definition has drifted from the expected
+pre-patch text it raises naming that function so the drift is resolved
+deliberately. Apply 158 then 159, then re-run Step 0 Battle B.
 
 ## Next development programme — Coop Skirmish
 
