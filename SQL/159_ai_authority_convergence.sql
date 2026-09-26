@@ -84,7 +84,7 @@ DECLARE signatures text[]:=ARRAY[
  'public.resolve_push_attack_legacy(uuid,text,text)',
  'public.resolve_declared_charge_legacy(uuid,text)',
  'public.resolve_declared_death_from_above_legacy(uuid,text)'
-];fn regprocedure;source text;missing text[]:=ARRAY[]::text[];
+];fn regprocedure;source text;signature text;missing text[]:=ARRAY[]::text[];
 BEGIN
  FOREACH signature IN ARRAY signatures LOOP
   fn:=to_regprocedure(signature);
