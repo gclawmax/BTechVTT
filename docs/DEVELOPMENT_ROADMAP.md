@@ -199,6 +199,37 @@ designed (fail-safe, release-on-state-change); the underlying rejections
 (e.g. “A weapon fired from la this round”) are normal legal-rule
 enforcement during recovery replays.
 
+## Design decisions — recorded 2026-09-25
+
+Decided with Matt while scoping the polished-skirmish acceptance and the
+Coop Skirmish programme. These govern the implementation of the relevant
+slices.
+
+1. **Skirmish tonnage cap is a soft cap with explicit confirmation.** The
+   host sets a tonnage cap for the skirmish and the team's selections are
+   expected to fit under it, but an over-tonnage deployment is permitted
+   after an explicit confirmation prompt at setup ("You are over tonnage, do
+   you wish to continue anyway?"). The confirmed overage is recorded in the
+   match state and surfaced in the sealed match report (After Action).
+   This mirrors MW5 over-tonnage drops; persistent-campaign contract drops
+   may later apply a cost/penalty, but skirmish stays confirmation +
+   record only. Implementation replaces the current hard rejection in
+   `update_skirmish_hangar` (SQL 132) when that code path is next touched —
+   not a standalone migration ahead of the skirmish milestone.
+2. **Spectator seats and mid-match ownership transfer.** A player may
+   deploy zero chassis and remain in the match as a spectator — present,
+   able to follow the game, with no activations. The host can transfer
+   control of a deployed mech to another seated player mid-match, so a
+   player can step out and hand their Mech over. A player who deployed
+   multiple chassis keeps the activations of any that survive, staying
+   involved after some of their Mechs are destroyed. Transfer of custom
+   designs and pilot progression (XP) is deliberately deferred to a later
+   patch — the intended context is persistent-resource duels such as
+   salvage rights, where those rules need to exist first.
+3. **Coop Skirmish slicing.** Two humans on the same team ships as slice
+   **1-a**; up-to-four humans remains slice **1-b**, scheduled after 1-a
+   acceptance.
+
 ## Next development programme — Coop Skirmish
 
 After the polished human skirmish / Vs AI reliability milestone is accepted,
@@ -207,6 +238,8 @@ the **same team**, dropping against AI on existing large/dual-sheet maps, with
 a shared lance **sensor picture** on enemy tokens (LOS + sensor range; not full
 hex fog of war yet). No Career persistence in this phase — prove same-side
 seats, unit-level activation ownership, and shared visibility first.
+Slicing: **1-a** ships two humans on the same team; **1-b** (up to four
+humans) follows after 1-a acceptance (see Design decisions 2026-09-25).
 
 Design and later Company Drop / career co-op scope:
 [MW5 Co-op Company Drop Proposal](MW5_COOP_COMPANY_DROP_PROPOSAL.md).
