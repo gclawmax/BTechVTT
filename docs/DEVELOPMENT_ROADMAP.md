@@ -229,6 +229,38 @@ slices.
 3. **Coop Skirmish slicing.** Two humans on the same team ships as slice
    **1-a**; up-to-four humans remains slice **1-b**, scheduled after 1-a
    acceptance.
+4. **Team assignment is data, not seat arithmetic.** Which side a seat
+   belongs to is written in the match record at match creation (e.g.
+   `team_assignments = { teamA: [seats...], teamB: [AI] }` in match state)
+   and read by a single seat-team helper used everywhere sides are
+   compared — never inline seat arithmetic. Today's modes (two friendly
+   seats, AI on the opposing force) are simply the default creation
+   payload; different shapes (1v3, three humans vs AI, a future 2v2 PvP)
+   are different creation data with no changes to game logic, RLS,
+   reports, or the AI stack. A full `force_id` schema migration stays
+   deferred to Company Drop scope.
+5. **Lobby loadout permission model — no in-game draft.** Each friendly
+   seat builds its own loadout from the catalogue; there is no shared
+   finite pool and no in-game draft board (any drafting happens
+   out-of-game at the host's table), and nothing restricts two players
+   from selecting the same chassis. The lobby dropdown is a *permission*
+   model, not a draft mechanic:
+   - **A — Host assigns:** only the host may edit any seat's loadout.
+   - **B — Pick own:** a player may edit only their own seat.
+   - **C — Pick any:** any player may edit any seat, until that seat is
+     Readied.
+   Ready locks a seat's loadout from everyone, including the host, until
+   it is Unready; the host may force a seat Ready or Unready. Edit
+   permissions and the ready lock are enforced server-side, not only in
+   the UI.
+6. **Pilot-identity stamp in the sealed report.** Every sealed match
+   report records the operating identity per seat (`user_id` → seat →
+   unit), from day one, record only — no settlement, XP, or persistence
+   of any kind. This keeps the future persistent MechWarrior / XP design
+   viable: per-unit attribution to a real person plus a stable identity
+   to hang future development on. An "open-cockpit / no-owner"
+   deployment model is explicitly ruled out, as it would silently
+   destroy that option.
 
 ## Next development programme — Coop Skirmish
 
