@@ -261,6 +261,31 @@ slices.
    to hang future development on. An "open-cockpit / no-owner"
    deployment model is explicitly ruled out, as it would silently
    destroy that option.
+7. **AI force shape — host-picked preset or Custom.** At match
+   creation the host selects the AI force in the lobby, alongside the
+   tonnage cap: one of three auto-composed presets, or **Custom**.
+   - **Presets auto-compose the roster from a BV budget:** target AI
+     total BV is a ratio of the friendly team's total BV (starting
+     points ~1.0 / 1.1 / 1.3 — to be tested and adjusted with live
+     matches), filled with light-class chassis; unit count emerges
+     from the budget, capped in 1-a.
+   - **Composition caps:** Light — lights only; Standard — at most two
+     mediums; Heavy — a heavy mech is permitted. Rationale: a friendly
+     lance of two assault 'Mechs needs a credible challenge. Caps are
+     starting points and may be tweaked later.
+   - **Custom** — the host hand-picks the specific AI line-up from the
+     catalogue, bypassing the budget and caps entirely.
+   - Roster selection is seeded (seed derived from the match ID) and
+     materialised at creation as ordinary units owned by the AI seat —
+     the same mechanism as Vs-AI; no new runtime mechanics. The sealed
+     After Action report lists the exact AI chassis and loadouts.
+   - 1-b scaling is automatic via the BV ratio (bigger friendly team,
+     bigger AI force); Custom scales by host choice. No per-seat
+     sizing knobs.
+   - Prerequisite: the catalogue gains a small batch of light-class
+     chassis (static data) so auto-composition has variety.
+   - No AI behaviour changes in 1-a: the existing AI stack fights the
+     wave; pack/formation tactics are later behaviour-layer polish.
 
 ## Next development programme — Coop Skirmish
 
