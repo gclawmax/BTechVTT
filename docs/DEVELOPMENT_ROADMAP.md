@@ -296,6 +296,25 @@ slices.
      chassis (static data) so auto-composition has variety.
    - No AI behaviour changes in 1-a: the existing AI stack fights the
      wave; pack/formation tactics are later behaviour-layer polish.
+8. **Absent players — the async match waits; host transfers for
+   long-term absences.** There is **no automatic offline mechanic**: no
+   auto-pass, no AI-driven ally, no forfeit. Because skirmish is
+   async, an absent seat's activations simply **wait** for that seat to
+   return — the seat reloads the latest game state and resumes its
+   pending activations on rejoin, and the rest of the team keeps
+   acting on its own units without being blocked or disadvantaged.
+   (Auto-pass was rejected on the merits: it would cede a full
+   activation to the opposition while a friendly 'Mech idles, which is
+   a real tactical cost the team should not pay for a simple
+   disconnect.) An optional cosmetic "pilot offline" indicator may be
+   shown so the team knows why a seat is quiet; it carries no
+   game-mechanic consequence.
+   - **Long-term absence:** the host may transfer the absent player's
+     units to another seated player, or take them over and operate them
+     directly, mid-match. This reuses the host mid-match ownership
+     transfer from decision 2; no new authority model is required.
+   - **Forfeit** remains a possible host choice but is never the
+     default.
 
 ## Next development programme — Coop Skirmish
 
