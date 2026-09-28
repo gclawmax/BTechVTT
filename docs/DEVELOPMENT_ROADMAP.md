@@ -383,6 +383,9 @@ humans) follows after 1-a acceptance (see Design decisions 2026-09-25).
 Design and later Company Drop / career co-op scope:
 [MW5 Co-op Company Drop Proposal](MW5_COOP_COMPANY_DROP_PROPOSAL.md).
 
+Slice 1-a design document (DRAFT for sign-off; governs implementation once
+approved): [Coop Skirmish Design](COOP_SKIRMISH_DESIGN.md).
+
 Acceptance sketch (refine in the design doc as implementation starts):
 
 1. Two human accounts join one match on the same force; AI occupies the opposing force.
