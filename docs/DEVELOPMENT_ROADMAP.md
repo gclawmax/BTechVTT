@@ -261,20 +261,30 @@ slices.
    to hang future development on. An "open-cockpit / no-owner"
    deployment model is explicitly ruled out, as it would silently
    destroy that option.
-7. **AI force shape — host-picked preset or Custom.** At match
-   creation the host selects the AI force in the lobby, alongside the
-   tonnage cap: one of three auto-composed presets, or **Custom**.
+7. **AI force shape — host-picked difficulty preset or Custom.** At
+   match creation the host selects the AI force in the lobby, alongside
+   the tonnage cap: one of three auto-composed **difficulty** presets,
+   or **Custom**. The preset names describe opposition strength
+   relative to the players — **Easy** (~1.0×), **Standard** (~1.1×),
+   **Hard** (~1.3×) — not the classes deployed; what 'Mechs actually
+   appear follows from the budget and the friendly team's own
+   selections. **Standard is the default**; changing it is a single
+   setting.
    - **Presets auto-compose the roster from a BV budget:** target AI
      total BV is a ratio of the friendly team's total BV (starting
      points ~1.0 / 1.1 / 1.3 — to be tested and adjusted with live
-     matches), filled with light-class chassis; unit count emerges
-     from the budget, capped in 1-a.
-   - **Composition caps:** Light — lights only; Standard — at most two
-     mediums; Heavy — a heavy mech is permitted. Rationale: a friendly
+     matches), filled from the light class first; unit count emerges
+     from the budget.
+   - **Composition caps:** Easy — lights only; Standard — at most two
+     mediums; Hard — a heavy mech is permitted. Rationale: a friendly
      lance of two assault 'Mechs needs a credible challenge. Caps are
      starting points and may be tweaked later.
    - **Custom** — the host hand-picks the specific AI line-up from the
      catalogue, bypassing the budget and caps entirely.
+   - **Sanity ceiling: 10 AI units in every mode, including Custom** —
+     two full Clan Stars (a "Binary" in BattleTech terms). A
+     deployment zone cannot field more than this in practice; the
+     ceiling is a map-capacity guard, not a balance knob.
    - Roster selection is seeded (seed derived from the match ID) and
      materialised at creation as ordinary units owned by the AI seat —
      the same mechanism as Vs-AI; no new runtime mechanics. The sealed
