@@ -315,6 +315,59 @@ slices.
      transfer from decision 2; no new authority model is required.
    - **Forfeit** remains a possible host choice but is never the
      default.
+9. **Shared sensor picture — real-time team union.** An enemy unit
+   is visible to a given seat only while it is currently within
+   line-of-sight and sensor range of at least one friendly unit —
+   the **union** of the team's sensor bubbles. The moment it leaves
+   every friendly unit's sensors, it is hidden from all friendly
+   seats. Each unit contributes its own bubble modified by *its own*
+   ECM/probe state: one jammed unit degrades only its own
+   contribution; the rest of the lance still sees through the others.
+   Requires no stored state — a per-team extension of the existing
+   LOS/sensor rule (1-a scope). **Last-known-position memory**
+   ("last seen N turns ago" markers) is deferred to a fast follow-up
+   gated on 1-a acceptance: purely additive stored state per team,
+   no change to the real-time rule.
+10. **Join flow, AI roll timing, explicit start.**
+    - **Join side is mode-dependent.** In `match_type: 'coop_skirmish'`,
+      a second human entering the game code is placed on the
+      **friendly** team (host seat 1, joiner seat 2; 1-b joiners fill
+      friendly seats in order; AI occupies the opposing force). In
+      regular skirmish, a joining player takes the **opposing** side,
+      as today. The existing game-code join is reused in both modes;
+      the only deltas are the `match_type` field, the seat→team
+      mapping at join (decision 4's data-driven assignment), and the
+      lobby surface (decision 5).
+    - **AI force is rolled at match start, not creation.** The
+      difficulty budget is a ratio of the *final* friendly team BV,
+      so rolling at creation would size the wave against an
+      incomplete force. **Custom is the exception: no roll at all —
+      the host's hand-picked line-up is used as-is.**
+    - **Explicit host start.** The match begins on a host "start"
+      button, consistent with the lobby permission model.
+11. **Acceptance harness — Battle-C (1-a only).** A live two-account
+    harness driving the real RPC stack, same style and game-code
+    reporting as Battles A/B. Assertions:
+    1. Both accounts land on the friendly team; AI on the opposing
+       force (seat→team mapping correct).
+    2. Per-unit ownership — each account can act only on its own
+       units; a cross-ownership activation attempt is rejected by the
+       server.
+    3. Shared sensor picture (the core claim) — an enemy in A's
+       sensors but outside B's is visible to B via the team union; an
+       enemy out of both seats' sensors is hidden from both.
+    4. Reliability — reconnect restores state; no duplicate
+       activations (standard A/B checks).
+    5. Host transfer — mid-match transfer of a unit to the other seat
+       (decision 2): new owner can act, old owner cannot.
+    6. Sealed report — produced with per-pilot attributions
+       (`user_id → seat → unit`, decision 6) and the exact AI roster
+       (decision 7).
+    7. AI composition — the rolled roster respects the selected
+       preset (e.g. Standard: ≤2 mediums, ≤10 units, total BV ≈ 1.1×
+       friendly team BV within tolerance).
+    Battle-C covers 1-a only (two humans); 1-b gets its own harness
+    (Battle-D) after 1-a ships.
 
 ## Next development programme — Coop Skirmish
 
