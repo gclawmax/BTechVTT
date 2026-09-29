@@ -1,7 +1,9 @@
 # Coop Skirmish — Design Document (slice 1-a)
 
-**Status: DRAFT for sign-off.** Pending GClaw sign-off; no code until approved.
-**Date:** 2026-09-28
+**Status: APPROVED for implementation.** Signed off by GClaw 2026-09-29 (all
+nine spec-level items confirmed; 1-b seat numbering left deliberately open for
+implementation, per sign-off). Code may proceed per §11 implementation order.
+**Date:** 2026-09-28 (approved 2026-09-29)
 **Governing record:** Design decisions 1–11 in `docs/DEVELOPMENT_ROADMAP.md`
 (commits `fc759ff`, `981738a`, `2c2c311`, `eaa810e`, `a50a913`). This document
 re-states those decisions in implementation-spec form, adds the data model,
