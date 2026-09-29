@@ -386,6 +386,23 @@ Design and later Company Drop / career co-op scope:
 Slice 1-a design document (**APPROVED for implementation**, signed off
 2026-09-29 — governs implementation): [Coop Skirmish Design](COOP_SKIRMISH_DESIGN.md).
 
+### 1-a implementation log
+
+- **Catalogue prerequisite (design doc step 1) — already satisfied.** The
+  current release `megamek-2026-08-curated-05` (SQL/97, 75 units) ships **11
+  light-class 'Mechs** (≤35t), all `supported_by_vtt=true` with varied
+  loadouts — e.g. Wasp WAS-5N, Enforcer ENF-5D, Puma PUM-1, Puma PUM-7K,
+  Shadow Hawk SHD-5H/SHD-5D, Wraith WRT-5K (CLAN), etc. No new light batch is
+  required to open Coop Skirmish; the Easy preset (lights-only) is buildable
+  today. Re-verify the count if the curated release changes.
+- **Data model — `SQL/160_coop_skirmish_data_model.sql` (parse-checked).**
+  Widens `btech_games.match_type` to admit `coop_skirmish` (the column and its
+  check pre-exist from SQL/100, so this extends the allowed set, not a new
+  column), and adds `public.btech_seat_team(game_id, seat)` — the single,
+  fail-closed reader of `state.team_assignments`. Per-unit ownership is
+  untouched: units already store `owner = seat_number`, so two same-side
+  humans each own their own units (decision 2).
+
 Acceptance sketch (refine in the design doc as implementation starts):
 
 1. Two human accounts join one match on the same force; AI occupies the opposing force.

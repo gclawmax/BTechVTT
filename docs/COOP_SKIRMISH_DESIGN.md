@@ -341,9 +341,14 @@ create match (match_type=coop_skirmish, team_assignments written)
 
 1. **Catalogue prerequisite** — small batch of light-class chassis
    (static data), giving auto-composition variety.
+   - **DONE (2026-09-29):** already satisfied by `megamek-2026-08-curated-05`
+     (SQL/97) — 11 lights, all supported. No new batch needed. See roadmap log.
 2. **Data model** — `match_type` field, `team_assignments` creation payload,
    `btech_seat_team` helper; convert existing side comparisons to read the
    helper (human-vs-human and Vs-AI payloads unchanged behaviourally).
+   - **IN PROGRESS:** `SQL/160` (parse-checked) widens `match_type` and adds
+     the fail-closed `btech_seat_team` reader. Remaining: conversion of
+     existing side comparisons to read the helper.
 3. **Join side** — mode-dependent placement on the existing game-code join.
 4. **Lobby** — permission dropdown, ready lock, tonnage cap + confirmation,
    AI preset selection (server-enforced).
