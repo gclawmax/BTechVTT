@@ -1118,6 +1118,7 @@ function subscribeGameStateSync() {
           minefields: gs.minefields,
           ...(remote.catalogue_version ? { catalogue_version: remote.catalogue_version } : {})
         };
+        refreshCurrentTeamModel(gs);
         // Realtime updates must update this too: a tab may previously have
         // been used for an AI match before entering a human game.
         vsAiMode = gs.vs_ai_mode === true;

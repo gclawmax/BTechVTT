@@ -599,7 +599,7 @@ function evaluateWeaponAttack(attacker, target, weaponEntry, options = {}) {
   const eligibleAttacker = weaponPhaseStartMech(attacker);
   const eligibleTarget = weaponPhaseStartMech(target);
   const weapon = effectiveWeaponProfile(attacker, weaponEntry);
-  if (!weapon || eligibleAttacker.destroyed || eligibleTarget.destroyed || attacker.owner === target.owner) {
+  if (!weapon || eligibleAttacker.destroyed || eligibleTarget.destroyed || !isEnemyUnit(attacker, target)) {
     return { valid: false, reason: 'Choose a valid enemy target and supported weapon.' };
   }
   if (terrainAt(attacker.col, attacker.row) === 'deep_water' || terrainAt(target.col, target.row) === 'deep_water') {
@@ -1170,7 +1170,7 @@ function renderWeaponAttackPanel() {
     return;
   }
 
-  const enemies = mechInstances.filter(m => m.owner !== attacker.owner && canBeWeaponTarget(m));
+  const enemies = mechInstances.filter(m => isEnemyUnit(attacker, m) && canBeWeaponTarget(m));
   const armFlipControls = canFlipBattleMechArms(attacker) ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px/1.45 var(--mono);color:var(--paper);"><button onclick="toggleWeaponArmFlip()" style="width:100%;padding:6px;border:1px solid ${weaponAttackState.armsFlipped ? 'var(--amber)' : 'var(--panel-line)'};background:${weaponAttackState.armsFlipped ? 'rgba(212,128,10,.18)' : 'transparent'};color:var(--paper);font:9px var(--mono);cursor:pointer;">${weaponAttackState.armsFlipped ? '✓ ' : ''}FLIP BOTH ARMS TO REAR</button><div style="margin-top:4px;color:var(--phosphor-dim);">Arm-mounted weapons use the rear arc. This cannot be combined with a torso twist.</div></div>` : '';
   const clubSearch = canSearchForImprovisedClub(attacker) ? `<div style="border:1px solid var(--panel-line);padding:7px;margin:7px 0;font:9px/1.45 var(--mono);color:var(--paper);"><button onclick="findImprovisedClub('${attacker.instanceId}')" style="width:100%;padding:6px;border:1px solid var(--amber);background:transparent;color:var(--paper);font:9px var(--mono);cursor:pointer;">FIND ${improvisedClubTerrain(attacker) === 'tree' ? 'TREE' : 'GIRDER'} CLUB</button><div style="margin-top:4px;color:var(--phosphor-dim);">Uses this BattleMech's Weapon Attack action. A found club is available in Physical Attacks.</div></div>` : '';
   const intactSupportingArms = ['la', 'ra'].filter(arm => Number(attacker.structure?.[arm] || 0) > 0);

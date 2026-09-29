@@ -73,7 +73,7 @@ function physicalComponentState(mech, location, label) {
 
 function evaluatePhysicalAttack(attacker, target, type, limb = physicalLimbCandidates(type)[0]) {
   const physicalWeapon = physicalWeaponRule(type);
-  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.prone || attacker.shutdown || (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious') || attacker.owner === target.owner) {
+  if (!attacker || !target || attacker.destroyed || target.destroyed || attacker.prone || attacker.shutdown || (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious') || !isEnemyUnit(attacker, target)) {
     return { valid: false, reason: 'Choose a valid enemy target.' };
   }
   if (axialDistance(attacker.col, attacker.row, target.col, target.row) !== 1) {
@@ -157,7 +157,7 @@ function legalPhysicalTargets(attacker) {
   if (!attacker || attacker.destroyed || attacker.prone || attacker.shutdown ||
       (attacker.pilot?.consciousness && attacker.pilot.consciousness !== 'conscious')) return [];
   const attackTypes = physicalAttackTypesFor(attacker);
-  return mechInstances.filter(target => target.owner !== attacker.owner && !target.destroyed && !isEnemyHiddenUnit(target) &&
+  return mechInstances.filter(target => isEnemyUnit(attacker, target) && !target.destroyed && !isEnemyHiddenUnit(target) &&
     attackTypes.some(type => physicalLimbCandidates(type).some(limb =>
       evaluatePhysicalAttack(attacker, target, type, limb).valid)));
 }

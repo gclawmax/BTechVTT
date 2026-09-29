@@ -132,6 +132,7 @@ async function loadGameState() {
     ...(gameState.objectives_scored_after_round != null ? { objectives_scored_after_round: gameState.objectives_scored_after_round } : {}),
     ...(game.catalogue_version ? { catalogue_version: game.catalogue_version } : {})
   };
+  refreshCurrentTeamModel(gameState);
   // Always derive this from the loaded game. Otherwise an AI game visited in
   // the same tab can leave AI-only controls visible in a human game created
   // before the flag existed in saved state.

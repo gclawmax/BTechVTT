@@ -194,6 +194,7 @@ async function createHumanGame({ mapId, dropshipTonnage, rosters = { '1': [], '2
           objective_hexes: victoryMode === 'control' ? objectiveHexesForMap(mapId) : [],
           objective_scores: { '1': 0, '2': 0 },
           rosters: resolvedRosters,
+          team_assignments: { A: [1], B: [2] },
           ...(customScenario ? {
             custom_scenario: customScenario,
             terrain_overrides: customTerrain || {},

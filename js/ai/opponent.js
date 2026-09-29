@@ -375,7 +375,7 @@ function aiVictoryTargets(mech) {
   const codes = mode === 'control'
     ? (Array.isArray(state.objective_hexes) ? state.objective_hexes : [])
     : (typeof scenarioDeploymentZoneHexes === 'function'
-      ? scenarioDeploymentZoneHexes(Number(mech.owner) === 1 ? 2 : 1, state)
+      ? scenarioDeploymentZoneHexes(Number(forceOpposite(mech)) || 1, state)
       : []);
   const targets = codes.map(code => ({ code, col:Number(String(code).slice(0,2)), row:Number(String(code).slice(2,4)) }))
     .filter(target => /^\d{4}$/.test(String(target.code)) && target.col >= 0 && target.col < GRID_COLS && target.row >= 0 && target.row < GRID_ROWS && !terrainMovementBlocked(target.col,target.row));

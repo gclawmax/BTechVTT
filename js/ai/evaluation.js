@@ -156,14 +156,16 @@ function aiEvaluationApplyAction(action, phase, match, seat, metrics) {
 function aiEvaluationObjectives(match) {
   if(match.victory==='control') {
     for(const code of match.objectives) {
-      const occupants=new Set(mechInstances.filter(mech=>!mech.destroyed&&hexCode(mech.col,mech.row)===code).map(mech=>Number(mech.owner)));
-      if(occupants.size===1){const [seat]=occupants;match.objectiveScores[String(seat)]++;}
+      const forces=new Set(mechInstances.filter(mech=>!mech.destroyed&&hexCode(mech.col,mech.row)===code).map(mech=>forceOfUnit(mech)));
+      forces.delete(null);
+      if(forces.size===1){const [force]=forces;match.objectiveScores[String(force)]++;}
     }
   } else if(match.victory==='breakthrough') {
     for(const mech of mechInstances.filter(candidate=>!candidate.destroyed&&!match.breakthroughScored.includes(candidate.instanceId))) {
-      const enemySeat=Number(mech.owner)===1?2:1;
-      if(scenarioDeploymentZoneContains(enemySeat,mech.col,mech.row,currentMatchConfig)) {
-        match.breakthroughScored.push(mech.instanceId);match.objectiveScores[String(mech.owner)]++;
+      const enemyZone=forceOpposite(mech);
+      if(enemyZone && scenarioDeploymentZoneContains(Number(enemyZone),mech.col,mech.row,currentMatchConfig)) {
+        const force=forceOfUnit(mech);
+        match.breakthroughScored.push(mech.instanceId);match.objectiveScores[String(force)]++;
       }
     }
     currentMatchConfig.breakthrough_scored_units=[...match.breakthroughScored];
@@ -171,10 +173,10 @@ function aiEvaluationObjectives(match) {
 }
 
 function aiEvaluationWinner(match, maxRounds) {
-  const alive=seat=>mechInstances.filter(mech=>mech.owner===seat&&!mech.destroyed);
-  if(!alive(1).length&&!alive(2).length) return 0;
-  if(!alive(1).length) return 2;
-  if(!alive(2).length) return 1;
+  const aliveForce=force=>mechInstances.filter(mech=>forceOfUnit(mech)===force&&!mech.destroyed);
+  if(!aliveForce('1').length&&!aliveForce('2').length) return 0;
+  if(!aliveForce('1').length) return 2;
+  if(!aliveForce('2').length) return 1;
   if(match.victory==='control') {
     if(match.objectiveScores['1']>=5) return 1;
     if(match.objectiveScores['2']>=5) return 2;
@@ -184,8 +186,8 @@ function aiEvaluationWinner(match, maxRounds) {
     if(match.objectiveScores['2']>=2) return 2;
   }
   if(match.round<maxRounds) return null;
-  const remaining=seat=>alive(seat).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)/Math.max(1,match.startDurability[String(seat)]);
-  const one=remaining(1)+match.objectiveScores['1']*.02, two=remaining(2)+match.objectiveScores['2']*.02;
+  const remaining=force=>aliveForce(force).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)/Math.max(1,match.startDurability[String(force)]);
+  const one=remaining('1')+match.objectiveScores['1']*.02, two=remaining('2')+match.objectiveScores['2']*.02;
   return Math.abs(one-two)<.001?0:one>two?1:2;
 }
 
@@ -248,7 +250,7 @@ async function runSingleAIEvaluation(config) {
       seatMetrics.unusedWeaponRate=Number((seatMetrics.unusedViableWeapons/Math.max(1,seatMetrics.viableWeapons)*100).toFixed(1));
     }
     const objectiveWinner=config.victory==='control' ? Math.max(Number(match.objectiveScores['1']),Number(match.objectiveScores['2']))>=5 : config.victory==='breakthrough' ? Math.max(Number(match.objectiveScores['1']),Number(match.objectiveScores['2']))>=2 : false;
-    const roundLimitAdjudication=winner!==null&&match.round>=config.maxRounds&&!objectiveWinner&&mechInstances.some(mech=>mech.owner===1&&!mech.destroyed)&&mechInstances.some(mech=>mech.owner===2&&!mech.destroyed);
+    const roundLimitAdjudication=winner!==null&&match.round>=config.maxRounds&&!objectiveWinner&&mechInstances.some(mech=>forceOfUnit(mech)==='1'&&!mech.destroyed)&&mechInstances.some(mech=>forceOfUnit(mech)==='2'&&!mech.destroyed);
     return {id:config.id,pairId:config.pairId||null,mirrored:Boolean(config.mirrored),seed:config.seed,mapId:config.mapId,mapKind:config.mapKind||'built-in',victory:config.victory,ruleset:config.ruleset,sides:config.sides,units:{'1':forceOne,'2':forceTwo},rounds:match.round,winner,roundLimitAdjudication,timeToObjectiveRound:match.timeToObjectiveRound,
       objectiveScores:match.objectiveScores,remainingDurability:Object.fromEntries([1,2].map(seat=>[String(seat),Number((mechInstances.filter(mech=>mech.owner===seat&&!mech.destroyed).reduce((sum,mech)=>sum+aiEvaluationDurability(mech),0)/Math.max(1,match.startDurability[String(seat)])*100).toFixed(1))])),
       metrics:{...metrics,meanDecisionMs:Number((metrics.decisionMs/Math.max(1,metrics.decisions)).toFixed(3)),maxDecisionMs:Number(metrics.maxDecisionMs.toFixed(3)),heatEfficiency:Number((metrics.damage/Math.max(1,metrics.heatGenerated)).toFixed(3)),unusedWeaponRate:Number((metrics.unusedViableWeapons/Math.max(1,metrics.viableWeapons)*100).toFixed(1)),durationMs:Number(duration.toFixed(1))},
