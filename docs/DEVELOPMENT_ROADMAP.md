@@ -402,6 +402,23 @@ Slice 1-a design document (**APPROVED for implementation**, signed off
   fail-closed reader of `state.team_assignments`. Per-unit ownership is
   untouched: units already store `owner = seat_number`, so two same-side
   humans each own their own units (decision 2).
+- **Canonical client team model — `js/game/team-model.js` (commit `ca47ca8`).**
+  The single place a seat maps to a team (`A`/`B`) and a force (`'1'`
+  friendly / `'2'` opponent). All three creation paths now write
+  `state.team_assignments` (skirmish/vs-ai `{A:[1],B:[2]}`; coop will write
+  `{A:[1,2],B:[3]}`), and the model is refreshed on initial load and realtime
+  sync. Legacy games (no field) fall back to the historical seat==force
+  behaviour. Force-sensitive decisions are routed through it: weapon/physical
+  enemy tests (`isEnemyUnit`), AI-eval objective scoring + winner +
+  round-limit (by force, not seat), AI breakthrough zone and deployment-zone
+  targeting (`forceOpposite`). Per-seat mechanics (turns, reactions, C3,
+  spotlight, minefield reveal) intentionally stay per-seat `owner` — that is
+  what lets each coop player control their own units while sharing a force.
+  **Remaining for 1-a:** (a) server-side match-end / concede / minefield-reveal
+  functions still read seat arithmetic → need a team-aware SQL 161 (+ fix the
+  latent client `determineMatchResult`); (b) the lobby UI (match-type, 3 seats,
+  ready-lock) and mode-dependent join; (c) the AI BV-budget roll + sealed
+  report; (d) shared-sensor visibility; (e) Battle-C harness.
 
 Acceptance sketch (refine in the design doc as implementation starts):
 

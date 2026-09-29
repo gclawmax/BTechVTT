@@ -346,9 +346,13 @@ create match (match_type=coop_skirmish, team_assignments written)
 2. **Data model** — `match_type` field, `team_assignments` creation payload,
    `btech_seat_team` helper; convert existing side comparisons to read the
    helper (human-vs-human and Vs-AI payloads unchanged behaviourally).
-   - **IN PROGRESS:** `SQL/160` (parse-checked) widens `match_type` and adds
-     the fail-closed `btech_seat_team` reader. Remaining: conversion of
-     existing side comparisons to read the helper.
+   - **IN PROGRESS:** `SQL/160` (applied to live Supabase; parse-checked) widens
+   `match_type` and adds the fail-closed `btech_seat_team` reader. Client
+   team model `js/game/team-model.js` landed (`ca47ca8`) with creation
+   payloads writing `team_assignments`. Remaining: server-side match-end /
+   concede / minefield-reveal functions + the latent client
+   `determineMatchResult` (team-aware, SQL 161), then the lobby UI, join, AI
+   roll, visibility.
 3. **Join side** — mode-dependent placement on the existing game-code join.
 4. **Lobby** — permission dropdown, ready lock, tonnage cap + confirmation,
    AI preset selection (server-enforced).
