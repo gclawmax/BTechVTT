@@ -414,11 +414,22 @@ Slice 1-a design document (**APPROVED for implementation**, signed off
   targeting (`forceOpposite`). Per-seat mechanics (turns, reactions, C3,
   spotlight, minefield reveal) intentionally stay per-seat `owner` — that is
   what lets each coop player control their own units while sharing a force.
-  **Remaining for 1-a:** (a) server-side match-end / concede / minefield-reveal
-  functions still read seat arithmetic → need a team-aware SQL 161 (+ fix the
-  latent client `determineMatchResult`); (b) the lobby UI (match-type, 3 seats,
-  ready-lock) and mode-dependent join; (c) the AI BV-budget roll + sealed
-  report; (d) shared-sensor visibility; (e) Battle-C harness.
+- **Team-aware authoritative match end — `SQL/161` (commit `c5137ea`; applied
+  to live Supabase, verified via browser).** `resolve_btech_match_end` and
+  `concede_btech_match` now decide the winner by **force** through
+  `btech_seat_team` instead of seat arithmetic. Pre-coop they broke in two
+  ways under a third co-seated player: `resolve` counted surviving *seats*, so
+  wiping the AI while both friendly humans live left two seats / one side and
+  stalled the match "ongoing"; `concede` named "the other seated player" as
+  winner, which in coop is the conceder's friendly *partner*. The recorded
+  winner is the winning force (== seat in solo / vs-AI, so those modes are
+  unchanged); legacy games without `team_assignments` fall back to the
+  historical path, preserving `btech_seat_team`'s fail-closed guarantee.
+  **Remaining for 1-a:** (a) lobby UI (match-type, 3 seats, ready-lock, tonnage
+  cap, AI preset) + mode-dependent join + the force-aware "Team A / AI wins"
+  toast; (b) the AI BV-budget roll + sealed `user_id`-stamped report; (c)
+  shared-sensor visibility (incl. partners sharing minefields); (d) Battle-C
+  harness.
 
 Acceptance sketch (refine in the design doc as implementation starts):
 
