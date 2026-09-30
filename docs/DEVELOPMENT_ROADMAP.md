@@ -427,9 +427,20 @@ Slice 1-a design document (**APPROVED for implementation**, signed off
   historical path, preserving `btech_seat_team`'s fail-closed guarantee.
   **Remaining for 1-a:** (a) lobby UI (match-type, 3 seats, ready-lock, tonnage
   cap, AI preset) + mode-dependent join + the force-aware "Team A / AI wins"
-  toast; (b) the AI BV-budget roll + sealed `user_id`-stamped report; (c)
-  shared-sensor visibility (incl. partners sharing minefields); (d) Battle-C
-  harness.
+  toast — **SQL authority landed in `SQL/162`** (applied to live Supabase, all
+  five functions verified registered via browser): `btech_seat_team` cast fix
+  (SQL/160 read team-array elements with `(a->>0)::int`, NULL on scalar jsonb
+  ints, so every assigned seat fail-closed; now `a::int`),
+  `btech_coop_loadout_editable` (single permission + ready-lock rule: ready
+  lock first, then own seat, then host_assign/pick_any/pick_own),
+  `set_lobby_loadout_mode` (host-only A/B/C setter), `force_lobby_ready`
+  (host force-ready/unready; players still self-toggle via RLS), and
+  `update_coop_skirmish_hangar` (explicit target seat, permission+ready gate,
+  team-A total tonnage soft cap reusing the dropship-tonnage field with
+  overage confirm, flag cleared when back under). Non-coop callers keep the
+  existing RPCs untouched. (b) the AI BV-budget roll + sealed
+  `user_id`-stamped report; (c) shared-sensor visibility (incl. partners
+  sharing minefields); (d) Battle-C harness.
 
 Acceptance sketch (refine in the design doc as implementation starts):
 
