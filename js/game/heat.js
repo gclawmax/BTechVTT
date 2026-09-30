@@ -158,9 +158,14 @@ function renderHeatPanel() {
 }
 
 function endPanelVictoryTitle(result) {
-  if (result.winner_seat == null) return 'DRAW';
-  const team = btBuildTeamModel(currentGameState).teamOfSeat(Number(result.winner_seat));
-  return team === 'A' ? 'TEAM A VICTORY' : team === 'B' ? 'AI VICTORY' : `PLAYER ${result.winner_seat} VICTORY`;
+  const w = result.winner_seat;
+  if (w == null || Number.isNaN(Number(w))) return 'DRAW';
+  // Force-based wording (winner_seat = winning FORCE, SQL 161). Coop: force 1
+  // is the friendly team, force 2 the AI. Legacy: keep "PLAYER N VICTORY".
+  if (currentGameState && currentGameState.match_type === 'coop_skirmish') {
+    return Number(w) === 1 ? 'TEAM A VICTORY' : 'AI VICTORY';
+  }
+  return `PLAYER ${w} VICTORY`;
 }
 
 function renderEndPanel() {

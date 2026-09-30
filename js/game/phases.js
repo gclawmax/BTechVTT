@@ -832,12 +832,16 @@ async function checkForMatchEnd() {
 }
 
 function winnerLabel(gameState, result) {
-  const seat = Number(result.winner_seat);
-  if (seat == null || Number.isNaN(seat)) return 'Match complete — all forces destroyed. Draw.';
-  const team = btBuildTeamModel(gameState).teamOfSeat(seat);
-  if (!team) return `Match complete — Player ${seat} wins.`;
-  // Team A = the friendly human force, Team B = the opponent (AI in 1-a).
-  return team === 'A' ? 'Match complete — Team A wins.' : 'Match complete — the AI wins.';
+  const w = result.winner_seat;
+  if (w == null || Number.isNaN(Number(w))) return 'Match complete — all forces destroyed. Draw.';
+  // winner_seat holds the winning FORCE (SQL 161), not a seat. In coop a seat-2
+  // lookup would misread force 2 (the AI) as "Team A" because seat 2 is
+  // friendly there. Force 1 is always the friendly team A, force 2 the
+  // opponent (AI in 1-a). Legacy games keep "Player N wins" wording.
+  if (gameState && gameState.match_type === 'coop_skirmish') {
+    return Number(w) === 1 ? 'Match complete — Team A wins.' : 'Match complete — the AI wins.';
+  }
+  return `Match complete — Player ${w} wins.`;
 }
 
 function activePlayerPhaseComplete(phase) {
