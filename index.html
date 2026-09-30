@@ -108,6 +108,7 @@
       </label>
     </div>
     <button class="btn-large ai" onclick="handleCreateVsAI()" title="Configure a solo skirmish against a computer-controlled force.">Play vs AI <small id="ai-opponent-summary">Beginner · Balanced</small></button>
+    <button class="btn-large coop" onclick="handleCreateCoop()" title="Configure a two-pilot skirmish: you and a friend fly together against a computer-controlled force.">Play Coop vs AI <small>Two pilots · one dropship tonnage</small></button>
 
     <details class="dropship-submenu" name="dropship-navigation">
       <summary title="Open the built-in scenario list.">Scenarios <small>Three ready-to-play deployments</small></summary>
@@ -220,6 +221,48 @@
     <div class="setup-actions">
       <button class="primary" onclick="handleCreateConfiguredVsAI()">Create AI Lobby</button>
       <button class="secondary" onclick="cancelVsAISetup()">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── COOP SKIRMISH SETUP (COOP-1A) ───────────────────── -->
+<div id="coop-setup-screen" class="screen">
+  <div id="match-setup-box" class="vs-ai-setup-box">
+    <h2>Play Coop vs AI</h2>
+    <p>You and a friend fly together on one friendly force against a computer-controlled force. You are the host on seat 1; send the lobby game code to your friend to join on seat 2. The dropship tonnage is the <strong>team total</strong> shared by both pilots.</p>
+    <div class="vs-ai-setup-layout">
+      <section class="vs-ai-map-column">
+        <label for="coop-map-select">Built-in map</label>
+        <select id="coop-map-select" onchange="renderCoopMapPreview()"></select>
+        <div id="coop-map-preview" class="map-setup-preview" aria-live="polite"></div>
+      </section>
+      <section class="vs-ai-options-column" aria-label="Coop match options">
+        <label for="coop-tonnage-select">Dropship tonnage — team total for both pilots</label>
+        <select id="coop-tonnage-select" title="The friendly lance shares one tonnage pool across both pilots; going over it is a soft cap the host confirms.">
+          <option value="100">100 tons</option><option value="150">150 tons</option><option value="200" selected>200 tons</option><option value="250">250 tons</option>
+        </select>
+        <label for="coop-victory-select">Victory condition</label>
+        <select id="coop-victory-select" onchange="renderCoopMapPreview()">
+          <option value="annihilation">Annihilation — destroy the opposing force</option><option value="control">Objective Control — first to 5 control points</option><option value="breakthrough">Breakthrough — move 2 BattleMechs into the enemy deployment zone</option>
+        </select>
+        <label for="coop-ruleset-select">Ruleset</label>
+        <select id="coop-ruleset-select" onchange="syncCoopMinefieldControls()" title="Controls which era and equipment tiers may be deployed by all forces.">
+          <option value="standard_3060">Standard 3060 — tournament-oriented</option><option value="advanced_3060" selected>Advanced 3060 — supported advanced equipment</option><option value="open_experimental">Open / Experimental — all supported equipment</option>
+        </select>
+        <label><input type="checkbox" id="coop-minefields-enabled"> Enable minefields (Advanced 3060 only)</label>
+        <label for="coop-difficulty-select">Opponent difficulty</label>
+        <select id="coop-difficulty-select" title="Changes the computer opponent's decision quality. It never changes dice or grants hidden information.">
+          <option value="beginner">Beginner</option><option value="intermediate">Intermediate</option><option value="advanced">Advanced</option><option value="expert">Expert</option>
+        </select>
+        <label for="coop-personality-select">Opponent personality</label>
+        <select id="coop-personality-select" title="Changes the computer opponent's tactical preferences without changing any rules.">
+          <option value="balanced">Balanced</option><option value="aggressive">Aggressive</option><option value="cautious">Cautious</option><option value="brawler">Brawler</option><option value="sniper">Sniper</option><option value="objective">Objective Focused</option>
+        </select>
+      </section>
+    </div>
+    <div class="setup-actions">
+      <button class="primary" onclick="handleCreateConfiguredCoop()">Create Coop Lobby</button>
+      <button class="secondary" onclick="cancelCoopSetup()">Back</button>
     </div>
   </div>
 </div>
@@ -380,7 +423,7 @@
 <script src="js/core/helpers.js?v=20260907-career-1b-88"></script>
 <script src="js/core/modal.js?v=20260813-physical-warning-01"></script>
 <script src="js/network/game-code.js?v=20260813-reaction-ui-01"></script>
-<script src="js/game/maps.js?v=20260911-shared-combat-119"></script>
+<script src="js/game/maps.js?v=coop-1a-3"></script>
 <script src="js/game/team-model.js?v=coop-1a-2"></script>
 <script src="js/game/unit-catalogue.js?v=20260904-specialist-physical-64"></script>
 <script src="js/game/critical-layouts.js?v=20260816-versioned-catalogue-01"></script>
@@ -393,6 +436,7 @@
 <script src="js/game/career-avatar.js?v=20260908-career4a-arcs-97"></script>
 <script src="js/game/career-hq.js?v=20260908-career4a-arcs-97"></script>
 <script src="js/network/create-vs-ai.js?v=20260911-shared-combat-119"></script>
+<script src="js/network/create-coop.js?v=coop-1a-1"></script>
 <script src="js/network/join-game.js?v=20260816-versioned-catalogue-01"></script>
 <script src="js/ui/deployment-map.js?v=20260911-shared-combat-119"></script>
 <script src="js/network/lobby.js?v=20260911-ammunition-sync-122"></script>

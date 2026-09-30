@@ -330,14 +330,19 @@ function objectiveHexesForMap(mapId) {
 function scenarioDeploymentZoneHexes(seat, state = null) {
   state = state || (typeof currentMatchConfig !== 'undefined' ? currentMatchConfig : {});
   const dimensions = mapDimensions(state.map_id || activeMapId);
-  const authored = (state.deployment_zones || getMapDefinition(state.map_id || activeMapId).deployment_zones)?.[String(seat)];
+  // Zones are per-FORCE, not per-seat (design doc: team A deploys on one side,
+  // team B on the other). Pre-coop modes have seat===force, so routing through
+  // the team model is a no-op there; in coop it gives seat 2 (team A) the same
+  // side as seat 1 instead of the enemy side.
+  const force = getCurrentTeamModel().forceOfSeat(seat) || String(seat);
+  const authored = (state.deployment_zones || getMapDefinition(state.map_id || activeMapId).deployment_zones)?.[force];
   if (Array.isArray(authored)) return authored.filter(code => {
     const col = Number(String(code).slice(0, 2)), row = Number(String(code).slice(2, 4));
     return /^\d{4}$/.test(String(code)) && col >= 0 && col < dimensions.cols && row >= 0 && row < dimensions.rows;
   });
   const depth = Math.min(5, dimensions.cols);
-  const start = Number(seat) === 1 ? 0 : dimensions.cols - depth;
-  const end = Number(seat) === 1 ? depth : dimensions.cols;
+  const start = force === '1' ? 0 : dimensions.cols - depth;
+  const end = force === '1' ? depth : dimensions.cols;
   const result = [];
   for (let col = start; col < end; col++) for (let row = 0; row < dimensions.rows; row++) result.push(hexCode(col, row));
   return result;

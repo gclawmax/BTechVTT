@@ -823,12 +823,21 @@ async function checkForMatchEnd() {
   currentGameState.phase = 'end';
   currentGameState.active_player_id = null;
   currentGameState.match_result = result;
-  logEvent(result.winner_seat == null ? 'Match complete — all forces destroyed. Draw.' : `Match complete — Player ${result.winner_seat} wins.`, 'phase');
+  logEvent(winnerLabel(gameState, result), 'phase');
   if (typeof settleCareerMatchIfNeeded === 'function') await settleCareerMatchIfNeeded();
   updateGameHeader();
   renderEndPanel();
   updateAdvanceButtonState();
   return result;
+}
+
+function winnerLabel(gameState, result) {
+  const seat = Number(result.winner_seat);
+  if (seat == null || Number.isNaN(seat)) return 'Match complete — all forces destroyed. Draw.';
+  const team = btBuildTeamModel(gameState).teamOfSeat(seat);
+  if (!team) return `Match complete — Player ${seat} wins.`;
+  // Team A = the friendly human force, Team B = the opponent (AI in 1-a).
+  return team === 'A' ? 'Match complete — Team A wins.' : 'Match complete — the AI wins.';
 }
 
 function activePlayerPhaseComplete(phase) {

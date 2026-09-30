@@ -224,7 +224,7 @@ async function loadLobbyUI() {
   // Get game info
   const { data: loadedGame, error: gameError } = await db
     .from('btech_games')
-    .select('game_code,state,catalogue_version')
+    .select('game_code,state,catalogue_version,match_type')
     .eq('id', currentGameId)
     .single();
 
@@ -255,6 +255,9 @@ async function loadLobbyUI() {
   }
   await loadProfileUnitFavourites();
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  // Row-level match type (SQL/160) — the lobby branches on match_type from the
+  // row column; state.team_assignments drives the team model itself.
+  if (loadedGame?.match_type) gameState.match_type = loadedGame.match_type;
   const minefieldView = await db.rpc('get_match_minefield_view', { p_game_id:currentGameId });
   lobbyMinefieldView = minefieldView.error ? [] : (minefieldView.data || []);
   gameState.minefields = lobbyMinefieldView;
@@ -295,12 +298,12 @@ async function loadLobbyUI() {
     .eq('role', 'spectator')
     .order('created_at');
 
-  // Render seats
+  // Render seats (coop 1-a: three seats — host, friend, and the AI)
   const seatsEl = document.getElementById('lobby-seats');
   seatsEl.innerHTML = '';
-
+  const seatCount = isCoopSkirmish(gameState) ? 3 : 2;
   if (players) {
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < seatCount; i++) {
       const player = players.find(p => p.seat_number === i + 1);
       const row = document.createElement('div');
 
@@ -365,9 +368,14 @@ async function loadLobbyUI() {
     const playerSeats = (players || []).filter(player => player.role === 'player');
     const rostersReady = playerSeats.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState), gameState, player.seat_number));
     const deploymentsReady = playerSeats.every(player => (gameState.deployment_positions?.[String(player.seat_number)] || []).length === (gameState.rosters?.[String(player.seat_number)] || []).length);
-    const canStart = vsAiMode
-      ? playerSeats.length === 2 && playerSeats.some(player => !player.is_ai && player.ready) && rostersReady && deploymentsReady
-      : playerSeats.length === 2 && playerSeats.every(player => player.ready) && rostersReady && deploymentsReady;
+    const coopGate = isCoopSkirmish(gameState)
+      ? playerSeats.length === 3 && playerSeats.every(player => player.is_ai || player.ready)
+      : null;
+    const canStart = coopGate != null
+      ? coopGate && rostersReady && deploymentsReady
+      : vsAiMode
+        ? playerSeats.length === 2 && playerSeats.some(player => !player.is_ai && player.ready) && rostersReady && deploymentsReady
+        : playerSeats.length === 2 && playerSeats.every(player => player.ready) && rostersReady && deploymentsReady;
     btnStart.disabled = !isHost || !canStart;
   }
 
@@ -452,7 +460,20 @@ function isRosterLegal(roster, tonnageLimit, ruleset = 'advanced_3060', gameStat
     const value = bv2RosterValue(units, gameState, seatNumber);
     return Boolean(value && value.adjusted <= bvLimit);
   }
+  // Coop 1-a: the tonnage cap is the friendly TEAM total (decision 1) — both
+  // pilots share one pool, so a single seat may exceed the per-seat limit so
+  // long as the team total stays under it. Non-coop matches keep per-seat.
+  if (isCoopSkirmish(gameState)) {
+    return units.length > 0 && coopTeamTonnageTotal(gameState, seatNumber) <= Number(tonnageLimit || 0);
+  }
   return rosterTonnage(units) <= Number(tonnageLimit || 0);
+}
+
+function coopTeamTonnageTotal(gameState, seatNumber) {
+  const team = btBuildTeamModel(gameState).teamOfSeat(Number(seatNumber));
+  if (!team) return rosterTonnage(gameState.rosters?.[String(seatNumber)] || []);
+  const seats = gameState.team_assignments?.[team] || [Number(seatNumber)];
+  return seats.reduce((sum, seat) => sum + rosterTonnage(gameState.rosters?.[String(seat)] || []), 0);
 }
 
 function rosterSummaryForSeat(gameState, seatNumber) {
@@ -467,7 +488,9 @@ function rosterSummaryForSeat(gameState, seatNumber) {
 }
 
 async function saveSkirmishHangar(hangar, deployed) {
-  const { error } = await db.rpc('update_skirmish_hangar', {
+  const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
+  const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  const { error } = await db.rpc(isCoopSkirmish(state) ? 'update_coop_skirmish_hangar' : 'update_skirmish_hangar', {
     p_game_id: currentGameId, p_hangar: hangar, p_deployed: deployed
   });
   if (error) {
@@ -590,6 +613,11 @@ function renderLobbyMatchSetup(gameState, players) {
   const ruleset = matchRuleset(gameState);
   const limit = Number(gameState.dropship_tonnage || 0);
   const bvLimit = bv2ForceLimit(gameState);
+  const coopMode = isCoopSkirmish(gameState);
+  if (coopMode) {
+    renderCoopLobbySetup(gameState, players, settingsEl, rosterSection, rosterEl, map, ruleset, limit, bvLimit);
+    return;
+  }
   const beginnerScenario = gameState.beginner_scenario;
   const customScenario = gameState.custom_scenario;
   const victoryLabel = ({ annihilation: 'Annihilation', control: 'Objective Control (first to 5)', breakthrough: 'Breakthrough (2 BattleMechs)' })[gameState.victory_mode] || 'Annihilation';
@@ -697,6 +725,179 @@ function renderLobbyMatchSetup(gameState, players) {
   filterLobbyRosterSearch(lobbyRosterFilters.search);
 }
 
+// ── COOP SKIRMISH LOBBY (coop 1-a) ─────────────────────────
+// Friendly seats [1,2] share one tonnage pool (state.dropship_tonnage); the
+// AI on seat 3 is deployed automatically. The hangar below is identical to
+// the standard skirmish builder — only the summary lines and the host-only
+// panels differ, and this renderer never touches the non-coop path.
+
+function isCoopSkirmish(gameState) {
+  return gameState?.match_type === 'coop_skirmish';
+}
+
+function coopHumanSeats(gameState) {
+  const a = btBuildTeamModel(gameState).teamOfSeat(1);
+  return a ? [...(gameState.team_assignments?.[a] || [])] : [1, 2];
+}
+
+function coopTonnageTotals(gameState, seats) {
+  const deployed = seats.map(seat => {
+    const roster = gameState.rosters?.[String(seat)] || [];
+    return { seat, total: rosterTonnage(roster), count: roster.length };
+  });
+  return { seats: deployed, teamTotal: deployed.reduce((sum, seat) => sum + seat.total, 0) };
+}
+
+function coopPermissionControl(gameState, seat, index, mode) {
+  const allowed = ['pick_own', 'host_approved', 'locked'];
+  const value = allowed.includes(mode) ? mode : 'pick_own';
+  if (!isHost) return `<label>Loadouts: <strong>${value.replaceAll('_', ' ')}</strong></label>`;
+  const choices = allowed.map(key => `<option value="${key}" ${key === value ? 'selected' : ''}>${key.replaceAll('_', ' ')}</option>`).join('');
+  return `<label>Loadout mode <select onchange="handleSetLobbyLoadoutMode(${seat}, ${index}, this.value)" title="Change how ${signedInProfileName()}'s seat builds loadouts">${choices}</select></label>`;
+}
+
+async function handleSetLobbyLoadoutMode(seat, index, mode) {
+  if (!isHost || !currentGameId || seat !== 2) return;
+  showLoading(true);
+  try {
+    const { error } = await db.rpc('set_lobby_loadout_mode', { p_game_id: currentGameId, p_seat_number: seat, p_index: index, p_mode: mode });
+    if (error) { alert('Loadout mode not updated: ' + error.message); return; }
+    loadLobby();
+  } finally { showLoading(false); }
+}
+
+async function handleForceLobbyReady(seat) {
+  if (!isHost || !currentGameId || !([1, 2].includes(Number(seat)))) return;
+  if (!confirm(`Force seat ${seat} ready status?`)) return;
+  showLoading(true);
+  try {
+    const { error } = await db.rpc('force_lobby_ready', { p_game_id: currentGameId, p_seat_number: Number(seat) });
+    if (error) { alert('Ready status not changed: ' + error.message); return; }
+    loadLobby();
+  } finally { showLoading(false); }
+}
+
+function renderCoopLobbySetup(gameState, players, settingsEl, rosterSection, rosterEl, map, ruleset, limit, bvLimit) {
+  const victoryLabel = ({ annihilation: 'Annihilation', control: 'Objective Control (first to 5)', breakthrough: 'Breakthrough (2 BattleMechs)' })[gameState.victory_mode] || 'Annihilation';
+  const seats = coopHumanSeats(gameState);
+  const totals = coopTonnageTotals(gameState, seats);
+  const aiRoster = (gameState.rosters?.[String(COOP_AI_SEAT)] || []).map(unitId => {
+    const unit = getSupportedUnit(unitId); return unit ? `${unit.chassis} ${unit.variant}` : unitId;
+  }).join(', ') || 'not generated';
+  const humanRows = seats.map(seat => {
+    const player = players.find(p => p.seat_number === seat);
+    const label = seat === 1 ? `${player?.ready ? 'Host (you)' : 'Host (you)'} — seat 1` : `Commander ${seat} — seat 2`;
+    const status = seat === 1 ? (player?.ready ? 'Ready' : 'Not ready') : (player ? (player.ready ? 'Ready' : 'Not ready') : 'Waiting for a pilot');
+    return `<div class="coop-force-side"><strong>${label}</strong><br>${totals.seats.find(t => t.seat === seat)?.count || 0} BattleMech${(totals.seats.find(t => t.seat === seat)?.count || 0) === 1 ? '' : 's'} · ${totals.seats.find(t => t.seat === seat)?.total || 0} tons<br>${status}${isHost && seat === 2 ? ` · <button type="button" onclick="handleForceLobbyReady(2)">Toggle ready</button>` : ''}</div>`;
+  }).join('');
+  const overCap = totals.teamTotal > limit;
+  const capNote = overCap
+    ? `Team total <strong>${totals.teamTotal} / ${limit} tons — over cap.</strong> Confirm the overage to start (decision 1: soft cap, host decides).`
+    : `Team total <strong>${totals.teamTotal} / ${limit} tons</strong> shared across both pilots.`;
+  settingsEl.innerHTML = `<div class="match-setting-summary"><strong>${escapeHtml(map.name)}</strong><br>${escapeHtml(map.description)}<br>Battlefield: <strong>${escapeHtml(map.name)}</strong><br>Force limit: <strong>${limit} tons — friendly TEAM total (seats 1 + 2)</strong><br>Victory: <strong>${victoryLabel}</strong><br>Ruleset: <strong>${escapeHtml(rulesetLabel(gameState))}</strong><br>Opponent: <strong>${escapeHtml(titleCase(aiDifficulty))} · ${escapeHtml(AI_PERSONALITY_LABELS[aiPersonality])}</strong><br>AI force: <strong>${escapeHtml(aiRoster)}</strong><br><small>The AI (seat 3, team B) is deployed automatically. You and your friend share one dropship tonnage pool; the host confirms the overage if you exceed it.</small>${isHost ? '<button type="button" onclick="openAiForceEditor()">Edit AI force & pilots</button>' : ''}</div>
+    <div class="coop-force-comparison"><div class="coop-force-sides">${humanRows}<div class="coop-force-side ai"><strong>Computer Opponent — seat 3 (team B)</strong><br>${(gameState.rosters?.[String(COOP_AI_SEAT)] || []).length} BattleMechs · deployed automatically<br>Ready (always)</div></div>
+    <p class="coop-tonnage-cap">${capNote}</p>
+    ${isHost ? `<div class="coop-host-panel"><span>Friendly force (team A)</span>${coopPermissionControl(gameState, 2, 1, gameState.loadout_modes?.[2] || 'pick_own')}</div>` : '<p class="coop-guest-note">The host can change your loadout mode from the lobby panel.</p>'}</div>`;
+  if (bvLimit != null) settingsEl.innerHTML += `<div class="bv-force-comparison">${seats.map(seat => {
+    const side = bv2RosterValue(gameState.rosters?.[String(seat)] || [], gameState, seat);
+    const label = skirmishAvatarForSeat(gameState, seat)?.callsign || `Commander ${seat}`;
+    return `<div><strong>${escapeHtml(label)}</strong><br>${side ? `${side.adjusted.toLocaleString()} BV2` : 'BV pending'}</div>`;
+  }).join('')}<p>Per-seat BV is informational — the cap is the tonnage team total above.</p></div>`;
+  renderCoopHangarBuilder(gameState, rosterSection, rosterEl, seats, limit, bvLimit, ruleset);
+}
+
+function renderCoopHangarBuilder(gameState, rosterSection, rosterEl, seats, limit, bvLimit, ruleset) {
+  const seat = mySeatNumber;
+  const avatar = skirmishAvatarForSeat(gameState, seat);
+  const hangar = avatar?.hangar || [];
+  const deployed = avatar?.deployed || [];
+  const roster = gameState.rosters?.[String(seat)] || [];
+  const totals = coopTonnageTotals(gameState, seats);
+  const teamTotal = totals.teamTotal;
+  const rosterTonnage = { '1': rosterTonnage(gameState.rosters?.['1'] || []), '2': rosterTonnage(gameState.rosters?.['2'] || []) };
+  const teamTotalNow = Number(rosterTonnage['1'] || 0) + Number(rosterTonnage['2'] || 0);
+  const perSeat = rosterTonnage[String(seat)] || 0;
+  const remaining = limit - perSeat;
+  const overCap = teamTotalNow > limit;
+  const filtered = supportedUnitEntries().filter(([id, unit]) => {
+    const tech = techBaseForUnit(unit);
+    return (lobbyRosterFilters.tech === 'both' || lobbyRosterFilters.tech === tech) &&
+      lobbyRosterFilters.weights.has(weightClassForUnit(unit)) && unitRulesetStatus(id, unit, ruleset).allowed;
+  });
+  const weightOrder = ['light', 'medium', 'heavy', 'assault'];
+  const visibleByWeight = weightOrder.map(weight => [weight, filtered.filter(([, unit]) => weightClassForUnit(unit) === weight)]);
+  const techButton = (value, label) => `<button class="roster-filter ${lobbyRosterFilters.tech === value ? 'active' : ''}" onclick="setLobbyRosterTechFilter('${value}')">${label}</button>`;
+  const weightButton = (weight, label) => `<button class="roster-filter ${lobbyRosterFilters.weights.has(weight) ? 'active' : ''}" onclick="toggleLobbyRosterWeightFilter('${weight}')">${label}</button>`;
+  const movementSummary = unit => {
+    const movement = unit.movement || {};
+    const walk = Number(movement.walk ?? 0); const run = Number(movement.run ?? 0); const jump = Number(movement.jump ?? 0);
+    return `Speed ${walk}/${run}${jump ? `/${jump}J` : ''}`;
+  };
+  const weaponSummary = unit => {
+    const counts = new Map();
+    for (const entry of unit.weapons || []) {
+      const name = entry.weapon?.name || entry.name || BT_WEAPONS?.[entry.key]?.name || entry.key || 'Unknown weapon';
+      counts.set(name, (counts.get(name) || 0) + Number(entry.count || 1));
+    }
+    return [...counts].map(([name, count]) => count > 1 ? `${count}× ${name}` : name).join(', ') || 'No weapons listed';
+  };
+  const card = ([id, unit]) => {
+    const inHangar = hangar.filter(entry => entry.unit_id === id).length;
+    const rules = unitRulesetStatus(id, unit, ruleset);
+    const disabled = hangar.length >= 12 || !rules.allowed;
+    const techLabel = unit.customDesign ? 'Custom IS' : techBaseForUnit(unit) === 'clan' ? 'Clan' : 'Inner Sphere';
+    const searchKey = lobbyRosterSearchKey(`${unit.chassis} ${unit.variant} ${id} ${unit.tonnage} ${techLabel}`);
+    const favourite = favouriteUnitIds.has(id);
+    const favouriteTitle = favourite ? 'Remove this exact variant from favourites' : 'Add this exact variant from favourites';
+    const variantName = unit.variant || id;
+    const bv = bv2EntryValue(unit);
+    return `<div class="roster-option-wrap ${favourite ? 'favourite' : ''}" data-unit-id="${id}" data-search="${searchKey}" data-favourite="${favourite}"><button class="roster-favourite-star ${favourite ? 'active' : ''}" type="button" aria-label="${favouriteTitle}" aria-pressed="${favourite}" title="${favouriteTitle}" onclick="toggleLobbyUnitFavourite(event,'${id}')">${favourite ? '★' : '☆'}</button><button class="roster-option" onclick="addMechToSkirmishHangar('${id}')" ${disabled ? 'disabled' : ''} title="${rules.allowed ? 'Add to your match-only Hangar' : `Unavailable in ${BT_RULESETS[ruleset].name}: ${rules.reason}`}"><span class="roster-option-name">${escapeHtml(variantName)}</span><span class="roster-option-tonnage">${unit.tonnage} tons · ${techLabel}${bv ? ` · ${bv.stock.toLocaleString()} BV2` : ' · BV pending'}${inHangar ? ` · ${inHangar} in Hangar` : ''}</span><span class="roster-option-speed">${movementSummary(unit)}</span><span class="roster-option-weapons" title="${escapeHtml(weaponSummary(unit))}">${escapeHtml(weaponSummary(unit))}</span></button></div>`;
+  };
+  const chassisGroups = entries => {
+    const groups = new Map();
+    for (const entry of entries) {
+      const chassisName = String(entry[1].chassis || 'Unknown chassis');
+      const chassisKey = lobbyRosterSearchKey(chassisName);
+      if (!groups.has(chassisKey)) groups.set(chassisKey, { chassisKey, chassisName, entries: [] });
+      groups.get(chassisKey).entries.push(entry);
+    }
+    return [...groups.values()].sort((a, b) => a.chassisName.localeCompare(b.chassisName));
+  };
+  const chassisGroup = group => {
+    const expanded = expandedLobbyChassis.has(group.chassisKey);
+    const variantLabel = `${group.entries.length} variant${group.entries.length === 1 ? '' : 's'}`;
+    return `<section class="roster-chassis-group ${expanded ? 'expanded' : ''}" data-chassis-key="${group.chassisKey}"><button class="roster-chassis-toggle" type="button" aria-expanded="${expanded}" onclick="toggleLobbyChassis('${group.chassisKey}')"><span class="roster-chassis-chevron" aria-hidden="true">›</span><strong>${escapeHtml(group.chassisName)} · ${[...new Set(group.entries.map(([, unit]) => unit.tonnage))].sort((a,b) => a-b).join(" / ")} t</strong><span class="roster-chassis-count">${variantLabel}</span></button><div class="roster-chassis-variants roster-options" ${expanded ? '' : 'hidden'}>${group.entries.map(card).join('')}</div></section>`;
+  };
+  const hangarCards = hangar.map(entry => {
+    const unit = getSupportedUnit(entry.unit_id);
+    const isDeployed = deployed.includes(entry.id);
+    const pilot = skirmishPilotDrafts.get(pilotDraftKey(entry.id)) || skirmishPilotForEntry(entry);
+    const bv = bv2EntryValue(unit, pilot);
+    return `<div class="hangar-entry ${isDeployed ? 'deployed' : ''}">
+      <div class="hangar-mech">${unitArtworkThumbnail(entry.unit_id)}<strong>${unit ? `${unit.chassis} ${unit.variant}` : escapeHtml(entry.unit_id)}</strong><span>${unit?.tonnage || '?'} tons${bv ? ` · ${bv.stock.toLocaleString()} BV2 stock · ${bv.adjusted.toLocaleString()} adjusted` : ' · BV pending'}${isDeployed ? ' · DROPSHIP' : ''}</span></div>
+      <div class="hangar-pilot-fields">
+        <label>Pilot<input id="hangar-pilot-name-${entry.id}" oninput="markSkirmishPilotDirty('${entry.id}')" maxlength="48" value="${escapeHtml(pilot.name)}"></label>
+        <label>Gunnery<select id="hangar-pilot-gunnery-${entry.id}" oninput="markSkirmishPilotDirty('${entry.id}')">${skirmishSkillOptions(pilot.gunnery)}</select></label>
+        <label>Piloting<select id="hangar-pilot-piloting-${entry.id}" oninput="markSkirmishPilotDirty('${entry.id}')">${skirmishSkillOptions(pilot.piloting)}</select></label>
+        <button onclick="saveSkirmishPilot('${entry.id}')">Save Pilot</button>
+        <span class="pilot-save-status" id="pilot-save-status-${entry.id}" role="status">${skirmishPilotDrafts.has(pilotDraftKey(entry.id)) ? 'Unsaved name / skills — click Save Pilot before Ready.' : 'Name and both skills are saved together with Save Pilot.'}</span>
+      </div>
+      <div class="hangar-actions"><button onclick="toggleSkirmishDeployment('${entry.id}')">${isDeployed ? 'Remove from Dropship' : 'Add to Dropship'}</button><button onclick="removeSkirmishHangarMech('${entry.id}')">Remove</button></div>
+    </div>`;
+  }).join('') || '<div class="roster-empty">Add BattleMechs below to build your Hangar.</div>';
+  const capNote = overCap
+    ? `Your force: <strong>${perSeat} tons</strong> · Team total: <strong>${teamTotalNow} / ${limit} tons — over cap.</strong> The host will confirm the overage to start.`
+    : `Your force: <strong>${perSeat} / ${limit} tons</strong> (per-seat) · Team total: <strong>${teamTotalNow} / ${limit} tons</strong> shared across both pilots.`;
+  rosterSection.hidden = false;
+  rosterEl.innerHTML = `<div class="skirmish-avatar"><strong>${escapeHtml(signedInProfileName())}</strong><span>Match-only Avatar · seat ${seat} of the friendly team (team A) · each BattleMech has its own pilot</span><button onclick="openMechDesigner()">Open MechLab</button></div><div class="roster-summary">Ruleset: <strong>${BT_RULESETS[ruleset].name}</strong> · ${escapeHtml(BT_RULESETS[ruleset].description)}</div><p class="setup-guidance">Add BattleMechs to your match-only hangar, assign pilots, then select your Dropship force. You and your friend share one ${limit}-ton team pool; the host confirms the overage if you exceed it. Place those units on the deployment map below.</p><div class="panel-eyebrow" style="margin-top:12px;">Coop Skirmish Hangar · seat ${seat} · ${perSeat} tons this seat</div><div class="hangar-list">${hangarCards}</div><div class="roster-summary coop-tonnage-summary">${capNote}</div>
+    <div class="roster-search"><label for="lobby-roster-search">Find a BattleMech</label><div><input id="lobby-roster-search" type="search" autocomplete="off" placeholder="Chassis, variant, tonnage or tech base" value="${lobbyRosterFilters.search.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;')}" oninput="filterLobbyRosterSearch(this.value)"><button id="lobby-roster-search-clear" type="button" onclick="clearLobbyRosterSearch()">Clear</button></div></div>
+    <div class="roster-filter-bar"><span>Quick find</span><button class="roster-filter ${lobbyRosterFilters.favouritesOnly ? 'active' : ''}" onclick="toggleLobbyFavouritesFilter()">★ Favourites</button></div>
+    <div class="roster-filter-bar"><span>Tech base</span>${techButton('is', 'Inner Sphere')}${techButton('clan', 'Clan')}${techButton('both', 'Both')}</div>
+    <div class="roster-filter-bar"><span>Weight</span>${weightButton('light', 'Light')}${weightButton('medium', 'Medium')}${weightButton('heavy', 'Heavy')}${weightButton('assault', 'Assault')}</div>
+    <div class="roster-scroll">${visibleByWeight.map(([weight, entries]) => entries.length ? `<section class="roster-weight-group"><div class="roster-weight-heading">${weight} ${weight === 'assault' ? '— 80–100 tons' : weight === 'heavy' ? '— 60–75 tons' : weight === 'medium' ? '— 40–55 tons' : '— 20–35 tons'}</div><div class="roster-chassis-list">${chassisGroups(entries).map(chassisGroup).join('')}</div></section>` : '').join('')}<div id="lobby-roster-search-empty" class="roster-empty" hidden>No supported BattleMechs match the search and filters.</div></div>`;
+  filterLobbyRosterSearch(lobbyRosterFilters.search);
+}
+
 function lobbyC3Role(unitId) {
   const labels = Object.values(BT_CRITICAL_LAYOUTS[unitId] || {}).flat().map(label => String(label || '').toLowerCase().replace(/(?:\s*\([^)]*\))+$/, '').replace(/^(is|clan|cl)/, '').replace(/[^a-z0-9]/g, ''));
   if (labels.some(label => ['c3icomputer','improvedc3computer'].includes(label))) return 'c3i';
@@ -711,7 +912,7 @@ function renderLobbyC3Networks(gameState) {
   if (!section || !target) return;
   const roster = gameState.rosters?.[String(mySeatNumber)] || [];
   const equipped = roster.map((unitId,index) => ({ unitId,index,role:lobbyC3Role(unitId),unit:getSupportedUnit(unitId) })).filter(item => item.role);
-  if (vsAiMode || !equipped.length) { section.hidden=true;target.innerHTML='';return; }
+  if ((vsAiMode && !isCoopSkirmish(gameState)) || !equipped.length) { section.hidden=true;target.innerHTML='';return; }
   section.hidden=false;
   const assignments = gameState.c3_assignments?.[String(mySeatNumber)] || {};
   const networkOptions = selected => ['', 'A','B','C','D'].map(value => `<option value="${value}" ${value===selected?'selected':''}>${value || 'Offline / unassigned'}</option>`).join('');
@@ -850,7 +1051,10 @@ async function placeLobbyDeployment(col, row) {
   const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
   if (!deploymentZoneContains(mySeatNumber, col, row, state)) return;
   const positions = [...(state.deployment_positions?.[String(mySeatNumber)] || [])];
-  positions[lobbyDeploymentIndex] = { col, row, facing: mySeatNumber === 1 ? 0 : 3, hidden: false };
+  // Facing is force-based, not seat-based: in coop the friendly team occupies
+  // BOTH seats 1 and 2 and both face the AI on team B (facing 3).
+  const force = btBuildTeamModel(state).forceOfSeat(mySeatNumber) || String(mySeatNumber);
+  positions[lobbyDeploymentIndex] = { col, row, facing: force === '1' ? 0 : 3, hidden: false };
   const { error } = await db.rpc('set_match_deployment', { p_game_id: currentGameId, p_positions: positions });
   if (error) { document.getElementById('lobby-status').textContent = `Deployment rejected: ${error.message}`; return; }
   await loadLobbyUI();
@@ -952,41 +1156,51 @@ async function handleStartGame() {
     .eq('game_id', currentGameId)
     .eq('role', 'player');
 
-  if (!players || players.length !== 2) {
-    document.getElementById('lobby-status').textContent = 'Two player seats are required to start.';
-    return;
-  }
-
-  // In AI mode, we only need 1 human player (AI auto-readies)
-  // In multiplayer, all players must be ready
-  if (!vsAiMode) {
-    const allReady = players.every(p => p.ready === true);
-    if (!allReady) {
-      document.getElementById('lobby-status').textContent = 'All players must be ready!';
-      return;
-    }
-  } else if (!players.some(player => !player.is_ai && player.ready)) {
-    document.getElementById('lobby-status').textContent = 'Finish your force and deployment, then Ready Up before starting the AI match.';
+  if (!players || players.length < 2) {
+    document.getElementById('lobby-status').textContent = 'Player seats must be assigned before the match can start.';
     return;
   }
 
   // Store AI difficulty and mode in game state
   const { data: game } = await db
     .from('btech_games')
-    .select('state,catalogue_version')
+    .select('state,catalogue_version,match_type')
     .eq('id', currentGameId)
     .single();
 
   const gameState = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+  if (game?.match_type) gameState.match_type = game.match_type;
   if (game?.catalogue_version) {
     await loadUnitCatalogue(game.catalogue_version);
     gameState.catalogue_version = game.catalogue_version;
+  }
+  const coopMatch = isCoopSkirmish(gameState);
+
+  // Ready gate. Non-coop: every human seat (or the single human in a vs-AI
+  // match). Coop 1-a: BOTH human pilots must be ready; the AI seat is always
+  // ready by construction.
+  const humans = players.filter(player => !player.is_ai);
+  if (coopMatch) {
+    if (players.length !== 3) { document.getElementById('lobby-status').textContent = 'Both pilot seats and the opponent seat are required to start.'; return; }
+    if (!humans.every(p => p.ready === true)) { document.getElementById('lobby-status').textContent = 'Both pilots must be ready!'; return; }
+  } else if (!vsAiMode) {
+    if (!players.every(p => p.ready === true)) { document.getElementById('lobby-status').textContent = 'All players must be ready!'; return; }
+  } else if (!players.some(player => !player.is_ai && player.ready)) {
+    document.getElementById('lobby-status').textContent = 'Finish your force and deployment, then Ready Up before starting the AI match.';
+    return;
   }
   const rostersValid = players.every(player => isRosterLegal(gameState.rosters?.[String(player.seat_number)], gameState.dropship_tonnage, matchRuleset(gameState), gameState, player.seat_number));
   const deploymentsValid = players.every(player => (gameState.deployment_positions?.[String(player.seat_number)] || []).length === (gameState.rosters?.[String(player.seat_number)] || []).length);
   if (!rostersValid || !deploymentsValid) {
     document.getElementById('lobby-status').textContent = 'Each force must be legal and fully deployed before the match can start.';
     return;
+  }
+  if (coopMatch && bv2ForceLimit(gameState) == null) {
+    // Decision 1: the tonnage cap is the friendly TEAM total and is a SOFT
+    // cap — the host is the final arbiter and confirms the overage here.
+    const teamTotal = coopTeamTonnageTotal(gameState, humans[0]?.seat_number || 1);
+    const cap = Number(gameState.dropship_tonnage || 0);
+    if (teamTotal > cap && !confirm(`The friendly team total is ${teamTotal} of ${cap} tons (over the dropship tonnage).\n\nStart the match anyway?`)) return;
   }
   if (bv2ForceLimit(gameState) != null) {
     const { data: sealedState, error: sealError } = await db.rpc('seal_bv2_match_force_values', { p_game_id:currentGameId });
@@ -996,7 +1210,10 @@ async function handleStartGame() {
     }
     if (sealedState && typeof sealedState === 'object') Object.assign(gameState, sealedState);
   }
-  if (vsAiMode) {
+  if (vsAiMode && !coopMatch) {
+    // Solo vs AI only: the seeder (SQL/130) places the AI plan in the seat-2
+    // zone through btech_scenario_zone_contains, which rejects seat 3 until
+    // SQL/163. Coop keeps its humans' lobby minefield planning instead.
     const { error } = await db.rpc('seed_ai_minefield_plan', { p_game_id:currentGameId });
     if (error) { document.getElementById('lobby-status').textContent = `AI minefield setup rejected: ${error.message}`; return; }
   }
@@ -1026,12 +1243,20 @@ async function handleStartGame() {
 function defaultRosterDeployment(seat, count, mapState = {}) {
   const zone = scenarioDeploymentZoneHexes(seat, mapState).map(code => ({ col:Number(code.slice(0,2)), row:Number(code.slice(2,4)) }));
   const dimensions = mapDimensions(mapState.map_id);
-  return Array.from({ length:count }, (_, index) => ({ ...(zone[index] || { col:seat === 1 ? 0 : dimensions.cols - 1, row:index }), facing:seat === 1 ? 0 : 3, hidden:false }));
+  // Force-based facing (team model): coop friendly seat 2 faces the AI, not
+  // the friendly host.
+  const force = btBuildTeamModel(mapState).forceOfSeat(seat);
+  const side = (force || String(seat)) === '1' ? 0 : 3;
+  return Array.from({ length:count }, (_, index) => ({ ...(zone[index] || { col:side === 0 ? 0 : dimensions.cols - 1, row:index }), facing: side, hidden:false }));
 }
 
 function buildRosterInstances(rosters, skirmishAvatars = {}, deploymentPositions = {}, c3Assignments = {}, mapState = {}) {
-  const deployment = { 1:defaultRosterDeployment(1, (rosters?.['1'] || []).length, mapState), 2:defaultRosterDeployment(2, (rosters?.['2'] || []).length, mapState) };
-  return [1, 2].flatMap(seat => (rosters?.[String(seat)] || []).map((unitId, index) => {
+  // Iterate every rostered seat (coop 1-a adds seat 3 for the AI) — never a
+  // hardcoded [1, 2] pair.
+  const seats = Object.keys(rosters || {}).map(Number).filter(seat => (rosters?.[String(seat)] || []).length > 0);
+  const deployment = {};
+  for (const seat of seats) deployment[seat] = defaultRosterDeployment(seat, rosters[String(seat)].length, mapState);
+  return seats.flatMap(seat => (rosters?.[String(seat)] || []).map((unitId, index) => {
     const position = deploymentPositions?.[String(seat)]?.[index] || deployment[seat][index];
     const unit = getSupportedUnit(unitId);
     const avatar = skirmishAvatars?.[String(seat)] || {};
