@@ -1,0 +1,24 @@
+name: CI checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check (all js/)
+        run: bash tools/ci-syntax-check.sh
+      - name: Cache-buster drift guard
+        env:
+          CI_BASE_REF: ${{ github.event_name == 'push' && github.event.before || github.event.pull_request.base.sha }}
+        run: node tools/check-cache-busters.mjs
+      - name: Hermetic tests
+        run: bash tools/ci-hermetic-tests.sh
