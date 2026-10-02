@@ -814,9 +814,9 @@ function renderCoopHangarBuilder(gameState, rosterSection, rosterEl, seats, limi
   const roster = gameState.rosters?.[String(seat)] || [];
   const totals = coopTonnageTotals(gameState, seats);
   const teamTotal = totals.teamTotal;
-  const rosterTonnage = { '1': rosterTonnage(gameState.rosters?.['1'] || []), '2': rosterTonnage(gameState.rosters?.['2'] || []) };
-  const teamTotalNow = Number(rosterTonnage['1'] || 0) + Number(rosterTonnage['2'] || 0);
-  const perSeat = rosterTonnage[String(seat)] || 0;
+  const seatTonnage = { '1': rosterTonnage(gameState.rosters?.['1'] || []), '2': rosterTonnage(gameState.rosters?.['2'] || []) };
+  const teamTotalNow = Number(seatTonnage['1'] || 0) + Number(seatTonnage['2'] || 0);
+  const perSeat = seatTonnage[String(seat)] || 0;
   const remaining = limit - perSeat;
   const overCap = teamTotalNow > limit;
   const filtered = supportedUnitEntries().filter(([id, unit]) => {
