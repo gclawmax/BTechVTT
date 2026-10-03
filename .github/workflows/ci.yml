@@ -20,22 +20,5 @@ jobs:
         env:
           CI_BASE_REF: ${{ github.event_name == 'push' && github.event.before || github.event.pull_request.base.sha }}
         run: node tools/check-cache-busters.mjs
-      - name: Hermetic tests DIAG-v2
-        shell: bash
-        run: |
-          set +e
-          cd tools
-          V=$(node --version)
-          {
-            echo "DIAG ACTIVE node=$V"
-            for t in $(grep '^test-' ci-hermetic-tests.sh); do
-              out=$(node "$t" 2>&1); rc=$?
-              verdict=PASS
-              [ $rc -ne 0 ] && verdict="CRASH-rc=$rc"
-              [ $rc -eq 0 ] && echo "$out" | grep -q FAIL && verdict="GREPFAIL"
-              echo "$t -> $verdict"
-            done
-          } > diag.txt 2>&1
-          # chunk into <=512 char pieces, each as its own annotation line
-          fold -w 500 -s diag.txt | sed 's/^/::error::/'
-          ! grep -qE 'CRASH|GREPFAIL' diag.txt
+      - name: Hermetic tests
+        run: bash tools/ci-hermetic-tests.sh
