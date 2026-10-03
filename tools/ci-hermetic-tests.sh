@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# CI check 3: hermetic tests (pure Node, no network/DB) — 21 suites, ~2s.
-# New no-network suites: append here. Supabase/browser suites stay in the
-# manual live lane so CI remains deterministic.
+# CI check 3: hermetic tests (pure Node, no network/DB). When adding a
+# no-network suite, append it to the list below; keep Supabase/browser suites
+# in the manual live lane so CI stays deterministic (~5s). Failure detail is
+# emitted as ONE GitHub annotation so it is readable without log access.
 suites="
 test-advanced-direct-fire-regression.mjs
 test-advanced-missiles-regression.mjs
@@ -26,12 +27,13 @@ test-specialist-physical-equipment-regression.mjs
 test-vs-ai-game-modes.mjs
 "
 cd "$(dirname "$0")"
-fails=0; ran=0
+fails=0; bad=""
 for t in $suites; do
-  ran=$((ran+1))
   out=$(node "$t" 2>&1); rc=$?
-  if [ $rc -ne 0 ]; then echo "SUITE CRASHED (rc=$rc): $t"; echo "$out" | tail -3; fails=$((fails+1)); continue; fi
-  if echo "$out" | grep -q "FAIL"; then echo "SUITE FAILED: $t"; echo "$out" | grep FAIL | head -3; fails=$((fails+1)); fi
+  v=PASS
+  if [ $rc -ne 0 ]; then v="CRASH rc=$rc: $(echo "$out" | tail -1 | cut -c1-100)"; fails=$((fails+1))
+  elif echo "$out" | grep -q FAIL; then v="FAILED: $(echo "$out" | grep FAIL | head -1 | cut -c1-120)"; fails=$((fails+1)); fi
+  [ "$v" != PASS ] && bad="$bad$t $v;"
 done
-echo "ran $ran suites, $fails failing"
-[ $fails -eq 0 ]
+if [ $fails -ne 0 ]; then echo "::error::$fails/$(( $(echo $suites|wc -w) )) failing :: ${bad:0:1800}"; exit 1; fi
+echo "all $(echo $suites | wc -w) hermetic suites green"

@@ -2,7 +2,7 @@
 // Static regression guard for BV-2's server-authoritative roster contract.
 import { readFile } from 'node:fs/promises';
 
-const sql = await readFile(new URL('../sql/132_bv2_authoritative_roster_checks.sql', import.meta.url), 'utf8');
+const sql = await readFile(new URL('../SQL/132_bv2_authoritative_roster_checks.sql', import.meta.url), 'utf8');
 const correctedSql = await readFile(new URL('../SQL/144_correct_bv2_pilot_skill_table.sql', import.meta.url), 'utf8');
 let failures = 0;
 function check(label, condition) {
