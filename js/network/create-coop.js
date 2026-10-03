@@ -113,14 +113,20 @@ async function createCoopGame({ mapId, dropshipTonnage, victoryMode = 'annihilat
       // Default loadout permission for the friend seat (decision 5: pick_own);
       // the host can change it from the lobby panel.
       loadout_modes:{ '2':'pick_own' },
-      deployment_positions:{ '1':[], '2':[], '3':buildVsAiDeployment(aiRoster, COOP_AI_SEAT, setupState) },
+      deployment_positions:{ '1':[], '2':[], '3':[] },
       units:[], turn:0, phase:'setup'
     };
     if (getMapDefinition(mapId).deployment_zones) setupState.deployment_zones = getMapDefinition(mapId).deployment_zones;
-    setupState.ai_setup = { version:'coop-1a', force_format:'tonnage', generated_force:[...aiRoster], generated_deployment:[...setupState.deployment_positions['3']], minefields:'deferred to SQL/163' };
-    // Resolve deployment zones through the team model with the NEW game's
-    // assignments, not the browser's previous match.
+    // Issue #12: the deployment generator used to run inside the object literal
+    // above, reading `setupState` within its own initializer — TDZ ReferenceError
+    // on every single coop creation. Beyond the throw, deployment zones are keyed
+    // per FORCE ('1'/'2'), so the seat→force map must be resolved against THIS
+    // game's team assignments before the AI's lance is placed; otherwise zones
+    // resolve against the browser's previous match (or the legacy seat==force
+    // default) and the AI lands on the humans' side.
     refreshCurrentTeamModel(setupState);
+    setupState.deployment_positions['3'] = buildVsAiDeployment(aiRoster, COOP_AI_SEAT, setupState);
+    setupState.ai_setup = { version:'coop-1a', force_format:'tonnage', generated_force:[...aiRoster], generated_deployment:[...setupState.deployment_positions['3']], minefields:'deferred to SQL/163' };
 
     const { data: game, error: gameErr } = await db.from('btech_games').insert({
       game_code:code, host_id:currentUser.id, catalogue_version:catalogueVersion,
