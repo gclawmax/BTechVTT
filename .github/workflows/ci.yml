@@ -21,4 +21,24 @@ jobs:
           CI_BASE_REF: ${{ github.event_name == 'push' && github.event.before || github.event.pull_request.base.sha }}
         run: node tools/check-cache-busters.mjs
       - name: Hermetic tests
-        run: bash tools/ci-hermetic-tests.sh
+        run: |
+          cd tools
+          set -o pipefail
+          echo "node $(node --version)"
+          RESULTS=""
+          CRASH=""
+          PASSED=0; FAILED=0
+          for t in $(grep '^test-' ci-hermetic-tests.sh); do
+            out=$(node "$t" 2>&1); rc=$?
+            if [ $rc -ne 0 ]; then
+              CRASH="$CRASH|$t rc=$rc :: $(echo "$out" | tail -2 | tr '\n' ' ' | cut -c1-220) "
+              FAILED=$((FAILED+1))
+            elif echo "$out" | grep -q FAIL; then
+              RESULTS="$RESULTS|$t GREPFAIL: $(echo "$out" | grep FAIL | head -2 | tr '\n' ' ' | cut -c1-200) "
+              FAILED=$((FAILED+1))
+            else PASSED=$((PASSED+1)); fi
+          done
+          echo "passed=$PASSED failed=$FAILED"
+          if [ -n "$CRASH" ]; then echo "::error::CRASHES ${CRASH:0:1800}"; fi
+          if [ -n "$RESULTS" ]; then echo "::error::GREPFAILS ${RESULTS:0:1800}"; fi
+          [ $FAILED -eq 0 ]
