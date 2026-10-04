@@ -1,59 +1,27 @@
--- SQL/163 — Complete Coop 1-a lobby authority (issues #13 + #14)
+-- SQL/163 — Coop deployment authority: force-based deployment zones (issue #15)
 --
--- Two closures, no changes to any other mode's behaviour:
---  (a) update_coop_skirmish_hangar: the hangar-write function the coop lobby
---      already calls (lobby.js saveSkirmishHangar) but which no migration
---      ever created. Without it, pick_own hangars in coop lobbies silently
---      lose every edit and no coop match can ever reach the start gate.
---  (b) set_match_deployment: coop games deploy by FORCE (team model), but the
---      live validator still used the historical per-seat column rule
---      (seat 2 must sit at column >= 11). In coop, seat 2 is the FRIENDLY
---      side, so the rule both rejected every legal coop deployment and would
---      have accepted deployments on the enemy's own edge.
+-- SCOPE CORRECTION (2026-10-04, live schema audit): an earlier revision of
+-- this file also defined a three-argument update_coop_skirmish_hangar.
+-- Auditing the LIVE schema proved that a five-argument
+-- update_coop_skirmish_hangar ALREADY EXISTS there (authored by SQL/162 and
+-- applied). The client's three-argument call therefore fails with PGRST202 as
+-- an ARITY MISMATCH, not as a missing function. That is fixed on the client
+-- side (calling the 5-arg signature properly), NOT by shadowing the working
+-- function with an overload. If you are holding an older copy of this file
+-- that CREATEs a three-argument update_coop_skirmish_hangar, discard it and
+-- paste this one instead.
+--
+-- What remains (the actual server gap): coop games deploy by FORCE (team
+-- model), but set_match_deployment (SQL/54 -> SQL/79) still used the
+-- historical per-seat column rule (seat 2 must sit at column >= 11). In coop,
+-- seat 2 is the FRIENDLY side, so the rule rejected every legal coop
+-- deployment (the client only offers the shared west side) and would have
+-- accepted deployments on the enemy's own edge.
 --
 -- Non-coop games (skirmish / vs AI / solo) keep byte-identical legacy rules:
 -- the seat==force assumption is wrapped, not rewritten.
 --
--- Run AFTER SQL/160 (team_assignments reader btech_seat_team), SQL/161 and
--- SQL/162. Safe to re-run: everything below is CREATE OR REPLACE.
-
--- ── (a) Coop hangar authority ─────────────────────────────────────────────
--- Mirrors update_skirmish_hangar (SQL/120 as amended by SQL/132) with three
--- coop differences: the caller's SEAT comes from their btech_players row and
--- must be 1 or 2 (the AI never edits hangars); a Readied seat is locked; and
--- the dropship tonnage is a TEAM-A SOFT cap (decision 1) — overage is allowed
--- here and confirmed by the host at Start, so this function does not reject
--- on tonnage. Per-unit support and ruleset legality ARE enforced server-side.
-CREATE OR REPLACE FUNCTION public.update_coop_skirmish_hangar(p_game_id uuid,p_hangar jsonb,p_deployed jsonb)
-RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
-DECLARE g btech_games%ROWTYPE;player btech_players%ROWTYPE;st jsonb;avatars jsonb;avatar jsonb;unit_ids jsonb;rosters jsonb;ruleset text;entry jsonb;pilot jsonb;normalized_hangar jsonb:='[]'::jsonb;
-BEGIN
- IF jsonb_typeof(p_hangar)<>'array' OR jsonb_typeof(p_deployed)<>'array' THEN RAISE EXCEPTION 'Hangar and deployment must be arrays';END IF;
- IF jsonb_array_length(p_hangar)>12 OR jsonb_array_length(p_deployed)>6 THEN RAISE EXCEPTION 'A Skirmish Hangar may hold 12 BattleMechs and deploy 6';END IF;
- IF EXISTS(SELECT 1 FROM jsonb_array_elements(p_hangar) item WHERE jsonb_typeof(item)<>'object' OR coalesce(item->>'id','')='' OR coalesce(item->>'unit_id','')='') THEN RAISE EXCEPTION 'Each hangar entry needs an id and unit id';END IF;
- IF (SELECT count(*) FROM jsonb_array_elements(p_hangar))<>(SELECT count(DISTINCT item->>'id') FROM jsonb_array_elements(p_hangar) item) THEN RAISE EXCEPTION 'Each Hangar BattleMech needs a unique id';END IF;
- FOR entry IN SELECT value FROM jsonb_array_elements(p_hangar) LOOP
-  pilot:=entry->'pilot';IF pilot IS NULL THEN pilot:=jsonb_build_object('id','pilot-'||(entry->>'id'),'name','MechWarrior','gunnery',4,'piloting',5);ELSE IF jsonb_typeof(pilot)<>'object' THEN RAISE EXCEPTION 'Each BattleMech pilot must be an object';END IF;IF length(btrim(coalesce(pilot->>'name','')))<1 OR length(btrim(pilot->>'name'))>48 THEN RAISE EXCEPTION 'Pilot names must be between 1 and 48 characters';END IF;IF coalesce(pilot->>'gunnery','') !~ '^[0-8]$' OR coalesce(pilot->>'piloting','') !~ '^[0-8]$' THEN RAISE EXCEPTION 'Gunnery and Piloting must be whole numbers from 0 to 8';END IF;pilot:=jsonb_build_object('id',coalesce(nullif(pilot->>'id',''),'pilot-'||(entry->>'id')),'name',btrim(pilot->>'name'),'gunnery',(pilot->>'gunnery')::int,'piloting',(pilot->>'piloting')::int);END IF;normalized_hangar:=normalized_hangar||jsonb_build_array(jsonb_set(entry,'{pilot}',pilot,true));
- END LOOP;
- SELECT * INTO g FROM btech_games WHERE id=p_game_id FOR UPDATE;
- IF NOT FOUND OR g.status<>'lobby' OR coalesce(g.match_type,'skirmish')<>'coop_skirmish' THEN RAISE EXCEPTION 'Coop hangars can be changed only in a coop lobby';END IF;
- SELECT * INTO player FROM btech_players WHERE game_id=p_game_id AND user_id=auth.uid() AND role='player';
- IF NOT FOUND OR player.seat_number NOT IN (1,2) THEN RAISE EXCEPTION 'Only the two human seats may edit hangars';END IF;
- IF player.ready THEN RAISE EXCEPTION 'A Readied seat is locked until the pilot un-readies';END IF;
- st:=CASE jsonb_typeof(g.state) WHEN 'string' THEN coalesce((g.state#>>'{}')::jsonb,'{}'::jsonb) WHEN 'object' THEN g.state ELSE '{}'::jsonb END;ruleset:=coalesce(st->>'ruleset','advanced_3060');
- IF EXISTS(SELECT 1 FROM jsonb_array_elements(normalized_hangar) item WHERE NOT EXISTS(SELECT 1 FROM btech_catalogue_units unit WHERE unit.catalogue_version=g.catalogue_version AND unit.unit_id=item->>'unit_id' AND coalesce((unit.definition->>'supported_by_vtt')::boolean,false) AND (NOT coalesce((unit.definition->>'custom_design')::boolean,false) OR (unit.definition->>'custom_owner_id'=auth.uid()::text AND NOT coalesce((unit.definition->>'custom_archived')::boolean,false))))) THEN RAISE EXCEPTION 'A hangar contains an unsupported, archived, or another player''s custom BattleMech';END IF;
- IF EXISTS(SELECT 1 FROM jsonb_array_elements(normalized_hangar) item WHERE NOT btech_ruleset_unit_allowed(g.catalogue_version,item->>'unit_id',ruleset)) THEN RAISE EXCEPTION 'A hangar contains a BattleMech unavailable under the % ruleset',ruleset;END IF;
- IF EXISTS(SELECT 1 FROM jsonb_array_elements_text(p_deployed) deployment(entry_id) WHERE NOT EXISTS(SELECT 1 FROM jsonb_array_elements(normalized_hangar) item WHERE item->>'id'=deployment.entry_id)) THEN RAISE EXCEPTION 'Only BattleMechs in your Hangar may be deployed';END IF;
- IF (SELECT count(*) FROM jsonb_array_elements_text(p_deployed))<>(SELECT count(DISTINCT entry_id) FROM jsonb_array_elements_text(p_deployed) deployment(entry_id)) THEN RAISE EXCEPTION 'A Hangar BattleMech may be deployed once';END IF;
- SELECT coalesce(jsonb_agg(sel.unit_id ORDER BY sel.ord),'[]'::jsonb) INTO unit_ids FROM (
-   SELECT dep.ord,(SELECT h.value->>'unit_id' FROM jsonb_array_elements(normalized_hangar) h WHERE h.value->>'id'=dep.entry_id LIMIT 1) AS unit_id
-   FROM jsonb_array_elements_text(p_deployed) WITH ORDINALITY dep(entry_id,ord)
- ) sel;
- avatars:=coalesce(st->'skirmish_avatars','{}'::jsonb);avatar:=coalesce(avatars->player.seat_number::text,jsonb_build_object('id','skirmish-'||p_game_id::text||'-p'||player.seat_number::text,'callsign','Coop Pilot P'||player.seat_number::text,'gunnery',4,'piloting',5));avatar:=jsonb_set(jsonb_set(avatar,'{hangar}',normalized_hangar,true),'{deployed}',p_deployed,true);avatars:=jsonb_set(avatars,ARRAY[player.seat_number::text],avatar,true);rosters:=jsonb_set(coalesce(st->'rosters','{}'::jsonb),ARRAY[player.seat_number::text],unit_ids,true);st:=jsonb_set(jsonb_set(st,'{skirmish_avatars}',avatars,true),'{rosters}',rosters,true);
- UPDATE btech_games SET state=st WHERE id=p_game_id;RETURN avatar;
-END $$;
-REVOKE ALL ON FUNCTION public.update_coop_skirmish_hangar(uuid,jsonb,jsonb) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.update_coop_skirmish_hangar(uuid,jsonb,jsonb) TO authenticated;
+-- Run AFTER SQL/160 (btech_seat_team), SQL/161 and SQL/162. Safe to re-run.
 
 -- ── (b) Deployment zones resolve per FORCE ────────────────────────────────
 -- Helper: which default column strip belongs to a force. Authored zones are
