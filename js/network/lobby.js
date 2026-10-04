@@ -460,12 +460,11 @@ function isRosterLegal(roster, tonnageLimit, ruleset = 'advanced_3060', gameStat
     const value = bv2RosterValue(units, gameState, seatNumber);
     return Boolean(value && value.adjusted <= bvLimit);
   }
-  // Coop 1-a: the tonnage cap is the friendly TEAM total (decision 1) — both
-  // pilots share one pool, so a single seat may exceed the per-seat limit so
-  // long as the team total stays under it. Non-coop matches keep per-seat.
-  if (isCoopSkirmish(gameState)) {
-    return units.length > 0 && coopTeamTonnageTotal(gameState, seatNumber) <= Number(tonnageLimit || 0);
-  }
+  // Issue #19 ruling (4 Oct, Matt): the coop team pool is a SOFT cap,
+  // negotiated by the players. Legality never blocks on tonnage here —
+  // a guest confirms an over-cap save, and Start re-confirms the overage
+  // with the host (handleStartGame). Non-coop matches keep per-seat caps.
+  if (isCoopSkirmish(gameState)) return true;
   return rosterTonnage(units) <= Number(tonnageLimit || 0);
 }
 
