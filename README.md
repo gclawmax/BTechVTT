@@ -87,6 +87,22 @@ It uses the existing dedicated regression accounts by default and creates
 disposable matches. `BT_BATTLE_SUITE=quick` skips the longer focused rules
 battle; `BT_BATTLE_SUITE=list` shows the planned checks without running them.
 
+## Hermetic test suites (no network, ~5 seconds)
+
+`tools/ci-hermetic-tests.sh` runs every pure-Node suite (they need no login,
+database, or browser). Run them all locally with:
+
+```bash
+bash tools/ci-hermetic-tests.sh
+```
+
+The same script runs in GitHub Actions on every push and pull request,
+together with a whole-tree syntax check and the cache-buster drift guard. To
+add a suite: drop a `test-*.mjs` into `tools/` that prints `PASS`/`FAIL`
+lines and exits non-zero on failure, then add its filename to the list at the
+top of the script. Suites that need Supabase or a browser do NOT belong there
+— keep them in the live lanes above so CI stays deterministic and offline.
+
 ## Design Notes
 
 - **Hex coordinate system:** Flat-top hexes, odd-q vertical offset layout (matching printed BattleTech maps)

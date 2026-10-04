@@ -15,6 +15,7 @@ test-bv2-skill-values.mjs
 test-bv3-match-creation.mjs
 test-bv4-career-contracts.mjs
 test-coop-match-creation.mjs
+test-coop-lobby-authority-sql.mjs
 test-career-ai-activation-bridge.mjs
 test-game-modes-matrix.mjs
 test-heat-mobility-equipment-regression.mjs
