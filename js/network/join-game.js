@@ -27,13 +27,24 @@ async function handleJoinGame() {
     isReady = false;
     vsAiMode = false;
 
-    // Find available seat (2 for now)
-    const { data: existingPlayers } = await db
+    // Issue #20: a rejoin by a pilot who already holds a seat must RESUME
+    // that seat. Filling only empty seats reported a rejoiner's own seat as
+    // 'This game lobby is already full.', locking humans out after a refresh.
+    const { data: lobbyRoster } = await db
       .from('btech_players')
-      .select('seat_number')
+      .select('user_id,seat_number,ready,is_ai')
       .eq('game_id', currentGameId);
 
-    const occupiedSeats = new Set((existingPlayers || []).map(p => p.seat_number));
+    const myLobbySeat = (lobbyRoster || []).find(p => p.user_id === currentUser.id && !p.is_ai);
+    if (myLobbySeat) {
+      mySeatNumber = myLobbySeat.seat_number;
+      isReady = !!myLobbySeat.ready;
+      await loadLobby();
+      showScreen('lobby-screen');
+      return;
+    }
+
+    const occupiedSeats = new Set((lobbyRoster || []).map(p => p.seat_number));
     const seatNumber = [1, 2].find(seat => !occupiedSeats.has(seat));
     if (!seatNumber) {
       alert('This game lobby is already full.');
