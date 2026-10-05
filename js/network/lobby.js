@@ -490,9 +490,30 @@ function rosterSummaryForSeat(gameState, seatNumber) {
 async function saveSkirmishHangar(hangar, deployed) {
   const { data: game } = await db.from('btech_games').select('state').eq('id', currentGameId).single();
   const state = game?.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
-  const { error } = await db.rpc(isCoopSkirmish(state) ? 'update_coop_skirmish_hangar' : 'update_skirmish_hangar', {
-    p_game_id: currentGameId, p_hangar: hangar, p_deployed: deployed
-  });
+  let rpcName = 'update_skirmish_hangar';
+  let rpcArgs = { p_game_id: currentGameId, p_hangar: hangar, p_deployed: deployed };
+  if (isCoopSkirmish(state)) {
+    // Coop runs through update_coop_skirmish_hangar (SQL/162): the target seat
+    // is explicit, the permission gate is btech_coop_loadout_editable, and the
+    // shared team-A dropship pool is a SOFT cap (decision 1) — saving an
+    // over-cap force requires an explicit confirmation flag, never a silent
+    // bypass. A three-argument call would fail PGRST202 (arity mismatch),
+    // which is why issue #13 read like a missing function.
+    const unitMass = unitId => Number(getSupportedUnit(unitId)?.tonnage || 0);
+    const deployedUnits = hangar.filter(entry => deployed.includes(entry.id)).map(entry => entry.unit_id);
+    const teamSeats = (Array.isArray(state.team_assignments?.A) ? state.team_assignments.A : [1, 2]).filter(seat => seat !== mySeatNumber);
+    const prospectiveTotal = deployedUnits.reduce((sum, unitId) => sum + unitMass(unitId), 0)
+      + teamSeats.reduce((sum, seat) => sum + ((state.rosters?.[String(seat)] || []).reduce((total, unitId) => total + unitMass(unitId), 0)), 0);
+    const cap = Number(state.dropship_tonnage || 0);
+    let overageConfirmed = false;
+    if (cap > 0 && prospectiveTotal > cap) {
+      overageConfirmed = confirm(`The friendly team total would be ${prospectiveTotal} of ${cap} tons (over the shared dropship tonnage).\n\nSave anyway? The soft cap stays a host decision, confirmed again at Start.`);
+      if (!overageConfirmed) return false;
+    }
+    rpcName = 'update_coop_skirmish_hangar';
+    rpcArgs = { p_game_id: currentGameId, p_target_seat: mySeatNumber, p_hangar: hangar, p_deployed: deployed, p_overage_confirmed: overageConfirmed };
+  }
+  const { error } = await db.rpc(rpcName, rpcArgs);
   if (error) {
     console.error('Failed to save Skirmish Hangar:', error);
     document.getElementById('lobby-status').textContent = `Skirmish Hangar could not be saved: ${error.message}`;
