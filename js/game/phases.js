@@ -156,6 +156,10 @@ async function loadGameState() {
     initiative_rolls: gameState.initiative_rolls || [],
     initiative_round: gameState.initiative_round ?? null,
     initiative_pending: gameState.initiative_pending || [],
+    // Coop markers survive the rebuild so phases.js can branch on force-mode
+    // initiative without reaching back into the raw snapshot.
+    match_type: gameState.match_type || null,
+    coop: gameState.coop ?? null,
     phase_activation: gameState.phase_activation || null,
     match_result: gameState.match_result || null
   };
@@ -306,9 +310,11 @@ function updateGameHeader() {
       if (guidanceEl) guidanceEl.textContent = `Waiting for ${activeLabel} to finish. ${phaseGuidance[currentGameState.phase] || ''}`;
     }
   } else if (currentGameState.phase === 'initiative') {
-    const iHaveRolled = currentGameState.initiative_pending.some(roll =>
-      (typeof roll === 'string' ? roll : roll.player_id) === myInitiativePlayerId
-    );
+    const iHaveRolled = coopPhaseMode(currentGameState)
+      ? forceRollSubmittedThisRound()
+      : currentGameState.initiative_pending.some(roll =>
+        (typeof roll === 'string' ? roll : roll.player_id) === myInitiativePlayerId
+      );
     const canRoll = vsAiMode ? isHost : mySeatNumber != null && !iHaveRolled;
     if (canRoll && currentGameState.initiative_round !== currentGameState.round) {
       statusEl.textContent += ' — YOUR ROLL';
@@ -333,6 +339,16 @@ function updateGameHeader() {
 
 let initiativeRollInFlight = false;
 
+// Force-mode round 1+ tracking: the per-force roll resolves atomically on the
+// server (no per-seat waiting window), so "already submitted" is simply "the
+// round's initiative is no longer open". The unique (game, round, force_key)
+// index blocks any second click server-side regardless.
+function forceRollSubmittedThisRound() {
+  return !currentGameState || currentGameState.phase !== 'initiative'
+    || (currentGameState.initiative_round != null
+        && currentGameState.initiative_round === currentGameState.round);
+}
+
 function updateInitiativeButtonState() {
   const initBtn = document.getElementById('btn-roll-initiative');
   if (!initBtn) return;
@@ -340,12 +356,17 @@ function updateInitiativeButtonState() {
   // outside that phase keeps the shared-game header focused on current play.
   initBtn.hidden = currentGameState.phase !== 'initiative';
   const alreadyRolled = currentGameState.initiative_round === currentGameState.round;
-  const iHaveRolled = currentGameState.initiative_pending.some(roll =>
-    (typeof roll === 'string' ? roll : roll.player_id) === myInitiativePlayerId
-  );
-  const canRoll = vsAiMode
-    ? isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
-    : mySeatNumber != null && currentGameState.phase === 'initiative' && !alreadyRolled && !iHaveRolled && !currentGameState.match_result;
+  const iHaveRolled = coopPhaseMode(currentGameState)
+    ? forceRollSubmittedThisRound()
+    : currentGameState.initiative_pending.some(roll =>
+      (typeof roll === 'string' ? roll : roll.player_id) === myInitiativePlayerId
+    );
+  const canRoll = coopPhaseMode(currentGameState)
+    ? (vsAiMode ? isHost : mySeatNumber != null)
+      && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
+    : vsAiMode
+      ? isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
+      : mySeatNumber != null && currentGameState.phase === 'initiative' && !alreadyRolled && !iHaveRolled && !currentGameState.match_result;
   // The server does not permit either player to roll until both Round 1
   // loadouts are committed. Check the whole battlefield here as well, so the
   // button never encourages a roll the server must reject.
@@ -567,8 +588,54 @@ async function rollInitiative() {
   }
 }
 
+// Coop detection is duplicated from lobby.js ON PURPOSE: a classic <script>
+// top-level function is a window property and phases.js runs before
+// network/*.js loads, so `typeof isCoopSkirmish` would permanently misreport
+// false here. Match_type is the marker on the rebuilt snapshot; the coop
+// object is the legacy marker kept for older games.
+function coopPhaseMode(state) {
+  return state?.match_type === 'coop_skirmish' || state?.coop === true
+    || (state?.coop && typeof state.coop === 'object');
+}
+
 async function submitInitiativeRoll() {
   if (!currentGameId || currentGameState.match_result) return;
+
+  // Coop (issue #21 ruling): initiative is ONE roll per force. Either pilot
+  // may roll for the friendly force; the server generates the enemy force
+  // roll authoritatively, so no client ever sees it early. Ties clear and
+  // re-roll, gated per attempt (initiative_attempts) server-side.
+  if (coopPhaseMode(currentGameState)
+      && (vsAiMode ? isHost : mySeatNumber != null)) {
+    initiativeRollInFlight = true;
+    updateInitiativeButtonState();
+    const dice = roll2d6Detailed();
+    try {
+      const { data, error } = await db.rpc('submit_coop_initiative_roll', {
+        p_game_id: currentGameId,
+        p_die_a: dice.dieA,
+        p_die_b: dice.dieB
+      });
+      // A scalar RPC returns the function payload directly; a composite RPC
+      // returns one row object. Accept either shape.
+      const result = { ...(data && typeof data === 'object' ? data : {}) };
+      if (error) {
+        logEvent(`Failed to submit initiative: ${error.message}`, 'error');
+        return;
+      }
+      if (result.status === 'tie') {
+        logEvent(`Initiative tie — ${result.summary || 'both forces rolled the same total'}. Both forces re-roll.`, 'roll');
+      } else if (result.status === 'resolved') {
+        logEvent(`Initiative resolved — ${result.summary}`, 'roll');
+      } else {
+        logEvent('Initiative rolled for the friendly force.', 'roll');
+      }
+    } finally {
+      initiativeRollInFlight = false;
+      await loadGameState();
+    }
+    return;
+  }
 
   // Human-versus-human initiative is deliberately submitted separately by
   // each seat. The database resolves the order only after both rolls arrive.

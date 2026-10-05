@@ -15,6 +15,8 @@ test-bv2-skill-values.mjs
 test-bv3-match-creation.mjs
 test-bv4-career-contracts.mjs
 test-coop-match-creation.mjs
+test-coop-force-initiative-contract.mjs
+test-coop-force-initiative-sql.cjs
 test-coop-lobby-authority-sql.mjs
 test-career-ai-activation-bridge.mjs
 test-game-modes-matrix.mjs
