@@ -786,12 +786,16 @@ async function handleSetLobbyLoadoutMode(seat, index, mode) {
   } finally { showLoading(false); }
 }
 
-async function handleForceLobbyReady(seat) {
+async function handleForceLobbyReady(seat, nextReady = true) {
+  // Deployed signature is force_lobby_ready(p_game_id, p_seat, p_ready)
+  // (SQL/162). The old {p_seat_number} call matched no overload, so the coop
+  // host's force-ready button could never work.
   if (!isHost || !currentGameId || !([1, 2].includes(Number(seat)))) return;
-  if (!confirm(`Force seat ${seat} ready status?`)) return;
+  const target = nextReady !== false;
+  if (!confirm(`Mark seat ${seat} ${target ? 'Ready' : 'Unready'}?`)) return;
   showLoading(true);
   try {
-    const { error } = await db.rpc('force_lobby_ready', { p_game_id: currentGameId, p_seat_number: Number(seat) });
+    const { error } = await db.rpc('force_lobby_ready', { p_game_id: currentGameId, p_seat: Number(seat), p_ready: target });
     if (error) { alert('Ready status not changed: ' + error.message); return; }
     loadLobby();
   } finally { showLoading(false); }
@@ -808,7 +812,7 @@ function renderCoopLobbySetup(gameState, players, settingsEl, rosterSection, ros
     const player = players.find(p => p.seat_number === seat);
     const label = seat === 1 ? `${player?.ready ? 'Host (you)' : 'Host (you)'} — seat 1` : `Commander ${seat} — seat 2`;
     const status = seat === 1 ? (player?.ready ? 'Ready' : 'Not ready') : (player ? (player.ready ? 'Ready' : 'Not ready') : 'Waiting for a pilot');
-    return `<div class="coop-force-side"><strong>${label}</strong><br>${totals.seats.find(t => t.seat === seat)?.count || 0} BattleMech${(totals.seats.find(t => t.seat === seat)?.count || 0) === 1 ? '' : 's'} · ${totals.seats.find(t => t.seat === seat)?.total || 0} tons<br>${status}${isHost && seat === 2 ? ` · <button type="button" onclick="handleForceLobbyReady(2)">Toggle ready</button>` : ''}</div>`;
+    return `<div class="coop-force-side"><strong>${label}</strong><br>${totals.seats.find(t => t.seat === seat)?.count || 0} BattleMech${(totals.seats.find(t => t.seat === seat)?.count || 0) === 1 ? '' : 's'} · ${totals.seats.find(t => t.seat === seat)?.total || 0} tons<br>${status}${isHost && seat === 2 ? ` · <button type="button" onclick="handleForceLobbyReady(${seat}, ${player?.ready ? 'false' : 'true'})">${player?.ready ? 'Unready' : 'Mark ready'}</button>` : ''}</div>`;
   }).join('');
   const overCap = totals.teamTotal > limit;
   const capNote = overCap
@@ -1240,7 +1244,20 @@ async function handleStartGame() {
   // SQL 123 forbids replacing units after play starts. Persist the complete
   // configured roster before any human or AI phase action can be submitted.
   gameState.mech_instances = buildRosterInstances(gameState.rosters, gameState.skirmish_avatars, gameState.deployment_positions, gameState.c3_assignments, gameState);
-  if (vsAiMode && typeof prepareAIAmmoLoadouts === 'function') prepareAIAmmoLoadouts(gameState.mech_instances);
+  if (vsAiMode && typeof prepareAIAmmoLoadouts === 'function') {
+    // Solo vs-AI keeps the AI on seat 2; coop 1-a parks the AI on team B
+    // (seat 3). Seed every B seat that no human pilots. Roster presence is
+    // NOT proof of a human driver — the coop AI roster is generated — so
+    // gate on seated humans. Without seeded loadouts the battlefield-wide
+    // initiative ammo gate waits on a force nobody pilots and both coop
+    // pilots deadlock at Initiative.
+    let aiSeats = [2];
+    if (isCoopSkirmish(gameState)) {
+      const humanSeats = new Set(players.filter(p => !p.is_ai).map(p => Number(p.seat_number)));
+      aiSeats = (btBuildTeamModel(gameState).teamSeats.B || []).filter(s => !humanSeats.has(Number(s)));
+    }
+    prepareAIAmmoLoadouts(gameState.mech_instances, aiSeats);
+  }
   gameState.vs_ai_mode = vsAiMode;
   gameState.ai_difficulty = aiDifficulty;
   gameState.ai_personality = aiPersonality;

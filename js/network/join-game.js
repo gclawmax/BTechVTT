@@ -39,6 +39,13 @@ async function handleJoinGame() {
     if (myLobbySeat) {
       mySeatNumber = myLobbySeat.seat_number;
       isReady = !!myLobbySeat.ready;
+      // Issue #20 follow-up: resume must also restore the host flag or the
+      // rejoining host's Start Game stays permanently disabled (the coop
+      // start gate requires isHost). vsAiMode is re-derived from the fresh
+      // state by loadLobbyUI; do not trust the pre-join default here.
+      isHost = game.host_id === currentUser.id;
+      const resumedState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+      if (typeof resumedState.vs_ai_mode === 'boolean') vsAiMode = resumedState.vs_ai_mode;
       await loadLobby();
       showScreen('lobby-screen');
       return;

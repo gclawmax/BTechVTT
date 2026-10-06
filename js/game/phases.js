@@ -362,7 +362,13 @@ function updateInitiativeButtonState() {
       (typeof roll === 'string' ? roll : roll.player_id) === myInitiativePlayerId
     );
   const canRoll = coopPhaseMode(currentGameState)
-    ? (vsAiMode ? isHost : mySeatNumber != null)
+    // Coop: one roll per force. Only the FRIENDLY force (seats 1 & 2) ever
+    // rolls from a client; its pilots declare their own ammo and either one
+    // may roll for the team (issue #21 ruling). The enemy force is AI-held
+    // in coop 1-a (server-generated roll) — if a human ever seats on team B,
+    // no coop RPC is offered rather than letting a friendly-force roll land
+    // in the enemy slot.
+    ? ([1, 2].includes(mySeatNumber) || (vsAiMode && isHost))
       && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
     : vsAiMode
       ? isHost && currentGameState.phase === 'initiative' && !alreadyRolled && !currentGameState.match_result
@@ -607,10 +613,10 @@ async function submitInitiativeRoll() {
   // re-roll, gated per attempt (initiative_attempts) server-side.
   if (coopPhaseMode(currentGameState)
       && (vsAiMode ? isHost : mySeatNumber != null)) {
-    initiativeRollInFlight = true;
-    updateInitiativeButtonState();
-    const dice = roll2d6Detailed();
     try {
+      initiativeRollInFlight = true;
+      updateInitiativeButtonState();
+      const dice = roll2d6Detailed();
       const { data, error } = await db.rpc('submit_coop_initiative_roll', {
         p_game_id: currentGameId,
         p_die_a: dice.dieA,
@@ -621,9 +627,7 @@ async function submitInitiativeRoll() {
       const result = { ...(data && typeof data === 'object' ? data : {}) };
       if (error) {
         logEvent(`Failed to submit initiative: ${error.message}`, 'error');
-        return;
-      }
-      if (result.status === 'tie') {
+      } else if (result.status === 'tie') {
         logEvent(`Initiative tie — ${result.summary || 'both forces rolled the same total'}. Both forces re-roll.`, 'roll');
       } else if (result.status === 'resolved') {
         logEvent(`Initiative resolved — ${result.summary}`, 'roll');
@@ -631,6 +635,9 @@ async function submitInitiativeRoll() {
         logEvent('Initiative rolled for the friendly force.', 'roll');
       }
     } finally {
+      // A rejected RPC (or a thrown fetch) must not strand the client with
+      // the roll stuck in-flight and a stale local snapshot; clear the flag
+      // and resync either way.
       initiativeRollInFlight = false;
       await loadGameState();
     }

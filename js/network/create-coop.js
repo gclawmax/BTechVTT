@@ -98,6 +98,10 @@ async function createCoopGame({ mapId, dropshipTonnage, victoryMode = 'annihilat
       objective_hexes:validMode === 'control' ? objectiveHexesForMap(mapId) : [],
       objective_scores:{ '1':0,'2':0 },
       vs_ai_mode:true,
+      // SQL/164's server gate keys per-force initiative off this exact marker
+      // (state.coop === true). Without it every real coop game dies at
+      // "Per-force initiative is only available in coop matches".
+      coop:true,
       ai_difficulty:AI_DIFFICULTY_KEYS.includes(difficulty) ? difficulty : 'beginner',
       ai_personality:AI_PERSONALITY_KEYS.includes(personality) ? personality : 'balanced',
       ai_seed:aiSeed, ai_engine_version:BT_AI_ENGINE_VERSION, ai_decisions:[],

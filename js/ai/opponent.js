@@ -573,9 +573,16 @@ function aiWeaponModes(weaponEntry) {
 // immutable Round 1 ammunition. Give every specialised AI bin a conservative
 // legal default before the match is persisted. The planner may choose among
 // bins and weapon modes later, but it may never invent a loadout mid-battle.
-function prepareAIAmmoLoadouts(units) {
+// Round-1 special-ammo seeding for AI-held units. Default keeps the historic
+// solo-vs-AI behaviour (AI sits on seat 2). Coop 1-a puts the AI on seat 3
+// (team B), so the caller must pass the AI seats explicitly: without seeded
+// loadouts the shared initiative ammo gate — which checks the WHOLE
+// battlefield, by design, so PvP loadouts stay committed before rolling —
+// waits on a force nobody pilots and both coop pilots deadlock at Initiative.
+function prepareAIAmmoLoadouts(units, aiSeats = [2]) {
+  const aiSeatSet = new Set(aiSeats.map(Number));
   for (const mech of units || []) {
-    if (Number(mech.owner) !== 2) continue;
+    if (!aiSeatSet.has(Number(mech.owner))) continue;
     mech.ammoBins = (mech.ammoBins || []).map(bin => {
       if (bin.loadType) return bin;
       let loadType = null;
