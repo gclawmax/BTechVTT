@@ -611,8 +611,13 @@ async function submitInitiativeRoll() {
   // may roll for the friendly force; the server generates the enemy force
   // roll authoritatively, so no client ever sees it early. Ties clear and
   // re-roll, gated per attempt (initiative_attempts) server-side.
+  // NOTE: coop shells carry vs_ai_mode=true (the seat-3 AI), so the old
+  // `vsAiMode ? isHost` shape made seat 2 fall through to `if (!isHost)
+  // return` — a silently dead roll button that contradicts the either-pilot
+  // ruling. Friendly-force seats 1 & 2 may roll; guard matches the
+  // button-enable rule in updateInitiativeButtonState.
   if (coopPhaseMode(currentGameState)
-      && (vsAiMode ? isHost : mySeatNumber != null)) {
+      && ([1, 2].includes(mySeatNumber) || (vsAiMode && isHost))) {
     try {
       initiativeRollInFlight = true;
       updateInitiativeButtonState();
