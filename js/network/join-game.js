@@ -12,11 +12,11 @@ async function handleJoinGame() {
       .from('btech_games')
       .select('*')
       .eq('game_code', code)
-      .eq('status', 'lobby')
+      .in('status', ['lobby', 'in-progress'])
       .single();
 
     if (error || !game) {
-      alert('Game not found or not in lobby. Check the code and try again.');
+      alert('Game not found. Check the code and try again.');
       return;
     }
 
@@ -39,8 +39,27 @@ async function handleJoinGame() {
     if (myLobbySeat) {
       mySeatNumber = myLobbySeat.seat_number;
       isReady = !!myLobbySeat.ready;
+      // Issue #20 follow-up: resume must also restore the host flag or the
+      // rejoining host's Start Game stays permanently disabled (the coop
+      // start gate requires isHost). vsAiMode is re-derived from the fresh
+      // state by loadLobbyUI; do not trust the pre-join default here.
+      isHost = game.host_id === currentUser.id;
+      const resumedState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
+      if (typeof resumedState.vs_ai_mode === 'boolean') vsAiMode = resumedState.vs_ai_mode;
+      if (game.status === 'in-progress') {
+        // Mid-match rejoin (refresh after a disconnect): go straight back to
+        // the live game screen. Seat and flags are restored above; the game
+        // screen pulls authoritative state itself.
+        await startGameScreen();
+        return;
+      }
       await loadLobby();
       showScreen('lobby-screen');
+      return;
+    }
+
+    if (game.status !== 'lobby') {
+      alert('That match is already in progress — only pilots who already hold a seat there can rejoin.');
       return;
     }
 

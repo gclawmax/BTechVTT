@@ -39,12 +39,29 @@ async function waitForScreen(page, id, timeout = 20000) {
   }
   return false;
 }
+// See test-human-vs-human.mjs: same bootstrap-integrity guards.
+async function waitForRealPage(page, attempts = 4) {
+  for (let i = 0; i < attempts; i++) {
+    const ok = await page.waitForFunction(() => typeof window.handleCreateGame === 'function' && typeof window.handleJoinGame === 'function',
+      null, { timeout: 12000 }).then(() => true).catch(() => false);
+    if (ok) return true;
+    await page.reload({ waitUntil: 'load', timeout: 45000 }).catch(() => {});
+  }
+  return false;
+}
+const isSignedInAs = (page, user) => page.evaluate(u => {
+  try { return !!currentUser && String(currentUser.email || '').toLowerCase() === `${u}@freegames.com`; }
+  catch { return false; }
+}, user.toLowerCase());
+
 async function signIn(page, credentials) {
-  await page.goto(BASE, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
+  await page.goto(BASE, { waitUntil: 'load', timeout: 45000 }).catch(() => {});
+  if (!await waitForRealPage(page)) throw new Error(`Page never loaded the game scripts at ${BASE} (asset loads kept failing after reloads).`);
+  if (await isSignedInAs(page, credentials.user)) return;
   await page.fill('#login-username', credentials.user);
   await page.fill('#login-password', credentials.pass);
   await page.click('#btn-login');
-  if (!await waitForScreen(page, 'menu-screen', 15000)) throw new Error(`Could not sign in as ${credentials.user}`);
+  if (!(await waitForScreen(page, 'menu-screen', 15000) && await isSignedInAs(page, credentials.user))) throw new Error(`Could not sign in as ${credentials.user}`);
 }
 async function latestHostMatch(page) {
   return page.evaluate(async () => {
@@ -166,8 +183,24 @@ async function combatWeaponFixtures(page, catalogueVersion) {
     return { indirect:missileFixture('artemisCapable'), narc:missileFixture('narcCapable'), prone };
   }, catalogueVersion);
 }
+// Choices mirror the deployed authority exactly (SQL 116
+// btech_special_ammo_load_types + SQL 155 pending-gate): under
+// special_ammo_setup_v1 EVERY bin type with more than one load type must
+// carry a loadType or submit_initiative_roll refuses. The old hand-written
+// list omitted lrm/mml/atm/tbolt and silently under-submitted; derive from
+// the server map instead of re-typing it. PLAIN OBJECT ONLY: it travels into
+// page.evaluate, which refuses to serialize functions (an arrow here failed
+// the whole focused stage with 'unable to serialize choicesByType').
+const btSpecialAmmoChoices = {
+  lb10x: ['slug', 'cluster'],
+  srm2: ['standard', 'inferno', 'fragmentation'], srm4: ['standard', 'inferno', 'fragmentation'], srm6: ['standard', 'inferno', 'fragmentation'],
+  ac2: ['standard', 'precision', 'armor_piercing', 'flechette'], ac5: ['standard', 'precision', 'armor_piercing', 'flechette'], ac10: ['standard', 'precision', 'armor_piercing', 'flechette'], ac20: ['standard', 'precision', 'armor_piercing', 'flechette'],
+  lrm5: ['standard', 'semi_guided', 'fragmentation'], lrm10: ['standard', 'semi_guided', 'fragmentation'], lrm15: ['standard', 'semi_guided', 'fragmentation'], lrm20: ['standard', 'semi_guided', 'fragmentation'],
+  mml3: ['lrm', 'srm'], mml5: ['lrm', 'srm'], mml7: ['lrm', 'srm'], mml9: ['lrm', 'srm'],
+  atm3: ['standard', 'er', 'he'], atm6: ['standard', 'er', 'he'], atm9: ['standard', 'er', 'he'], atm12: ['standard', 'er', 'he']
+};
 async function submitDesiredAmmoLoadout(page, gameId, ownerSeat, desiredType) {
-  return page.evaluate(async ({ gameId, ownerSeat, desiredType }) => {
+  return page.evaluate(async ({ gameId, ownerSeat, desiredType, choicesByType }) => {
     const { data: game, error: readError } = await db.from('btech_games').select('state').eq('id', gameId).single();
     if (readError) return { data: null, error: { message: readError.message, code: readError.code } };
     const state = typeof game.state === 'string' ? JSON.parse(game.state) : game.state;
@@ -175,20 +208,23 @@ async function submitDesiredAmmoLoadout(page, gameId, ownerSeat, desiredType) {
     for (const mech of state.mech_instances || []) {
       if (mech.owner !== ownerSeat) continue;
       for (const bin of mech.ammoBins || []) {
-        const choices = bin.type === 'lb10x' ? ['slug', 'cluster']
-          : ['srm2', 'srm4', 'srm6'].includes(bin.type) ? ['standard', 'inferno']
-            : ['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type) ? ['standard', 'precision'] : [];
-        if (choices.length) loadouts[`${mech.instanceId}:${bin.id}`] = choices.includes(desiredType) ? desiredType : choices[0];
+        const choices = choicesByType[bin.type] || [];
+        if (choices.length > 1) loadouts[`${mech.instanceId}:${bin.id}`] = choices.includes(desiredType) ? desiredType : choices[0];
       }
     }
     const result = await db.rpc('submit_round_one_ammo_loadout', { p_game_id: gameId, p_loadouts: loadouts });
     return { data: result.data, error: result.error ? { message: result.error.message, code: result.error.code } : null, loadouts };
-  }, { gameId, ownerSeat, desiredType });
+  }, { gameId, ownerSeat, desiredType, choicesByType: btSpecialAmmoChoices });
 }
 
-const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
-const hostContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-const guestContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+// BT_RIG_BROWSER_MODE=isolated: one browser process per player (see main harness).
+const launchBrowser = () => chromium.launch({ headless: true, ...(process.env.BT_PW_CHANNEL ? { channel: process.env.BT_PW_CHANNEL } : {}), args: ['--no-sandbox', '--disable-dev-shm-usage'] }); // default: bundled shell; BT_PW_CHANNEL=chrome opts system Chrome back in
+const isolatedBrowsers = process.env.BT_RIG_BROWSER_MODE === 'isolated';
+const hostBrowser = await launchBrowser();
+const guestBrowser = isolatedBrowsers ? await launchBrowser() : hostBrowser;
+const makeContext = browser => browser.newContext({ viewport: { width: 1280, height: 900 } });
+const hostContext = await makeContext(hostBrowser);
+const guestContext = await makeContext(isolatedBrowsers ? guestBrowser : hostBrowser);
 const host = await hostContext.newPage();
 const guest = await guestContext.newPage();
 const errors = [];
@@ -492,9 +528,15 @@ try {
     const state = typeof data?.state === 'string' ? JSON.parse(data.state) : data?.state;
     return { bins: (state?.mech_instances || []).flatMap(mech => (mech.ammoBins || []).map(bin => ({ ...bin, owner: mech.owner }))), error: error?.message || null };
   }, game.id);
+  const precisionBin = bin => (btSpecialAmmoChoices[bin.type] || []).includes('precision');
   const liveInfernoBins = loadedBins.bins?.filter(bin => bin.owner === 1 && ['srm2', 'srm4', 'srm6'].includes(bin.type)) || [];
-  const livePrecisionBins = loadedBins.bins?.filter(bin => bin.owner === 2 && ['ac2', 'ac5', 'ac10', 'ac20'].includes(bin.type)) || [];
+  const livePrecisionBins = loadedBins.bins?.filter(bin => bin.owner === 2 && precisionBin(bin)) || [];
   check('Round 1 persists Inferno loads and halves Precision bin capacity', !loadedBins.error && liveInfernoBins.length > 0 && liveInfernoBins.every(bin => bin.loadType === 'inferno') && livePrecisionBins.length > 0 && livePrecisionBins.every(bin => bin.loadType === 'precision' && bin.shots === Math.max(1, Math.floor(bin.standardShots / 2))), JSON.stringify(loadedBins));
+  // The FINAL word belongs to the server: assert the authoritative gate
+  // directly — no bin may still have an EMPTY loadType (that is exactly the
+  // condition SQL 155's btech_ammunition_setup_pending raises on).
+  const pendingAfter = { pending: (loadedBins.bins || []).filter(b => !b.loadType && ((btSpecialAmmoChoices[b.type] || []).length > 1 || b.type === 'lb10x')).map(b => `${b.owner}:${b.id}:${b.type}`) };
+  check('the authoritative pending-bins gate reports nothing left before Initiative', pendingAfter.pending.length === 0, JSON.stringify(pendingAfter));
   const loadedHostRoll = await rpc(host, 'submit_initiative_roll', { p_game_id: game.id, p_die_a: 1, p_die_b: 2 });
   const loadedGuestRoll = await rpc(guest, 'submit_initiative_roll', { p_game_id: game.id, p_die_a: 5, p_die_b: 6 });
   check('Initiative unlocks only after both specialised loadouts are saved', !loadedHostRoll.error && !loadedGuestRoll.error && loadedGuestRoll.data?.status === 'resolved', JSON.stringify({ loadedHostRoll, loadedGuestRoll }));
@@ -554,7 +596,8 @@ try {
   if (REPORT_PATH && (failures.length || skippedCoverage.length)) await writeFile(REPORT_PATH, JSON.stringify({ passed:failures.length === 0, gameCode, failures, errors, skippedCoverage }, null, 2));
   console.log('\n--- console/page errors ---');
   console.log(errors.join('\n') || '(none)');
-  await browser.close();
+  await hostBrowser.close();
+  if (guestBrowser !== hostBrowser) await guestBrowser.close();
 }
 
 if (failures.length) {

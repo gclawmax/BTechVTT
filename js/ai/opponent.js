@@ -573,9 +573,16 @@ function aiWeaponModes(weaponEntry) {
 // immutable Round 1 ammunition. Give every specialised AI bin a conservative
 // legal default before the match is persisted. The planner may choose among
 // bins and weapon modes later, but it may never invent a loadout mid-battle.
-function prepareAIAmmoLoadouts(units) {
+// Round-1 special-ammo seeding for AI-held units. Default keeps the historic
+// solo-vs-AI behaviour (AI sits on seat 2). Coop 1-a puts the AI on seat 3
+// (team B), so the caller must pass the AI seats explicitly: without seeded
+// loadouts the shared initiative ammo gate — which checks the WHOLE
+// battlefield, by design, so PvP loadouts stay committed before rolling —
+// waits on a force nobody pilots and both coop pilots deadlock at Initiative.
+function prepareAIAmmoLoadouts(units, aiSeats = [2]) {
+  const aiSeatSet = new Set(aiSeats.map(Number));
   for (const mech of units || []) {
-    if (Number(mech.owner) !== 2) continue;
+    if (!aiSeatSet.has(Number(mech.owner))) continue;
     mech.ammoBins = (mech.ammoBins || []).map(bin => {
       if (bin.loadType) return bin;
       let loadType = null;
@@ -1083,8 +1090,17 @@ async function aiTurnHandler() {
     const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
     const difficulty = gameState.ai_difficulty || window.aiDifficulty || 'beginner';
 
+    // Scope the plan to the seat currently on turn. The live-state branch of
+    // generateAIPlan fell back to a hard-coded seat 2, which is wrong for
+    // coop matches where the enemy AI sits at seat 3: the plan then contained
+    // seat 2's 'Mech and the server rejected it with "act with another seat's
+    // BattleMech" (SQL/123 guard). Passing the active player makes both the
+    // requestedPlayer lookup and the authority check agree on one seat.
+    const activePlayer = (gameState.initiative_order || []).find(
+      p => p.player_id === currentGameState.active_player_id) || null;
+
     // Generate AI plan
-    const aiPlan = generateAIPlan(difficulty, null, gameState, []);
+    const aiPlan = generateAIPlan(difficulty, currentGameState.active_player_id, gameState, activePlayer ? [activePlayer] : []);
 
     // Execute AI plan
     const completed = await executeAIPlan(aiPlan);

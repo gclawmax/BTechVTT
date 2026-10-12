@@ -39,9 +39,12 @@ const SOAK_MATRIX = Object.freeze([
   // either randomly selected BattleMech to enter an illegal hex.
   { name:'Ridge and Ford', mapId:'ridge-and-ford', fallback:['kintaro','dervish'], deployment:{ host:{ hex:'0404', facing:'E' }, guest:{ hex:'1104', facing:'W' } }, contact:{ host:'0704:E', guest:'0804:W' } }
 ]);
-const soakProfileIndex = Math.max(0, Number(process.env.BT_SOAK_PROFILE || 0) || 0);
-const soakProfile = SOAK_MATRIX[soakProfileIndex % SOAK_MATRIX.length];
-const soakSeed = String(process.env.BT_SOAK_SEED || `local-${soakProfileIndex}`);
+// BT_SOAK_PROFILE accepts either a numeric matrix index (legacy) or a map id
+// (nightly rotation via the soak runner); an unknown id falls back to 0.
+const soakProfileEnv = String(process.env.BT_SOAK_PROFILE || '0').trim();
+const soakProfile = SOAK_MATRIX.find(entry => entry.mapId === soakProfileEnv)
+  || SOAK_MATRIX[Math.max(0, Number(soakProfileEnv) || 0) % SOAK_MATRIX.length];
+const soakSeed = String(process.env.BT_SOAK_SEED || `local-${soakProfile.mapId}`);
 const fixedForces = process.env.BT_SOAK_FORCE_MODE === 'fixed';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -81,16 +84,40 @@ async function waitForDeploymentState(page, expectedPosition, timeout = 25000) {
   }
   return false;
 }
+// ── Test bootstrap integrity (6 Oct) ────────────────────
+// Parallel headless contexts occasionally take connection-reset errors for
+// local <script> files; the page then keeps a script-less shell where every
+// later assertion would lie. Wait until the resolvers actually exist (reload
+// a few times when they do not) and gate authentication on currentUser
+// identity, not just on which screen div carries .active.
+async function waitForRealPage(page, attempts = 4) {
+  for (let i = 0; i < attempts; i++) {
+    const ok = await page.waitForFunction(() => typeof window.handleCreateGame === 'function' && typeof window.handleJoinGame === 'function',
+      null, { timeout: 12000 }).then(() => true).catch(() => false);
+    if (ok) return true;
+    await page.reload({ waitUntil: 'load', timeout: 45000 }).catch(() => {});
+  }
+  return false;
+}
+const isSignedInAs = (page, user) => page.evaluate(u => {
+  try { return !!currentUser && String(currentUser.email || '').toLowerCase() === `${u}@freegames.com`; }
+  catch { return false; }
+}, user.toLowerCase());
+
 async function signIn(page, credentials) {
-  await page.goto(BASE, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
+  await page.goto(BASE, { waitUntil: 'load', timeout: 45000 }).catch(() => {});
+  if (!await waitForRealPage(page)) throw new Error(`Page never loaded the game scripts at ${BASE} (asset loads kept failing after reloads).`);
+  if (await isSignedInAs(page, credentials.user)) return;
   await page.fill('#login-username', credentials.user);
   await page.fill('#login-password', credentials.pass);
   await page.click('#btn-login').catch(() => {});
-  if (await waitForScreen(page, 'menu-screen', 12000)) return;
+  const settled = async ms => (await waitForScreen(page, 'menu-screen', ms)) && await isSignedInAs(page, credentials.user);
+  if (await settled(12000)) return;
   await page.fill('#login-username', credentials.user);
   await page.fill('#login-password', credentials.pass);
   await page.click('#btn-signup').catch(() => {});
-  if (!await waitForScreen(page, 'menu-screen', 20000)) throw new Error(`Could not sign in as ${credentials.user}`);
+  if (await settled(20000)) return;
+  throw new Error(`Could not sign in as ${credentials.user}.`);
 }
 async function addAndDeployBattleMech(page, selection) {
   await page.waitForSelector('#lobby-roster-search', { timeout: 20000 });
@@ -188,9 +215,23 @@ async function initiativeDiagnostics(page) {
 }
 async function saveRequiredRoundOneAmmo(page) {
   return page.evaluate(async () => {
-    const pending = (mechInstances || []).some(mech => mech.owner === mySeatNumber && (mech.ammoBins || []).some(bin => ammoSetupRequiredForBin(bin)));
-    if (pending) await submitRoundOneAmmoLoadout();
-    return { pending, after: (mechInstances || []).filter(mech => mech.owner === mySeatNumber).flatMap(mech => (mech.ammoBins || []).filter(bin => ammoSetupRequiredForBin(bin)).map(bin => `${mech.instanceId}:${bin.id}`)) };
+    // submitRoundOneAmmoLoadout became per-bin ("Confirm this ammunition
+    // bin"): a bare batch call now returns silently, which used to leave any
+    // force with specialised ammunition stuck at Initiative forever. Submit
+    // each pending bin individually and wait out the in-flight flag, mirroring
+    // what a human does; then re-read what still requires a choice.
+    const keyOf = (mech, bin) => `${mech.instanceId}:${bin.id}`;
+    const pendingBins = () => (mechInstances || [])
+      .filter(mech => mech.owner === mySeatNumber)
+      .flatMap(mech => (mech.ammoBins || []).filter(bin => ammoSetupRequiredForBin(bin)).map(bin => keyOf(mech, bin)));
+    const pending = pendingBins();
+    for (const key of pending) {
+      const pair = mechInstances.flatMap(m => (m.ammoBins || []).map(b => [m, b])).find(([m, b]) => keyOf(m, b) === key);
+      setRoundOneAmmoChoice(key, (pair && specialAmmoLoadTypes(pair[1])[0]) || 'standard');
+      await submitRoundOneAmmoLoadout(key);
+      for (let i = 0; i < 60 && ammunitionBinSaveInFlight; i++) await new Promise(r => setTimeout(r, 100));
+    }
+    return { pending: pending.length > 0, after: pendingBins() };
   });
 }
 async function rollUntilResolved(host, guest) {
@@ -348,9 +389,18 @@ async function completePhaseThroughHeat(host, guest) {
   return { hostState: await state(host), guestState: await state(guest) };
 }
 
-const browser = await chromium.launch({ headless: true, channel: 'chrome', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
-const hostContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-const guestContext = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+// Browser default = Playwright's bundled headless shell (BT_PW_CHANNEL=chrome opts
+// the system Chrome back in; the sandbox lost permission for it 6 Oct).
+// BT_RIG_BROWSER_MODE=isolated runs each player in their OWN browser process
+// (production = two independent machines; default = both pages share one
+// browser and can cross-disturb each other's network/threads).
+const launchBrowser = () => chromium.launch({ headless: true, ...(process.env.BT_PW_CHANNEL ? { channel: process.env.BT_PW_CHANNEL } : {}), args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+const isolatedBrowsers = process.env.BT_RIG_BROWSER_MODE === 'isolated';
+const hostBrowser = await launchBrowser();
+const guestBrowser = isolatedBrowsers ? await launchBrowser() : hostBrowser;
+const makeContext = browser => browser.newContext({ viewport: { width: 1280, height: 900 } });
+const hostContext = await makeContext(hostBrowser);
+const guestContext = await makeContext(isolatedBrowsers ? guestBrowser : hostBrowser);
 const host = await hostContext.newPage();
 const guest = await guestContext.newPage();
 const errors = [];
@@ -485,7 +535,8 @@ try {
 } finally {
   console.log('\n--- console/page errors ---');
   console.log(errors.join('\n') || '(none)');
-  await browser.close();
+  await hostBrowser.close();
+  if (guestBrowser !== hostBrowser) await guestBrowser.close();
 }
 
 if (failures.length) {

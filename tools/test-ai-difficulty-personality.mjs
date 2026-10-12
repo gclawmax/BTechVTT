@@ -32,6 +32,10 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 const load = relative => vm.runInContext(fs.readFileSync(path.join(ROOT,relative),'utf8'),sandbox,{filename:relative});
+// team-model.js must exist before opponent.js: aiVictoryTargets resolves the
+// opposing force via forceOpposite(). Its unloaded default reproduces the
+// historical seat==force mapping, so fixture owners stay valid.
+load('js/game/team-model.js');
 load('js/ai/engine.js');
 load('js/ai/opponent.js');
 

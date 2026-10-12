@@ -9,12 +9,29 @@ import { spawn } from 'node:child_process';
 import { mkdir, open, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import net from 'node:net';
 import { setTimeout as wait } from 'node:timers/promises';
 
 const root = new URL('..', import.meta.url).pathname;
 const runs = Math.max(1, Math.min(100, Number(process.env.BT_SOAK_RUNS || 3)) || 3);
-const port = Number(process.env.BT_TEST_PORT || 8790);
+// Pick a port nobody else owns. A foreign dev server squatting the default
+// 8790 once made every stage download someone else's HTML instead of the
+// game ("Unexpected token '<'"), because the readiness probe only checked
+// that HTTP said 200, not that the answer was BattleTech.
+const isPortBusy = (candidate) => new Promise(resolve => {
+  const probe = net.connect(candidate, '127.0.0.1');
+  probe.setTimeout(300);
+  probe.once('connect', () => { probe.destroy(); resolve(true); });
+  probe.once('error', () => { probe.destroy(); resolve(false); });
+  probe.once('timeout', () => { probe.destroy(); resolve(false); });
+});
 const suppliedUrl = process.env.SHOT_URL;
+let port = Number(process.env.BT_TEST_PORT || 8790);
+if (!suppliedUrl) {
+  const requested = port;
+  while (port < requested + 20 && await isPortBusy(port)) port++;
+  if (port !== requested) console.log(`Port ${requested} is occupied by another service — running the disposable battle-test server on ${port} instead.`);
+}
 const baseUrl = suppliedUrl || `http://127.0.0.1:${port}/index.html`;
 const keepPassed = process.env.BT_SOAK_KEEP_PASSED === '1';
 const continueAfterFailure = process.env.BT_SOAK_CONTINUE === '1';
@@ -74,13 +91,35 @@ try {
   await run('node', ['tools/test-private-minefields.mjs'], {}, 'private minefield and scenario-budget regression');
   await run('node', ['tools/test-vs-ai-game-modes.mjs'], {}, 'configurable Play vs AI regression');
   if (!suppliedUrl) {
-    server = spawn('python3', ['-m','http.server',String(port)], { cwd:root, stdio:'ignore' });
+    // Node static server, not python http.server: measured A/B on this Mac
+    // (7 Oct) — parallel headless loads through python lost 13-33 script
+    // downloads per page load (16/16 loads incomplete); the node server served
+    // 16/16 perfectly under the same load. Keeps the whole live-test layer
+    // honest instead of intermittently fake-red.
+    server = spawn('node', [join(root, 'tools', 'static-test-server.cjs')], { cwd:root, stdio:'ignore', env:{ ...process.env, PORT:String(port) } });
     await waitForServer(baseUrl);
   }
+  // Fixture hygiene (see tools/sweep-test-fixtures.mjs): disposable matches
+  // are shared across the three live stages, so cleanup happens per
+  // iteration here rather than inside any stage. Failed-stage debris is
+  // deliberately collectable, so this only runs when debris is NOT wanted.
+  const sweep = async label => {
+    if (keepPassed) return;
+    try { await run('node', ['tools/sweep-test-fixtures.mjs', '--apply'], {}, label); }
+    catch (error) { console.error(`Fixture sweep did not remove everything (non-fatal): ${error.message}`); }
+  };
+  await sweep('Fixture sweep before duel soak (leftovers from a previous run)');
   const failedStages = [];
+  // Unattended nightly mode: BT_SOAK_MAP_ROTATION names maps by id; each
+  // iteration takes its map from the rotation instead of the fixed 5-map
+  // matrix, and BT_SOAK_PROFILE selects that entry. Lets a single-iteration
+  // nightly job still cover all battlefields across successive runs.
+  const rotation = (process.env.BT_SOAK_MAP_ROTATION || '').split(',').map(s => s.trim()).filter(Boolean);
+  const rotationStart = Math.max(0, Number(process.env.BT_SOAK_ROTATION_START || 0) || 0);
   for (let index = 1; index <= runs; index++) {
+    const rotationActive = rotation.length > 0;
     const env = { BT_H2H_REPORT:join(reportDir, `human-${index}.json`), BT_FOCUSED_REPORT:join(reportDir, `focused-${index}.json`), BT_DRAGON_REPORT:join(reportDir, `dragon-${index}.json`),
-      BT_SOAK_PROFILE:String(index - 1),
+      BT_SOAK_PROFILE:rotationActive ? rotation[(rotationStart + index - 1) % rotation.length] : String(index - 1),
       BT_SOAK_SEED:`${seedBase}-${index}`,
       ...(keepPassed ? {} : { BT_SOAK_CLEANUP:'1' }) };
     // A later stage may not run after an earlier failure. Delete any report
@@ -92,18 +131,47 @@ try {
       { label:'focused rules', script:'tools/test-human-vs-human-rules.mjs' },
       { label:'Dragon Level 2 acceptance', script:'tools/test-dragon-level2-live.mjs' }
     ];
-    for (const stage of stages) {
-      try {
-        await run('node', [stage.script], env, `Duel soak ${index}/${runs}: ${stage.label}`);
-      } catch (error) {
-        failedStages.push({ iteration:index, stage:stage.label, message:error.message, reports:{ human:env.BT_H2H_REPORT, focused:env.BT_FOCUSED_REPORT, dragon:env.BT_DRAGON_REPORT } });
-        console.error(`COLLECTED FAILURE: iteration ${index}, ${stage.label} — ${error.message}`);
-        if (!continueAfterFailure) throw error;
-        // The later stages depend on a usable match state. A failed stage
-        // invalidates the remaining stages for this iteration only.
-        break;
+    let iterationFailed = false;
+    // Retry is ITERATION-level (7 Oct): stage 2/3 rejoin the match stage 1
+    // created, and a failed attempt leaves that match half-consumed — a
+    // stage-level retry then fails on contaminated state ("already has a
+    // declaration") and burns the night proving nothing. Each attempt replays
+    // the whole chain against a freshly created match; leftovers go to the
+    // end-of-run sweep. BT_TEST_STAGE_RETRIES=1 restores single-attempt mode.
+    const iterationAttempts = Math.max(1, Math.min(3, Number(process.env.BT_TEST_STAGE_RETRIES ?? 2) || 1));
+    let lastError = null;
+    let passed = false;
+    for (let attempt = 1; attempt <= iterationAttempts && !passed; attempt++) {
+      if (attempt > 1) {
+        // Clear the half-used match so attempt 2 creates a clean one.
+        await sweep(`Fixture sweep before retry ${attempt-1} (iteration ${index})`);
+      }
+      passed = true;
+      for (const stage of stages) {
+        try {
+          await run('node', [stage.script], env, `Duel soak ${index}/${runs} (attempt ${attempt}): ${stage.label}`);
+        } catch (error) {
+          lastError = error;
+          passed = false;
+          break;
+        }
       }
     }
+    if (!passed) {
+      iterationFailed = true;
+      failedStages.push({ iteration:index, stage:stages.map(s=>s.label), message:lastError.message, reports:{ human:env.BT_H2H_REPORT, focused:env.BT_FOCUSED_REPORT, dragon:env.BT_DRAGON_REPORT } });
+      console.error(`COLLECTED FAILURE: iteration ${index} after ${iterationAttempts} attempt(s) — ${lastError.message}`);
+      // Sweep BEFORE bailing: a red iteration must never leak its disposable
+      // matches into the live project. The stop-at-first-failure throw used to
+      // jump past the end-of-iteration sweep, so every failed soak deposited
+      // in-progress zombies that later runs inherited as ambient noise.
+      await sweep(`Fixture sweep after iteration ${index} failure`);
+      if (!continueAfterFailure) throw lastError;
+    }
+    // Whether stages passed or broke early, the disposable match has served
+    // its purpose once the iteration ends (failure details are already in
+    // the report files). Removing it here is what stops fixture accumulation.
+    if (!iterationFailed) await sweep(`Fixture sweep after duel soak ${index}/${runs}`);
   }
   if (failedStages.length) {
     const summaryPath = join(reportDir, 'soak-summary.json');

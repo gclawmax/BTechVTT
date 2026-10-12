@@ -37,7 +37,11 @@ check('coop matches route to submit_coop_initiative_roll with its FULL 3-argumen
   coopCall !== -1 && phases.slice(coopCall, coopCall + 260).includes('p_game_id')
   && phases.slice(coopCall, coopCall + 260).includes('p_die_a') && phases.slice(coopCall, coopCall + 260).includes('p_die_b'));
 check('the coop branch runs BEFORE the per-seat branch (coop never double-submits per seat)',
-  coopCall !== -1 && coopCall < legacyCall && phases.indexOf('coopPhaseMode(currentGameState)\n      && (vsAiMode ? isHost : mySeatNumber != null))') !== -1);
+  // Guard shape updated 6 Oct: coop shells carry vs_ai_mode=true, so the
+  // original `(vsAiMode ? isHost : ...)` shape made seat 2's force roll fall
+  // through to the per-seat branch's `if (!isHost) return` — a silently dead
+  // button. Pinned shape = either friendly-force pilot may roll.
+  coopCall !== -1 && coopCall < legacyCall && phases.indexOf('coopPhaseMode(currentGameState)\n      && ([1, 2].includes(mySeatNumber) || (vsAiMode && isHost)))') !== -1);
 check('coop detection does NOT depend on lobby.js load order (own coopPhaseMode helper)',
   phases.includes('function coopPhaseMode(state)') && !phases.includes("typeof isCoopSkirmish === 'function' && isCoopSkirmish(currentGameState)"));
 check('the rebuilt snapshot carries match_type and coop so the branch survives rebuild',

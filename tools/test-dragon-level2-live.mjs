@@ -45,14 +45,31 @@ function check(name, condition, detail = '') {
 async function activeScreen(page) {
   return page.evaluate(() => Array.from(document.querySelectorAll('.screen')).find(screen => screen.classList.contains('active'))?.id || null);
 }
+// See test-human-vs-human.mjs: same bootstrap-integrity guards.
+async function waitForRealPage(page, attempts = 4) {
+  for (let i = 0; i < attempts; i++) {
+    const ok = await page.waitForFunction(() => typeof window.handleCreateGame === 'function' && typeof window.handleJoinGame === 'function',
+      null, { timeout: 12000 }).then(() => true).catch(() => false);
+    if (ok) return true;
+    await page.reload({ waitUntil: 'load', timeout: 45000 }).catch(() => {});
+  }
+  return false;
+}
+const isSignedInAs = (page, user) => page.evaluate(u => {
+  try { return !!currentUser && String(currentUser.email || '').toLowerCase() === `${u}@freegames.com`; }
+  catch { return false; }
+}, user.toLowerCase());
+
 async function signIn(page, credentials) {
-  await page.goto(BASE, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
+  await page.goto(BASE, { waitUntil: 'load', timeout: 45000 }).catch(() => {});
+  if (!await waitForRealPage(page)) throw new Error(`Page never loaded the game scripts at ${BASE} (asset loads kept failing after reloads).`);
+  if (await isSignedInAs(page, credentials.user)) return;
   await page.fill('#login-username', credentials.user);
   await page.fill('#login-password', credentials.pass);
   await page.click('#btn-login').catch(() => {});
   const deadline = Date.now() + 15000;
   while (Date.now() < deadline) {
-    if (await activeScreen(page) === 'menu-screen') return;
+    if (await activeScreen(page) === 'menu-screen' && await isSignedInAs(page, credentials.user)) return;
     await sleep(250);
   }
   throw new Error(`Could not sign in as ${credentials.user}`);
@@ -135,9 +152,14 @@ async function runCase(host, guest, game, players, spec, round) {
   check(`${spec.label} leaves only valid non-negative battle values`, !resolved.stateError && resolved.values.every(value => Number.isFinite(value) && value >= 0), JSON.stringify(resolved));
 }
 
-const browser = await chromium.launch({ headless:true, channel:'chrome', args:['--no-sandbox','--disable-dev-shm-usage'] });
-const hostContext = await browser.newContext({ viewport:{ width:1280, height:900 } });
-const guestContext = await browser.newContext({ viewport:{ width:1280, height:900 } });
+// BT_RIG_BROWSER_MODE=isolated: one browser process per player (see main harness).
+const launchBrowser = () => chromium.launch({headless:true, ...(process.env.BT_PW_CHANNEL?{channel:process.env.BT_PW_CHANNEL}:{}), args:['--no-sandbox','--disable-dev-shm-usage']}); // default: bundled shell; BT_PW_CHANNEL=chrome opts system Chrome back in
+const isolatedBrowsers = process.env.BT_RIG_BROWSER_MODE === 'isolated';
+const hostBrowser = await launchBrowser();
+const guestBrowser = isolatedBrowsers ? await launchBrowser() : hostBrowser;
+const makeContext = browser => browser.newContext({ viewport:{ width:1280, height:900 } });
+const hostContext = await makeContext(hostBrowser);
+const guestContext = await makeContext(isolatedBrowsers ? guestBrowser : hostBrowser);
 const host = await hostContext.newPage();
 const guest = await guestContext.newPage();
 for (const page of [host, guest]) {
@@ -179,7 +201,8 @@ try {
   if (REPORT_PATH && (failures.length || skippedCases.length)) await writeFile(REPORT_PATH, JSON.stringify(report, null, 2));
   console.log('\n--- console/page errors ---');
   console.log(errors.join('\n') || '(none)');
-  await browser.close();
+  await hostBrowser.close();
+  if (guestBrowser !== hostBrowser) await guestBrowser.close();
 }
 
 if (failures.length) {
