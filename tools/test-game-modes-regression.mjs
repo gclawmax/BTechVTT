@@ -8,6 +8,8 @@ const failures=[];
 const check=(label,condition,detail='')=>{console.log(`${condition?'PASS':'FAIL'}  ${label}${detail?` — ${detail}`:''}`);if(!condition)failures.push(label);};
 const sandbox={console,GRID_COLS:16,GRID_ROWS:17,currentMatchConfig:{},hexCode:(col,row)=>`${String(col).padStart(2,'0')}${String(row).padStart(2,'0')}`};
 vm.createContext(sandbox);
+// team-model.js first: maps.js resolves deployment-zone forces via getCurrentTeamModel().
+vm.runInContext(fs.readFileSync(path.join(ROOT,'js/game/team-model.js'),'utf8'),sandbox,{filename:'js/game/team-model.js'});
 vm.runInContext(fs.readFileSync(path.join(ROOT,'js/game/maps.js'),'utf8'),sandbox,{filename:'js/game/maps.js'});
 
 sandbox.setActiveMap('standard-dual-horizontal');
@@ -32,7 +34,10 @@ const evaluation=fs.readFileSync(path.join(ROOT,'js/ai/evaluation.js'),'utf8');
 check('lobby minefields have a visible editable plan and atomic per-seat save',['minefield-plan-row','removeLobbyMinefield','set_match_minefield_plan'].every(marker=>lobby.includes(marker)));
 check('match preview and battlefield display expose objective and breakthrough areas',create.includes('map-preview-mode')&&movement.includes('P1 GOAL')&&movement.includes('P2 GOAL'));
 check('AI scores progress toward both control and breakthrough goals',['aiVictoryTargets','aiVictoryProgress','objectiveProgress','breakthrough_scored_units'].every(marker=>opponent.includes(marker)));
-check('AI evaluation uses two-unit objective forces and scores only after Heat',evaluation.includes('const forceSize=index%AI_EVALUATION_VICTORIES.length===0?1:2')&&evaluation.includes("phase==='heat'&&config.victory!=='annihilation'"));
+// Re-pinned 6 Oct: GM-5 coverage rewrite renamed the forceSize loop index
+// index→pair; the two-unit objective-force and post-Heat scoring behaviour is
+// unchanged. Pins updated to the maintained literals.
+check('AI evaluation uses two-unit objective forces and scores only after Heat',evaluation.includes('const forceSize=pair%AI_EVALUATION_VICTORIES.length===0?1:2')&&evaluation.includes("phase==='heat'&&config.victory!=='annihilation'"));
 
 if(failures.length){console.error(`\n${failures.length} game-mode regression failure(s).`);process.exitCode=1;}
 else console.log('\nGame-mode and minefield-planning regression passed.');

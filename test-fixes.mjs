@@ -102,6 +102,11 @@ function load(rel) {
 load('js/movement/rules.js');
 load('js/core/game-log.js');
 load('js/game/critical-hits.js');
+// weapon-attack.js resolves enemies via isEnemyUnit (team-model.js); in the
+// browser the page loads team-model first. Load the REAL module here too —
+// its unloaded default behaves exactly like the historical seat==force model,
+// so existing single-force fixtures are unaffected.
+load('js/game/team-model.js');
 load('js/game/weapon-attack.js');
 load('js/game/mech-designer.js');
 load('js/movement/movement.js');
@@ -716,7 +721,11 @@ check('#5 arm-flip migration patches the maintained simultaneous-fire snapshot',
 check('#5 improvised clubs are found in Weapon Attacks and swung with both arms in Physical Attacks', armClubMigration.includes('find_improvised_club') && armClubMigration.includes("terrain_name IN ('light_woods','heavy_woods')") && armClubMigration.includes("physical_key=''club''") && weaponAttackSource.includes('findImprovisedClub') && fs.readFileSync(`${ROOT}/js/game/physical-attack.js`, 'utf8').includes('bothArms: true'));
 check('#5 the detail panel identifies a carried improvised club', panelSource.includes('inst.improvisedClub') && panelSource.includes('uses both arms'));
 const physicalAttackSource = fs.readFileSync(`${ROOT}/js/game/physical-attack.js`, 'utf8');
-check('#5 units without legal physical targets are passed automatically and hidden from the picker', phasesSource.includes('autoPassIneligiblePhysicalAttackers') && phasesSource.includes("p_attack_type: 'pass'") && physicalAttackSource.includes('pending = mechInstances.filter') && physicalAttackSource.includes('hasLegalPhysicalAttack(m)') && physicalAttackSource.includes('const enemies = legalPhysicalTargets(attacker)'));
+// NOTE re-pinned 6 Oct: the picker/enemy gate is unchanged ('const enemies =
+// legalPhysicalTargets(attacker)'), but coop-1a (ca47ca8) renamed the auto-pass
+// enumeration from mechInstances to the team-scoped toAct list. Both satisfy
+// the intent; the old literal had silently rotted (suite crashed before here).
+check('#5 units without legal physical targets are passed automatically and hidden from the picker', phasesSource.includes('autoPassIneligiblePhysicalAttackers') && phasesSource.includes("p_attack_type: 'pass'") && physicalAttackSource.includes('pending = toAct.filter') && physicalAttackSource.includes('hasLegalPhysicalAttack(m)') && physicalAttackSource.includes('const enemies = legalPhysicalTargets(attacker)'));
 const aiOpponentSource = fs.readFileSync(`${ROOT}/js/ai/opponent.js`, 'utf8');
 check('#5 AI weapon selection builds complete heat/ammunition-aware packages', aiOpponentSource.includes('TWO_D6_HIT_CHANCE') && aiOpponentSource.includes('scoreWeaponAttack') && aiOpponentSource.includes('aiWeaponHeatBudget') && aiOpponentSource.includes('candidateGroups') && aiOpponentSource.includes('allocations'));
 const ai5Migration = fs.readFileSync(`${ROOT}/SQL/126_ai_authoritative_reactions_and_physical.sql`, 'utf8');

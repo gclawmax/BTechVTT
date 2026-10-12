@@ -7,6 +7,8 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const failures=[];
 const check=(label,condition,detail='')=>{console.log(`${condition?'PASS':'FAIL'}  ${label}${detail?` — ${detail}`:''}`);if(!condition)failures.push(label);};
 const sandbox={console}; vm.createContext(sandbox);
+// team-model.js first: evaluation.js resolves forces via forceOfUnit/forceOpposite.
+vm.runInContext(fs.readFileSync(path.join(ROOT,'js/game/team-model.js'),'utf8'),sandbox,{filename:'js/game/team-model.js'});
 vm.runInContext(fs.readFileSync(path.join(ROOT,'js/ai/evaluation.js'),'utf8'),sandbox,{filename:'js/ai/evaluation.js'});
 
 const match=(id,{winner=1,failed=false,mapId='training-grounds',victory='annihilation',one='beginner',two='expert',onePersonality='balanced',twoPersonality='aggressive'}={})=>({
