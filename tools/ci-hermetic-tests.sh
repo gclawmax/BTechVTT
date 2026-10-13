@@ -4,6 +4,7 @@
 # in the manual live lane so CI stays deterministic (~5s). Failure detail is
 # emitted as ONE GitHub annotation so it is readable without log access.
 suites="
+test-physical-contract-calibration.mjs
 test-advanced-direct-fire-regression.mjs
 test-advanced-missiles-regression.mjs
 test-ai-evaluation.mjs
