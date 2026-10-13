@@ -74,6 +74,10 @@ function check(name, condition, detail = '') {
 // gameLog evidence that existed mid-battle, so end-only sampling is blind.
 const contract = { pausedEver: false, strandWorst: 0, invisibleWorst: 0, realSeen: new Set(), notes: [] };
 async function sampleContract(page, tag) {
+  // Brief settle window: result lines are rebuilt asynchronously after the
+  // phase hand-off, and a snapshot taken mid-hand-off sees rows without
+  // their (already-guaranteed) log lines — a false C3 (run BT-T6DY).
+  await page.waitForTimeout(900);
   const audit = await auditPhysicalContract(page).catch(error => ({ error: String(error && error.message || error) }));
   if (!audit || audit.error) { if (contract.notes.length < 20) contract.notes.push(`${tag}: audit skipped (${audit && audit.error || 'no context'})`); return; }
   const { stranded, realAttacks, invisible } = evaluatePhysicalContract(audit);
