@@ -44,6 +44,7 @@ import {
   reactionActionEvaluate, physicalActionEvaluate, drivePhase, rollInitiativeFor,
   reloadAndRejoin, sleep
 } from './step0-common.mjs';
+import { auditPhysicalContract, evaluatePhysicalContract } from './physical-contract.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require('/Users/mattperkins/.hermes/hermes-agent/node_modules/playwright');
@@ -65,6 +66,34 @@ function check(name, condition, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failures.push(`${name}${detail ? ` — ${detail}` : ''}`);
   return ok;
+}
+
+// Contract sampling (issue #28 class): track the WORST observation across
+// the whole battle rather than per-sample accumulation — a wedged match
+// replays identical violations on every tick, and reload-and-rejoin can wipe
+// gameLog evidence that existed mid-battle, so end-only sampling is blind.
+const contract = { pausedEver: false, strandWorst: 0, invisibleWorst: 0, realSeen: new Set(), notes: [] };
+async function sampleContract(page, tag) {
+  // Brief settle window: result lines are rebuilt asynchronously after the
+  // phase hand-off, and a snapshot taken mid-hand-off sees rows without
+  // their (already-guaranteed) log lines — a false C3 (run BT-T6DY).
+  await page.waitForTimeout(900);
+  const audit = await auditPhysicalContract(page).catch(error => ({ error: String(error && error.message || error) }));
+  if (!audit || audit.error) { if (contract.notes.length < 20) contract.notes.push(`${tag}: audit skipped (${audit && audit.error || 'no context'})`); return; }
+  const { stranded, realAttacks, invisible } = evaluatePhysicalContract(audit);
+  if (audit.pausedInLog && !contract.pausedEver) {
+    contract.pausedEver = true;
+    if (contract.notes.length < 20) contract.notes.push(`${tag}: 'AI activation paused' appeared in gameLog`);
+  }
+  if (stranded.length > contract.strandWorst) {
+    contract.strandWorst = stranded.length;
+    if (contract.notes.length < 20) contract.notes.push(`${tag}: ${stranded.length} declared row(s) stranded at ${audit.round}/${audit.phase}`);
+  }
+  if (invisible.length > contract.invisibleWorst) {
+    contract.invisibleWorst = invisible.length;
+    if (contract.notes.length < 20) contract.notes.push(`${tag}: ${invisible.length} resolved physical row(s) without log trace`);
+  }
+  for (const r of realAttacks) contract.realSeen.add(`attack-r${r.round}-${r.sequence}`);
 }
 
 // Read btech_combat_events as the authenticated host (RLS allows participants):
@@ -333,6 +362,7 @@ try {
         info.genericStalls = (info.genericStalls || []).concat([{ round, phase: phaseName, ...result.stall }]);
         console.log(`round ${round}: ${phaseName} phase stall recovered — advanced=${result.stall.advanced}`);
       }
+      await sampleContract(host, `R${round} after ${phaseName}`);
     }
     if (finish) break;
     await waitFinished([host], 20000);
@@ -362,6 +392,20 @@ try {
   } else {
     check('at least one weapon exchange resolved', false, 'no weapon fire resolved across the whole battle');
   }
+
+  // Issue #28 contract: every physical declaration must resolve, nothing may
+  // strand behind a round advance, and resolved outcomes must be VISIBLE in
+  // the log (Vs-AI suppressed exactly these lines while authority worked).
+  await sampleContract(host, 'battle end');
+  info.contract = { pausedEver: contract.pausedEver, strandWorst: contract.strandWorst, invisibleWorst: contract.invisibleWorst, realSeen: contract.realSeen.size, notes: contract.notes };
+  check('C2 no AI-activation-pause wedge observed during the battle', !contract.pausedEver,
+    contract.pausedEver ? contract.notes.filter(n => n.includes('paused')).join('; ').slice(0, 300) : '');
+  check('C1 no unresolved physical declarations stranded behind round advance', contract.strandWorst === 0,
+    `${contract.strandWorst} stranded row(s); ${contract.notes.filter(n => n.includes('stranded')).slice(0, 3).join('; ')}`);
+  check('C3 every resolved physical exchange leaves a log-visible result trace', contract.invisibleWorst === 0,
+    `${contract.invisibleWorst} silent resolved row(s); ${contract.notes.filter(n => n.includes('without log trace')).slice(-1).join('; ')}`);
+  check('C4 battle exercised at least one real physical exchange', contract.realSeen.size >= 1,
+    contract.realSeen.size ? `${contract.realSeen.size} real physical actions seen` : 'UNREPRESENTATIVE: no kick/punch occurred — extend rounds or force placement');
 
   const report = await host.evaluate(async () => {
     const { data, error } = await db.from('btech_match_reports').select('*').eq('game_id', currentGameId).limit(1);
