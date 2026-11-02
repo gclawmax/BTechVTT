@@ -28,6 +28,7 @@ test-rotary-ac-regression.mjs
 test-ruleset-controls-regression.mjs
 test-signature-electronics-regression.mjs
 test-specialist-physical-equipment-regression.mjs
+test-structure-tables-canon.mjs
 test-vs-ai-game-modes.mjs
 "
 cd "$(dirname "$0")"
