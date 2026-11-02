@@ -35,7 +35,7 @@ const BT_UNIT_CATALOGUE = {
     ],
     ammoBins: [{ id: 'hunchback-ac20-lt', type: 'ac20', location: 'Left Torso', shots: 5 }],
     armor: { head:9, ct:26, ct_rear:5, lt:20, lt_rear:4, rt:20, rt_rear:4, la:16, ra:16, ll:20, rl:20 },
-    structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
+    structure: { head:3, ct:16, lt:12, rt:12, la:8, ra:8, ll:12, rl:12 }
   },
   'locust-lct-1v': {
     chassis: 'Locust', variant: 'LCT-1V', tonnage: 20, color: '#2a8a2a',
@@ -76,7 +76,7 @@ const BT_UNIT_CATALOGUE = {
     ],
     ammoBins: [{ id: 'enforcer-ac10-rt', type: 'ac10', location: 'Right Torso', shots: 10 }],
     armor: { head:9, ct:23, ct_rear:4, lt:17, lt_rear:3, rt:17, rt_rear:3, la:14, ra:14, ll:20, rl:20 },
-    structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
+    structure: { head:3, ct:16, lt:12, rt:12, la:8, ra:8, ll:12, rl:12 }
   },
   'centurion-cn9-a': {
     chassis: 'Centurion', variant: 'CN9-A', tonnage: 50, color: '#4b8051',
@@ -92,7 +92,7 @@ const BT_UNIT_CATALOGUE = {
       { id: 'centurion-ac10-rt', type: 'ac10', location: 'Right Torso', shots: 20 }
     ],
     armor: { head:9, ct:18, ct_rear:7, lt:13, lt_rear:6, rt:13, rt_rear:6, la:16, ra:16, ll:16, rl:16 },
-    structure: { head:3, ct:16, lt:11, rt:11, la:8, ra:8, ll:11, rl:11 }
+    structure: { head:3, ct:16, lt:12, rt:12, la:8, ra:8, ll:12, rl:12 }
   }
 };
 
