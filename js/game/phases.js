@@ -788,13 +788,24 @@ function isMyActiveTurn() {
   return mySeatNumber != null && getActivePlayerSeat() === mySeatNumber;
 }
 
+// Units that cannot take ANY action this phase: destroyed, shutdown, or an
+// unconscious pilot (the server rejects moves/fires/punches for them with
+// misleading "has not moved"-style errors, and waiting on a decision that
+// can never be made wedges the phase — Issue #33, BT-6V7A R12). The weapon
+// phase already skipped exactly these units via canFireFromWeaponPhaseStart;
+// this is the same eligibility set, applied at the shared phase gate.
+function phaseUnitsAbleToAct(mech) {
+  return !mech.destroyed && !mech.shutdown &&
+    (!mech.pilot?.consciousness || mech.pilot.consciousness === 'conscious');
+}
+
 function getPhaseUnitsForActivePlayer() {
   const seat = getActivePlayerSeat();
   if (seat == null) return [];
   return mechInstances.filter(m => m.owner === seat && (
     currentGameState.phase === 'weapon_attack' && typeof canFireFromWeaponPhaseStart === 'function'
       ? canFireFromWeaponPhaseStart(m)
-      : !m.destroyed
+      : phaseUnitsAbleToAct(m)
   ));
 }
 
