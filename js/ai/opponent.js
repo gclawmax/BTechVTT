@@ -1,6 +1,65 @@
 // ── AI OPPONENT SYSTEM ──────────────────────────────────────
 let aiTurnInProgress = false;
 
+// ── Fired-weapon contract mirror ─────────────────────────────────────────
+// The authoritative physical phase rejects an attack whose swinging arm(s)
+// fired a weapon earlier in the same round ("A weapon fired from % this
+// round", SQL/23 per declared limb; SQL/88 checks BOTH arms for a club).
+// Before this mirror the planner happily picked punches with fired arms, the
+// server rejected them, and every rejection latched the AI turn (BT-MJBJ
+// rounds 3/8/9 wedged). Rather than re-guess the rule, read the same facts
+// the server reads: this round's weapon_attack combat events plus the
+// catalogue mount locations for each attacker.
+let aiFiredArmLimbs = { key: '', byInstance: new Map() };
+
+function normalizeCatalogueLimb(location) {
+  const loc = String(location || '').toLowerCase().replaceAll(' ', '');
+  if (loc === 'la' || loc === 'leftarm') return 'la';
+  if (loc === 'ra' || loc === 'rightarm') return 'ra';
+  return null;
+}
+
+async function refreshAiFiredArmLimbs() {
+  aiFiredArmLimbs = { key: '', byInstance: new Map() };
+  const round = currentGameState?.round;
+  if (!currentGameId || !round || currentGameState.phase !== 'physical_attack') return;
+  const eventsResult = await db.from('btech_combat_events')
+    .select('attacker_instance_id,declaration')
+    .eq('game_id', currentGameId).eq('round', round).eq('phase', 'weapon_attack');
+  if (eventsResult.error || !(eventsResult.data || []).length) return;
+  const attackers = new Set(eventsResult.data.map(event => event.attacker_instance_id));
+  const unitIds = [...new Set((mechInstances || [])
+    .filter(mech => attackers.has(mech.instanceId)).map(mech => mech.unitId))];
+  const catalogueVersion = typeof activeCatalogueVersion !== 'undefined'
+    ? activeCatalogueVersion : (currentGameState.catalogue_version || null);
+  if (!unitIds.length || !catalogueVersion) return;
+  const mountsResult = await db.from('btech_catalogue_mounts')
+    .select('unit_id,mount_id,location')
+    .eq('catalogue_version', catalogueVersion).in('unit_id', unitIds);
+  if (mountsResult.error) return;
+  const byInstance = new Map();
+  for (const event of eventsResult.data) {
+    const mech = (mechInstances || []).find(candidate => candidate.instanceId === event.attacker_instance_id);
+    if (!mech) continue;
+    const limbs = new Set();
+    for (const mountId of event.declaration?.weapon_mounts || []) {
+      const row = (mountsResult.data || []).find(mount => mount.unit_id === mech.unitId && mount.mount_id === mountId);
+      const limb = normalizeCatalogueLimb(row?.location);
+      if (limb) limbs.add(limb);
+    }
+    if (limbs.size) byInstance.set(mech.instanceId, limbs);
+  }
+  aiFiredArmLimbs = { key: `${currentGameId}:${round}:physical`, byInstance };
+}
+
+function firedArmLimbBlockers(mech, attackType, limb) {
+  const fired = aiFiredArmLimbs.byInstance.get(mech.instanceId);
+  if (!fired) return false;
+  if (limb === 'both') return fired.has('la') || fired.has('ra'); // Club: SQL/88 both-arm rule
+  if (limb === 'la' || limb === 'ra') return fired.has(limb);     // Punch/arm physical weapon: SQL/23 per-limb rule
+  return false;
+}
+
 // Difficulty controls deliberation quality, never rules, dice or information.
 // Personality is an independent doctrine layer: it changes tactical weights
 // but never the legal actions available to the computer opponent.
@@ -216,7 +275,7 @@ function generateAIPhysicalAction(mech, targets, settings = AI_SETTINGS.expert, 
   if (mech.chargeDeclaration) return { type:'resolve_charge',instanceId:mech.instanceId,targetInstanceId:mech.chargeDeclaration.target_instance_id,attackType:'charge',_debug:'Resolve Movement-declared Charge.' };
   const choices=[];
   for (const target of targets) for (const attackType of physicalAttackTypesFor(mech)) {
-    const legalLimbs=physicalLimbCandidates(attackType).filter(limb=>evaluatePhysicalAttack(mech,target,attackType,limb).valid);
+    const legalLimbs=physicalLimbCandidates(attackType).filter(limb=>evaluatePhysicalAttack(mech,target,attackType,limb).valid&&!firedArmLimbBlockers(mech,attackType,limb));
     if (!legalLimbs.length) continue;
     const limbs=attackType==='punch' ? legalLimbs : [legalLimbs[0]];
     const attacks=limbs.map(limb=>evaluatePhysicalAttack(mech,target,attackType,limb));
@@ -972,7 +1031,22 @@ async function executeAIPhysicalAttack(action) {
   else if(action.type==='resolve_charge') call=db.rpc('resolve_declared_charge',{p_game_id:currentGameId,p_attacker_instance_id:attacker.instanceId});
   else if(action.attackType==='push') call=db.rpc('resolve_push_attack',{p_game_id:currentGameId,p_attacker_instance_id:attacker.instanceId,p_target_instance_id:action.targetInstanceId});
   else call=db.rpc('submit_simultaneous_physical_declaration',{p_game_id:currentGameId,p_attacker_instance_id:attacker.instanceId,p_target_instance_id:action.targetInstanceId,p_attack_type:action.attackType,p_limbs:(action.limbs||[]).map(limb=>limb==='both'?'ra':limb)});
-  const {data,error}=await call;if(error) throw new Error(`Server rejected AI physical attack: ${error.message}`);
+  const {data,error}=await call;
+  if(error){
+    // Push and the Movement-phase resolutions use their own RPCs whose
+    // semantics this fallback does not cover; keep failing loudly there.
+    if(action.type!=='physical_attack'||action.attackType==='push'||action.attackType==='pass') throw new Error(`Server rejected AI physical attack: ${error.message}`);
+    // Same shape as the weapon-package no-fire fallback above: a rejection
+    // must hand play back, never latch the AI turn. Downgrade to the pass
+    // declaration a no-physical turn already submits legally. The
+    // fired-weapon mirror above keeps this path rare.
+    logEvent(`AI ${action.attackType} was rejected (${error.message}); declaring no physical attack instead.`, 'error');
+    const passResult=await db.rpc('submit_simultaneous_physical_declaration',{p_game_id:currentGameId,p_attacker_instance_id:attacker.instanceId,p_target_instance_id:null,p_attack_type:'pass',p_limbs:[]});
+    if(passResult.error) throw new Error(`Server rejected the AI physical pass after a rejected attack: ${passResult.error.message}`);
+    await loadGameState();await loadResolvedPhysicalEvents();await checkForMatchEnd();
+    updateAdvanceButtonState();
+    return;
+  }
   await loadGameState();await loadResolvedPhysicalEvents();await checkForMatchEnd();
   logEvent(`${mechLabel(attacker)} (AI) submitted ${action.attackType} for authoritative resolution.`, 'attack');
 }
@@ -1089,6 +1163,11 @@ async function aiTurnHandler() {
 
     const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
     const difficulty = gameState.ai_difficulty || window.aiDifficulty || 'beginner';
+
+    // Mirror the authoritative "a weapon fired from this arm this round"
+    // rejection before planning a physical turn, so the planner never
+    // re-submits an attack the server has already rejected.
+    if (currentGameState.phase === 'physical_attack') await refreshAiFiredArmLimbs();
 
     // Scope the plan to the seat currently on turn. The live-state branch of
     // generateAIPlan fell back to a hard-coded seat 2, which is wrong for
