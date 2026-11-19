@@ -9,6 +9,7 @@ test-advanced-direct-fire-regression.mjs
 test-advanced-missiles-regression.mjs
 test-ai-evaluation.mjs
 test-ai-foundation.mjs
+test-ai-physical-legality.mjs
 test-ai-weapon-planning.mjs
 test-bv2-catalogue-import.mjs
 test-bv2-roster-checks.mjs
