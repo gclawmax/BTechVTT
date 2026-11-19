@@ -25,6 +25,7 @@ test-game-modes-matrix.mjs
 test-heat-mobility-equipment-regression.mjs
 test-mechlab-case-sql.cjs
 test-mechlab-construction.cjs
+test-phase-eligibility.mjs
 test-private-minefields.mjs
 test-rotary-ac-regression.mjs
 test-ruleset-controls-regression.mjs
