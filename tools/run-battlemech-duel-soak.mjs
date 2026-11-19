@@ -4,6 +4,7 @@
 // Examples:
 //   BT_SOAK_RUNS=3 node tools/run-battlemech-duel-soak.mjs
 //   BT_SOAK_RUNS=20 BT_SOAK_KEEP_PASSED=1 node tools/run-battlemech-duel-soak.mjs
+//   BT_SOAK_RUNS=1 BT_SOAK_VSAI=1 node tools/run-battlemech-duel-soak.mjs   # + Play-vs-AI contract stage (live Supabase)
 
 import { spawn } from 'node:child_process';
 import { mkdir, open, rm, writeFile } from 'node:fs/promises';
@@ -118,19 +119,23 @@ try {
   const rotationStart = Math.max(0, Number(process.env.BT_SOAK_ROTATION_START || 0) || 0);
   for (let index = 1; index <= runs; index++) {
     const rotationActive = rotation.length > 0;
-    const env = { BT_H2H_REPORT:join(reportDir, `human-${index}.json`), BT_FOCUSED_REPORT:join(reportDir, `focused-${index}.json`), BT_DRAGON_REPORT:join(reportDir, `dragon-${index}.json`),
+    const env = { BT_H2H_REPORT:join(reportDir, `human-${index}.json`), BT_FOCUSED_REPORT:join(reportDir, `focused-${index}.json`), BT_DRAGON_REPORT:join(reportDir, `dragon-${index}.json`), BT_VS_AI_REPORT:join(reportDir, `vsai-${index}.json`),
       BT_SOAK_PROFILE:rotationActive ? rotation[(rotationStart + index - 1) % rotation.length] : String(index - 1),
       BT_SOAK_SEED:`${seedBase}-${index}`,
       ...(keepPassed ? {} : { BT_SOAK_CLEANUP:'1' }) };
     // A later stage may not run after an earlier failure. Delete any report
     // left by a previous collection so the summary can never point at stale
     // Dragon/focused diagnostics.
-    await Promise.all([env.BT_H2H_REPORT, env.BT_FOCUSED_REPORT, env.BT_DRAGON_REPORT].map(path => rm(path, { force:true })));
+    await Promise.all([env.BT_H2H_REPORT, env.BT_FOCUSED_REPORT, env.BT_DRAGON_REPORT, env.BT_VS_AI_REPORT].map(path => rm(path, { force:true })));
     const stages = [
       { label:'two-player UI battle', script:'tools/test-human-vs-human.mjs' },
       { label:'focused rules', script:'tools/test-human-vs-human-rules.mjs' },
       { label:'Dragon Level 2 acceptance', script:'tools/test-dragon-level2-live.mjs' }
     ];
+    // Opt-in Play-vs-AI coverage (BT_SOAK_VSAI=1): full vs-AI lifecycle plus
+    // issue #28 physical-contract checks (stranding / wedge / invisible
+    // outcomes). Off by default — it replays a whole second battle.
+    if (process.env.BT_SOAK_VSAI === '1') stages.push({ label:'vs-AI lifecycle + physical contracts', script:'tools/test-step0-vs-ai-live.mjs' });
     let iterationFailed = false;
     // Retry is ITERATION-level (7 Oct): stage 2/3 rejoin the match stage 1
     // created, and a failed attempt leaves that match half-consumed — a
@@ -159,7 +164,7 @@ try {
     }
     if (!passed) {
       iterationFailed = true;
-      failedStages.push({ iteration:index, stage:stages.map(s=>s.label), message:lastError.message, reports:{ human:env.BT_H2H_REPORT, focused:env.BT_FOCUSED_REPORT, dragon:env.BT_DRAGON_REPORT } });
+      failedStages.push({ iteration:index, stage:stages.map(s=>s.label), message:lastError.message, reports:{ human:env.BT_H2H_REPORT, focused:env.BT_FOCUSED_REPORT, dragon:env.BT_DRAGON_REPORT, vsai:env.BT_VS_AI_REPORT } });
       console.error(`COLLECTED FAILURE: iteration ${index} after ${iterationAttempts} attempt(s) — ${lastError.message}`);
       // Sweep BEFORE bailing: a red iteration must never leak its disposable
       // matches into the live project. The stop-at-first-failure throw used to
