@@ -372,8 +372,14 @@ function authoritativePilotingResultMessage(check) {
   return `${label} failed its Piloting Skill Roll for ${reasons} — need ${roll.target}${modifiers}, rolled ${roll.die_a} + ${roll.die_b} = ${roll.total}; fell ${check.fall_angle} for ${check.fall_damage} damage${groups ? ` (${groups})` : ''}.`;
 }
 
+// Resolve-outcome lines are replayable in BOTH modes. Issue #28: this was
+// gated on !vsAiMode, so Vs-AI never showed physical results even when the
+// server had resolved them (BT-AZML R4: two kicks resolved with damage 14/15
+// while the UI stayed silent) — players and tests alike lost the only
+// observable evidence that authority ran. mergeRemoteLog dedupes by entry id,
+// so replaying rows that live output also logged cannot double-print.
 async function loadResolvedPhysicalEvents() {
-  if (!currentGameId || vsAiMode) return;
+  if (!currentGameId) return;
   const { data, error } = await db.from('btech_combat_events').select('id,round,phase,sequence,attacker_instance_id,target_instance_id,resolution,resolved_at')
     .eq('game_id', currentGameId).eq('phase', 'physical_attack').eq('status', 'resolved').order('round').order('sequence').limit(GAME_LOG_MAX);
   if (error) { console.warn('[BT-LOG] failed to load resolved physical events:', error); return; }
