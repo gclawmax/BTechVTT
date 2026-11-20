@@ -24,8 +24,12 @@
 // declaration+outcome, so it cannot satisfy the predicate.
 
 export function physicalResultLinePredicate(targetName) {
-  const decl = /kick|punch|physical attack|piloting skill roll/i;
-  const outcome = /\b(hit|miss|damaged?|fell|fall|knocked|no effect)\b/i;
+  // Keywords must cover EVERY line shape authoritativePhysicalResultMessage
+  // can emit for a real attack (kick/punch, push, charge, DFA). Soak-3 found
+  // 'charged ...' and 'pushed ... displaced' lines exist but matched neither
+  // group, which would read as a false C3 once recovery-147 rows render.
+  const decl = /kick|punch|physical attack|piloting skill roll|push|charge|death from above/i;
+  const outcome = /\b(hit|miss(ed)?|damaged?|fell|fall(ing)?|knocked|no effect|displaced)\b/i;
   const needle = targetName.toLowerCase();
   return (msg) => {
     const m = msg.toLowerCase();
@@ -47,8 +51,8 @@ export async function auditPhysicalContract(page) {
     // JSON across the bridge). This mirrors physicalResultLinePredicate
     // above; keep both in sync and re-run the calibration probe when editing.
     const visibleFor = (needleLower) => {
-      const decl = /kick|punch|physical attack|piloting skill roll/i;
-      const outcome = /\b(hit|miss|damaged?|fell|fall|knocked|no effect)\b/i;
+      const decl = /kick|punch|physical attack|piloting skill roll|push|charge|death from above/i;
+      const outcome = /\b(hit|miss(ed)?|damaged?|fell|fall(ing)?|knocked|no effect|displaced)\b/i;
       return logLines.some(msg => {
         const m = msg.toLowerCase();
         return m.includes(needleLower) && decl.test(m) && outcome.test(m);
@@ -86,6 +90,15 @@ export function evaluatePhysicalContract(audit) {
     for (const r of audit.rows) if (r.round === audit.round && r.phase === 'physical_attack' && r.status === 'declared') stranded.push(r);
   }
   const realAttacks = audit.rows.filter(r => r.phase === 'physical_attack' && r.attackType !== 'pass');
-  const invisible = realAttacks.filter(r => r.status === 'resolved' && r.visible === false);
+  // Rolling-window calibration (soak-3): gameLog is a rolling 200-line window
+  // (GAME_LOG_MAX), so by mid-battle older rounds' RESULT LINES age out of
+  // the log even though they printed live at the time. Scanning full history
+  // made every long match fail C3 on aged-out lines (BT-XP2P: 17 of 21
+  // "invisible", most of them printed-and-trimmed). The live bug class this
+  // check must catch — a version that never renders (e.g. recovery-147, fixed
+  // alongside) — always shows inside a 2-round window, so scan only the live
+  // round plus the previous one. Full-history visibility belongs to the
+  // forensic probes against retained games, not the in-battle tripwire.
+  const invisible = realAttacks.filter(r => r.status === 'resolved' && r.visible === false && r.round >= audit.round - 1);
   return { stranded, realAttacks, invisible };
 }

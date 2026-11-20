@@ -5,6 +5,7 @@
 # emitted as ONE GitHub annotation so it is readable without log access.
 suites="
 test-physical-contract-calibration.mjs
+test-physical-display-coverage.mjs
 test-advanced-direct-fire-regression.mjs
 test-advanced-missiles-regression.mjs
 test-ai-evaluation.mjs
