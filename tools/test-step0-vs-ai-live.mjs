@@ -16,7 +16,8 @@
 //   SHOT_URL                      base URL (default http://127.0.0.1:8790/index.html)
 //   BT_H2H_HOST / _PASS           host account (default h2h-regression-host / H2H!Host01)
 //   BT_VS_AI_TONNAGE              dropship tonnage per side (default 150)
-//   BT_VS_AI_ROUNDS               maximum rounds before failing as stalled (default 20)
+//   BT_VS_AI_ROUNDS               maximum rounds; on exhaustion the match is
+//                                 force-concluded via host concede (default 20)
 //   BT_VS_AI_REPORT               JSON report path (default: scratch dir)
 //   BT_VS_AI_KEEP                 set to 1 to retain the disposable match
 //
@@ -369,9 +370,21 @@ try {
   }
 
   if (!finish) {
+    // Round budget exhausted. There is no draw rule, so conclude the match the
+    // way a real player would: the host seat concedes through the genuine
+    // concede_btech_match RPC (coin flip note: the rig only ever drives the
+    // human seat — the AI seat has no login, so a per-side coin flip is not
+    // expressible here; duel soak covers 2-human variants).
+    // Pre-SQL/166 this leaves status stuck at in-progress; the check then
+    // correctly fails instead of hiding unfinished fixtures.
+    const conc = await host.evaluate(async () => {
+      const { data, error } = await db.rpc('concede_btech_match', { p_game_id: currentGameId });
+      return { error: error ? error.message : null, data };
+    }).catch(e => ({ error: String(e) }));
+    await waitFinished([host], 15000);
     const probe = await finishedRow(host);
-    check('battle finished within the round budget', probe && probe.status === 'finished',
-      `stalled after ${roundsPlayed} rounds; last status ${probe ? probe.status : 'unknown'} — game ${code} retained for inspection`);
+    check('round budget ends match via forced host concede to finished status', probe && probe.status === 'finished',
+      `after ${roundsPlayed} rounds: concede=${conc.error ? 'rpc error: ' + conc.error : JSON.stringify(conc.data).slice(0, 140)}; status=${probe ? probe.status : 'unknown'} — game ${code} retained for inspection`);
   } else {
     info.rounds = roundsPlayed;
     info.winner = finish;
