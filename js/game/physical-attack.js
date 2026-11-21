@@ -384,9 +384,19 @@ async function loadResolvedPhysicalEvents() {
     .eq('game_id', currentGameId).eq('phase', 'physical_attack').eq('status', 'resolved').order('round').order('sequence').limit(GAME_LOG_MAX);
   if (error) { console.warn('[BT-LOG] failed to load resolved physical events:', error); return; }
   const entries = [];
+  // Soak-3 finding (BT-XP2P): the phase-recovery RPC resolves stalled rows
+  // under state_version 'physical-recovery-147' with the SAME results shape
+  // as the submit path, but that version was not whitelisted here, so up to
+  // 19 recovered exchanges per match resolved invisibly. Recovery now
+  // renders. NOTE: do NOT add recovery-147 to specialAttackers — that set
+  // exists to skip non-result SPECIAL shapes; recovery rows carry ordinary
+  // results and must flow through the normal per-result branch (adding the
+  // version here also silenced legitimate 'declared no physical attack'
+  // pass lines for the same attacker).
+  const RESOLVED_DISPLAY_VERSIONS = ['authoritative-physical-01','authoritative-dfa-02','authoritative-charge-01','authoritative-push-01','physical-recovery-147'];
   const specialAttackers = new Set((data || []).filter(event => ['authoritative-dfa-02','authoritative-charge-01','authoritative-push-01'].includes(event.resolution?.state_version)).map(event => `${event.round}:${event.attacker_instance_id}`));
   for (const event of data || []) {
-    if (!['authoritative-physical-01','authoritative-dfa-02','authoritative-charge-01','authoritative-push-01'].includes(event.resolution?.state_version)) continue;
+    if (!RESOLVED_DISPLAY_VERSIONS.includes(event.resolution?.state_version)) continue;
     const attacker = mechInstances.find(mech => mech.instanceId === event.attacker_instance_id);
     const target = mechInstances.find(mech => mech.instanceId === event.target_instance_id);
     const resolvedAt = Date.parse(event.resolved_at || '') || Date.now();
