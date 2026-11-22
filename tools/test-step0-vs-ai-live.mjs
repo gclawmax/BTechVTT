@@ -294,6 +294,24 @@ try {
   // Enable the game's own AI auto-advance so the AI turn advances itself.
   await host.evaluate(async () => { if (typeof setAutoAdvanceAfterAi === 'function') setAutoAdvanceAfterAi(true); });
 
+  // Attribution probe (observation only): 'Server rejected' console lines
+  // carry no actor, and in Vs-AI both the rig driver and the AI share the
+  // movement/physical submit paths. Capture the JS stack of every rejection
+  // so the report says WHO over-submitted. Cap 40, no behaviour change.
+  await host.evaluate(() => {
+    window.__attr = [];
+    const wrap = fn => function(...a) {
+      try {
+        if (/Server rejected/.test(a.map(String).join(' ')) && window.__attr.length < 40) {
+          window.__attr.push(`[R${currentGameState?.round}/${currentGameState?.phase}] ` +
+            (new Error().stack || '').split('\n').slice(1, 8).join(' <= '));
+        }
+      } catch {}
+      return fn.apply(console, a);
+    };
+    console.log = wrap(console.log); console.error = wrap(console.error);
+  });
+
   const weaponExchanges = [];
   let roundsPlayed = 0;
   let finish = null;
@@ -427,6 +445,11 @@ try {
   // Issue #28 contract: every physical declaration must resolve, nothing may
   // strand behind a round advance, and resolved outcomes must be VISIBLE in
   // the log (Vs-AI suppressed exactly these lines while authority worked).
+  // Dump the rejection stacks while the page is still up: this is the only
+  // place a failed run can be forensicked (btech_combat_events purges rows,
+  // the console line itself has no actor).
+  info.rejectionStacks = await host.evaluate(() => window.__attr || []).catch(() => []);
+  if (info.rejectionStacks.length) console.log('ATTR-DUMP:\n' + info.rejectionStacks.join('\n---\n'));
   await sampleContract(host, 'battle end', true);
   info.contract = { pauseWorst: contract.pauseWorst, endPauseActive: contract.endPauseActive, statusTrail: contract.statusTrail, strandWorst: contract.strandWorst, invisibleWorst: contract.invisibleWorst, realSeen: contract.realSeen.size, notes: contract.notes };
   // A pause after the match already has a result is noise; mid-battle it is
