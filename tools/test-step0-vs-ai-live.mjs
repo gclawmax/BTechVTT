@@ -81,7 +81,7 @@ async function installAttrProbe(page) {
   await page.evaluate(() => {
     if (window.__attrOn) return;
     window.__attrOn = true;
-    window.__attr = window.__attr || [];
+    window.__attr = window.__attr === undefined ? [] : window.__attr;
     const wrap = fn => function(...a) {
       try {
         if (/Server rejected/.test(a.map(String).join(' ')) && window.__attr.length < 40) {
@@ -92,6 +92,31 @@ async function installAttrProbe(page) {
       return fn.apply(console, a);
     };
     console.log = wrap(console.log); console.error = wrap(console.error);
+    // Fetch telemetry: the soak9 wedge was silent (no rejects), so the only
+    // way to tell infra-stall from logic-stall is RPC state at failure time.
+    // Records slow (>3s) / error fetches and a live pending map.
+    window.__flog = window.__flog === undefined ? [] : window.__flog;
+    window.__pend = window.__pend === undefined ? {} : window.__pend;
+    const of = window.fetch;
+    let fid = 0;
+    window.fetch = async (u, o) => {
+      const id = ++fid; const url = String(u); const t0 = Date.now();
+      window.__pend[id] = url.slice(-70) + '@' + new Date(t0).toISOString().slice(11, 19);
+      try {
+        const r = await of(u, o);
+        const ms = Date.now() - t0; delete window.__pend[id];
+        if ((ms > 3000 || r.status >= 400) && window.__flog.length < 200) {
+          window.__flog.push({ u: url.slice(-70), ms, st: r.status });
+        }
+        return r;
+      } catch (e) {
+        const ms = Date.now() - t0; delete window.__pend[id];
+        if (window.__flog.length < 200) {
+          window.__flog.push({ u: url.slice(-70), ms, err: String(e).slice(0, 60) });
+        }
+        throw e;
+      }
+    };
   }).catch(() => {});
 }
 
@@ -514,6 +539,14 @@ try {
   fatal = error;
   check('test completed without a fatal error', false, error.message);
   console.log(`Fatal: ${error.stack}`);
+  try {
+    const fd = await host.evaluate(() => ({
+      pending: Object.values(window.__pend || {}),
+      slowOrErr: (window.__flog || []).slice(-25)
+    }));
+    console.log('FETCH-DUMP: ' + JSON.stringify(fd));
+    info.fetchDump = fd;
+  } catch {}
 } finally {
   console.log('\n--- console/page errors ---');
   console.log(info.errors.slice(0, 40).join('\n') || '(none)');
