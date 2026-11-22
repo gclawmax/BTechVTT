@@ -97,10 +97,12 @@ async function installAttrProbe(page) {
     // Records slow (>3s) / error fetches and a live pending map.
     window.__flog = window.__flog === undefined ? [] : window.__flog;
     window.__pend = window.__pend === undefined ? {} : window.__pend;
+    window.__fcount = 0;
     const of = window.fetch;
     let fid = 0;
     window.fetch = async (u, o) => {
       const id = ++fid; const url = String(u); const t0 = Date.now();
+      window.__fcount++;
       window.__pend[id] = url.slice(-70) + '@' + new Date(t0).toISOString().slice(11, 19);
       try {
         const r = await of(u, o);
@@ -541,6 +543,7 @@ try {
   console.log(`Fatal: ${error.stack}`);
   try {
     const fd = await host.evaluate(() => ({
+      n: window.__fcount ?? -1,
       pending: Object.values(window.__pend || {}),
       slowOrErr: (window.__flog || []).slice(-25)
     }));
