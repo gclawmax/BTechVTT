@@ -96,7 +96,14 @@ async function sampleContract(page, tag, final = false) {
   } else {
     contract.pauseStreak = 0;
   }
-  if (final) contract.endPauseActive = audit.pauseActive;
+  if (final) {
+    contract.endPauseActive = audit.pauseActive;
+    contract.endOver = !!audit.over;
+    // Full AI status trail into the report: if it ends with pause(s) and no
+    // later 'AI turn complete', the AI was silent while rounds still rolled
+    // — a real liveness bug; if completes follow, it was a recovered blip.
+    contract.statusTrail = audit.statusTail;
+  }
   if (stranded.length > contract.strandWorst) {
     contract.strandWorst = stranded.length;
     if (contract.notes.length < 20) contract.notes.push(`${tag}: ${stranded.length} declared row(s) stranded at ${audit.round}/${audit.phase}`);
@@ -421,8 +428,10 @@ try {
   // strand behind a round advance, and resolved outcomes must be VISIBLE in
   // the log (Vs-AI suppressed exactly these lines while authority worked).
   await sampleContract(host, 'battle end', true);
-  info.contract = { pauseWorst: contract.pauseWorst, endPauseActive: contract.endPauseActive, strandWorst: contract.strandWorst, invisibleWorst: contract.invisibleWorst, realSeen: contract.realSeen.size, notes: contract.notes };
-  const pauseWedge = contract.pauseWorst >= 2 || contract.endPauseActive;
+  info.contract = { pauseWorst: contract.pauseWorst, endPauseActive: contract.endPauseActive, statusTrail: contract.statusTrail, strandWorst: contract.strandWorst, invisibleWorst: contract.invisibleWorst, realSeen: contract.realSeen.size, notes: contract.notes };
+  // A pause after the match already has a result is noise; mid-battle it is
+  // the AI going silent while rounds roll. Streak >= 2 samples it stays.
+  const pauseWedge = contract.pauseWorst >= 2 || (contract.endPauseActive && !contract.endOver);
   check('C2 no unrecovered AI-activation-pause wedge', !pauseWedge,
     pauseWedge ? contract.notes.filter(n => n.includes('AI pause')).join('; ').slice(0, 300) : '');
   check('C1 no unresolved physical declarations stranded behind round advance', contract.strandWorst === 0,

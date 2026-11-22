@@ -88,12 +88,17 @@ export async function auditPhysicalContract(page) {
       return { round: r.round, phase: r.phase, sequence: r.sequence, status: r.status, attacker: r.attacker_instance_id, target: r.target_instance_id, targetName: tName, attackType: r.declaration?.attack_type || 'pass', visible };
     });
     // In-page mirror of aiPauseActive — keep in sync (see header note).
+    const statusRe = /AI (turn|activation) (paused|complete)/i;
     let pauseActive = false;
     for (let i = logLines.length - 1; i >= 0; i--) {
-      if (/AI (turn|activation) (paused|complete)/i.test(logLines[i])) { pauseActive = /paused/i.test(logLines[i]); break; }
+      if (statusRe.test(logLines[i])) { pauseActive = /paused/i.test(logLines[i]); break; }
     }
+    // statusTail: full AI status sequence (bounded) so a failed rig run can
+    // be forensicked from the report alone — the DB may purge combat rows and
+    // the console only echoes error-level lines.
+    const statusTail = logLines.filter(l => statusRe.test(l)).slice(-12);
     return { error: null, round: gs.round, phase: gs.phase, rows: mapped,
-      pauseActive,
+      pauseActive, over: !!gs.match_result, statusTail,
       pausedInLog: logLines.some(l => /AI activation paused/i.test(l)),
       wedgeAllActed: gs.phase === 'physical_attack' && (mechInstances || []).filter(m => !m.destroyed).length > 0 && (mechInstances || []).every(m => m.destroyed || m.hasPhysicalAttacked) };
   });
