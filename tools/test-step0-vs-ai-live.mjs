@@ -74,11 +74,33 @@ function check(name, condition, detail = '') {
 // replays identical violations on every tick, and reload-and-rejoin can wipe
 // gameLog evidence that existed mid-battle, so end-only sampling is blind.
 const contract = { pauseStreak: 0, pauseWorst: 0, endPauseActive: false, strandWorst: 0, invisibleWorst: 0, realSeen: new Set(), notes: [] };
+// Re-armable after page reloads: the R1 rejoin test reloads the page and a
+// one-shot install at battle start then misses every later reject (soak v7b
+// captured 0 of 18). sampleContract re-calls this after every phase.
+async function installAttrProbe(page) {
+  await page.evaluate(() => {
+    if (window.__attrOn) return;
+    window.__attrOn = true;
+    window.__attr = window.__attr || [];
+    const wrap = fn => function(...a) {
+      try {
+        if (/Server rejected/.test(a.map(String).join(' ')) && window.__attr.length < 40) {
+          window.__attr.push(`[R${currentGameState?.round}/${currentGameState?.phase}] ` +
+            (new Error().stack || '').split('\n').slice(1, 8).join(' <= '));
+        }
+      } catch {}
+      return fn.apply(console, a);
+    };
+    console.log = wrap(console.log); console.error = wrap(console.error);
+  }).catch(() => {});
+}
+
 async function sampleContract(page, tag, final = false) {
   // Brief settle window: result lines are rebuilt asynchronously after the
   // phase hand-off, and a snapshot taken mid-hand-off sees rows without
   // their (already-guaranteed) log lines — a false C3 (run BT-T6DY).
   await page.waitForTimeout(900);
+  await installAttrProbe(page);
   const audit = await auditPhysicalContract(page).catch(error => ({ error: String(error && error.message || error) }));
   if (!audit || audit.error) { if (contract.notes.length < 20) contract.notes.push(`${tag}: audit skipped (${audit && audit.error || 'no context'})`); return; }
   const { stranded, realAttacks, invisible } = evaluatePhysicalContract(audit);
@@ -298,19 +320,16 @@ try {
   // carry no actor, and in Vs-AI both the rig driver and the AI share the
   // movement/physical submit paths. Capture the JS stack of every rejection
   // so the report says WHO over-submitted. Cap 40, no behaviour change.
-  await host.evaluate(() => {
-    window.__attr = [];
-    const wrap = fn => function(...a) {
-      try {
-        if (/Server rejected/.test(a.map(String).join(' ')) && window.__attr.length < 40) {
-          window.__attr.push(`[R${currentGameState?.round}/${currentGameState?.phase}] ` +
-            (new Error().stack || '').split('\n').slice(1, 8).join(' <= '));
-        }
-      } catch {}
-      return fn.apply(console, a);
-    };
-    console.log = wrap(console.log); console.error = wrap(console.error);
-  });
+  await installAttrProbe(host);
+  // Prove the probe is actually armed before we rely on it for forensics
+  // (soak v7b's version was silent through 18 rejects after the page reload).
+  const probeArmed = await host.evaluate(() => {
+    console.error('[selftest] Server rejected the movement: probe arming check');
+    const n = (window.__attr || []).length;
+    window.__attr = (window.__attr || []).slice(1);
+    return n === 1;
+  }).catch(() => false);
+  check('attribution probe armed and recording', probeArmed);
 
   const weaponExchanges = [];
   let roundsPlayed = 0;

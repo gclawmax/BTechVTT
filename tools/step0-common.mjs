@@ -115,36 +115,16 @@ export function approachEvaluate() {
                       Math.abs((-a.col + (a.row - (a.row & 1)) / 2 - a.row) - (-b.col + (b.row - (b.row & 1)) / 2 - b.row)));
     };
     const results = [];
-    // Fresh server read per attempt — same pattern as weaponActionEvaluate.
-    // Verifying off a lagging window.mechInstances resubmitted moves for
-    // mechs the server had already marked moved ("Choose one of your
-    // eligible BattleMechs that has not moved" 400 class, up to 12/game).
-    const read = async () => {
-      const { data } = await db.from('btech_games')
-        .select('state,active_player_id,current_phase,current_round')
-        .eq('id', currentGameId).maybeSingle();
-      if (!data) return null;
-      const st = typeof data.state === 'string' ? JSON.parse(data.state) : (data.state || {});
-      return { mechs: st.mech_instances || [], phase: data.current_phase };
-    };
-    const settle = async () => { await new Promise(r => setTimeout(r, 900)); };
-    const serverMoved = async id => {
-      const r = await read();
-      const m = r && r.mechs.find(x => x.instanceId === id);
-      return Boolean(m && m.hasMoved);
-    };
     for (let guard = 0; guard < 8; guard++) {
-      const snap = await read();
-      if (!snap) return { acted: false, note: 'no game row' };
-      const mech = snap.mechs.find(m => m.owner === mySeatNumber && !m.destroyed && !m.hasMoved);
+      const mech = (mechInstances || []).find(m => m.owner === mySeatNumber && !m.destroyed && !m.hasMoved);
       if (!mech) break;
       if (mech.prone) {
         const { error } = await db.rpc('remain_prone_battlemech', { p_game_id: currentGameId, p_instance_id: mech.instanceId });
-        await settle();
-        if (!error && await serverMoved(mech.instanceId)) { results.push({ id: mech.instanceId, mode: 'prone', moved: 0 }); continue; }
+        const rp = (mechInstances || []).find(m => m.instanceId === mech.instanceId);
+        if (!error && rp && rp.hasMoved) { results.push({ id: mech.instanceId, mode: 'prone', moved: 0 }); continue; }
         throw new Error(`remain_prone rejected for ${mech.instanceId}: ${error ? error.message : 'state unchanged after remain_prone'}`);
       }
-      const enemies = snap.mechs.filter(m => m.owner !== mySeatNumber && !m.destroyed);
+      const enemies = (mechInstances || []).filter(m => m.owner !== mySeatNumber && !m.destroyed);
       if (!enemies.length) { await submitAuthoritativeMovement(mech, 'stand', []); results.push({ id: mech.instanceId, mode: 'stand', moved: 0 }); break; }
       const target = enemies.reduce((best, e) => (dist(mech, e) < dist(mech, best) ? e : best));
       const path = [];
@@ -154,7 +134,7 @@ export function approachEvaluate() {
         for (let dir = 0; dir < 6; dir++) {
           const n = hexNeighbor(cur.col, cur.row, dir);
           if (!n) continue;
-          if (snap.mechs.some(m => !m.destroyed && m.col === n.col && m.row === n.row)) continue;
+          if ((mechInstances || []).some(m => !m.destroyed && m.col === n.col && m.row === n.row)) continue;
           if (typeof terrainMovementBlocked === 'function' && terrainMovementBlocked(n.col, n.row)) continue;
           const d = dist(n, target);
           if (d < dist(cur, target) && (!best || d < best.d)) best = { col: n.col, row: n.row, d };
@@ -163,20 +143,20 @@ export function approachEvaluate() {
         path.push({ action: 'step', col: best.col, row: best.row });
         cur = { col: best.col, row: best.row };
       }
+      const startCol = mech.col, startRow = mech.row;
       if (path.length) await submitAuthoritativeMovement(mech, 'run', path);
       else await submitAuthoritativeMovement(mech, 'stand', []);
-      await settle();
-      if (await serverMoved(mech.instanceId)) { results.push({ id: mech.instanceId, mode: path.length ? 'run' : 'stand', moved: 1 }); continue; }
-      // Server says the mech has NOT moved — a walk fallback cannot duplicate
-      // a completed submit here.
-      if (path.length) {
+      const re = (mechInstances || []).find(m => m.instanceId === mech.instanceId);
+      let moved = re && (re.col !== startCol || re.row !== startRow);
+      if (!moved && path.length) {
         await submitAuthoritativeMovement(mech, 'walk', path.slice(0, Math.max(1, path.length - 1)));
-        await settle();
-        if (await serverMoved(mech.instanceId)) { results.push({ id: mech.instanceId, mode: 'walk', moved: 1 }); continue; }
+        const rw = (mechInstances || []).find(m => m.instanceId === mech.instanceId);
+        moved = rw && (rw.col !== startCol || rw.row !== startRow);
+        if (moved) { results.push({ id: mech.instanceId, mode: 'walk', moved }); continue; }
       }
-      await submitAuthoritativeMovement(mech, 'stand', []);
-      await settle();
-      if (await serverMoved(mech.instanceId)) { results.push({ id: mech.instanceId, mode: 'stand', moved: 0 }); continue; }
+      if (!moved) await submitAuthoritativeMovement(mech, 'stand', []);
+      const rs = (mechInstances || []).find(m => m.instanceId === mech.instanceId);
+      if (rs && rs.hasMoved) { results.push({ id: mech.instanceId, mode: 'stand', moved: 0 }); continue; }
       throw new Error(`Movement could not be completed for ${mech.instanceId} (run/walk/stand all rejected)`);
     }
     return results;
@@ -272,11 +252,6 @@ export function physicalActionEvaluate() {
     const mine = (mechInstances || []).filter(m => m.owner === mySeatNumber && !m.destroyed && !m.hasPhysicalAttacked && !ineligible.ids[m.instanceId]);
     const enemies = (mechInstances || []).filter(m => m.owner !== mySeatNumber && !m.destroyed);
     for (const attacker of mine) {
-      // One attempt chain (attacks + pass) per mech per round: server
-      // rejection messages vary ("fired from X", "Choose an eligible enemy
-      // target") and re-guessing them just re-spammed 400s until the phase
-      // clock died. Mark on entry; selection skips already-tried mechs.
-      ineligible.ids[attacker.instanceId] = true;
       const dist = (a, b) => {
         const aq = a.col - (a.row - (a.row & 1)) / 2, arx = a.row;
         const bq = b.col - (b.row - (b.row & 1)) / 2, brx = b.row;
@@ -293,7 +268,15 @@ export function physicalActionEvaluate() {
       }
       if (didAttack) return { acted: true, mode: logEvents.join('+'), logEvents };
       const err = await passOne(attacker);
-      if (err) { logEvents.push(`pass-rejected: ${err}`); continue; }
+      if (err) {
+        if (/not eligible/i.test(err)) {
+          ineligible.ids[attacker.instanceId] = true;
+          logEvents.push(`ineligible(pass-rejected): ${err}`);
+          continue;
+        }
+        logEvents.push(`pass-rejected: ${err}`);
+        return { acted: false, passError: err };
+      }
       logEvents.push('pass');
       return { acted: true, mode: logEvents.join('+'), logEvents };
     }
