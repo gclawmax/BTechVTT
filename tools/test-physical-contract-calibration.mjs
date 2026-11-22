@@ -8,7 +8,7 @@
 //   NEGATIVE lines  = turn bookkeeping / declaration noise (must NOT match,
 //                     else every battle reads "green" no matter what)
 // Run: node tools/test-physical-contract-calibration.mjs
-import { physicalResultLinePredicate } from './physical-contract.mjs';
+import { physicalResultLinePredicate, aiPauseActive } from './physical-contract.mjs';
 
 const T = 'Timber Wolf / Mad Cat Prime';
 const M = 'Marauder MAD-3R';
@@ -44,8 +44,25 @@ for (const [target, line] of NEGATIVES) {
     console.error(`FAIL (noise must not count as a result trace): [${target}] ${line.slice(0, 80)}`);
   }
 }
+// Pause-flag cases (soak v4 recalibration): a pause counts as active only
+// while it is the LATEST AI status line; a later completion clears it.
+const PAUSE = 'AI activation paused after a failed action. It will not retry until the match state changes or the game is reloaded.';
+const PAUSE_CASES = [
+  [false, ['AI turn started (Movement).', PAUSE, 'AI turn started (Reaction).', 'AI turn complete.'], 'recovered: completion follows pause'],
+  [true,  ['AI turn complete.', PAUSE], 'unrecovered: pause is the latest status'],
+  [true,  [PAUSE, 'Round 13 — movement phase begins.'], 'non-status noise after pause does not clear it'],
+  [false, ['AI turn complete.'], 'healthy window'],
+  [false, ['Round 1 — initiative.', 'Marauder MAD-3R (P2) walks to 0505.'], 'no AI status lines'],
+  [true,  ['AI turn paused after a failed action.'], 'opponent.js variant also counts'],
+];
+for (const [want, lines, why] of PAUSE_CASES) {
+  if (aiPauseActive(lines) !== want) {
+    fails++;
+    console.error(`FAIL (pauseActive want ${want}): ${why}`);
+  }
+}
 if (fails) {
   console.error(`physical-contract calibration: ${fails} failure(s) — detector is blind or lie-green; do NOT trust rig C3 results.`);
   process.exit(1);
 }
-console.log(`physical-contract calibration OK (${POSITIVES.length} result lines visible, ${NEGATIVES.length} noise lines rejected)`);
+console.log(`physical-contract calibration OK (${POSITIVES.length} result lines visible, ${NEGATIVES.length} noise lines rejected, ${PAUSE_CASES.length} pause windows classified)`);

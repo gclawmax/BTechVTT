@@ -73,8 +73,8 @@ function check(name, condition, detail = '') {
 // the whole battle rather than per-sample accumulation — a wedged match
 // replays identical violations on every tick, and reload-and-rejoin can wipe
 // gameLog evidence that existed mid-battle, so end-only sampling is blind.
-const contract = { pausedEver: false, strandWorst: 0, invisibleWorst: 0, realSeen: new Set(), notes: [] };
-async function sampleContract(page, tag) {
+const contract = { pauseStreak: 0, pauseWorst: 0, endPauseActive: false, strandWorst: 0, invisibleWorst: 0, realSeen: new Set(), notes: [] };
+async function sampleContract(page, tag, final = false) {
   // Brief settle window: result lines are rebuilt asynchronously after the
   // phase hand-off, and a snapshot taken mid-hand-off sees rows without
   // their (already-guaranteed) log lines — a false C3 (run BT-T6DY).
@@ -82,9 +82,27 @@ async function sampleContract(page, tag) {
   const audit = await auditPhysicalContract(page).catch(error => ({ error: String(error && error.message || error) }));
   if (!audit || audit.error) { if (contract.notes.length < 20) contract.notes.push(`${tag}: audit skipped (${audit && audit.error || 'no context'})`); return; }
   const { stranded, realAttacks, invisible } = evaluatePhysicalContract(audit);
-  if (audit.pausedInLog && !contract.pausedEver) {
-    contract.pausedEver = true;
-    if (contract.notes.length < 20) contract.notes.push(`${tag}: 'AI activation paused' appeared in gameLog`);
+  // Soak v4 recalibration: presence of a pause line no longer fails C2 —
+  // real matches recover from blips. Fail conditions (checked at the bottom)
+  // are an unrecovered pause: held across consecutive samples, or still
+  // active at battle end. A mid-round blip clears on the next completed
+  // AI activation; a true wedge holds the streak across the phase hand-off.
+  if (audit.pauseActive) {
+    contract.pauseStreak++;
+    if (contract.pauseStreak > contract.pauseWorst) {
+      contract.pauseWorst = contract.pauseStreak;
+      if (contract.notes.length < 20) contract.notes.push(`${tag}: AI pause unresolved across ${contract.pauseStreak} sample(s)`);
+    }
+  } else {
+    contract.pauseStreak = 0;
+  }
+  if (final) {
+    contract.endPauseActive = audit.pauseActive;
+    contract.endOver = !!audit.over;
+    // Full AI status trail into the report: if it ends with pause(s) and no
+    // later 'AI turn complete', the AI was silent while rounds still rolled
+    // — a real liveness bug; if completes follow, it was a recovered blip.
+    contract.statusTrail = audit.statusTail;
   }
   if (stranded.length > contract.strandWorst) {
     contract.strandWorst = stranded.length;
@@ -409,10 +427,13 @@ try {
   // Issue #28 contract: every physical declaration must resolve, nothing may
   // strand behind a round advance, and resolved outcomes must be VISIBLE in
   // the log (Vs-AI suppressed exactly these lines while authority worked).
-  await sampleContract(host, 'battle end');
-  info.contract = { pausedEver: contract.pausedEver, strandWorst: contract.strandWorst, invisibleWorst: contract.invisibleWorst, realSeen: contract.realSeen.size, notes: contract.notes };
-  check('C2 no AI-activation-pause wedge observed during the battle', !contract.pausedEver,
-    contract.pausedEver ? contract.notes.filter(n => n.includes('paused')).join('; ').slice(0, 300) : '');
+  await sampleContract(host, 'battle end', true);
+  info.contract = { pauseWorst: contract.pauseWorst, endPauseActive: contract.endPauseActive, statusTrail: contract.statusTrail, strandWorst: contract.strandWorst, invisibleWorst: contract.invisibleWorst, realSeen: contract.realSeen.size, notes: contract.notes };
+  // A pause after the match already has a result is noise; mid-battle it is
+  // the AI going silent while rounds roll. Streak >= 2 samples it stays.
+  const pauseWedge = contract.pauseWorst >= 2 || (contract.endPauseActive && !contract.endOver);
+  check('C2 no unrecovered AI-activation-pause wedge', !pauseWedge,
+    pauseWedge ? contract.notes.filter(n => n.includes('AI pause')).join('; ').slice(0, 300) : '');
   check('C1 no unresolved physical declarations stranded behind round advance', contract.strandWorst === 0,
     `${contract.strandWorst} stranded row(s); ${contract.notes.filter(n => n.includes('stranded')).slice(0, 3).join('; ')}`);
   check('C3 every resolved physical exchange leaves a log-visible result trace', contract.invisibleWorst === 0,

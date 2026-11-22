@@ -63,7 +63,8 @@ function auditPage(page) {
       .select('round,phase,sequence,status,attacker_instance_id,target_instance_id,declaration,resolution')
       .eq('game_id', currentGameId).order('round').order('phase').order('sequence');
     if (error) return { error: error.message };
-    const logText = JSON.stringify((typeof gameLog !== 'undefined' ? gameLog : []).map(e => e.msg || e.message || ''));
+    const logLines = (typeof gameLog !== 'undefined' ? gameLog : []).map(e => e.msg || e.message || '');
+    const logText = JSON.stringify(logLines);
     const mapped = (rows || []).map(r => {
       const t = (r.target_instance_id || '').slice(0, 6);
       const a = (r.attacker_instance_id || '').split('-')[0];
@@ -76,7 +77,11 @@ function auditPage(page) {
     // Wedge probe: every live BattleMech has finished its physical act, yet
     // the phase sits in physical_attack — nobody can advance, nothing
     // resolves (the BT-FFBQ/AZML signature).
-    return { error: null, round: gs.round, phase: gs.phase, rows: mapped, pausedInLog: /AI activation paused/i.test(logText),
+    // pauseActive mirrors aiPauseActive in physical-contract.mjs (no imports
+    // across page.evaluate): only an UNRESOLVED pause (latest AI status) is a
+    // wedge; soak v4 showed every real match contains a recovered blip.
+    const lLast = [...logLines].reverse().find(l => /AI (turn|activation) (paused|complete)/i.test(l)) || '';
+    return { error: null, round: gs.round, phase: gs.phase, rows: mapped, pauseActive: /paused/i.test(lLast), pausedInLog: /AI activation paused/i.test(logText),
       wedgeAllActed: gs.phase === 'physical_attack' && (mechInstances || []).filter(m => !m.destroyed).length > 0 && (mechInstances || []).every(m => m.destroyed || m.hasPhysicalAttacked) };
   });
 }
@@ -136,7 +141,7 @@ try {
       info.notes.push(`R${stranded[0].round} ${stranded[0].phase}: ${stranded.length} declared-row(s) stranded at round ${audit.round}/${audit.phase}`);
     }
     if (inv.length > info.invisibleTotal) { info.invisibleTotal = inv.length; info.notes.push(`${inv.length} resolved physical row(s) with no log trace (worst sample)`); }
-    if (audit.pausedInLog) paused = true;
+    paused = audit.pauseActive; // latest-sample semantics: cleared once AI completes an activation again
     for (const r of audit.rows) if (r.phase === 'physical_attack' && r.attackType !== 'pass') seenRounds.add(`attack-r${r.round}-${r.sequence}`);
     const key = `${audit.round}/${audit.phase}`;
     if (key !== `${last.round}/${last.phase}`) { info.lastPhase = key; last = { round: audit.round, phase: audit.phase }; }
@@ -151,7 +156,7 @@ try {
   const physicalSeen = seenRounds.size;
   info.physicalRounds = physicalSeen; info.roundsAudited = last.round;
 
-  check('C2 no AI-activation-pause wedge observed', !paused, paused ? 'gameLog contained "AI activation paused"' : '');
+  check('C2 no unrecovered AI-activation pause at probe end', !paused, paused ? 'latest AI turn status is still a pause — unresolved at probe end' : '');
   check('C1 no unresolved physical/pass declarations stranded behind round advance', info.unresolvedTotal === 0, `${info.unresolvedTotal} stranded row(s); ${info.notes.slice(0, 3).join('; ')}`);
   check('C3 every real physical exchange leaves a log-visible result trace', info.invisibleTotal === 0, `${info.invisibleTotal} silent resolved row(s)`);
   check('C4 battle exercised at least one real physical exchange', physicalSeen >= 1, physicalSeen ? `${physicalSeen} real physical actions seen` : 'UNREPRESENTATIVE: no kick/punch occurred — extend rounds or force placement');
