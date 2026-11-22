@@ -37,6 +37,20 @@ export function physicalResultLinePredicate(targetName) {
   };
 }
 
+// C2 recalibration (soak v4, 21 Nov): 6/6 real matches contained a
+// self-recovering pause blip, so a window-presence check failed every honest
+// game — a checker that cries wolf teaches nobody to trust it. A pause is a
+// violation only while it is the LATEST AI turn-status line: the AI gave up
+// and no activation completed since. The in-battle twin lives inside
+// auditPhysicalContract's page.evaluate (page serialization cannot carry
+// imports); keep both in sync, covered by test-physical-contract-calibration.
+export function aiPauseActive(logLines) {
+  for (let i = logLines.length - 1; i >= 0; i--) {
+    if (/AI (turn|activation) (paused|complete)/i.test(logLines[i])) return /paused/i.test(logLines[i]);
+  }
+  return false;
+}
+
 export async function auditPhysicalContract(page) {
   return page.evaluate(async () => {
     if (typeof db === 'undefined' || !currentGameId) return { error: 'no game context' };
@@ -73,7 +87,13 @@ export async function auditPhysicalContract(page) {
       const visible = !r.target_instance_id ? true : visibleFor(tName.toLowerCase());
       return { round: r.round, phase: r.phase, sequence: r.sequence, status: r.status, attacker: r.attacker_instance_id, target: r.target_instance_id, targetName: tName, attackType: r.declaration?.attack_type || 'pass', visible };
     });
+    // In-page mirror of aiPauseActive — keep in sync (see header note).
+    let pauseActive = false;
+    for (let i = logLines.length - 1; i >= 0; i--) {
+      if (/AI (turn|activation) (paused|complete)/i.test(logLines[i])) { pauseActive = /paused/i.test(logLines[i]); break; }
+    }
     return { error: null, round: gs.round, phase: gs.phase, rows: mapped,
+      pauseActive,
       pausedInLog: logLines.some(l => /AI activation paused/i.test(l)),
       wedgeAllActed: gs.phase === 'physical_attack' && (mechInstances || []).filter(m => !m.destroyed).length > 0 && (mechInstances || []).every(m => m.destroyed || m.hasPhysicalAttacked) };
   });
