@@ -255,7 +255,10 @@ export function physicalActionEvaluate() {
     const tk = window.__step0PhysIneligible;
     const ineligible = (tk && tk.round === currentGameState?.round) ? tk
       : (window.__step0PhysIneligible = { round: currentGameState?.round, ids: {} });
-    const mine = (mechInstances || []).filter(m => m.owner === mySeatNumber && !m.destroyed && !m.hasPhysicalAttacked && !ineligible.ids[m.instanceId]);
+    // Same skip as the movement/reaction selectors (issue #33 lineage): an
+    // unconscious pilot can neither punch nor pass, and its doomed attempt
+    // aborts the whole phase evaluation before living teammates get served.
+    const mine = (mechInstances || []).filter(m => m.owner === mySeatNumber && !m.destroyed && phaseUnitsAbleToAct(m) && !m.hasPhysicalAttacked && !ineligible.ids[m.instanceId]);
     const enemies = (mechInstances || []).filter(m => m.owner !== mySeatNumber && !m.destroyed);
     for (const attacker of mine) {
       const dist = (a, b) => {
@@ -275,7 +278,10 @@ export function physicalActionEvaluate() {
       if (didAttack) return { acted: true, mode: logEvents.join('+'), logEvents };
       const err = await passOne(attacker);
       if (err) {
-        if (/not eligible/i.test(err)) {
+        // Real server 400s say "Choose an eligible enemy target" / "Choose
+        // one of your eligible BattleMechs..." — the old literal
+        // "not eligible" never matched them, so self-heal never fired.
+        if (/not eligible|Choose an eligible/i.test(err)) {
           ineligible.ids[attacker.instanceId] = true;
           logEvents.push(`ineligible(pass-rejected): ${err}`);
           continue;
