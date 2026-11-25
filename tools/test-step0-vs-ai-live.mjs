@@ -255,6 +255,13 @@ try {
     await sleep(750); // let the ready toggle land server-side before the start gate reads it
   }
   await host.waitForFunction(() => !document.getElementById('btn-start')?.disabled, null, { timeout: 25000 });
+  // Fail fast (seconds, not two 20-min movement deadlines) if the page ever
+  // stops exposing the globals the rig's planners call by name.
+  const rigDeps = await host.evaluate(() => ({
+    gate: typeof phaseUnitsAbleToAct, move: typeof submitAuthoritativeMovement
+  }));
+  check('rig planner deps exist as page globals',
+    rigDeps.gate === 'function' && rigDeps.move === 'function', JSON.stringify(rigDeps));
   await host.locator('#btn-start').click();
   // Sample #lobby-status while the start attempt runs: the gate rejections
   // land there but the next renderLobby overwrites them with the generic
