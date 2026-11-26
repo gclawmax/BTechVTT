@@ -36,15 +36,16 @@ function chain(result, single = null) {
   return c;
 }
 
-function makeSandbox({ combatEvents = [], catalogueMounts = [], rpcImpl = null, loadMain = false } = {}) {
+function makeSandbox({ combatEvents = [], catalogueMounts = [], rpcImpl = null, loadMain = false, windows = null } = {}) {
   const rpcLog = [];
   const logs = [];
+  let probeCalls = 0;
   const sandbox = {
     console: { info() {}, warn() {}, error() {}, log() {} },
     setTimeout: fn => { fn(); return 0; },
     currentGameId: '00000000-0000-0000-0000-000000000001',
     currentGameState: { round: 4, phase: 'physical_attack', active_player_id: 'ai-player',
-      initiative_order: [{ player_id: 'human-player', seat_number: 1 }, { player_id: 'ai-player', seat_number: 2 }] },
+      initiative_order: [{ player_id: 'human-player', seat_number: 1, is_ai: false }, { player_id: 'ai-player', seat_number: 2, is_ai: true }] },
     currentMatchConfig: { map_id: 'training-grounds', ruleset: 'advanced_3060' },
     vsAiMode: true,
     mechInstances: [],
@@ -87,7 +88,27 @@ function makeSandbox({ combatEvents = [], catalogueMounts = [], rpcImpl = null, 
       from: table => {
         if (table === 'btech_combat_events') return chain({ data: combatEvents, error: null });
         if (table === 'btech_catalogue_mounts') return chain({ data: catalogueMounts, error: null });
-        if (table === 'btech_games') return chain(null, { data: { state: { ai_difficulty: 'expert' } }, error: null });
+        if (table === 'btech_games') {
+          // Two different single() reads hit this table: the state-JSON fetch
+          // and the AI executor's per-action activation-window probe. Answer
+          // both; `windows` scripts the probe answers in call order (the last
+          // entry repeats) so a test can hand the window back mid-plan.
+          let sel = '';
+          const gc = {
+            select: s => { sel = s; return gc; },
+            eq: () => gc, in: () => gc, order: () => gc, limit: () => gc,
+            single: () => {
+              if (sel === 'state') return Promise.resolve({ data: { state: { ai_difficulty: 'expert' } }, error: null });
+              if (String(sel).includes('active_player_id')) {
+                const w = windows && windows[Math.min(probeCalls++, windows.length - 1)];
+                return Promise.resolve({ data: w ?? { current_phase: 'physical_attack', active_player_id: 'ai-player' }, error: null });
+              }
+              return Promise.resolve({ data: null, error: 'unexpected single()' });
+            },
+            then: (resolve, reject) => Promise.resolve({ data: null, error: null }).then(resolve, reject)
+          };
+          return gc;
+        }
         return chain({ data: [], error: null });
       },
       rpc: async (name, args) => {
@@ -217,6 +238,39 @@ const rejectPunch = async (name, args) =>
     await stubborn.executeAIPhysicalAttack({ type: 'physical_attack', instanceId: 'ai-1', targetInstanceId: 'p-1', attackType: 'punch', limbs: ['la'] });
   } catch { threw2 = true; }
   check('a rejected pass still fails loudly (no infinite fallback)', threw2);
+}
+
+// ── 7. Window-staleness containment (soak14 run2: a stale rejoin ran 15
+// rounds of 400s against windows the server had already handed back). A turn
+// that starts after the window moved must skip; a plan whose window moves
+// mid-flight must abandon the remaining submits instead of collecting 400s.
+{
+  const stale = makeSandbox();
+  // Fresh authoritative read lands the window on the human seat.
+  stale.sandbox.loadGameState = async () => {
+    stale.sandbox.currentGameState.active_player_id = 'human-player';
+  };
+  const skipped = await stale.sandbox.aiTurnHandler();
+  check('handler skips when the refreshed window belongs to a human',
+    skipped === true && !stale.rpcLog.some(e => e.name.startsWith('submit') || e.name.startsWith('resolve')));
+}
+{
+  const moved = makeSandbox({ windows: [
+    { current_phase: 'physical_attack', active_player_id: 'ai-player' },   // pre-sync probe
+    { current_phase: 'physical_attack', active_player_id: 'ai-player' },   // action 1 probe
+    { current_phase: 'weapon_attack', active_player_id: 'human-player' }   // action 2: window gone
+  ] });
+  const completed = await moved.sandbox.executeAIPlan({
+    phase: 'physical_attack', aiSeatId: 'ai-player',
+    actions: [
+      { type: 'physical_attack', instanceId: 'ai-1', targetInstanceId: 'p-1', attackType: 'punch', limbs: ['la'] },
+      { type: 'physical_attack', instanceId: 'ai-1', targetInstanceId: 'p-1', attackType: 'punch', limbs: ['la'] }
+    ]
+  });
+  const submits = moved.rpcLog.filter(e => e.name === 'submit_simultaneous_physical_declaration');
+  check('mid-plan window hand-back abandons the remaining submits',
+    completed === true && submits.length === 1, `submits=${submits.length}`);
+  check('abandonment is logged loudly', moved.logs.some(l => l.includes('activation window moved on')));
 }
 
 if (failures.length) { console.log(`FAILURES: ${failures.length}`); process.exit(1); }

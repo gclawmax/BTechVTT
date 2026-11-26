@@ -948,12 +948,34 @@ async function executeAIPlan(aiPlan) {
   // A weapon declaration can immediately hand play back to the human or
   // advance the phase. Save the reproducible plan before that happens; SQL
   // 124 finalizes its outcomes without rewriting combat state afterward.
-  if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(plannedPhase)) await syncMechInstances();
+  // Every submission below is lawful only while the server still holds this
+  // seat's activation window open. The window can move while a plan runs (an
+  // earlier action handed play back early, or a stale rejoin started the turn
+  // after the window had already gone). Recheck before each RPC and abandon
+  // the rest of the plan instead of firing requests the server must reject —
+  // one abandoned plan beats fifteen 400s and a permanently degraded AI.
+  const probeWindow = async () => {
+    if (!aiPlan.aiSeatId) return true;
+    const { data } = await db
+      .from('btech_games')
+      .select('current_phase, active_player_id')
+      .eq('id', currentGameId)
+      .single();
+    return !!data && data.active_player_id === aiPlan.aiSeatId && data.current_phase === plannedPhase;
+  };
+  if (['movement', 'reaction', 'weapon_attack', 'physical_attack', 'heat'].includes(plannedPhase)) {
+    if (await probeWindow()) await syncMechInstances();
+    else logEvent('AI plan abandoned before sync: the activation window moved on.', 'error');
+  }
   
   // Execute actions one by one with delays for visual feedback
   for (const action of aiPlan.actions) {
     await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay between actions
     try {
+      if (!(await probeWindow())) {
+        logEvent('AI plan abandoned: the activation window moved on before the remaining actions.', 'error');
+        break;
+      }
       const contract = validateAIActionContract(action, aiPlan.phase || currentGameState.phase);
       if (!contract.valid) throw new Error(contract.reason);
       switch (action.type) {
@@ -1152,13 +1174,30 @@ async function aiTurnHandler() {
   try {
     logEvent(`AI turn started (${PHASE_LABELS[currentGameState.phase] || currentGameState.phase}).`, 'system');
 
-    // Get game state from Supabase
+    // Refresh the whole mirror from the server before deciding anything.
+    // The entry guard above could only trust the local mirror, and a stale
+    // rejoin left this tab planning against an activation window the server
+    // had already handed back (soak14 run2: 15 rounds of 400s, one
+    // permanently degraded AI). After this, active_player_id and the unit
+    // flags are server truth; anything that disagrees with it is abandoned,
+    // never submitted.
+    await loadGameState();
+    // Re-check the window against the refreshed mirror before planning. The
+    // active_player_id column is the single source of truth for turn
+    // ownership (loadGameState comment); if the server already handed it
+    // back, there is nothing lawful to submit this activation.
+    const activePlayer = (currentGameState.initiative_order || []).find(
+      p => p.player_id === currentGameState.active_player_id) || null;
+    if (!activePlayer?.is_ai) {
+      logEvent('AI turn skipped: the activation window already moved on.', 'system');
+      return true;
+    }
+
     const { data: game } = await db
       .from('btech_games')
       .select('state')
       .eq('id', currentGameId)
       .single();
-
     if (!game) { logEvent('AI turn aborted — could not load game state.', 'error'); return false; }
 
     const gameState = game.state ? (typeof game.state === 'string' ? JSON.parse(game.state) : game.state) : {};
@@ -1169,17 +1208,9 @@ async function aiTurnHandler() {
     // re-submits an attack the server has already rejected.
     if (currentGameState.phase === 'physical_attack') await refreshAiFiredArmLimbs();
 
-    // Scope the plan to the seat currently on turn. The live-state branch of
-    // generateAIPlan fell back to a hard-coded seat 2, which is wrong for
-    // coop matches where the enemy AI sits at seat 3: the plan then contained
-    // seat 2's 'Mech and the server rejected it with "act with another seat's
-    // BattleMech" (SQL/123 guard). Passing the active player makes both the
-    // requestedPlayer lookup and the authority check agree on one seat.
-    const activePlayer = (gameState.initiative_order || []).find(
-      p => p.player_id === currentGameState.active_player_id) || null;
-
     // Generate AI plan
-    const aiPlan = generateAIPlan(difficulty, currentGameState.active_player_id, gameState, activePlayer ? [activePlayer] : []);
+    const aiPlan = generateAIPlan(difficulty, currentGameState.active_player_id, gameState, [activePlayer]);
+    if (aiPlan) aiPlan.aiSeatId = activePlayer.player_id;
 
     // Execute AI plan
     const completed = await executeAIPlan(aiPlan);
