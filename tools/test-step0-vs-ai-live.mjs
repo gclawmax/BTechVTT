@@ -92,6 +92,26 @@ async function installAttrProbe(page) {
       return fn.apply(console, a);
     };
     console.log = wrap(console.log); console.error = wrap(console.error);
+    // RPC-level attribution: the console probe misses rejects that never get
+    // console-logged (AI reaction path) and collapses eval stacks. db.rpc is
+    // the ONE choke point both the rig's evaluators and opponent.js submit
+    // through — wrap it, capture the caller stack synchronously (it's gone
+    // after the await), bucket by origin. soak15 ran blind on this.
+    if (!window.__rpcAttrOn && typeof db !== 'undefined' && db && typeof db.rpc === 'function') {
+      window.__rpcAttrOn = true;
+      const _rpc = db.rpc.bind(db);
+      db.rpc = (name, args) => {
+        const st = (new Error().stack || '').split('\n').slice(2, 7).join(' <= ');
+        return _rpc(name, args).then(r => {
+          if (r && r.error && window.__attr && window.__attr.length < 60) {
+            const origin = /opponent\.js/.test(st) ? 'AI' : (/eval|playwright/i.test(st) ? 'RIG' : 'OTHER');
+            window.__attr.push(`[R${currentGameState?.round}/${currentGameState?.phase}][${origin}] ${name}: ` +
+              String(r.error.message).slice(0, 90));
+          }
+          return r;
+        });
+      };
+    }
     // Fetch telemetry: the soak9 wedge was silent (no rejects), so the only
     // way to tell infra-stall from logic-stall is RPC state at failure time.
     // Records slow (>3s) / error fetches and a live pending map.
