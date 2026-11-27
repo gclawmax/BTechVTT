@@ -29,6 +29,7 @@ test-mechlab-construction.cjs
 test-phase-eligibility.mjs
 test-private-minefields.mjs
 test-rotary-ac-regression.mjs
+test-rig-movement-planner.mjs
 test-ruleset-controls-regression.mjs
 test-signature-electronics-regression.mjs
 test-specialist-physical-equipment-regression.mjs

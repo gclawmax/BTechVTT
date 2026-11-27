@@ -106,6 +106,12 @@ export async function waitFinished(pages, timeoutMs = 30000) {
 }
 
 // ── In-page movement planner: step toward the nearest living enemy ─────────
+// Issue #33 recurrence (soak11 BT-5TNM): the old blind `!hasMoved` selector
+// picked unconscious-pilot mechs — which the shipped phase gate already
+// excludes — got every submission rejected, threw, and wedged the phase.
+// `phaseUnitsAbleToAct(m)` is the shipped phase-gate predicate (phases.js,
+// page global): destroyed/shutdown/unconscious-pilot mechs can never complete
+// a phase, so selecting them was the wedge. The vm test pins the mirror shape.
 export function approachEvaluate() {
   return async () => {
     const dist = (a, b) => {
@@ -116,7 +122,7 @@ export function approachEvaluate() {
     };
     const results = [];
     for (let guard = 0; guard < 8; guard++) {
-      const mech = (mechInstances || []).find(m => m.owner === mySeatNumber && !m.destroyed && !m.hasMoved);
+      const mech = (mechInstances || []).find(m => m.owner === mySeatNumber && !m.destroyed && phaseUnitsAbleToAct(m) && !m.hasMoved);
       if (!mech) break;
       if (mech.prone) {
         const { error } = await db.rpc('remain_prone_battlemech', { p_game_id: currentGameId, p_instance_id: mech.instanceId });
@@ -215,7 +221,7 @@ export function weaponActionEvaluate() {
 
 export function reactionActionEvaluate() {
   return async () => {
-    const mech = (mechInstances || []).find(m => m.owner === mySeatNumber && !m.destroyed && !m.hasReacted);
+    const mech = (mechInstances || []).find(m => m.owner === mySeatNumber && !m.destroyed && phaseUnitsAbleToAct(m) && !m.hasReacted);
     if (!mech) return { acted: false };
     selectedInstanceId = mech.instanceId;
     await completeReaction(mech.instanceId);
@@ -249,7 +255,10 @@ export function physicalActionEvaluate() {
     const tk = window.__step0PhysIneligible;
     const ineligible = (tk && tk.round === currentGameState?.round) ? tk
       : (window.__step0PhysIneligible = { round: currentGameState?.round, ids: {} });
-    const mine = (mechInstances || []).filter(m => m.owner === mySeatNumber && !m.destroyed && !m.hasPhysicalAttacked && !ineligible.ids[m.instanceId]);
+    // Same skip as the movement/reaction selectors (issue #33 lineage): an
+    // unconscious pilot can neither punch nor pass, and its doomed attempt
+    // aborts the whole phase evaluation before living teammates get served.
+    const mine = (mechInstances || []).filter(m => m.owner === mySeatNumber && !m.destroyed && phaseUnitsAbleToAct(m) && !m.hasPhysicalAttacked && !ineligible.ids[m.instanceId]);
     const enemies = (mechInstances || []).filter(m => m.owner !== mySeatNumber && !m.destroyed);
     for (const attacker of mine) {
       const dist = (a, b) => {
@@ -269,7 +278,10 @@ export function physicalActionEvaluate() {
       if (didAttack) return { acted: true, mode: logEvents.join('+'), logEvents };
       const err = await passOne(attacker);
       if (err) {
-        if (/not eligible/i.test(err)) {
+        // Real server 400s say "Choose an eligible enemy target" / "Choose
+        // one of your eligible BattleMechs..." — the old literal
+        // "not eligible" never matched them, so self-heal never fired.
+        if (/not eligible|Choose an eligible/i.test(err)) {
           ineligible.ids[attacker.instanceId] = true;
           logEvents.push(`ineligible(pass-rejected): ${err}`);
           continue;

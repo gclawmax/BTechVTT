@@ -74,11 +74,60 @@ function check(name, condition, detail = '') {
 // replays identical violations on every tick, and reload-and-rejoin can wipe
 // gameLog evidence that existed mid-battle, so end-only sampling is blind.
 const contract = { pauseStreak: 0, pauseWorst: 0, endPauseActive: false, strandWorst: 0, invisibleWorst: 0, realSeen: new Set(), notes: [] };
+// Re-armable after page reloads: the R1 rejoin test reloads the page and a
+// one-shot install at battle start then misses every later reject (soak v7b
+// captured 0 of 18). sampleContract re-calls this after every phase.
+async function installAttrProbe(page) {
+  await page.evaluate(() => {
+    if (window.__attrOn) return;
+    window.__attrOn = true;
+    window.__attr = window.__attr === undefined ? [] : window.__attr;
+    const wrap = fn => function(...a) {
+      try {
+        if (/Server rejected/.test(a.map(String).join(' ')) && window.__attr.length < 40) {
+          window.__attr.push(`[R${currentGameState?.round}/${currentGameState?.phase}] ` +
+            (new Error().stack || '').split('\n').slice(1, 8).join(' <= '));
+        }
+      } catch {}
+      return fn.apply(console, a);
+    };
+    console.log = wrap(console.log); console.error = wrap(console.error);
+    // Fetch telemetry: the soak9 wedge was silent (no rejects), so the only
+    // way to tell infra-stall from logic-stall is RPC state at failure time.
+    // Records slow (>3s) / error fetches and a live pending map.
+    window.__flog = window.__flog === undefined ? [] : window.__flog;
+    window.__pend = window.__pend === undefined ? {} : window.__pend;
+    window.__fcount = 0;
+    const of = window.fetch;
+    let fid = 0;
+    window.fetch = async (u, o) => {
+      const id = ++fid; const url = String(u); const t0 = Date.now();
+      window.__fcount++;
+      window.__pend[id] = url.slice(-70) + '@' + new Date(t0).toISOString().slice(11, 19);
+      try {
+        const r = await of(u, o);
+        const ms = Date.now() - t0; delete window.__pend[id];
+        if ((ms > 3000 || r.status >= 400) && window.__flog.length < 200) {
+          window.__flog.push({ u: url.slice(-70), ms, st: r.status });
+        }
+        return r;
+      } catch (e) {
+        const ms = Date.now() - t0; delete window.__pend[id];
+        if (window.__flog.length < 200) {
+          window.__flog.push({ u: url.slice(-70), ms, err: String(e).slice(0, 60) });
+        }
+        throw e;
+      }
+    };
+  }).catch(() => {});
+}
+
 async function sampleContract(page, tag, final = false) {
   // Brief settle window: result lines are rebuilt asynchronously after the
   // phase hand-off, and a snapshot taken mid-hand-off sees rows without
   // their (already-guaranteed) log lines — a false C3 (run BT-T6DY).
   await page.waitForTimeout(900);
+  await installAttrProbe(page);
   const audit = await auditPhysicalContract(page).catch(error => ({ error: String(error && error.message || error) }));
   if (!audit || audit.error) { if (contract.notes.length < 20) contract.notes.push(`${tag}: audit skipped (${audit && audit.error || 'no context'})`); return; }
   const { stranded, realAttacks, invisible } = evaluatePhysicalContract(audit);
@@ -206,6 +255,13 @@ try {
     await sleep(750); // let the ready toggle land server-side before the start gate reads it
   }
   await host.waitForFunction(() => !document.getElementById('btn-start')?.disabled, null, { timeout: 25000 });
+  // Fail fast (seconds, not two 20-min movement deadlines) if the page ever
+  // stops exposing the globals the rig's planners call by name.
+  const rigDeps = await host.evaluate(() => ({
+    gate: typeof phaseUnitsAbleToAct, move: typeof submitAuthoritativeMovement
+  }));
+  check('rig planner deps exist as page globals',
+    rigDeps.gate === 'function' && rigDeps.move === 'function', JSON.stringify(rigDeps));
   await host.locator('#btn-start').click();
   // Sample #lobby-status while the start attempt runs: the gate rejections
   // land there but the next renderLobby overwrites them with the generic
@@ -293,6 +349,21 @@ try {
 
   // Enable the game's own AI auto-advance so the AI turn advances itself.
   await host.evaluate(async () => { if (typeof setAutoAdvanceAfterAi === 'function') setAutoAdvanceAfterAi(true); });
+
+  // Attribution probe (observation only): 'Server rejected' console lines
+  // carry no actor, and in Vs-AI both the rig driver and the AI share the
+  // movement/physical submit paths. Capture the JS stack of every rejection
+  // so the report says WHO over-submitted. Cap 40, no behaviour change.
+  await installAttrProbe(host);
+  // Prove the probe is actually armed before we rely on it for forensics
+  // (soak v7b's version was silent through 18 rejects after the page reload).
+  const probeArmed = await host.evaluate(() => {
+    console.error('[selftest] Server rejected the movement: probe arming check');
+    const n = (window.__attr || []).length;
+    window.__attr = (window.__attr || []).slice(1);
+    return n === 1;
+  }).catch(() => false);
+  check('attribution probe armed and recording', probeArmed);
 
   const weaponExchanges = [];
   let roundsPlayed = 0;
@@ -427,6 +498,11 @@ try {
   // Issue #28 contract: every physical declaration must resolve, nothing may
   // strand behind a round advance, and resolved outcomes must be VISIBLE in
   // the log (Vs-AI suppressed exactly these lines while authority worked).
+  // Dump the rejection stacks while the page is still up: this is the only
+  // place a failed run can be forensicked (btech_combat_events purges rows,
+  // the console line itself has no actor).
+  info.rejectionStacks = await host.evaluate(() => window.__attr || []).catch(() => []);
+  if (info.rejectionStacks.length) console.log('ATTR-DUMP:\n' + info.rejectionStacks.join('\n---\n'));
   await sampleContract(host, 'battle end', true);
   info.contract = { pauseWorst: contract.pauseWorst, endPauseActive: contract.endPauseActive, statusTrail: contract.statusTrail, strandWorst: contract.strandWorst, invisibleWorst: contract.invisibleWorst, realSeen: contract.realSeen.size, notes: contract.notes };
   // A pause after the match already has a result is noise; mid-battle it is
@@ -472,6 +548,15 @@ try {
   fatal = error;
   check('test completed without a fatal error', false, error.message);
   console.log(`Fatal: ${error.stack}`);
+  try {
+    const fd = await host.evaluate(() => ({
+      n: window.__fcount ?? -1,
+      pending: Object.values(window.__pend || {}),
+      slowOrErr: (window.__flog || []).slice(-25)
+    }));
+    console.log('FETCH-DUMP: ' + JSON.stringify(fd));
+    info.fetchDump = fd;
+  } catch {}
 } finally {
   console.log('\n--- console/page errors ---');
   console.log(info.errors.slice(0, 40).join('\n') || '(none)');
